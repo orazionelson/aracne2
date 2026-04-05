@@ -26,6 +26,11 @@ rendering) su cui vengono aggiunti moduli di dominio uno alla volta.
 - **Layer 2 — Dati documentali**: collezioni di file XML → conservati su
   **filesystem** e indicizzati/interrogati tramite **eXist-db** (database XML nativo)
 
+**ACL documentale**: ogni collezione eXist-db ha una lista di `user_id` autorizzati,
+gestita in PostgreSQL (tabella `collection_permissions`, implementata in FASE 05+).
+Un Editor vede e modifica solo le collezioni a lui assegnate.
+EditorInChief e Admin vedono tutte le collezioni.
+
 Frontend e backend comunicano **esclusivamente via REST API + JSON + JWT Bearer**.
 Il backend non ha mai template server-side. Il frontend non accede mai
 direttamente ai database.
@@ -474,6 +479,82 @@ MAX_UPLOAD_SIZE_MB=50
 
 ---
 
+## Sicurezza (direttive non negoziabili)
+
+1. **Token storage**
+   - `access_token`: in memoria Pinia (ref) — mai in localStorage o sessionStorage
+   - `refresh_token`: esclusivamente in cookie **httpOnly + SameSite=Strict + Secure**
+     impostato dal server via `Set-Cookie`. Il frontend non lo legge mai.
+   - Al caricamento della SPA: chiamata silenziosa a `POST /auth/refresh` per
+     recuperare l'access token dalla cookie. Se fallisce → redirect login.
+
+2. **XXE Prevention** — il sistema gestisce XML: regola assoluta
+   - Qualsiasi parsing XML lato Python deve usare `defusedxml` (aggiunto alle deps)
+   - Le XQuery eXist-db non devono mai usare `doc()` o `collection()` su path
+     costruiti da input utente senza sanitizzazione
+   - Il backend non deve mai fare echo di XML ricevuto senza validazione schema
+
+3. **Open redirect**
+   - Il parametro `?redirect=` nel login deve essere validato: accettare solo
+     path interni (iniziano con `/`, non contengono `//` o protocolli)
+   - Funzione helper `isSafeRedirect(url: string): boolean` riusabile
+
+4. **Content Security Policy**
+   - `nginx.conf` deve includere `Content-Security-Policy` header
+   - Default production: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'`
+   - In development può essere omesso o permissivo
+
+5. **HSTS**
+   - In produzione: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+   - Il `nginx.conf` deve contenere questo header commentato con nota "decommenta in HTTPS"
+
+6. **Rate limiting applicato a**:
+   - `POST /auth/login` → `STRICT_LIMIT` (10/min)
+   - `POST /auth/register` → `STRICT_LIMIT` (10/min)
+   - `POST /auth/password/change` → `STRICT_LIMIT` (10/min)
+   - Tutto il resto → `GLOBAL_LIMIT` (200/min)
+
+7. **No mutable defaults Python**: mai `def f(x: dict = {})` o `def f(x: list = [])`.
+   Sempre `x: dict | None = None` con inizializzazione nel body.
+
+8. **Alembic `downgrade()` sempre implementato**: ogni funzione di downgrade deve
+   revertire esattamente l'upgrade corrispondente. Mai `pass` nudo.
+
+9. **No `any` TypeScript** — include `Function`, `Object`, `{}` come tipo.
+   Per callback tipizzare esplicitamente: `(token: string | null) => void`.
+
+10. **Logging sicuro**: structlog non deve mai loggare password, token JWT, cookie,
+    o il body completo di documenti XML. Loggare solo metadati (path, size, user_id).
+
+---
+
+## Privacy e dati personali
+
+Il sistema serve utenti e redattori internazionali. Anche in assenza di obblighi
+GDPR diretti, adottare per default le pratiche GDPR come standard di qualità.
+
+1. **Campi PII nelle tabelle** — sono dati personali e vanno trattati con minimizzazione:
+   - `users`: `email`, `ip_address` (da login), `user_agent`
+   - `sessions`: `ip_address`, `user_agent`
+   - `audit_log`: `ip_address`, `user_agent`, `actor_username`
+
+2. **Retention configurabile** (via `system_settings`):
+   - `audit_log_retention_days` default `90`
+   - `expired_sessions_retention_days` default `30`
+   - Un job periodico (FASE futura) pulisce i record scaduti
+
+3. **Minimizzazione nelle response API**: i campi `password_hash`, `ip_address`,
+   `user_agent` non devono mai apparire in nessuna risposta API, nemmeno per Admin.
+
+4. **Endpoint futuri obbligatori** (pianificare da FASE 03+):
+   - `GET /users/me/export` — export dati personali in JSON (GDPR art. 20)
+   - `DELETE /users/me` — cancellazione account con anonimizzazione audit_log
+
+5. **IP nei log**: se `ENVIRONMENT=production`, fare hash dell'IP prima di loggarlo
+   con structlog (SHA-256 con sale da `JWT_SECRET`). Loggare l'hash, non il raw IP.
+
+---
+
 ## Avvertenze importanti
 
 - **Non implementare** logica TEI-specifica, parsing XML di dominio, o
@@ -485,6 +566,13 @@ MAX_UPLOAD_SIZE_MB=50
 - **Non fare** commit parziali nel codice — ogni funzione deve essere completa
 - Quando un prompt dice "stub", significa: funzione che esiste, firma corretta,
   body che ritorna lista/dict vuoto o `None`. Non `pass` nudo, non `TODO`.
+- **`EXIST_PASSWORD`** è la variabile nativa dell'immagine Docker eXist-db;
+  **`EXISTDB_PASSWORD`** è la variabile del backend Python. Sono distinte: entrambe
+  devono essere presenti nel `.env` e nel `docker-compose.yml`.
+- Il nome del progetto è **Aracne2** — non "TEI Platform". Usare `Aracne2` in
+  `PLATFORM_NAME`, titoli API, label UI, commenti di codice.
+- Aggiungere `defusedxml` alle dipendenze Python in ogni fase che introduce
+  parsing XML lato backend.
 
 ---
 ## Fine del Master Context

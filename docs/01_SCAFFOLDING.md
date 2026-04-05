@@ -28,7 +28,7 @@ Backend e frontend dipendono dai DB con `condition: service_healthy`.
 
 **existdb**
 - image: `existdb/existdb:6.2.0`
-- environment: EXIST_PASSWORD (da .env)
+- environment: `EXIST_PASSWORD` (variabile nativa dell'immagine, da .env — distinta da `EXISTDB_PASSWORD` usata dal backend)
 - volume: `existdb_data:/exist/data`
 - porta esposta: 8080 (bind solo su 127.0.0.1)
 - healthcheck: `wget -qO- http://localhost:8080/exist/rest/ || exit 1`
@@ -90,6 +90,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'" always;
+    # Decommenta quando HTTPS è attivo:
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     # API: proxy al backend
     location /api/ {
@@ -129,7 +132,8 @@ POSTGRES_PASSWORD=changeme_postgres       # CAMBIA in produzione
 # ── eXist-db ────────────────────────────────────────────────────────────────
 EXISTDB_URL=http://existdb:8080
 EXISTDB_USER=admin
-EXISTDB_PASSWORD=changeme_existdb         # CAMBIA in produzione
+EXISTDB_PASSWORD=changeme_existdb         # CAMBIA in produzione — usata dal backend Python
+EXIST_PASSWORD=changeme_existdb           # CAMBIA in produzione — usata dal container existdb (deve corrispondere a EXISTDB_PASSWORD)
 
 # ── JWT ─────────────────────────────────────────────────────────────────────
 # Genera con: python -c "import secrets; print(secrets.token_hex(64))"
@@ -145,7 +149,7 @@ CORS_ORIGINS=http://localhost:5173
 # ── Applicazione ─────────────────────────────────────────────────────────────
 ENVIRONMENT=development                   # development | production | test
 LOG_LEVEL=INFO
-PLATFORM_NAME=TEI Platform
+PLATFORM_NAME=Aracne2
 PUBLIC_REGISTRATION=false
 MAX_UPLOAD_SIZE_MB=50
 
@@ -352,10 +356,10 @@ class Settings(BaseSettings):
     public_registration: bool = False
     max_upload_size_mb: int = 50
 
-    # Seed admin
+    # Seed admin (obbligatorio solo per il comando `make seed`)
     admin_username: str = "admin"
     admin_email: str = "admin@example.com"
-    admin_password: str = ""
+    admin_password: str | None = None  # None → seed admin skippato con warning esplicito
 
     @property
     def is_development(self) -> bool:
@@ -447,7 +451,7 @@ class ExistDBClient:
             return False
 
     # Stub — implementati in FASE 05
-    async def xquery(self, query_name: str, params: dict = {}) -> dict:
+    async def xquery(self, query_name: str, params: dict | None = None) -> dict:
         raise NotImplementedError("Implemented in FASE 05")
 
     async def store_document(
@@ -686,7 +690,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 app = FastAPI(
-    title="TEI Platform API",
+    title="Aracne2 API",
     version="1.0.0",
     docs_url="/api/docs" if settings.is_development else None,
     redoc_url="/api/redoc" if settings.is_development else None,
@@ -947,8 +951,30 @@ def upgrade() -> None:
     """)
 
 def downgrade() -> None:
-    # Rimuovi trigger, funzioni, tabelle (ordine inverso), enum, estensioni
-    pass
+    # Trigger e funzioni
+    op.execute("DROP TRIGGER IF EXISTS trg_default_role ON users")
+    op.execute("DROP TRIGGER IF EXISTS trg_users_updated_at ON users")
+    op.execute("DROP FUNCTION IF EXISTS fn_assign_default_role()")
+    op.execute("DROP FUNCTION IF EXISTS fn_set_updated_at()")
+
+    # Tabelle in ordine inverso rispetto alle FK
+    op.drop_table("notifications")
+    op.drop_table("plugins")
+    op.drop_table("audit_log")
+    op.drop_table("system_settings")
+    op.drop_table("sessions")
+    op.drop_table("user_roles")
+    op.drop_table("users")
+    op.drop_table("roles")
+
+    # Enum types
+    op.execute("DROP TYPE IF EXISTS plugin_status")
+    op.execute("DROP TYPE IF EXISTS role_name")
+
+    # Estensioni (opzionale: potrebbe rompere altri DB nello stesso cluster)
+    # op.execute('DROP EXTENSION IF EXISTS "pg_trgm"')
+    # op.execute('DROP EXTENSION IF EXISTS "pgcrypto"')
+    # op.execute('DROP EXTENSION IF EXISTS "uuid-ossp"')
 ```
 
 ---
@@ -1003,7 +1029,10 @@ async def seed_settings(db) -> None:
 
 async def seed_admin(db) -> None:
     if not settings.admin_password:
-        logger.warning("seed_admin_skipped", reason="ADMIN_PASSWORD not set")
+        logger.warning(
+            "seed_admin_skipped",
+            reason="ADMIN_PASSWORD not set in environment — set it and re-run `make seed`",
+        )
         return
     exists = await db.scalar(
         select(User).where(User.username == settings.admin_username)
@@ -1116,6 +1145,7 @@ import { useAuthStore } from "@/stores/auth";
 const api: AxiosInstance = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,  // necessario per inviare il cookie httpOnly del refresh token
 });
 
 // Request interceptor: inietta token e request ID
@@ -1130,7 +1160,10 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 // Response interceptor: gestisce 401 con refresh automatico
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
 
 const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) =>
@@ -1222,10 +1255,15 @@ interface UserMe {
   last_login_at: string | null;
 }
 
+// Strategia token:
+// - access_token: in memoria (ref Pinia) — perso al reload, recuperato da hydrate()
+// - refresh_token: NON gestito dal frontend — viaggia come httpOnly cookie
+//   impostato dal server su POST /auth/login e rinnovato su POST /auth/refresh
+//   Il browser lo invia automaticamente. Il frontend non lo legge mai.
+
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<UserMe | null>(null);
   const accessToken = ref<string | null>(null);
-  const refreshToken = ref<string | null>(null);
   const isLoading = ref(false);
 
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value);
@@ -1241,35 +1279,30 @@ export const useAuthStore = defineStore("auth", () => {
   async function login(usernameOrEmail: string, password: string): Promise<void> {
     isLoading.value = true;
     try {
+      // Il server risponde con Set-Cookie: refresh_token=...; HttpOnly; SameSite=Strict
+      // Il frontend riceve solo access_token e user nel body
       const res = await api.post<{
-        access_token: string; refresh_token: string; user: UserMe;
+        access_token: string; user: UserMe;
       }>("/auth/login", { username_or_email: usernameOrEmail, password });
       accessToken.value = res.data.data.access_token;
-      refreshToken.value = res.data.data.refresh_token;
       user.value = res.data.data.user;
-      localStorage.setItem("access_token", accessToken.value);
-      localStorage.setItem("refresh_token", refreshToken.value);
     } finally {
       isLoading.value = false;
     }
   }
 
   async function logout(): Promise<void> {
-    try { await api.post("/auth/logout"); } catch { /* ignora errori */ }
+    // Il server revoca il refresh token e fa Set-Cookie con Max-Age=0
+    try { await api.post("/auth/logout"); } catch { /* ignora errori di rete */ }
     user.value = null;
     accessToken.value = null;
-    refreshToken.value = null;
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
   }
 
   async function refresh(): Promise<void> {
-    if (!refreshToken.value) throw new Error("No refresh token");
-    const res = await api.post<{ access_token: string }>(
-      "/auth/refresh", { refresh_token: refreshToken.value }
-    );
+    // Nessun body: il browser invia automaticamente il cookie httpOnly
+    // withCredentials è già true nell'istanza axios base
+    const res = await api.post<{ access_token: string }>("/auth/refresh");
     accessToken.value = res.data.data.access_token;
-    localStorage.setItem("access_token", accessToken.value);
   }
 
   async function loadMe(): Promise<void> {
@@ -1277,18 +1310,21 @@ export const useAuthStore = defineStore("auth", () => {
     user.value = res.data.data;
   }
 
+  // Chiamata al boot della SPA: tenta refresh silenzioso.
+  // Se il cookie di refresh è presente e valido, recupera access_token e user.
+  // Se fallisce, l'utente è considerato non autenticato.
   async function hydrate(): Promise<void> {
-    const stored = localStorage.getItem("access_token");
-    const storedRefresh = localStorage.getItem("refresh_token");
-    if (!stored) return;
-    accessToken.value = stored;
-    refreshToken.value = storedRefresh;
-    try { await loadMe(); }
-    catch { await logout(); }
+    try {
+      await refresh();
+      await loadMe();
+    } catch {
+      user.value = null;
+      accessToken.value = null;
+    }
   }
 
   return {
-    user, accessToken, refreshToken, isLoading,
+    user, accessToken, isLoading,
     isAuthenticated, userRole, hasMinRole,
     login, logout, refresh, loadMe, hydrate,
   };
@@ -1362,14 +1398,20 @@ const showPassword = ref(false);
 const errorMessage = ref("");
 const isLoading = ref(false);
 
+// Valida che il redirect sia un path interno sicuro (no open redirect)
+function isSafeRedirect(url: string): boolean {
+  return url.startsWith("/") && !url.startsWith("//") && !url.includes(":");
+}
+
 async function handleLogin() {
   errorMessage.value = "";
   isLoading.value = true;
   try {
     await auth.login(usernameOrEmail.value, password.value);
-    const redirect = (route.query.redirect as string) || "/";
+    const raw = route.query.redirect as string | undefined;
+    const redirect = raw && isSafeRedirect(raw) ? raw : "/";
     await router.push(redirect);
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Messaggio generico — non distinguere username da password (sicurezza)
     errorMessage.value = "Credenziali non valide. Riprova.";
   } finally {
@@ -1535,16 +1577,16 @@ async def test_default_role_assigned_on_user_insert(
     db_session.add(user)
     await db_session.flush()
 
-    # Verifica che il trigger abbia assegnato il ruolo User
-    # Nota: SQLite non supporta trigger PG — questo test va eseguito
-    # contro PostgreSQL reale in CI. In SQLite verifica la fixture.
+    # NOTA: questo test verifica solo che il flush non sollevi eccezioni
+    # e che la struttura ORM sia corretta. Il trigger PostgreSQL fn_assign_default_role
+    # NON viene eseguito su SQLite in-memory.
+    # Il test di integrazione con trigger reale è in tests/integration/test_pg_triggers.py
+    # (eseguito in CI contro un container PostgreSQL reale).
     result = await db_session.execute(
         select(UserRole).where(UserRole.user_id == user.id)
     )
     roles_assigned = result.scalars().all()
-    # In CI con PG: assert len(roles_assigned) == 1
-    # In SQLite in-memory: trigger non attivo, assert len >= 0
-    assert isinstance(roles_assigned, list)
+    assert isinstance(roles_assigned, list)  # SQLite: lista vuota, PG: lista con 1 elemento
 ```
 
 ---
