@@ -1,7 +1,14 @@
+from collections.abc import AsyncGenerator
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import StaticPool
 
 from app.core.password import hash_password
@@ -20,9 +27,9 @@ from app.models.user import User as _User
 # call doesn't raise AttributeError.
 def _no_rate_limit(request: object, *args: object, **kwargs: object) -> None:
     if hasattr(request, "state"):
-        request.state.view_rate_limit = None  # type: ignore[union-attr]
+        request.state.view_rate_limit = None  # type: ignore[attr-defined]
 
-limiter._check_request_limit = _no_rate_limit
+limiter._check_request_limit = _no_rate_limit  # type: ignore[method-assign]
 
 TEST_USER_USERNAME = "testuser"
 TEST_USER_PASSWORD = "testpassword1"
@@ -33,7 +40,7 @@ TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest_asyncio.fixture(scope="session")
-async def test_engine():
+async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     engine = create_async_engine(
         TEST_DB_URL,
         connect_args={"check_same_thread": False},
@@ -48,7 +55,7 @@ async def test_engine():
 
 
 @pytest_asyncio.fixture
-async def db_session(test_engine) -> AsyncSession:
+async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
     async with factory() as session:
         yield session
@@ -56,8 +63,8 @@ async def db_session(test_engine) -> AsyncSession:
 
 
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncClient:
-    async def override_get_session():
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
     app.dependency_overrides[get_async_session] = override_get_session
@@ -91,6 +98,7 @@ async def seeded_admin(db_session: AsyncSession, seeded_roles: list[str]) -> _Us
     admin_role = await db_session.scalar(
         select(_Role).where(_Role.name == "Admin")
     )
+    assert admin_role is not None
     db_session.add(UserRole(user_id=user.id, role_id=admin_role.id))
     await db_session.flush()
     return user
@@ -110,6 +118,7 @@ async def seeded_user(db_session: AsyncSession, seeded_roles: list[str]) -> _Use
     editor_role = await db_session.scalar(
         select(_Role).where(_Role.name == "Editor")
     )
+    assert editor_role is not None
     db_session.add(UserRole(user_id=user.id, role_id=editor_role.id))
     await db_session.flush()
     return user

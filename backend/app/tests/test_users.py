@@ -20,7 +20,7 @@ async def _login_as(client: AsyncClient, username: str, password: str) -> str:
         json={"username_or_email": username, "password": password},
     )
     assert res.status_code == 200
-    return res.json()["data"]["access_token"]
+    return str(res.json()["data"]["access_token"])
 
 
 def _auth(token: str) -> dict[str, str]:

@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import structlog
 from jose import JWTError, jwt
@@ -47,7 +48,7 @@ def create_access_token(user_id: uuid.UUID, jti: uuid.UUID, role: str) -> str:
         "iat": _now(),
         "type": "access",
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+    return str(jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
 
 
 def create_refresh_token(user_id: uuid.UUID, jti: uuid.UUID) -> str:
@@ -60,7 +61,7 @@ def create_refresh_token(user_id: uuid.UUID, jti: uuid.UUID) -> str:
         "iat": _now(),
         "type": "refresh",
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+    return str(jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
 
 
 def decode_token(token: str, expected_type: str) -> dict[str, object]:
@@ -69,7 +70,10 @@ def decode_token(token: str, expected_type: str) -> dict[str, object]:
     expected_type: "access" | "refresh"
     """
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+        payload = cast(
+            dict[str, object],
+            jwt.decode(token, settings.jwt_secret, algorithms=["HS256"]),
+        )
     except JWTError as exc:
         raise AuthenticationError(
             code="INVALID_TOKEN", message="Token is invalid or expired"

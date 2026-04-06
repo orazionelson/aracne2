@@ -2,6 +2,7 @@ import asyncio
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.postgres import AsyncSessionLocal
@@ -34,34 +35,32 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
 ]
 
 
-async def seed_roles(db: object) -> None:
+async def seed_roles(db: AsyncSession) -> None:
     for name, desc in ROLES:
-        exists = await db.scalar(select(Role).where(Role.name == name))  # type: ignore[union-attr]
+        exists = await db.scalar(select(Role).where(Role.name == name))
         if not exists:
-            db.add(Role(name=name, description=desc))  # type: ignore[union-attr]
-    await db.flush()  # type: ignore[union-attr]
+            db.add(Role(name=name, description=desc))
+    await db.flush()
     logger.info("seed_roles_done")
 
 
-async def seed_settings(db: object) -> None:
+async def seed_settings(db: AsyncSession) -> None:
     for key, value, type_ in DEFAULT_SETTINGS:
-        exists = await db.get(SystemSetting, key)  # type: ignore[union-attr]
+        exists = await db.get(SystemSetting, key)
         if not exists:
-            db.add(SystemSetting(key=key, value=value, type=type_))  # type: ignore[union-attr]
-    await db.flush()  # type: ignore[union-attr]
+            db.add(SystemSetting(key=key, value=value, type=type_))
+    await db.flush()
     logger.info("seed_settings_done")
 
 
-async def seed_admin(db: object) -> None:
+async def seed_admin(db: AsyncSession) -> None:
     if not settings.admin_password:
         logger.warning(
             "seed_admin_skipped",
             reason="ADMIN_PASSWORD not set in environment — set it and re-run `make seed`",
         )
         return
-    exists = await db.scalar(  # type: ignore[union-attr]
-        select(User).where(User.username == settings.admin_username)
-    )
+    exists = await db.scalar(select(User).where(User.username == settings.admin_username))
     if exists:
         logger.info("seed_admin_skipped", reason="already exists")
         return
@@ -75,11 +74,11 @@ async def seed_admin(db: object) -> None:
         is_active=True,
         is_verified=True,
     )
-    db.add(admin)  # type: ignore[union-attr]
-    await db.flush()  # type: ignore[union-attr]
+    db.add(admin)
+    await db.flush()
 
     # The trigger assigns the 'User' role — revoke it and assign 'Admin'
-    user_role = await db.scalar(  # type: ignore[union-attr]
+    user_role = await db.scalar(
         select(UserRole).where(
             UserRole.user_id == admin.id,
             UserRole.revoked_at.is_(None),
@@ -90,8 +89,9 @@ async def seed_admin(db: object) -> None:
 
         user_role.revoked_at = datetime.now(UTC)
 
-    admin_role = await db.scalar(select(Role).where(Role.name == "Admin"))  # type: ignore[union-attr]
-    db.add(UserRole(user_id=admin.id, role_id=admin_role.id))  # type: ignore[union-attr]
+    admin_role = await db.scalar(select(Role).where(Role.name == "Admin"))
+    assert admin_role is not None, "Admin role not found — run seed_roles first"
+    db.add(UserRole(user_id=admin.id, role_id=admin_role.id))
     logger.info("seed_admin_created", username=settings.admin_username)
 
 

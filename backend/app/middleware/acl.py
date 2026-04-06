@@ -1,5 +1,6 @@
 import uuid
-from typing import Annotated
+from collections.abc import Callable, Coroutine
+from typing import Annotated, Any
 
 import structlog
 from fastapi import Depends, Request
@@ -68,7 +69,9 @@ async def _get_current_user(
 get_current_user = _get_current_user
 
 
-def require_role(min_role: str | None = None, exact_role: str | None = None):
+def require_role(
+    min_role: str | None = None, exact_role: str | None = None
+) -> Callable[..., Coroutine[Any, Any, User]]:
     """
     Returns a FastAPI dependency that enforces ACL.
 

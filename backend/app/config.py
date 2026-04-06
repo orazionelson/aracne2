@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     postgres_user: str
     postgres_password: str
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
         return (
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # exposed as list[str] via cors_origins computed_field below.
     cors_origins_raw: str = Field("http://localhost:5173", alias="cors_origins")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origins(self) -> list[str]:
         v = self.cors_origins_raw.strip()

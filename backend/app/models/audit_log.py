@@ -29,7 +29,7 @@ class AuditLog(Base):
     target_label: Mapped[str | None] = mapped_column(Text, default=None)
     ip_address: Mapped[str | None] = mapped_column(InetType, default=None)
     user_agent: Mapped[str | None] = mapped_column(Text, default=None)
-    payload: Mapped[dict | None] = mapped_column(JsonbType, default=None)
+    payload: Mapped[dict[str, object] | None] = mapped_column(JsonbType, default=None)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

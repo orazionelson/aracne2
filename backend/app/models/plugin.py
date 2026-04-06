@@ -38,8 +38,8 @@ class Plugin(Base):
         nullable=False,
         default=PluginStatus.inactive,
     )
-    config: Mapped[dict] = mapped_column(JsonbType, nullable=False, default=dict)
-    hooks: Mapped[list] = mapped_column(JsonbType, nullable=False, default=list)
+    config: Mapped[dict[str, object]] = mapped_column(JsonbType, nullable=False, default=dict)
+    hooks: Mapped[list[object]] = mapped_column(JsonbType, nullable=False, default=list)
     installed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

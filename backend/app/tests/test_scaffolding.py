@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def test_health_endpoint_returns_200(client: AsyncClient) -> None:
@@ -54,7 +55,9 @@ async def test_settings_jwt_secret_too_short() -> None:
         )
 
 
-async def test_orm_user_insert_does_not_raise(db_session, seeded_roles) -> None:
+async def test_orm_user_insert_does_not_raise(
+    db_session: AsyncSession, seeded_roles: list[str]
+) -> None:
     """
     Verifies that the ORM model is correctly mapped and a user can be inserted.
     NOTE: this test runs against SQLite in-memory.
