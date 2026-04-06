@@ -33,6 +33,7 @@ from app.schemas.collections import (
     RejectAction,
     SearchHit,
     WorkflowAction,
+    ZipUploadResult,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.services.xmldb import (
@@ -55,6 +56,7 @@ from app.services.xmldb import (
     unpublish_collection,
     update_collection,
     upload_document,
+    upload_zip_batch,
 )
 
 router = APIRouter(prefix="/collections", tags=["collections"])
@@ -278,6 +280,34 @@ async def document_upload(
         db, existdb, collection_id, filename, xml_bytes, current_user, role
     )
     return DataResponse(data=doc)
+
+
+@router.post("/{collection_id}/documents/batch", status_code=201)
+async def document_upload_zip(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+    file: UploadFile,
+) -> DataResponse[ZipUploadResult]:
+    """Upload a ZIP archive and store every valid XML file inside the collection.
+
+    The multipart field must be named ``file`` and the uploaded file must be a
+    valid ZIP archive (.zip). Files inside subdirectories are skipped. Each XML
+    member's filename is validated against the same rules as single-file upload.
+
+    Limits (configurable via system_settings):
+    - zip_max_size_mb: maximum raw ZIP size
+    - zip_max_extracted_mb: maximum total decompressed size (zip-bomb guard)
+    - zip_max_files: maximum number of XML files processed per request
+    """
+    role: str = request.state.role
+    zip_bytes = await file.read()
+    result = await upload_zip_batch(
+        db, existdb, collection_id, zip_bytes, current_user, role
+    )
+    return DataResponse(data=result)
 
 
 @router.get("/{collection_id}/documents/{filename}")

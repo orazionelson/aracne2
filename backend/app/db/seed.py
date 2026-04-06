@@ -32,6 +32,9 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("search_results_per_page", "10", "int"),
     ("audit_log_retention_days", "90", "int"),
     ("expired_sessions_retention_days", "30", "int"),
+    ("zip_max_size_mb", "50", "int"),
+    ("zip_max_extracted_mb", "200", "int"),
+    ("zip_max_files", "500", "int"),
 ]
 
 

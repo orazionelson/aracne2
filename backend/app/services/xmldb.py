@@ -12,8 +12,11 @@ ACL is enforced here, not in the router layer, so that any caller
 (router, future jobs, tests) gets consistent access control.
 """
 
+import io
+import os
 import re
 import uuid
+import zipfile
 from datetime import UTC, datetime
 
 import defusedxml.ElementTree as _safe_xml
@@ -46,6 +49,8 @@ from app.schemas.collections import (
     RejectAction,
     SearchHit,
     WorkflowAction,
+    ZipUploadError,
+    ZipUploadResult,
 )
 
 logger = structlog.get_logger()
@@ -580,6 +585,114 @@ async def delete_document(
     await existdb.delete_document(col.slug, filename)
     _audit(db, "document.deleted", actor, col, {"filename": filename})
     logger.info("document_deleted", slug=col.slug, filename=filename, actor=actor.username)
+
+
+async def upload_zip_batch(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    zip_bytes: bytes,
+    actor: User,
+    role: str,
+) -> ZipUploadResult:
+    """Extract an uploaded ZIP archive and store each valid XML file in eXist-db.
+
+    Limits are read from system_settings at call time so an Admin can adjust
+    them without restarting the server:
+      - zip_max_size_mb       raw ZIP size ceiling
+      - zip_max_extracted_mb  total decompressed size ceiling (zip-bomb guard)
+      - zip_max_files         maximum number of XML members processed
+
+    Files that fail filename validation or XML well-formedness are recorded in
+    ``errors`` and do not abort the batch. Non-XML members and entries inside
+    subdirectories are silently recorded in ``skipped``.
+    """
+    from app.models.system_setting import SystemSetting
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+
+    async def _setting(key: str, default: int) -> int:
+        row = await db.get(SystemSetting, key)
+        try:
+            return int(row.value) if row else default
+        except (ValueError, AttributeError):
+            return default
+
+    max_size_mb = await _setting("zip_max_size_mb", 50)
+    max_extracted_mb = await _setting("zip_max_extracted_mb", 200)
+    max_files = await _setting("zip_max_files", 500)
+
+    if len(zip_bytes) > max_size_mb * 1024 * 1024:
+        raise DomainValidationError(
+            "ZIP_TOO_LARGE",
+            f"ZIP archive exceeds the {max_size_mb} MB size limit",
+        )
+
+    if not zipfile.is_zipfile(io.BytesIO(zip_bytes)):
+        raise DomainValidationError("INVALID_ZIP", "Uploaded file is not a valid ZIP archive")
+
+    uploaded = 0
+    skipped: list[str] = []
+    errors: list[ZipUploadError] = []
+    total_extracted = 0
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        members = [m for m in zf.infolist() if not m.is_dir()]
+
+        for member in members:
+            # Use basename only — never follow subdirectory paths.
+            basename = os.path.basename(member.filename)
+
+            # Skip non-XML and entries that live inside subdirectories.
+            if not basename.lower().endswith(".xml"):
+                skipped.append(member.filename)
+                continue
+            if basename != member.filename.lstrip("/"):
+                # File is inside a subdirectory inside the ZIP.
+                skipped.append(member.filename)
+                continue
+
+            # Zip-bomb guard: check declared uncompressed size before extracting.
+            total_extracted += member.file_size
+            if total_extracted > max_extracted_mb * 1024 * 1024:
+                raise DomainValidationError(
+                    "ZIP_EXTRACTED_TOO_LARGE",
+                    f"Total uncompressed size exceeds the {max_extracted_mb} MB limit",
+                )
+
+            if uploaded + len(errors) >= max_files:
+                raise DomainValidationError(
+                    "ZIP_TOO_MANY_FILES",
+                    f"ZIP archive contains more than {max_files} XML files",
+                )
+
+            try:
+                _validate_filename(basename)
+            except DomainValidationError as exc:
+                errors.append(ZipUploadError(filename=basename, error=exc.message))
+                continue
+
+            xml_bytes = zf.read(member.filename)
+            await existdb.put_document(col.slug, basename, xml_bytes)
+            uploaded += 1
+
+    _audit(
+        db,
+        "document.zip_uploaded",
+        actor,
+        col,
+        {"uploaded": uploaded, "skipped": len(skipped), "errors": len(errors)},
+    )
+    logger.info(
+        "zip_batch_uploaded",
+        slug=col.slug,
+        uploaded=uploaded,
+        skipped=len(skipped),
+        errors=len(errors),
+        actor=actor.username,
+    )
+    return ZipUploadResult(uploaded=uploaded, skipped=skipped, errors=errors)
 
 
 # ── Collection permission management ──────────────────────────────────────────

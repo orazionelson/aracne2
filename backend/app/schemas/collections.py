@@ -106,3 +106,14 @@ class DocumentMeta(BaseModel):
     namespace: str
     size: int
     child_count: int
+
+
+class ZipUploadError(BaseModel):
+    filename: str
+    error: str
+
+
+class ZipUploadResult(BaseModel):
+    uploaded: int
+    skipped: list[str]
+    errors: list[ZipUploadError]

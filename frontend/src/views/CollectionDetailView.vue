@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useCollectionStore } from "@/stores/collections";
+import { useCollectionStore, type ZipUploadResult } from "@/stores/collections";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -165,8 +165,11 @@ async function handleUnpublish(): Promise<void> {
 // ── Documents ─────────────────────────────────────────────────────────────────
 const docError = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const zipInput = ref<HTMLInputElement | null>(null);
 const isUploading = ref(false);
+const isUploadingZip = ref(false);
 const uploadProgress = ref({ done: 0, total: 0 });
+const zipResult = ref<ZipUploadResult | null>(null);
 
 const canWrite = computed(
   () =>
@@ -196,6 +199,25 @@ async function onFileSelected(event: Event): Promise<void> {
   uploadProgress.value = { done: 0, total: 0 };
   if (fileInput.value) fileInput.value.value = "";
   if (errors.length > 0) docError.value = errors.join(" — ");
+}
+
+async function onZipSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  docError.value = null;
+  zipResult.value = null;
+  isUploadingZip.value = true;
+  try {
+    zipResult.value = await store.uploadZip(slug, file);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    docError.value = msg ?? t("common.error");
+  } finally {
+    isUploadingZip.value = false;
+    if (zipInput.value) zipInput.value.value = "";
+  }
 }
 
 async function handleDownload(filename: string): Promise<void> {
@@ -519,18 +541,26 @@ function statusClass(s: string): string {
       <section class="rounded border border-gray-200 p-5">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-sm font-semibold text-gray-700">{{ t("collections.documents") }}</h2>
-          <button
-            v-if="canWrite"
-            :disabled="isUploading"
-            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-            @click="fileInput?.click()"
-          >
-            <span v-if="isUploading && uploadProgress.total > 1">
-              {{ uploadProgress.done }}/{{ uploadProgress.total }}
-            </span>
-            <span v-else-if="isUploading">{{ t("common.loading") }}</span>
-            <span v-else>{{ t("collections.upload") }}</span>
-          </button>
+          <div v-if="canWrite" class="flex gap-2">
+            <button
+              :disabled="isUploading || isUploadingZip"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              @click="fileInput?.click()"
+            >
+              <span v-if="isUploading && uploadProgress.total > 1">
+                {{ uploadProgress.done }}/{{ uploadProgress.total }}
+              </span>
+              <span v-else-if="isUploading">{{ t("common.loading") }}</span>
+              <span v-else>{{ t("collections.upload") }}</span>
+            </button>
+            <button
+              :disabled="isUploading || isUploadingZip"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              @click="zipInput?.click()"
+            >
+              {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
+            </button>
+          </div>
           <input
             ref="fileInput"
             type="file"
@@ -539,11 +569,41 @@ function statusClass(s: string): string {
             class="hidden"
             @change="onFileSelected"
           />
+          <input
+            ref="zipInput"
+            type="file"
+            accept=".zip,application/zip"
+            class="hidden"
+            @change="onZipSelected"
+          />
         </div>
 
         <p v-if="canWrite" class="mb-3 text-xs text-gray-400">
           {{ t("collections.upload_hint") }}
         </p>
+
+        <!-- ZIP upload result summary -->
+        <div
+          v-if="zipResult"
+          class="mb-3 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm"
+        >
+          <p class="font-medium text-gray-700">
+            {{ t("collections.zip_result_uploaded", { n: zipResult.uploaded }) }}
+            <span v-if="zipResult.skipped.length > 0" class="ml-2 text-gray-400">
+              {{ t("collections.zip_result_skipped", { n: zipResult.skipped.length }) }}
+            </span>
+          </p>
+          <ul v-if="zipResult.errors.length > 0" class="mt-2 space-y-0.5">
+            <li
+              v-for="e in zipResult.errors"
+              :key="e.filename"
+              class="text-xs text-red-600"
+            >
+              {{ e.filename }}: {{ e.error }}
+            </li>
+          </ul>
+        </div>
+
         <p v-if="docError" class="mb-3 text-sm text-red-600">{{ docError }}</p>
 
         <!-- Search -->

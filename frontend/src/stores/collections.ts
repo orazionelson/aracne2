@@ -35,6 +35,17 @@ export interface SearchHit {
   snippet: string;
 }
 
+export interface ZipUploadError {
+  filename: string;
+  error: string;
+}
+
+export interface ZipUploadResult {
+  uploaded: number;
+  skipped: string[];
+  errors: ZipUploadError[];
+}
+
 interface Pagination {
   page: number;
   per_page: number;
@@ -158,6 +169,18 @@ export const useCollectionStore = defineStore("collections", () => {
     documents.value.push(doc);
   }
 
+  async function uploadZip(collectionId: string, file: File): Promise<ZipUploadResult> {
+    const form = new FormData();
+    form.append("file", file);
+    const result = await apiClient.upload<ZipUploadResult>(
+      `/collections/${collectionId}/documents/batch`,
+      form,
+    );
+    // Reload the document list to reflect all newly added files.
+    await fetchDocuments(collectionId);
+    return result;
+  }
+
   async function downloadDocument(collectionId: string, filename: string): Promise<void> {
     // Use raw api instance (not apiClient) because the response is a binary blob,
     // not a JSON { data: ... } envelope.
@@ -210,6 +233,7 @@ export const useCollectionStore = defineStore("collections", () => {
     unpublishCollection,
     fetchDocuments,
     uploadDocument,
+    uploadZip,
     downloadDocument,
     deleteDocument,
     searchDocuments,
