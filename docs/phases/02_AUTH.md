@@ -40,7 +40,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.exceptions import AuthenticationError, DomainValidationError
+from app.core.exceptions import AuthenticationError
 from app.core.password import hash_password, verify_password
 from app.models.role import UserRole
 from app.models.session import Session
@@ -51,7 +51,7 @@ logger = structlog.get_logger()
 # ── Token helpers ─────────────────────────────────────────────────────────────
 
 def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(UTC)
 
 
 def create_access_token(user_id: uuid.UUID, jti: uuid.UUID, role: str) -> str:
@@ -176,6 +176,7 @@ async def create_session(
         refresh_expires=refresh_expires,
     )
     db.add(session)
+    user.last_login_at = _now()
     await db.flush()
 
     access_token = create_access_token(user.id, access_jti, role)
@@ -259,12 +260,10 @@ async def change_password(
             code="INVALID_CREDENTIALS",
             message="Current password is incorrect",
         )
-    if len(new_password) < 8:
-        raise DomainValidationError(
-            code="PASSWORD_TOO_SHORT",
-            message="Password must be at least 8 characters",
-        )
+    # Minimum length is enforced by PasswordChangeRequest schema validator (422).
+    # No duplicate check here.
     user.password_hash = hash_password(new_password)
+    user.updated_at = _now()
 
     # Revoke all active sessions for this user
     stmt = select(Session).where(
@@ -442,6 +441,7 @@ Cookie settings:
 - Production: `secure=True`, `samesite="strict"` (HTTPS only)
 
 ```python
+import uuid
 from typing import Annotated
 
 import structlog
@@ -549,11 +549,7 @@ async def logout(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[dict[str, str]]:
     # Best-effort revocation — do not raise even if token is missing or invalid
-    from app.middleware.acl import _bearer
-    from fastapi.security import HTTPAuthorizationCredentials
-    import uuid
     try:
-        from app.services.auth import decode_token
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.removeprefix("Bearer ")
@@ -634,13 +630,117 @@ __all__ = ["get_async_session", "get_existdb", "get_current_user", "require_role
 
 ## Tests: backend/app/tests/test_auth.py
 
-Use the existing `client` and `db_session` fixtures from `conftest.py`.
-The test database is SQLite in-memory — no real PostgreSQL required.
+Add a `seeded_user` fixture to `conftest.py` (append after `seeded_roles`):
+
+```python
+# conftest.py — append this fixture
+import uuid as _uuid
+from app.core.password import hash_password as _hash_password
+from app.models.user import User as _User
+from app.models.role import Role as _Role, UserRole as _UserRole
+
+TEST_USER_USERNAME = "testuser"
+TEST_USER_PASSWORD = "testpassword1"
+
+@pytest_asyncio.fixture
+async def seeded_user(db_session: AsyncSession, seeded_roles) -> _User:
+    user = _User(
+        username=TEST_USER_USERNAME,
+        email="testuser@example.com",
+        password_hash=_hash_password(TEST_USER_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    user_role = await db_session.scalar(
+        select(_Role).where(_Role.name == "Editor")
+    )
+    db_session.add(_UserRole(user_id=user.id, role_id=user_role.id))
+    await db_session.flush()
+    return user
+```
+
+Then `test_auth.py`:
 
 ```python
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.user import User
+from app.tests.conftest import TEST_USER_PASSWORD, TEST_USER_USERNAME
+
+
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+async def _login(client: AsyncClient) -> tuple[str, str]:
+    """Log in as the seeded test user. Returns (access_token, username)."""
+    res = await client.post("/api/v1/auth/login", json={
+        "username_or_email": TEST_USER_USERNAME,
+        "password": TEST_USER_PASSWORD,
+    })
+    assert res.status_code == 200
+    return res.json()["data"]["access_token"], TEST_USER_USERNAME
+
+
+# ── Happy-path tests ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_login_success(client: AsyncClient, seeded_user: User) -> None:
+    """Valid credentials return access_token in body and set refresh cookie."""
+    res = await client.post("/api/v1/auth/login", json={
+        "username_or_email": TEST_USER_USERNAME,
+        "password": TEST_USER_PASSWORD,
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert "access_token" in body["data"]
+    assert body["data"]["token_type"] == "bearer"
+    assert body["data"]["user"]["username"] == TEST_USER_USERNAME
+    assert "refresh_token" in res.cookies
+
+
+@pytest.mark.asyncio
+async def test_me_returns_user_data(client: AsyncClient, seeded_user: User) -> None:
+    """GET /auth/me with valid token returns current user profile."""
+    access_token, username = await _login(client)
+    res = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["username"] == username
+    assert data["role"] == "Editor"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rotates_token(client: AsyncClient, seeded_user: User) -> None:
+    """POST /auth/refresh issues a new access token and rotates the cookie."""
+    access_token, _ = await _login(client)
+    res = await client.post("/api/v1/auth/refresh")
+    assert res.status_code == 200
+    new_token = res.json()["data"]["access_token"]
+    assert new_token != access_token
+    assert "refresh_token" in res.cookies
+
+
+@pytest.mark.asyncio
+async def test_password_change_success(client: AsyncClient, seeded_user: User) -> None:
+    """Password change with correct current password returns 200."""
+    access_token, _ = await _login(client)
+    res = await client.post(
+        "/api/v1/auth/password/change",
+        json={"current_password": TEST_USER_PASSWORD, "new_password": "newpassword1"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert res.status_code == 200
+    assert res.json()["data"]["message"] == "Password changed successfully"
+
+
+# ── Error-case tests ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_wrong_credentials(client: AsyncClient) -> None:
@@ -675,7 +775,7 @@ async def test_password_change_without_token_returns_401(client: AsyncClient) ->
     """POST /auth/password/change without token returns 401."""
     res = await client.post("/api/v1/auth/password/change", json={
         "current_password": "old",
-        "new_password": "newpassword",
+        "new_password": "newpassword1",
     })
     assert res.status_code == 401
 
@@ -703,7 +803,7 @@ The store already maps the response: `res.data.data.access_token` and
 
 ## Checklist before committing
 
-- [ ] `make test` passes (all 5 new tests + all 6 scaffolding tests = 11 total)
+- [ ] `make test` passes (all 9 new tests + all 6 scaffolding tests = 15 total)
 - [ ] `make lint` clean (ruff + mypy)
 - [ ] `POST /api/v1/auth/login` with valid credentials returns 200 + sets cookie
 - [ ] `POST /api/v1/auth/refresh` with valid cookie returns 200 + rotates cookie
