@@ -96,6 +96,11 @@ function selectEditor(e: { id: string; username: string; display_name: string | 
   isEditorDropdownOpen.value = false;
 }
 
+function closeEditorDropdown(): void {
+  // Delay so mousedown on an option fires before blur closes the list.
+  window.setTimeout(() => { isEditorDropdownOpen.value = false }, 150);
+}
+
 watch(showAssignForm, async (open) => {
   if (open && store.editors.length === 0) {
     await store.fetchEditors();
@@ -381,7 +386,7 @@ function statusClass(s: string): string {
                 class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 :placeholder="t('collections.assign_username')"
                 @focus="isEditorDropdownOpen = true"
-                @blur="setTimeout(() => { isEditorDropdownOpen = false }, 150)"
+                @blur="closeEditorDropdown"
                 @input="isEditorDropdownOpen = true"
               />
               <ul

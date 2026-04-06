@@ -79,7 +79,7 @@ export const useCollectionStore = defineStore("collections", () => {
     // Role validation (Editor required) is enforced by the backend on assignment.
     interface UserRow { id: string; username: string; display_name: string | null }
     const res = await apiClient.getPaginated<UserRow>("/users", {
-      params: { per_page: 200 },
+      params: { per_page: 100 },
     });
     editors.value = res.data as EditorOption[];
   }
