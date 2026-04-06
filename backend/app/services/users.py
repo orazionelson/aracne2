@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
@@ -445,6 +445,12 @@ async def delete_my_account(db: AsyncSession, user: User) -> None:
             target_label=user.username,
         )
     )
+    await db.flush()
+
+    # Explicitly remove role assignments before deletion — SQLite does not
+    # enforce ON DELETE CASCADE without PRAGMA foreign_keys=ON, and SQLAlchemy's
+    # ORM would otherwise try to SET NULL on user_roles.user_id (NOT NULL column).
+    await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
     await db.flush()
 
     await db.delete(user)
