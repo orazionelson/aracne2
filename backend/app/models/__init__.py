@@ -2,6 +2,7 @@
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection
 from app.models.collection_permission import CollectionPermission
+from app.models.plugin_data import PluginData
 from app.models.notification import Notification
 from app.models.plugin import Plugin
 from app.models.role import Role, UserRole
@@ -20,4 +21,5 @@ __all__ = [
     "SystemSetting",
     "Collection",
     "CollectionPermission",
+    "PluginData",
 ]
