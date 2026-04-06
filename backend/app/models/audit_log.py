@@ -1,11 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 class AuditLog(Base):
@@ -25,7 +29,9 @@ class AuditLog(Base):
     ip_address: Mapped[str | None] = mapped_column(INET, default=None)
     user_agent: Mapped[str | None] = mapped_column(Text, default=None)
     payload: Mapped[dict | None] = mapped_column(JSONB, default=None)
-    occurred_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
 
     actor: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
         "User",

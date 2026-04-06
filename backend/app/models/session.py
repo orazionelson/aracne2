@@ -1,11 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 class Session(Base):
@@ -27,10 +31,12 @@ class Session(Base):
     )
     ip_address: Mapped[str | None] = mapped_column(INET, default=None)
     user_agent: Mapped[str | None] = mapped_column(Text, default=None)
-    issued_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
-    access_expires: Mapped[datetime] = mapped_column(nullable=False)
-    refresh_expires: Mapped[datetime | None] = mapped_column(default=None)
-    revoked_at: Mapped[datetime | None] = mapped_column(default=None)
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    access_expires: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    refresh_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     revoked_reason: Mapped[str | None] = mapped_column(String(64), default=None)
 
     user: Mapped["User"] = relationship("User", back_populates="sessions")  # type: ignore[name-defined]

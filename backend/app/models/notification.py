@@ -1,11 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 class Notification(Base):
@@ -22,7 +26,9 @@ class Notification(Base):
     body: Mapped[str | None] = mapped_column(Text, default=None)
     link: Mapped[str | None] = mapped_column(Text, default=None)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
-    read_at: Mapped[datetime | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]

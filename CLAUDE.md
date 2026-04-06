@@ -384,10 +384,10 @@ quality baseline regardless of jurisdictional obligations.
 - **Do not use** `passlib` — it is unmaintained (last release 2020) and incompatible
   with `bcrypt >= 4.1.0`. Use `bcrypt` directly via `app.core.password`
   (`hash_password` / `verify_password`). Never call `bcrypt` functions outside that module.
-- **Do not use** `datetime.now(UTC)` with `TIMESTAMP WITHOUT TIME ZONE` columns —
-  asyncpg rejects timezone-aware datetimes on tz-naive columns. All SQLAlchemy models
-  must use `TIMESTAMP(timezone=True)` by default. If a tz-naive column is unavoidable,
-  use `datetime.now(UTC).replace(tzinfo=None)` explicitly.
+- **All datetime columns in SQLAlchemy models must use `DateTime(timezone=True)`** —
+  asyncpg rejects timezone-aware datetimes on tz-naive columns, which can silently bypass
+  session expiry checks. Use `datetime.now(UTC)` as the default callable (never `datetime.utcnow`).
+  Never use bare `Mapped[datetime]` without an explicit `DateTime(timezone=True)` in `mapped_column`.
 - **Do not commit** partial code — every function must be complete and working
 - When a prompt says "stub": a function that exists, has the correct signature,
   and returns an empty list/dict or `None`. Not bare `pass`, not `TODO`.

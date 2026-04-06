@@ -1,9 +1,10 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     BigInteger,
+    DateTime,
     Enum as SAEnum,
     ForeignKey,
     SmallInteger,
@@ -14,6 +15,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 class RoleName(str, enum.Enum):
@@ -34,7 +39,7 @@ class Role(Base):
         unique=True,
     )
     description: Mapped[str | None] = mapped_column(Text, default=None)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user_roles: Mapped[list["UserRole"]] = relationship("UserRole", back_populates="role")
 
@@ -59,8 +64,8 @@ class UserRole(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         default=None,
     )
-    assigned_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    revoked_at: Mapped[datetime | None] = mapped_column(default=None)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     revoked_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
