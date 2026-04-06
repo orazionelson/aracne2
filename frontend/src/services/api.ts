@@ -35,7 +35,9 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
-    if (error.response?.status !== 401 || original._retry) {
+    // Never retry the refresh endpoint itself — it would deadlock hydrate().
+    const isRefreshCall = original.url?.includes("/auth/refresh");
+    if (error.response?.status !== 401 || original._retry || isRefreshCall) {
       return Promise.reject(error);
     }
     if (isRefreshing) {
