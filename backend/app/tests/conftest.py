@@ -10,9 +10,13 @@ from app.main import app
 from app.db.postgres import Base, get_async_session
 from app.middleware.rate_limiter import limiter
 
-# Disable rate limiting for the entire test session — the in-memory counter
-# accumulates across tests and causes 429s after 10 POST /auth/login calls.
-limiter._enabled = False
+# slowapi 0.1.9 has no built-in "enabled" flag.
+# _check_request_limit is synchronous in this version — replace it with a no-op
+# so the in-memory counter never fires a 429 during the test session.
+def _no_rate_limit(*args: object, **kwargs: object) -> None:
+    return
+
+limiter._check_request_limit = _no_rate_limit
 from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
 from app.models.role import Role as _Role
 from app.models.user import User as _User
