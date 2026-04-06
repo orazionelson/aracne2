@@ -81,13 +81,21 @@ async def platform_exception_handler(request: Request, exc: PlatformException) -
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    if settings.is_development:
+        # Pydantic v2 includes Exception objects in ctx (e.g. ValueError).
+        # Serialize with default=str to avoid TypeError in json.dumps.
+        import json as _json
+
+        details = _json.loads(_json.dumps(exc.errors(), default=str))
+    else:
+        details = {}
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
-                "details": exc.errors() if settings.is_development else {},
+                "details": details,
             }
         },
     )
