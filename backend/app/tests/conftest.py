@@ -11,10 +11,13 @@ from app.db.postgres import Base, get_async_session
 from app.middleware.rate_limiter import limiter
 
 # slowapi 0.1.9 has no built-in "enabled" flag.
-# _check_request_limit is synchronous in this version — replace it with a no-op
-# so the in-memory counter never fires a 429 during the test session.
-def _no_rate_limit(*args: object, **kwargs: object) -> None:
-    return
+# _check_request_limit is synchronous in this version; after it returns,
+# slowapi reads request.state.view_rate_limit to inject rate-limit headers.
+# The no-op must set that attribute to None so the subsequent _inject_headers
+# call doesn't raise AttributeError.
+def _no_rate_limit(request: object, *args: object, **kwargs: object) -> None:
+    if hasattr(request, "state"):
+        request.state.view_rate_limit = None  # type: ignore[union-attr]
 
 limiter._check_request_limit = _no_rate_limit
 from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
