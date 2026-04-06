@@ -24,6 +24,7 @@
   "nav": {
     "home": "Home",
     "users": "Utenti",
+    "plugins": "Plugin",
     "profile": "Profilo"
   },
   "profile": {
@@ -70,6 +71,24 @@
     "all_roles": "Tutti i ruoli",
     "filter_active": "Solo attivi",
     "filter_inactive": "Solo inattivi"
+  },
+  "plugins": {
+    "title": "Plugin",
+    "name": "Nome",
+    "version": "Versione",
+    "author": "Autore",
+    "status_label": "Stato",
+    "status_active": "Attivo",
+    "status_inactive": "Inattivo",
+    "status_error": "Errore",
+    "native_badge": "Nativo",
+    "activate": "Attiva",
+    "deactivate": "Disattiva",
+    "delete": "Elimina",
+    "no_plugins": "Nessun plugin trovato.",
+    "restart_notice": "Le modifiche avranno effetto al prossimo riavvio del server.",
+    "confirm_deactivate": "Disattivare questo plugin? Smetterà di funzionare al prossimo riavvio.",
+    "confirm_delete": "Eliminare il record del plugin? L'azione è irreversibile."
   },
   "errors": {
     "not_found": "404 — Pagina non trovata"

@@ -43,6 +43,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/admin/plugins",
+      name: "admin-plugins",
+      component: () => import("@/views/admin/PluginsView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "not-found",
       component: () => import("@/views/NotFoundView.vue"),

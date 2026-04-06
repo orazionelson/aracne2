@@ -24,6 +24,7 @@
   "nav": {
     "home": "Home",
     "users": "Users",
+    "plugins": "Plugins",
     "profile": "Profile"
   },
   "profile": {
@@ -70,6 +71,24 @@
     "all_roles": "All roles",
     "filter_active": "Active only",
     "filter_inactive": "Inactive only"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "name": "Name",
+    "version": "Version",
+    "author": "Author",
+    "status_label": "Status",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
+    "status_error": "Error",
+    "native_badge": "Native",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "delete": "Delete",
+    "no_plugins": "No plugins found.",
+    "restart_notice": "Changes take effect after the next server restart.",
+    "confirm_deactivate": "Deactivate this plugin? It will stop working after the next restart.",
+    "confirm_delete": "Delete this plugin record? This cannot be undone."
   },
   "errors": {
     "not_found": "404 — Page not found"

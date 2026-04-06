@@ -40,6 +40,14 @@ async function handleLogout(): Promise<void> {
       >
         {{ t("nav.users") }}
       </router-link>
+      <router-link
+        v-if="auth.hasMinRole('Admin')"
+        to="/admin/plugins"
+        class="text-gray-400 transition-colors hover:text-white"
+        active-class="!text-white font-medium"
+      >
+        {{ t("nav.plugins") }}
+      </router-link>
     </div>
 
     <!-- Right side -->

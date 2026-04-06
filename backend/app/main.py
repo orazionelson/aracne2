@@ -11,14 +11,12 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.core.exceptions import PlatformException
 from app.core.logging import configure_logging
+from app.core.plugin_loader import plugin_loader
 from app.db.existdb import existdb_client
 from app.db.postgres import engine
 from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
-from app.routers import auth, health, users
-
-# Stub imports for future phases (empty files with APIRouter()):
-# from app.routers import users, roles, plugins
+from app.routers import auth, health, plugins, users
 
 configure_logging()
 
@@ -37,7 +35,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await db.execute(text("SELECT 1"))
     except Exception as exc:
         structlog.get_logger().warning("startup_postgres_check_failed", error=str(exc))
-    # PHASE 04: plugin_loader.load_all_active() will be added here
+    # Discover plugins, sync DB registry, mount active routers
+    try:
+        from app.db.postgres import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await plugin_loader.load_active(app, db)
+    except Exception as exc:
+        structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
     yield
     # SHUTDOWN
     await existdb_client.close()
@@ -151,5 +156,4 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
-# Stubs (add in subsequent phases):
-# app.include_router(users.router, prefix="/api/v1")
+app.include_router(plugins.router, prefix="/api/v1")

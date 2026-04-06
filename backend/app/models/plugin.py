@@ -46,6 +46,9 @@ class Plugin(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+    is_native: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="FALSE"
+    )
     installed_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
