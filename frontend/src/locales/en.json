@@ -1,0 +1,30 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "error": "An error occurred"
+  },
+  "auth": {
+    "sign_in": "Sign in",
+    "sign_in_loading": "Signing in...",
+    "sign_out": "Sign out",
+    "username_or_email": "Username or Email",
+    "password": "Password",
+    "show_password": "Show",
+    "hide_password": "Hide",
+    "invalid_credentials": "Invalid credentials. Please try again."
+  },
+  "home": {
+    "title": "Aracne2"
+  },
+  "profile": {
+    "title": "Profile",
+    "wip": "Profile — work in progress"
+  },
+  "errors": {
+    "not_found": "404 — Page not found"
+  }
+}

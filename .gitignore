@@ -1,0 +1,22 @@
+# Environment — never commit secrets
+.env
+*.local
+
+# Claude Code — personal tooling, not project code
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Docker volumes (local dev)
+postgres_data/
+existdb_data/

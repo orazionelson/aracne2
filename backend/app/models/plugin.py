@@ -1,0 +1,43 @@
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Enum as SAEnum, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.postgres import Base
+
+
+class PluginStatus(str, enum.Enum):
+    active = "active"
+    inactive = "inactive"
+    error = "error"
+
+
+class Plugin(Base):
+    __tablename__ = "plugins"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    version: Mapped[str | None] = mapped_column(String(32), default=None)
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+    author: Mapped[str | None] = mapped_column(String(256), default=None)
+    entry_point: Mapped[str | None] = mapped_column(Text, default=None)
+    status: Mapped[PluginStatus] = mapped_column(
+        SAEnum(PluginStatus, name="plugin_status", create_type=False),
+        nullable=False,
+        default=PluginStatus.inactive,
+    )
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    hooks: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    installed_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    installed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        default=None,
+    )

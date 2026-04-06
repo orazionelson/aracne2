@@ -197,18 +197,43 @@ HTTP status: 200 / 201 / 204 / 400 / 401 / 403 / 404 / 409 / 422 / 500
 
 ---
 
-## ACL hierarchy (ascending permissions)
+## ACL hierarchy
+
+Editor and Designer are **lateral roles** at the same level — they handle orthogonal domains
+(editorial content vs. XSLT/CSS templates). The same person may hold both roles simultaneously.
+Both are below EditorInChief, who coordinates the full workflow.
 
 ```
-User(0) < Editor(1) < Designer(2) < EditorInChief(3) < Admin(4)
+                    Admin(4)
+                       │
+                 EditorInChief(3)
+                  ╱          ╲
+           Editor(2)      Designer(2)
+                  ╲          ╱
+                    User(1)
 ```
+
+Numeric levels used for `require_role()` comparisons:
+
+| Role          | Level | Domain                                    |
+|---------------|-------|-------------------------------------------|
+| User          | 1     | Read-only access to published content     |
+| Editor        | 2     | Creates and edits documents               |
+| Designer      | 2     | Manages XSLT templates and CSS themes     |
+| EditorInChief | 3     | Manages collections and publication flow  |
+| Admin         | 4     | Full platform access                      |
+
+Because Editor and Designer share the same numeric level, endpoints that are
+**exclusive to one lateral role** must use an explicit role-name check in addition
+to the numeric guard (e.g. `require_role("Designer")` for template management,
+`require_role("Editor")` for document editing).
 
 Endpoint notation used in prompts:
 - `[pub]`  = public, no authentication
 - `[auth]` = any authenticated user
-- `[E+]`   = Editor and above
-- `[D+]`   = Designer and above
-- `[EiC+]` = EditorInChief and above
+- `[E+]`   = Editor or Designer or EditorInChief or Admin (level ≥ 2)
+- `[D+]`   = Designer or EditorInChief or Admin (explicit role check)
+- `[EiC+]` = EditorInChief and above (level ≥ 3)
 - `[A]`    = Admin only
 
 ---
@@ -243,6 +268,11 @@ Endpoint notation used in prompts:
    Use `unknown` with type guards, or explicit callback signatures.
 5. **Component names in PascalCase**, files in PascalCase
 6. **Composables prefixed with `use`**: `useAuth`, `useSearch`, etc.
+7. **i18n mandatory** — every user-visible string in Vue templates and components
+   must use `$t('key')` (in templates) or `t('key')` via `useI18n()` (in `<script setup>`).
+   Hardcoded strings in templates are forbidden. Keys must exist in both
+   `src/locales/en.json` and `src/locales/it.json` before the component is committed.
+   After login, apply `user.preferred_lang` to `i18n.locale` immediately.
 
 ---
 
@@ -266,10 +296,10 @@ Endpoint notation used in prompts:
 
 ## Environment variables
 
-`EXIST_PASSWORD` and `EXISTDB_PASSWORD` are **two distinct variables**:
-- `EXIST_PASSWORD` — native variable consumed by the eXist-db Docker image
-- `EXISTDB_PASSWORD` — variable consumed by the Python backend
-Both must be present in `.env` and must have the same value.
+`EXIST_PASSWORD` is the **single variable** for eXist-db credentials:
+- consumed by the eXist-db Docker image to set the admin password at startup
+- consumed by the Python backend (`settings.exist_password`) to authenticate via HTTP
+One variable, one value, no duplication.
 
 Full variable list in `.env.example`. Always use `app/config.py` (Pydantic Settings)
 to access them — never `os.environ` directly.
