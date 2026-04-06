@@ -85,8 +85,10 @@ async function createUser(): Promise<void> {
     closeModal();
     page.value = 1;
     await fetchUsers();
-  } catch {
-    createError.value = t("common.error");
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    createError.value = msg ?? t("common.error");
   } finally {
     isCreating.value = false;
   }
