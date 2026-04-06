@@ -12,6 +12,7 @@ from app.config import settings
 from app.core.exceptions import PlatformException
 from app.core.logging import configure_logging
 from app.core.plugin_loader import plugin_loader
+from app.core.scheduler import register_jobs, scheduler
 from app.db.existdb import existdb_client
 from app.db.postgres import engine
 from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
@@ -43,8 +44,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await plugin_loader.load_active(app, db)
     except Exception as exc:
         structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
+
+    # Start periodic background jobs (audit log + session cleanup)
+    register_jobs()
+    scheduler.start()
+
     yield
+
     # SHUTDOWN
+    scheduler.shutdown(wait=False)
     await existdb_client.close()
     await engine.dispose()
 
