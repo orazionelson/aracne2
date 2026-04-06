@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Integer, JSON, SmallInteger, String, Text
+from sqlalchemy import JSON, BigInteger, Integer, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.types import TypeDecorator
 

@@ -12,6 +12,7 @@ from app.models import Role, User, UserRole  # noqa: F401 — required for metad
 from app.models.role import Role as _Role
 from app.models.user import User as _User
 
+
 # slowapi 0.1.9 has no built-in "enabled" flag.
 # _check_request_limit is synchronous in this version; after it returns,
 # slowapi reads request.state.view_rate_limit to inject rate-limit headers.

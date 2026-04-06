@@ -11,7 +11,6 @@ from app.tests.conftest import (
     TEST_USER_USERNAME,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 

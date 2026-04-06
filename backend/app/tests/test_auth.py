@@ -4,7 +4,6 @@ from httpx import AsyncClient
 from app.models.user import User
 from app.tests.conftest import TEST_USER_PASSWORD, TEST_USER_USERNAME
 
-
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 
