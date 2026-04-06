@@ -3,10 +3,11 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 
 
 def _now() -> datetime:
@@ -36,8 +37,8 @@ class Plugin(Base):
         nullable=False,
         default=PluginStatus.inactive,
     )
-    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    hooks: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    config: Mapped[dict] = mapped_column(JsonbType, nullable=False, default=dict)
+    hooks: Mapped[list] = mapped_column(JsonbType, nullable=False, default=list)
     installed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
