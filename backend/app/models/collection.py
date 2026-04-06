@@ -1,0 +1,81 @@
+import enum
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.postgres import Base
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+class CollectionStatus(str, enum.Enum):
+    draft = "draft"
+    assigned = "assigned"
+    review = "review"
+    published = "published"
+
+
+class Collection(Base):
+    __tablename__ = "collections"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    slug: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # Workflow
+    status: Mapped[CollectionStatus] = mapped_column(
+        SAEnum(CollectionStatus, name="collection_status", create_type=False),
+        nullable=False,
+        default=CollectionStatus.draft,
+    )
+    is_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="FALSE"
+    )
+
+    # Actors — SET NULL so that deleting a user does not cascade-delete collections
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    editor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+
+    # Transition timestamps — set by services, never by the ORM default
+    assigned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    # Relationships (lazy by default — loaded only when accessed)
+    owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
+        "User", foreign_keys=[owner_id]
+    )
+    editor: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
+        "User", foreign_keys=[editor_id]
+    )

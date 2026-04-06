@@ -58,20 +58,15 @@ First non-native plugin that needs more than `system_settings` key-value pairs.
 
 ---
 
-## 4. Collection permissions (document ACL)
+## 4. Collection ACL — multi-editor support
 
 **Why deferred**
-The `collection_permissions` table (which Editor can access which eXist-db
-collection) is referenced in CLAUDE.md but requires the XML layer
-(Phase 05+) to be meaningful. It cannot be designed in isolation.
-
-**What it needs**
-- `collections` table in PostgreSQL (metadata mirror of eXist-db collections)
-- `collection_permissions(collection_id, user_id, granted_by, granted_at)`
-- Integration with `require_role` to gate per-collection access
+The current model uses a single `editor_id` on the `collections` table.
+If future requirements call for multiple simultaneous editors on one
+collection, a `collection_collaborators` table will be needed.
 
 **Trigger to implement**
-Phase 05 — eXist-db collections CRUD.
+First explicit request for collaborative editing on a single collection.
 
 ---
 
