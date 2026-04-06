@@ -12,9 +12,11 @@ ACL is enforced here, not in the router layer, so that any caller
 (router, future jobs, tests) gets consistent access control.
 """
 
+import re
 import uuid
 from datetime import UTC, datetime
 
+import defusedxml.ElementTree as _safe_xml
 import structlog
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import (
     AuthorizationError,
     ConflictError,
+    DomainValidationError,
     NotFoundError,
 )
 from app.db.existdb import ExistDBClient
@@ -35,6 +38,7 @@ from app.schemas.collections import (
     CollectionCreate,
     CollectionResponse,
     CollectionUpdate,
+    DocumentInfo,
     RejectAction,
     WorkflowAction,
 )
@@ -44,6 +48,26 @@ logger = structlog.get_logger()
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+# ── Filename validation ────────────────────────────────────────────────────────
+
+_FILENAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_\-]*\.xml$")
+_MAX_FILENAME_LEN = 128
+
+
+def _validate_filename(filename: str) -> None:
+    """Reject filenames that could cause path traversal or be non-XML."""
+    if len(filename) > _MAX_FILENAME_LEN:
+        raise DomainValidationError(
+            "INVALID_FILENAME", f"Filename must be {_MAX_FILENAME_LEN} characters or fewer"
+        )
+    if not _FILENAME_RE.match(filename):
+        raise DomainValidationError(
+            "INVALID_FILENAME",
+            "Filename must start with a letter or digit, contain only "
+            "letters/digits/hyphens/underscores, and end with '.xml'",
+        )
 
 
 # ── ACL helpers ────────────────────────────────────────────────────────────────
@@ -427,3 +451,90 @@ async def unpublish_collection(
     await db.flush()
     logger.info("collection_unpublished", slug=col.slug, actor=actor.username)
     return CollectionResponse.model_validate(col)
+
+
+# ── Document CRUD ──────────────────────────────────────────────────────────────
+
+async def list_documents(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    actor: User,
+    role: str,
+) -> list[DocumentInfo]:
+    """Return the list of XML documents stored in the collection on eXist-db."""
+    col = await _get_or_404(db, collection_id)
+    _assert_read_access(col, actor, role)
+    filenames = await existdb.list_collection(col.slug)
+    return [DocumentInfo(filename=f) for f in filenames]
+
+
+async def upload_document(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    filename: str,
+    xml_bytes: bytes,
+    actor: User,
+    role: str,
+) -> DocumentInfo:
+    """Validate and store an XML document inside the collection on eXist-db.
+
+    ACL: the assigned editor can upload only when the collection is in 'assigned'
+    state. EiC and Admin are unrestricted.
+    """
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+
+    # Validate well-formedness and guard against XXE before storing.
+    try:
+        _safe_xml.fromstring(xml_bytes)
+    except Exception as exc:
+        raise DomainValidationError("INVALID_XML", f"Document is not valid XML: {exc}") from exc
+
+    await existdb.put_document(col.slug, filename, xml_bytes)
+    _audit(
+        db,
+        "document.uploaded",
+        actor,
+        col,
+        {"filename": filename, "size": len(xml_bytes)},
+    )
+    logger.info("document_uploaded", slug=col.slug, filename=filename, actor=actor.username)
+    return DocumentInfo(filename=filename)
+
+
+async def download_document(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    filename: str,
+    actor: User,
+    role: str,
+) -> bytes:
+    """Retrieve raw XML bytes for a document stored in eXist-db."""
+    col = await _get_or_404(db, collection_id)
+    _assert_read_access(col, actor, role)
+    _validate_filename(filename)
+    return await existdb.get_document(col.slug, filename)
+
+
+async def delete_document(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    filename: str,
+    actor: User,
+    role: str,
+) -> None:
+    """Delete a document from eXist-db.
+
+    ACL: same write-access rules as upload (assigned editor, not in review).
+    """
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+    await existdb.delete_document(col.slug, filename)
+    _audit(db, "document.deleted", actor, col, {"filename": filename})
+    logger.info("document_deleted", slug=col.slug, filename=filename, actor=actor.username)

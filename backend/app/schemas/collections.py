@@ -77,3 +77,7 @@ class WorkflowAction(BaseModel):
 
 class RejectAction(BaseModel):
     note: str
+
+
+class DocumentInfo(BaseModel):
+    filename: str

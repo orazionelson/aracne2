@@ -12,7 +12,8 @@ import math
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.existdb import ExistDBClient, get_existdb
@@ -25,6 +26,7 @@ from app.schemas.collections import (
     CollectionCreate,
     CollectionResponse,
     CollectionUpdate,
+    DocumentInfo,
     RejectAction,
     WorkflowAction,
 )
@@ -33,13 +35,17 @@ from app.services.xmldb import (
     assign_collection,
     create_collection,
     delete_collection,
+    delete_document,
+    download_document,
     get_collection,
     list_collections,
+    list_documents,
     publish_collection,
     reject_collection,
     submit_collection,
     unpublish_collection,
     update_collection,
+    upload_document,
 )
 
 router = APIRouter(prefix="/collections", tags=["collections"])
@@ -223,3 +229,78 @@ async def collection_unpublish(
     role: str = request.state.role
     data = await unpublish_collection(db, collection_id, body, current_user, role)
     return DataResponse(data=data)
+
+
+# ── Document CRUD ─────────────────────────────────────────────────────────────
+
+@router.get("/{collection_id}/documents")
+async def document_list(
+    collection_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[list[DocumentInfo]]:
+    """List all XML documents in the collection stored on eXist-db."""
+    role: str = request.state.role
+    docs = await list_documents(db, existdb, collection_id, current_user, role)
+    return DataResponse(data=docs)
+
+
+@router.post("/{collection_id}/documents", status_code=201)
+async def document_upload(
+    collection_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+    file: UploadFile,
+) -> DataResponse[DocumentInfo]:
+    """Upload (or overwrite) an XML document.
+
+    The multipart field must be named ``file``.
+    The original filename is used as the document name in eXist-db and must
+    match ``^[a-zA-Z0-9][a-zA-Z0-9_\\-]*\\.xml$``.
+    """
+    role: str = request.state.role
+    filename = file.filename or ""
+    xml_bytes = await file.read()
+    doc = await upload_document(
+        db, existdb, collection_id, filename, xml_bytes, current_user, role
+    )
+    return DataResponse(data=doc)
+
+
+@router.get("/{collection_id}/documents/{filename}")
+async def document_download(
+    collection_id: uuid.UUID,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> Response:
+    """Download the raw XML bytes of a document."""
+    role: str = request.state.role
+    xml_bytes = await download_document(
+        db, existdb, collection_id, filename, current_user, role
+    )
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.delete("/{collection_id}/documents/{filename}", status_code=204)
+async def document_delete(
+    collection_id: uuid.UUID,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> None:
+    """Delete a document from the collection."""
+    role: str = request.state.role
+    await delete_document(db, existdb, collection_id, filename, current_user, role)
