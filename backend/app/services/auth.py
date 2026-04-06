@@ -26,6 +26,16 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Return dt with UTC tzinfo.
+
+    SQLite does not persist timezone data, so datetimes read from an SQLite
+    session are naive even when the column is declared DateTime(timezone=True).
+    PostgreSQL always returns tz-aware datetimes, so this is a no-op there.
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 def create_access_token(user_id: uuid.UUID, jti: uuid.UUID, role: str) -> str:
     """Return a signed JWT access token."""
     expire = _now() + timedelta(minutes=settings.jwt_access_expiry_minutes)
@@ -187,7 +197,7 @@ async def refresh_session(
             code="SESSION_NOT_FOUND",
             message="Session not found or already revoked",
         )
-    if session.refresh_expires and session.refresh_expires < _now():
+    if session.refresh_expires and _as_utc(session.refresh_expires) < _now():
         raise AuthenticationError(
             code="TOKEN_EXPIRED",
             message="Refresh token has expired",
