@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        env_list_separator=",",
     )
 
     # PostgreSQL
@@ -47,13 +48,6 @@ class Settings(BaseSettings):
     # Security
     bcrypt_rounds: int = 12
     cors_origins: list[str] = ["http://localhost:5173"]
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",")]
-        return v
 
     # Application
     environment: Literal["development", "production", "test"] = "development"
