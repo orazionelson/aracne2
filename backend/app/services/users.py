@@ -62,9 +62,9 @@ async def _build_response(db: AsyncSession, user: User) -> UserResponse:
         .where(UserRole.user_id == user.id, UserRole.revoked_at.is_(None))
     )
     rows = list(await db.execute(stmt))
-    role_infos = [RoleInfo(role_name=str(r[0]), assigned_at=r[1]) for r in rows]
+    role_infos = [RoleInfo(role_name=r[0].value, assigned_at=r[1]) for r in rows]
     highest = max(
-        (str(r[0]) for r in rows),
+        (r[0].value for r in rows),
         key=lambda r: ROLE_LEVEL.get(r, 0),
         default="User",
     )

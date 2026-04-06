@@ -8,6 +8,11 @@ from sqlalchemy.pool import StaticPool
 from app.core.password import hash_password
 from app.main import app
 from app.db.postgres import Base, get_async_session
+from app.middleware.rate_limiter import limiter
+
+# Disable rate limiting for the entire test session — the in-memory counter
+# accumulates across tests and causes 429s after 10 POST /auth/login calls.
+limiter._enabled = False
 from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
 from app.models.role import Role as _Role
 from app.models.user import User as _User
