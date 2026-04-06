@@ -18,7 +18,13 @@
     "invalid_credentials": "Credenziali non valide. Riprova."
   },
   "home": {
-    "title": "Aracne2"
+    "title": "Aracne2",
+    "welcome": "Benvenuto, {name}."
+  },
+  "nav": {
+    "home": "Home",
+    "users": "Utenti",
+    "profile": "Profilo"
   },
   "profile": {
     "title": "Profilo",

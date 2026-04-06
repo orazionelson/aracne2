@@ -18,7 +18,13 @@
     "invalid_credentials": "Invalid credentials. Please try again."
   },
   "home": {
-    "title": "Aracne2"
+    "title": "Aracne2",
+    "welcome": "Welcome, {name}."
+  },
+  "nav": {
+    "home": "Home",
+    "users": "Users",
+    "profile": "Profile"
   },
   "profile": {
     "title": "Profile",
