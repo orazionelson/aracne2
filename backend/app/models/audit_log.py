@@ -2,10 +2,11 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.db.types import InetType
 
 
 def _now() -> datetime:
@@ -26,7 +27,7 @@ class AuditLog(Base):
     target_type: Mapped[str | None] = mapped_column(String(64), default=None)
     target_id: Mapped[str | None] = mapped_column(Text, default=None)
     target_label: Mapped[str | None] = mapped_column(Text, default=None)
-    ip_address: Mapped[str | None] = mapped_column(INET, default=None)
+    ip_address: Mapped[str | None] = mapped_column(InetType, default=None)
     user_agent: Mapped[str | None] = mapped_column(Text, default=None)
     payload: Mapped[dict | None] = mapped_column(JSONB, default=None)
     occurred_at: Mapped[datetime] = mapped_column(
