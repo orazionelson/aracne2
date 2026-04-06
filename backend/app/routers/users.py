@@ -86,7 +86,7 @@ async def users_list(
 @router.post("", status_code=201)
 async def user_create(
     body: UserCreate,
-    current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
+    current_user: Annotated[User, Depends(require_role(min_role="EditorInChief"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
     data = await create_user(db, body, current_user)
