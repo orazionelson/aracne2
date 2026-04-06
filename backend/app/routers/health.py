@@ -12,8 +12,8 @@ router = APIRouter(tags=["system"])
 
 @router.get("/health")
 async def health_check(
-    db: AsyncSession = Depends(get_async_session),
-    existdb: ExistDBClient = Depends(get_existdb),
+    db: AsyncSession = Depends(get_async_session),  # noqa: B008
+    existdb: ExistDBClient = Depends(get_existdb),  # noqa: B008
 ) -> DataResponse[HealthResponse]:
 
     # PostgreSQL check

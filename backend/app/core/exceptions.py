@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class PlatformException(Exception):
+class PlatformException(Exception):  # noqa: N818
     code: str
     message: str
     status_code: int = 400

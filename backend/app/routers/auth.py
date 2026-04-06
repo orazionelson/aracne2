@@ -114,8 +114,8 @@ async def logout(
             payload = decode_token(token, "access")
             jti = uuid.UUID(str(payload["jti"]))
             await revoke_session(db, jti)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        logger.debug("logout_token_revoke_skipped", reason="invalid or expired token")
     _clear_refresh_cookie(response)
     return DataResponse(data={"message": "Logged out successfully"})
 

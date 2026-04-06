@@ -63,7 +63,7 @@ class Settings(BaseSettings):
         else:
             origins = [o.strip() for o in v.split(",") if o.strip()]
 
-        _LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "::1"}
+        _localhost_hosts = {"localhost", "127.0.0.1", "::1"}
 
         for origin in origins:
             if origin == "*":
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
                 )
             if self.environment == "production" and origin.startswith("http://"):
                 host = urlparse(origin).hostname or ""
-                if host not in _LOCALHOST_HOSTS:
+                if host not in _localhost_hosts:
                     raise ValueError(
                         f"CORS origin {origin!r} uses HTTP in production. "
                         "Only HTTPS origins are allowed in production "

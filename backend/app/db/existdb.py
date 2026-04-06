@@ -29,7 +29,9 @@ class ExistDBClient:
             return False
 
     # Stubs — implemented in PHASE 05
-    async def xquery(self, query_name: str, params: dict[str, object] | None = None) -> dict[str, object]:
+    async def xquery(
+        self, query_name: str, params: dict[str, object] | None = None
+    ) -> dict[str, object]:
         raise NotImplementedError("Implemented in PHASE 05")
 
     async def store_document(

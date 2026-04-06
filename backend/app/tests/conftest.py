@@ -1,14 +1,16 @@
-import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.core.password import hash_password
-from app.main import app
 from app.db.postgres import Base, get_async_session
+from app.main import app
 from app.middleware.rate_limiter import limiter
+from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
+from app.models.role import Role as _Role
+from app.models.user import User as _User
 
 # slowapi 0.1.9 has no built-in "enabled" flag.
 # _check_request_limit is synchronous in this version; after it returns,
@@ -20,9 +22,6 @@ def _no_rate_limit(request: object, *args: object, **kwargs: object) -> None:
         request.state.view_rate_limit = None  # type: ignore[union-attr]
 
 limiter._check_request_limit = _no_rate_limit
-from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
-from app.models.role import Role as _Role
-from app.models.user import User as _User
 
 TEST_USER_USERNAME = "testuser"
 TEST_USER_PASSWORD = "testpassword1"
