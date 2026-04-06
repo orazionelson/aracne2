@@ -13,8 +13,8 @@ class InetType(TypeDecorator[str]):
 
     def load_dialect_impl(self, dialect: Any) -> TypeEngine[str]:
         if dialect.name == "postgresql":
-            return dialect.type_descriptor(INET())
-        return dialect.type_descriptor(String(45))
+            return dialect.type_descriptor(INET())  # type: ignore[no-any-return]
+        return dialect.type_descriptor(String(45))  # type: ignore[no-any-return]
 
 
 class JsonbType(TypeDecorator[Any]):
@@ -25,8 +25,8 @@ class JsonbType(TypeDecorator[Any]):
 
     def load_dialect_impl(self, dialect: Any) -> TypeEngine[Any]:
         if dialect.name == "postgresql":
-            return dialect.type_descriptor(JSONB())  # type: ignore[no-untyped-call]
-        return dialect.type_descriptor(JSON())
+            return dialect.type_descriptor(JSONB())  # type: ignore[no-untyped-call, no-any-return]
+        return dialect.type_descriptor(JSON())  # type: ignore[no-any-return]
 
 
 class SmallIntType(TypeDecorator[int]):
@@ -42,8 +42,8 @@ class SmallIntType(TypeDecorator[int]):
 
     def load_dialect_impl(self, dialect: Any) -> TypeEngine[int]:
         if dialect.name == "postgresql":
-            return dialect.type_descriptor(SmallInteger())
-        return dialect.type_descriptor(Integer())
+            return dialect.type_descriptor(SmallInteger())  # type: ignore[no-any-return]
+        return dialect.type_descriptor(Integer())  # type: ignore[no-any-return]
 
 
 class BigIntType(TypeDecorator[int]):
@@ -57,5 +57,5 @@ class BigIntType(TypeDecorator[int]):
 
     def load_dialect_impl(self, dialect: Any) -> TypeEngine[int]:
         if dialect.name == "postgresql":
-            return dialect.type_descriptor(BigInteger())
-        return dialect.type_descriptor(Integer())
+            return dialect.type_descriptor(BigInteger())  # type: ignore[no-any-return]
+        return dialect.type_descriptor(Integer())  # type: ignore[no-any-return]

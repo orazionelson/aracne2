@@ -27,7 +27,7 @@ from app.models.user import User as _User
 # call doesn't raise AttributeError.
 def _no_rate_limit(request: object, *args: object, **kwargs: object) -> None:
     if hasattr(request, "state"):
-        request.state.view_rate_limit = None  # type: ignore[attr-defined]
+        request.state.view_rate_limit = None
 
 limiter._check_request_limit = _no_rate_limit  # type: ignore[method-assign]
 
