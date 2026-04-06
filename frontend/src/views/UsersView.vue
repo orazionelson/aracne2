@@ -43,6 +43,57 @@ const page = ref(1);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
+// ── Create modal ───────────────────────────────────────────────────────────────
+
+const showModal = ref(false);
+const isCreating = ref(false);
+const createError = ref<string | null>(null);
+
+const form = ref({
+  username: "",
+  email: "",
+  password: "",
+  display_name: "",
+  preferred_lang: "it",
+  role: "User",
+});
+
+const VALID_ROLES = ["Admin", "EditorInChief", "Designer", "Editor", "User"];
+
+function openModal(): void {
+  form.value = { username: "", email: "", password: "", display_name: "", preferred_lang: "it", role: "User" };
+  createError.value = null;
+  showModal.value = true;
+}
+
+function closeModal(): void {
+  showModal.value = false;
+}
+
+async function createUser(): Promise<void> {
+  isCreating.value = true;
+  createError.value = null;
+  try {
+    await apiClient.post<UserResponse>("/users", {
+      username: form.value.username,
+      email: form.value.email,
+      password: form.value.password,
+      display_name: form.value.display_name || null,
+      preferred_lang: form.value.preferred_lang,
+      role: form.value.role,
+    });
+    closeModal();
+    page.value = 1;
+    await fetchUsers();
+  } catch {
+    createError.value = t("common.error");
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+// ── List ───────────────────────────────────────────────────────────────────────
+
 async function fetchUsers(): Promise<void> {
   isLoading.value = true;
   error.value = null;
@@ -82,20 +133,28 @@ onMounted(fetchUsers);
 </script>
 
 <template>
-  <div class="p-6 max-w-6xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
+  <div class="mx-auto max-w-6xl p-6">
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-bold">{{ t("users.title") }}</h1>
+      <button
+        v-if="auth.hasMinRole('Admin')"
+        class="rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
+        @click="openModal"
+      >
+        + {{ t("users.create") }}
+      </button>
     </div>
 
     <!-- Filters -->
-    <div class="flex gap-3 mb-4">
+    <div class="mb-4 flex gap-3">
       <input
         v-model="search"
         type="text"
         :placeholder="t('users.search_placeholder')"
-        class="flex-1 border rounded px-3 py-2 text-sm"
+        class="flex-1 rounded border px-3 py-2 text-sm"
       />
-      <select v-model="isActiveFilter" class="border rounded px-3 py-2 text-sm">
+      <select v-model="isActiveFilter" class="rounded border px-3 py-2 text-sm">
         <option value="">{{ t("users.all_roles") }}</option>
         <option value="true">{{ t("users.filter_active") }}</option>
         <option value="false">{{ t("users.filter_inactive") }}</option>
@@ -103,7 +162,7 @@ onMounted(fetchUsers);
     </div>
 
     <!-- Error -->
-    <p v-if="error" class="text-red-600 mb-4">{{ error }}</p>
+    <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
 
     <!-- Loading -->
     <p v-if="isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
@@ -131,18 +190,14 @@ onMounted(fetchUsers);
             <td class="px-4 py-2 text-gray-600">{{ user.email }}</td>
             <td class="px-4 py-2">{{ user.role }}</td>
             <td class="px-4 py-2">
-              <span
-                :class="user.is_active ? 'text-green-600' : 'text-gray-400'"
-              >
+              <span :class="user.is_active ? 'text-green-600' : 'text-gray-400'">
                 {{ user.is_active ? t("users.active") : t("users.inactive") }}
               </span>
             </td>
-            <td class="px-4 py-2 text-gray-500">
-              {{ formatDate(user.last_login_at) }}
-            </td>
+            <td class="px-4 py-2 text-gray-500">{{ formatDate(user.last_login_at) }}</td>
             <td v-if="auth.hasMinRole('Admin')" class="px-4 py-2">
               <button
-                class="text-blue-600 hover:underline text-sm"
+                class="text-sm text-blue-600 hover:underline"
                 @click="goToDetail(user.id)"
               >
                 {{ t("users.edit") }}
@@ -153,13 +208,13 @@ onMounted(fetchUsers);
       </table>
     </div>
 
-    <p v-else class="text-gray-500 mt-4">{{ t("users.no_users") }}</p>
+    <p v-else class="mt-4 text-gray-500">{{ t("users.no_users") }}</p>
 
     <!-- Pagination -->
-    <div v-if="pagination && pagination.total_pages > 1" class="flex gap-2 mt-4">
+    <div v-if="pagination && pagination.total_pages > 1" class="mt-4 flex gap-2">
       <button
         :disabled="page === 1"
-        class="px-3 py-1 border rounded text-sm disabled:opacity-40"
+        class="rounded border px-3 py-1 text-sm disabled:opacity-40"
         @click="page--; fetchUsers()"
       >
         ←
@@ -167,11 +222,99 @@ onMounted(fetchUsers);
       <span class="px-3 py-1 text-sm">{{ page }} / {{ pagination.total_pages }}</span>
       <button
         :disabled="page === pagination.total_pages"
-        class="px-3 py-1 border rounded text-sm disabled:opacity-40"
+        class="rounded border px-3 py-1 text-sm disabled:opacity-40"
         @click="page++; fetchUsers()"
       >
         →
       </button>
     </div>
   </div>
+
+  <!-- Create user modal -->
+  <Teleport to="body">
+    <div
+      v-if="showModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      @click.self="closeModal"
+    >
+      <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <h2 class="mb-5 text-lg font-semibold">{{ t("users.create") }}</h2>
+
+        <div class="space-y-4">
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">{{ t("users.username") }}</span>
+            <input
+              v-model="form.username"
+              type="text"
+              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">{{ t("users.email") }}</span>
+            <input
+              v-model="form.email"
+              type="email"
+              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">{{ t("users.password") }}</span>
+            <input
+              v-model="form.password"
+              type="password"
+              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              autocomplete="new-password"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">{{ t("users.display_name") }}</span>
+            <input
+              v-model="form.display_name"
+              type="text"
+              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+            />
+          </label>
+
+          <div class="flex gap-4">
+            <label class="block flex-1">
+              <span class="text-sm font-medium text-gray-700">{{ t("users.role") }}</span>
+              <select v-model="form.role" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+                <option v-for="r in VALID_ROLES" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </label>
+
+            <label class="block flex-1">
+              <span class="text-sm font-medium text-gray-700">{{ t("users.preferred_lang") }}</span>
+              <select v-model="form.preferred_lang" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+                <option value="it">Italiano</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <p v-if="createError" class="mt-3 text-sm text-red-600">{{ createError }}</p>
+
+        <div class="mt-6 flex justify-end gap-3">
+          <button
+            class="rounded border px-4 py-2 text-sm hover:bg-gray-50"
+            @click="closeModal"
+          >
+            {{ t("common.cancel") }}
+          </button>
+          <button
+            :disabled="isCreating || !form.username || !form.email || !form.password"
+            class="rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-40"
+            @click="createUser"
+          >
+            {{ isCreating ? t("common.loading") : t("users.create") }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
