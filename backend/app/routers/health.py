@@ -10,7 +10,7 @@ from app.schemas.common import DataResponse, HealthResponse, HealthService
 router = APIRouter(tags=["system"])
 
 
-@router.get("/health", response_model=DataResponse[HealthResponse])
+@router.get("/health")
 async def health_check(
     db: AsyncSession = Depends(get_async_session),
     existdb: ExistDBClient = Depends(get_existdb),

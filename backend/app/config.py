@@ -1,6 +1,7 @@
+import json
 from typing import Literal
 
-from pydantic import computed_field, field_validator
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +11,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
-        env_list_separator=",",
     )
 
     # PostgreSQL
@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     # eXist-db
     existdb_url: str
     existdb_user: str
-    exist_password: str  # shared with the existdb Docker image (EXIST_PASSWORD)
+    # Shared with the existdb Docker image (EXIST_PASSWORD).
+    # eXist-db 6.2.0 ignores EXIST_PASSWORD on first boot — admin password is empty by default.
+    exist_password: str = ""
 
     # JWT
     jwt_secret: str
@@ -47,7 +49,17 @@ class Settings(BaseSettings):
 
     # Security
     bcrypt_rounds: int = 12
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # Read as str to avoid pydantic-settings JSON pre-parsing of list fields;
+    # exposed as list[str] via cors_origins computed_field below.
+    cors_origins_raw: str = Field("http://localhost:5173", alias="cors_origins")
+
+    @computed_field
+    @property
+    def cors_origins(self) -> list[str]:
+        v = self.cors_origins_raw.strip()
+        if v.startswith("["):
+            return json.loads(v)
+        return [o.strip() for o in v.split(",") if o.strip()]
 
     # Application
     environment: Literal["development", "production", "test"] = "development"

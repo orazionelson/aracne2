@@ -10,7 +10,6 @@ def configure_logging() -> None:
     """Configure structlog for human-readable output in development and JSON in production."""
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
@@ -42,7 +41,6 @@ def configure_logging() -> None:
 
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
         level=logging.getLevelName(settings.log_level.upper()),
         handlers=[renderer],
     )
