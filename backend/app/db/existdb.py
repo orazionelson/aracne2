@@ -90,24 +90,68 @@ class ExistDBClient:
     async def xquery(
         self, query_file: str, variables: dict[str, str] | None = None
     ) -> bytes:
-        """Execute an XQuery from app/xqueries/ and return raw response bytes."""
+        """Execute an XQuery from app/xqueries/ and return raw response bytes.
+
+        When variables are provided, the eXist-db XML POST format is used
+        because form-encoded POST does not support external variable binding.
+        Without variables, a simpler form-encoded POST is used.
+        """
         query = self._load_xq(query_file)
         client = self._require()
 
-        form: dict[str, str] = {"_query": query, "_wrap": "no"}
         if variables:
-            form.update(variables)
+            r = await client.post(
+                self._rest_url("db"),
+                content=self._build_xquery_xml(query, variables),
+                headers={"Content-Type": "application/xml"},
+            )
+        else:
+            form: dict[str, str] = {"_query": query, "_wrap": "no"}
+            r = await client.post(
+                self._rest_url("db"),
+                content=urlencode(form).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
 
-        r = await client.post(
-            self._rest_url("db"),
-            content=urlencode(form).encode(),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
         if r.status_code not in (200, 201):
             raise ExternalServiceError(
                 "existdb", f"XQuery '{query_file}' failed ({r.status_code}): {r.text[:300]}"
             )
         return r.content
+
+    @staticmethod
+    def _build_xquery_xml(query: str, variables: dict[str, str]) -> bytes:
+        """Serialize an eXist-db XML query document with external variable bindings."""
+        _NS = "http://exist.sourceforge.net/NS/exist"
+        _XSI = "http://www.w3.org/2001/XMLSchema-instance"
+
+        def _esc(s: str) -> str:
+            return (
+                s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
+        # Embed XQuery in CDATA; escape any ]]> sequences inside the query text
+        safe_query = query.replace("]]>", "]]]]><![CDATA[>")
+
+        var_xml = "".join(
+            f"<variable>"
+            f"<qname><localname>{name}</localname></qname>"
+            f'<value xmlns:xsi="{_XSI}" xsi:type="xs:string">{_esc(value)}</value>'
+            f"</variable>"
+            for name, value in variables.items()
+        )
+
+        body = (
+            f'<query xmlns="{_NS}" xmlns:xs="http://www.w3.org/2001/XMLSchema">'
+            f"<text><![CDATA[{safe_query}]]></text>"
+            f'<properties><property name="wrap" value="no"/></properties>'
+            f"<variables>{var_xml}</variables>"
+            f"</query>"
+        )
+        return body.encode("utf-8")
 
     # ── Collection operations ──────────────────────────────────────────────────
 
