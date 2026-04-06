@@ -1,12 +1,19 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import StaticPool
 
+from app.core.password import hash_password
 from app.main import app
 from app.db.postgres import Base, get_async_session
 from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
+from app.models.role import Role as _Role
+from app.models.user import User as _User
+
+TEST_USER_USERNAME = "testuser"
+TEST_USER_PASSWORD = "testpassword1"
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -54,3 +61,22 @@ async def seeded_roles(db_session: AsyncSession) -> list[str]:
         db_session.add(Role(name=name, description=f"{name} role"))
     await db_session.flush()
     return roles
+
+
+@pytest_asyncio.fixture
+async def seeded_user(db_session: AsyncSession, seeded_roles: list[str]) -> _User:
+    user = _User(
+        username=TEST_USER_USERNAME,
+        email="testuser@example.com",
+        password_hash=hash_password(TEST_USER_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    editor_role = await db_session.scalar(
+        select(_Role).where(_Role.name == "Editor")
+    )
+    db_session.add(UserRole(user_id=user.id, role_id=editor_role.id))
+    await db_session.flush()
+    return user
