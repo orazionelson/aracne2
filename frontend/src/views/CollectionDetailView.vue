@@ -166,6 +166,7 @@ async function handleUnpublish(): Promise<void> {
 const docError = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isUploading = ref(false);
+const uploadProgress = ref({ done: 0, total: 0 });
 
 const canWrite = computed(
   () =>
@@ -175,20 +176,26 @@ const canWrite = computed(
 
 async function onFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
+  const files = Array.from(input.files ?? []);
+  if (files.length === 0) return;
   docError.value = null;
   isUploading.value = true;
-  try {
-    await store.uploadDocument(slug, file);
-  } catch (err) {
-    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message;
-    docError.value = msg ?? t("common.error");
-  } finally {
-    isUploading.value = false;
-    if (fileInput.value) fileInput.value.value = "";
+  uploadProgress.value = { done: 0, total: files.length };
+  const errors: string[] = [];
+  for (const file of files) {
+    try {
+      await store.uploadDocument(slug, file);
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      errors.push(`${file.name}: ${msg ?? t("common.error")}`);
+    }
+    uploadProgress.value.done += 1;
   }
+  isUploading.value = false;
+  uploadProgress.value = { done: 0, total: 0 };
+  if (fileInput.value) fileInput.value.value = "";
+  if (errors.length > 0) docError.value = errors.join(" — ");
 }
 
 async function handleDownload(filename: string): Promise<void> {
@@ -518,12 +525,17 @@ function statusClass(s: string): string {
             class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
             @click="fileInput?.click()"
           >
-            {{ isUploading ? t("common.loading") : t("collections.upload") }}
+            <span v-if="isUploading && uploadProgress.total > 1">
+              {{ uploadProgress.done }}/{{ uploadProgress.total }}
+            </span>
+            <span v-else-if="isUploading">{{ t("common.loading") }}</span>
+            <span v-else>{{ t("collections.upload") }}</span>
           </button>
           <input
             ref="fileInput"
             type="file"
             accept=".xml,application/xml,text/xml"
+            multiple
             class="hidden"
             @change="onFileSelected"
           />
