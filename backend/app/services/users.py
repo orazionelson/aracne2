@@ -423,17 +423,6 @@ async def delete_my_account(db: AsyncSession, user: User) -> None:
     Cascades to sessions and user_roles via FK ON DELETE CASCADE.
     Sets actor_id = NULL in audit_log via FK ON DELETE SET NULL.
     """
-    sessions = list(
-        await db.scalars(
-            select(Session).where(
-                Session.user_id == user.id, Session.revoked_at.is_(None)
-            )
-        )
-    )
-    for s in sessions:
-        s.revoked_at = _now()
-        s.revoked_reason = "account_deleted"
-
     # Write audit entry BEFORE deleting (actor_id will be NULL-ed on cascade)
     db.add(
         AuditLog(
@@ -447,10 +436,12 @@ async def delete_my_account(db: AsyncSession, user: User) -> None:
     )
     await db.flush()
 
-    # Explicitly remove role assignments before deletion — SQLite does not
-    # enforce ON DELETE CASCADE without PRAGMA foreign_keys=ON, and SQLAlchemy's
-    # ORM would otherwise try to SET NULL on user_roles.user_id (NOT NULL column).
+    # Explicitly delete child rows before deletion — SQLite does not enforce
+    # ON DELETE CASCADE without PRAGMA foreign_keys=ON, and SQLAlchemy's ORM
+    # would otherwise try to SET NULL on NOT NULL FK columns (user_roles.user_id,
+    # sessions.user_id), causing an IntegrityError.
     await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
+    await db.execute(delete(Session).where(Session.user_id == user.id))
     await db.flush()
 
     await db.delete(user)
