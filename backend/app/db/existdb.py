@@ -112,6 +112,13 @@ class ExistDBClient:
         )
 
         if r.status_code not in (200, 201):
+            logger.error(
+                "existdb_xquery_failed",
+                query_file=query_file,
+                status=r.status_code,
+                response_body=r.text[:500],
+                request_url=str(r.request.url),
+            )
             raise ExternalServiceError(
                 "existdb", f"XQuery '{query_file}' failed ({r.status_code}): {r.text[:300]}"
             )
