@@ -62,7 +62,7 @@ class ExistDBClient:
             raise ExternalServiceError("existdb", "Client not connected")
         return self._client
 
-    def _col_path(self, slug: str) -> str:
+    def col_path(self, slug: str) -> str:
         """Full eXist-db path for a collection slug."""
         return f"{_DB_ROOT}/collections/{slug}"
 
@@ -125,7 +125,7 @@ class ExistDBClient:
         """Recursively delete /db/aracne2/collections/{slug} from eXist-db."""
         await self.xquery(
             "system/delete_collection.xq",
-            {"path": self._col_path(slug)},
+            {"path": self.col_path(slug)},
         )
         logger.info("existdb_collection_deleted", slug=slug)
 

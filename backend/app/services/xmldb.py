@@ -40,9 +40,11 @@ from app.schemas.collections import (
     CollectionResponse,
     CollectionUpdate,
     DocumentInfo,
+    DocumentMeta,
     PermissionEntry,
     PermissionGrant,
     RejectAction,
+    SearchHit,
     WorkflowAction,
 )
 
@@ -674,4 +676,75 @@ async def revoke_permission(
         slug=col.slug,
         target=username,
         actor=actor.username,
+    )
+
+
+# ── XQuery operations ──────────────────────────────────────────────────────────
+
+_DEFAULT_MAX_SEARCH_RESULTS = 50
+
+
+async def search_in_collection(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    query: str,
+    actor: User,
+    role: str,
+    max_results: int = _DEFAULT_MAX_SEARCH_RESULTS,
+) -> list[SearchHit]:
+    """Case-insensitive full-text search across documents in a collection.
+
+    Uses XQuery contains() — no Lucene index required.
+    Returns up to *max_results* hits ordered by document iteration order.
+    """
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+
+    raw = await existdb.xquery(
+        "search/fulltext_collection.xq",
+        {
+            "collection_path": existdb.col_path(col.slug),
+            "query": query,
+            "max_results": str(max_results),
+        },
+    )
+    root = _safe_xml.fromstring(raw)
+    return [
+        SearchHit(
+            filename=hit.get("filename", ""),
+            snippet=hit.get("snippet", ""),
+        )
+        for hit in root.findall("hit")
+    ]
+
+
+async def get_document_metadata(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: uuid.UUID,
+    filename: str,
+    actor: User,
+    role: str,
+) -> DocumentMeta:
+    """Return generic XML metadata for a document stored in eXist-db.
+
+    Extracted via XQuery: root element name, namespace URI, character size,
+    and direct child count. Does not parse TEI-specific fields.
+    """
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+
+    doc_path = f"{existdb.col_path(col.slug)}/{filename}"
+    raw = await existdb.xquery(
+        "documents/get_metadata.xq",
+        {"doc_path": doc_path},
+    )
+    root = _safe_xml.fromstring(raw)
+    return DocumentMeta(
+        root_element=root.findtext("root-element") or "",
+        namespace=root.findtext("namespace") or "",
+        size=int(root.findtext("size") or 0),
+        child_count=int(root.findtext("child-count") or 0),
     )

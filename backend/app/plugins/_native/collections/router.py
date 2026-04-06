@@ -27,9 +27,11 @@ from app.schemas.collections import (
     CollectionResponse,
     CollectionUpdate,
     DocumentInfo,
+    DocumentMeta,
     PermissionEntry,
     PermissionGrant,
     RejectAction,
+    SearchHit,
     WorkflowAction,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
@@ -40,6 +42,7 @@ from app.services.xmldb import (
     delete_document,
     download_document,
     get_collection,
+    get_document_metadata,
     grant_permission,
     list_collections,
     list_documents,
@@ -47,6 +50,7 @@ from app.services.xmldb import (
     publish_collection,
     reject_collection,
     revoke_permission,
+    search_in_collection,
     submit_collection,
     unpublish_collection,
     update_collection,
@@ -309,6 +313,51 @@ async def document_delete(
     """Delete a document from the collection."""
     role: str = request.state.role
     await delete_document(db, existdb, collection_id, filename, current_user, role)
+
+
+# ── XQuery operations ─────────────────────────────────────────────────────────
+
+@router.get("/{collection_id}/search")
+async def collection_search(
+    collection_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+    q: str = Query(min_length=1, max_length=256),
+    max_results: int = Query(default=50, ge=1, le=200),
+) -> DataResponse[list[SearchHit]]:
+    """Case-insensitive full-text search across all documents in a collection.
+
+    Returns up to *max_results* hits, each with the matching document's filename
+    and a short text snippet around the first occurrence of the query term.
+    """
+    role: str = request.state.role
+    hits = await search_in_collection(
+        db, existdb, collection_id, q, current_user, role, max_results
+    )
+    return DataResponse(data=hits)
+
+
+@router.get("/{collection_id}/documents/{filename}/metadata")
+async def document_metadata(
+    collection_id: uuid.UUID,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[DocumentMeta]:
+    """Return generic XML metadata for a document extracted via XQuery.
+
+    Reports the root element name, its namespace URI, the total character
+    size of the serialized document, and the count of direct child elements.
+    """
+    role: str = request.state.role
+    meta = await get_document_metadata(
+        db, existdb, collection_id, filename, current_user, role
+    )
+    return DataResponse(data=meta)
 
 
 # ── Permission management ─────────────────────────────────────────────────────

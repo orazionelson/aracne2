@@ -94,3 +94,15 @@ class PermissionEntry(BaseModel):
 
 class PermissionGrant(BaseModel):
     user_id: uuid.UUID
+
+
+class SearchHit(BaseModel):
+    filename: str
+    snippet: str
+
+
+class DocumentMeta(BaseModel):
+    root_element: str
+    namespace: str
+    size: int
+    child_count: int
