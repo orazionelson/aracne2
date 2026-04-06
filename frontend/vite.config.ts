@@ -10,7 +10,9 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // Inside Docker the frontend container reaches the backend via its
+        // service name on the shared network, not via localhost.
+        target: "http://backend:8000",
         changeOrigin: true,
       },
     },
