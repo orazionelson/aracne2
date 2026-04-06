@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -10,6 +10,8 @@ const router = useRouter();
 const auth = useAuthStore();
 const notif = useNotificationStore();
 
+const menuOpen = ref(false);
+
 onMounted(async () => {
   if (auth.isAuthenticated) {
     await notif.fetchUnreadCount().catch(() => undefined);
@@ -17,94 +19,206 @@ onMounted(async () => {
 });
 
 async function handleLogout(): Promise<void> {
+  menuOpen.value = false;
   await auth.logout();
   router.push({ name: "login" });
+}
+
+function closeMenu(): void {
+  menuOpen.value = false;
 }
 </script>
 
 <template>
-  <nav class="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-6 bg-gray-900 px-6 text-white">
-    <!-- Brand -->
-    <router-link
-      to="/"
-      class="text-lg font-bold tracking-tight hover:text-gray-300"
-    >
-      Aracne2
-    </router-link>
-
-    <!-- Primary links -->
-    <div class="flex flex-1 gap-4 text-sm">
+  <nav class="fixed inset-x-0 top-0 z-50 bg-gray-900 text-white">
+    <!-- Top bar -->
+    <div class="flex h-14 items-center gap-4 px-4">
+      <!-- Brand -->
       <router-link
         to="/"
-        class="text-gray-400 transition-colors hover:text-white"
-        exact-active-class="!text-white font-medium"
+        class="text-lg font-bold tracking-tight hover:text-gray-300"
+        @click="closeMenu"
       >
-        {{ t("nav.home") }}
+        Aracne2
       </router-link>
-      <router-link
-        to="/collections"
-        class="text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
+
+      <!-- Desktop primary links -->
+      <div class="hidden flex-1 items-center gap-4 text-sm md:flex">
+        <router-link
+          to="/"
+          class="text-gray-400 transition-colors hover:text-white"
+          exact-active-class="!text-white font-medium"
+        >
+          {{ t("nav.home") }}
+        </router-link>
+        <router-link
+          to="/collections"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.collections") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('EditorInChief')"
+          to="/users"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.users") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/plugins"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.plugins") }}
+        </router-link>
+      </div>
+
+      <!-- Desktop right side -->
+      <div class="ml-auto hidden items-center gap-5 text-sm md:flex">
+        <span class="text-xs text-gray-500">
+          {{ auth.user?.username }} &middot; {{ auth.user?.role }}
+        </span>
+        <router-link
+          to="/notifications"
+          class="relative text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.notifications") }}
+          <span
+            v-if="notif.unreadCount > 0"
+            class="absolute -right-3 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
+          >
+            {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
+          </span>
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/settings"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.settings") }}
+        </router-link>
+        <router-link
+          to="/profile"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.profile") }}
+        </router-link>
+        <button
+          class="text-gray-400 transition-colors hover:text-white"
+          @click="handleLogout"
+        >
+          {{ t("auth.sign_out") }}
+        </button>
+      </div>
+
+      <!-- Hamburger (mobile only) -->
+      <button
+        class="ml-auto flex flex-col gap-1.5 p-1 md:hidden"
+        :aria-label="t('nav.menu')"
+        @click="menuOpen = !menuOpen"
       >
-        {{ t("nav.collections") }}
-      </router-link>
-      <router-link
-        v-if="auth.hasMinRole('EditorInChief')"
-        to="/users"
-        class="text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
-      >
-        {{ t("nav.users") }}
-      </router-link>
-      <router-link
-        v-if="auth.hasMinRole('Admin')"
-        to="/admin/plugins"
-        class="text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
-      >
-        {{ t("nav.plugins") }}
-      </router-link>
+        <span
+          class="block h-0.5 w-5 bg-white transition-transform"
+          :class="menuOpen ? 'translate-y-2 rotate-45' : ''"
+        />
+        <span
+          class="block h-0.5 w-5 bg-white transition-opacity"
+          :class="menuOpen ? 'opacity-0' : ''"
+        />
+        <span
+          class="block h-0.5 w-5 bg-white transition-transform"
+          :class="menuOpen ? '-translate-y-2 -rotate-45' : ''"
+        />
+      </button>
     </div>
 
-    <!-- Right side -->
-    <div class="flex items-center gap-5 text-sm">
-      <span class="hidden text-xs text-gray-500 sm:inline">
+    <!-- Mobile menu -->
+    <div
+      v-if="menuOpen"
+      class="border-t border-gray-700 bg-gray-900 px-4 pb-4 pt-2 text-sm md:hidden"
+    >
+      <p class="mb-3 text-xs text-gray-500">
         {{ auth.user?.username }} &middot; {{ auth.user?.role }}
-      </span>
-      <router-link
-        to="/notifications"
-        class="relative text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
-      >
-        {{ t("nav.notifications") }}
-        <span
-          v-if="notif.unreadCount > 0"
-          class="absolute -right-3 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
+      </p>
+      <div class="flex flex-col gap-3">
+        <router-link
+          to="/"
+          class="text-gray-400 hover:text-white"
+          exact-active-class="!text-white font-medium"
+          @click="closeMenu"
         >
-          {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
-        </span>
-      </router-link>
-      <router-link
-        v-if="auth.hasMinRole('Admin')"
-        to="/admin/settings"
-        class="text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
-      >
-        {{ t("nav.settings") }}
-      </router-link>
-      <router-link
-        to="/profile"
-        class="text-gray-400 transition-colors hover:text-white"
-        active-class="!text-white font-medium"
-      >
-        {{ t("nav.profile") }}
-      </router-link>
-      <button
-        class="text-gray-400 transition-colors hover:text-white"
-        @click="handleLogout"
-      >
-        {{ t("auth.sign_out") }}
-      </button>
+          {{ t("nav.home") }}
+        </router-link>
+        <router-link
+          to="/collections"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.collections") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('EditorInChief')"
+          to="/users"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.users") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/plugins"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.plugins") }}
+        </router-link>
+        <router-link
+          to="/notifications"
+          class="relative text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.notifications") }}
+          <span
+            v-if="notif.unreadCount > 0"
+            class="ml-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
+          >
+            {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
+          </span>
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/settings"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.settings") }}
+        </router-link>
+        <router-link
+          to="/profile"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.profile") }}
+        </router-link>
+        <button
+          class="text-left text-gray-400 hover:text-white"
+          @click="handleLogout"
+        >
+          {{ t("auth.sign_out") }}
+        </button>
+      </div>
     </div>
   </nav>
 </template>

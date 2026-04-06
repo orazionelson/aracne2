@@ -28,7 +28,8 @@
     "plugins": "Plugins",
     "notifications": "Notifications",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "menu": "Menu"
   },
   "profile": {
     "title": "Profile",
