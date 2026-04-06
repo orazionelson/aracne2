@@ -92,24 +92,28 @@ class ExistDBClient:
     ) -> bytes:
         """Execute an XQuery from app/xqueries/ and return raw response bytes.
 
-        External variables are passed as URL query parameters, which eXist-db
-        binds to declared external variables in the XQuery.  The query text
-        itself is sent as a form-encoded POST body.
+        eXist-db 6.x REST API binding strategy:
+        - Without variables: form-encoded POST with _query and _wrap=no.
+        - With variables: XML POST (<query> document format) with _wrap=no
+          as a URL parameter.  URL query params are NOT bound to external
+          XQuery variables by eXist-db; only the XML format works.
         """
         query = self._load_xq(query_file)
         client = self._require()
 
-        # _wrap=no + any declared external variables as URL params
-        params: dict[str, str] = {"_wrap": "no"}
         if variables:
-            params.update(variables)
-
-        r = await client.post(
-            self._rest_url("db"),
-            params=params,
-            content=urlencode({"_query": query}).encode(),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
+            r = await client.post(
+                self._rest_url("db"),
+                params={"_wrap": "no"},
+                content=self._build_xquery_xml(query, variables),
+                headers={"Content-Type": "application/xml"},
+            )
+        else:
+            r = await client.post(
+                self._rest_url("db"),
+                content=urlencode({"_query": query, "_wrap": "no"}).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
 
         if r.status_code not in (200, 201):
             logger.error(
@@ -123,6 +127,43 @@ class ExistDBClient:
                 "existdb", f"XQuery '{query_file}' failed ({r.status_code}): {r.text[:300]}"
             )
         return r.content
+
+    @staticmethod
+    def _build_xquery_xml(query: str, variables: dict[str, str]) -> bytes:
+        """Serialize an eXist-db XML query document with external variable bindings.
+
+        Format per eXist-db REST API: <query> with <text> (CDATA) and
+        <variables>.  The <properties> element is intentionally omitted
+        because eXist-db 6.2.0 does not honour it and returns 400.
+        """
+        _NS = "http://exist.sourceforge.net/NS/exist"
+        _XSI = "http://www.w3.org/2001/XMLSchema-instance"
+
+        def _esc(s: str) -> str:
+            return (
+                s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
+        # Protect any ]]> sequences inside the query so the CDATA stays valid
+        safe_query = query.replace("]]>", "]]]]><![CDATA[>")
+
+        var_xml = "".join(
+            f"<variable>"
+            f"<qname><localname>{name}</localname></qname>"
+            f'<value xmlns:xsi="{_XSI}" xsi:type="xs:string">{_esc(value)}</value>'
+            f"</variable>"
+            for name, value in variables.items()
+        )
+        body = (
+            f'<query xmlns="{_NS}" xmlns:xs="http://www.w3.org/2001/XMLSchema">'
+            f"<text><![CDATA[{safe_query}]]></text>"
+            f"<variables>{var_xml}</variables>"
+            f"</query>"
+        )
+        return body.encode("utf-8")
 
     # ── Collection operations ──────────────────────────────────────────────────
 
