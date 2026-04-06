@@ -75,10 +75,11 @@ export const useCollectionStore = defineStore("collections", () => {
   }
 
   async function fetchEditors(): Promise<void> {
-    // Fetch users with role Editor; used for the assign-editor autocomplete.
+    // Fetch all active users for the assign-editor autocomplete.
+    // Role validation (Editor required) is enforced by the backend on assignment.
     interface UserRow { id: string; username: string; display_name: string | null }
     const res = await apiClient.getPaginated<UserRow>("/users", {
-      params: { role: "Editor", per_page: 200 },
+      params: { per_page: 200 },
     });
     editors.value = res.data as EditorOption[];
   }

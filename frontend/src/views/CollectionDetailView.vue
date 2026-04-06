@@ -73,12 +73,28 @@ const assignUsername = ref("");
 const assignNote = ref("");
 const isAssigning = ref(false);
 const assignError = ref<string | null>(null);
+const isEditorDropdownOpen = ref(false);
 
 // Resolve username → UUID from the loaded editors list.
 const resolvedEditorId = computed(() => {
   const match = store.editors.find((e) => e.username === assignUsername.value.trim());
   return match?.id ?? null;
 });
+
+const filteredEditors = computed(() => {
+  const q = assignUsername.value.toLowerCase().trim();
+  if (!q) return store.editors;
+  return store.editors.filter(
+    (e) =>
+      e.username.toLowerCase().includes(q) ||
+      (e.display_name?.toLowerCase().includes(q) ?? false),
+  );
+});
+
+function selectEditor(e: { id: string; username: string; display_name: string | null }): void {
+  assignUsername.value = e.username;
+  isEditorDropdownOpen.value = false;
+}
 
 watch(showAssignForm, async (open) => {
   if (open && store.editors.length === 0) {
@@ -357,22 +373,33 @@ function statusClass(s: string): string {
             {{ store.current.status === "assigned" ? t("collections.reassign_editor") : t("collections.assign_editor") }}
           </button>
           <form v-if="showAssignForm" class="mt-2 space-y-2" @submit.prevent="submitAssign">
-            <div>
+            <div class="relative">
               <input
                 v-model="assignUsername"
                 required
-                list="editor-list"
                 autocomplete="off"
                 class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 :placeholder="t('collections.assign_username')"
+                @focus="isEditorDropdownOpen = true"
+                @blur="setTimeout(() => { isEditorDropdownOpen = false }, 150)"
+                @input="isEditorDropdownOpen = true"
               />
-              <datalist id="editor-list">
-                <option
-                  v-for="e in store.editors"
+              <ul
+                v-if="isEditorDropdownOpen && filteredEditors.length > 0"
+                class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto"
+              >
+                <li
+                  v-for="e in filteredEditors"
                   :key="e.id"
-                  :value="e.username"
-                >{{ e.display_name ?? e.username }}</option>
-              </datalist>
+                  class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                  @mousedown.prevent="selectEditor(e)"
+                >
+                  <span class="font-medium">{{ e.username }}</span>
+                  <span v-if="e.display_name" class="ml-2 text-xs text-gray-500">
+                    {{ e.display_name }}
+                  </span>
+                </li>
+              </ul>
             </div>
             <input
               v-model="assignNote"
