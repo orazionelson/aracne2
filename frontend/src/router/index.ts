@@ -43,6 +43,18 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/collections",
+      name: "collections",
+      component: () => import("@/views/CollectionsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/collections/:id",
+      name: "collection-detail",
+      component: () => import("@/views/CollectionDetailView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/notifications",
       name: "notifications",
       component: () => import("@/views/NotificationsView.vue"),

@@ -42,6 +42,13 @@ async function handleLogout(): Promise<void> {
         {{ t("nav.home") }}
       </router-link>
       <router-link
+        to="/collections"
+        class="text-gray-400 transition-colors hover:text-white"
+        active-class="!text-white font-medium"
+      >
+        {{ t("nav.collections") }}
+      </router-link>
+      <router-link
         v-if="auth.hasMinRole('EditorInChief')"
         to="/users"
         class="text-gray-400 transition-colors hover:text-white"
