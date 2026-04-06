@@ -1,12 +1,12 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
-from app.db.types import InetType, JsonbType
+from app.db.types import BigIntType, InetType, JsonbType
 
 
 def _now() -> datetime:
@@ -16,7 +16,7 @@ def _now() -> datetime:
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntType, primary_key=True, autoincrement=True)
     action: Mapped[str] = mapped_column(String(128), nullable=False)
     actor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

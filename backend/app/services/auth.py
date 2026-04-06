@@ -15,6 +15,10 @@ from app.models.user import User
 
 logger = structlog.get_logger()
 
+# Precomputed at import time so verify_password always does real bcrypt work
+# even when the requested username does not exist (timing-safe login).
+_DUMMY_HASH: str = hash_password("__timing_safe_dummy_not_a_real_credential__")
+
 # ── Token helpers ─────────────────────────────────────────────────────────────
 
 
@@ -85,8 +89,7 @@ async def authenticate_user(
     )
     user = await db.scalar(stmt)
     # Always run hash check to avoid timing attacks even when user is not found
-    dummy = "$2b$12$" + "a" * 53
-    candidate_hash = user.password_hash if user else dummy
+    candidate_hash = user.password_hash if user else _DUMMY_HASH
     valid = verify_password(password, candidate_hash)
     if not user or not valid or not user.is_active:
         raise AuthenticationError(

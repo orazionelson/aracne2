@@ -3,11 +3,9 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
-    BigInteger,
     DateTime,
     Enum as SAEnum,
     ForeignKey,
-    SmallInteger,
     Text,
     UniqueConstraint,
 )
@@ -15,6 +13,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.db.types import BigIntType, SmallIntType
 
 
 def _now() -> datetime:
@@ -32,7 +31,7 @@ class RoleName(str, enum.Enum):
 class Role(Base):
     __tablename__ = "roles"
 
-    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(SmallIntType, primary_key=True, autoincrement=True)
     name: Mapped[RoleName] = mapped_column(
         SAEnum(RoleName, name="role_name", create_type=False),
         nullable=False,
@@ -52,7 +51,7 @@ class UserRole(Base):
         UniqueConstraint("user_id", "role_id", "revoked_at", name="uq_user_active_role"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntType, primary_key=True, autoincrement=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),

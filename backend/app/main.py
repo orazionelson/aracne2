@@ -107,14 +107,20 @@ _HTTP_CODE_MAP: dict[int, str] = {
 }
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     code = _HTTP_CODE_MAP.get(exc.status_code, "HTTP_ERROR")
     message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": {"code": code, "message": message, "details": {}}},
     )
+
+
+# Register both by class (FastAPI routes) and by status code (Starlette routing
+# layer 404/405 which bypasses the class-based handler).
+app.add_exception_handler(HTTPException, _http_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(404, _http_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(405, _http_exception_handler)  # type: ignore[arg-type]
 
 
 @app.exception_handler(Exception)

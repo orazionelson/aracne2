@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, String, Text
+from sqlalchemy import BigInteger, Integer, JSON, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.types import TypeDecorator
 
@@ -25,3 +25,35 @@ class JsonbType(TypeDecorator):
         if dialect.name == "postgresql":
             return dialect.type_descriptor(JSONB())
         return dialect.type_descriptor(JSON())
+
+
+class SmallIntType(TypeDecorator):
+    """SMALLINT on PostgreSQL, INTEGER on other dialects.
+
+    SQLite only recognises INTEGER PRIMARY KEY as a rowid alias (autoincrement).
+    SMALLINT PRIMARY KEY does not trigger that behaviour, causing NOT NULL
+    constraint failures when the id is omitted from INSERT statements.
+    """
+
+    impl = SmallInteger
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(SmallInteger())
+        return dialect.type_descriptor(Integer())
+
+
+class BigIntType(TypeDecorator):
+    """BIGINT on PostgreSQL, INTEGER on other dialects.
+
+    Same SQLite rowid-alias constraint as SmallIntType.
+    """
+
+    impl = BigInteger
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(BigInteger())
+        return dialect.type_descriptor(Integer())
