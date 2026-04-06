@@ -65,7 +65,7 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 |---------|-----|
 | Frontend (dev) | http://localhost:5173 |
 | Backend API | http://localhost:8000/api/v1 |
-| API docs (dev only) | http://localhost:8000/docs |
+| API docs (dev only) | http://localhost:8000/api/docs |
 | eXist-db dashboard | http://localhost:8080/exist/apps/dashboard (login: admin / empty password) |
 | PostgreSQL | localhost:5432 (127.0.0.1 only) |
 

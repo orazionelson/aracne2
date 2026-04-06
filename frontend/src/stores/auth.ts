@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { useI18n } from "vue-i18n";
+import { i18n } from "@/main";
 import api from "@/services/api";
 
 // Editor and Designer are lateral roles at the same level (2).
@@ -26,8 +26,6 @@ interface UserMe {
 }
 
 export const useAuthStore = defineStore("auth", () => {
-  const { locale } = useI18n();
-
   const user = ref<UserMe | null>(null);
   const accessToken = ref<string | null>(null);
   const isLoading = ref(false);
@@ -48,7 +46,7 @@ export const useAuthStore = defineStore("auth", () => {
   const hasRole = (role: string): boolean => userRole.value === role;
 
   function applyLocale(lang: string): void {
-    locale.value = lang;
+    i18n.global.locale.value = lang as "en" | "it";
   }
 
   async function login(usernameOrEmail: string, password: string): Promise<void> {

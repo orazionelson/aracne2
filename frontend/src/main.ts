@@ -8,7 +8,7 @@ import en from "./locales/en.json";
 import it from "./locales/it.json";
 import "./assets/main.css";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   legacy: false,
   locale: "it",
   fallbackLocale: "en",

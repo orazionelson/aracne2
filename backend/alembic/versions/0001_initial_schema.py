@@ -7,7 +7,7 @@ Create Date: 2026-03-24
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM, INET, JSONB, UUID
 
 revision = "0001"
 down_revision = None
@@ -21,23 +21,25 @@ def upgrade() -> None:
     op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
     op.execute('CREATE EXTENSION IF NOT EXISTS "pg_trgm"')
 
-    # 2. Enum types
-    role_name = sa.Enum(
-        "Admin", "EditorInChief", "Designer", "Editor", "User",
-        name="role_name",
-    )
-    plugin_status = sa.Enum("active", "inactive", "error", name="plugin_status")
-    role_name.create(op.get_bind())
-    plugin_status.create(op.get_bind())
+    # 2. Enum types — DO block handles the case where the type already exists
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE role_name AS ENUM ('Admin', 'EditorInChief', 'Designer', 'Editor', 'User');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE plugin_status AS ENUM ('active', 'inactive', 'error');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
 
     # 3. roles
     op.create_table(
         "roles",
         sa.Column("id", sa.SmallInteger(), autoincrement=True, nullable=False),
-        sa.Column("name", sa.Enum(
-            "Admin", "EditorInChief", "Designer", "Editor", "User",
-            name="role_name", create_type=False,
-        ), nullable=False),
+        sa.Column("name", ENUM(name="role_name", create_type=False), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
@@ -208,7 +210,7 @@ def upgrade() -> None:
         sa.Column("entry_point", sa.Text(), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("active", "inactive", "error", name="plugin_status", create_type=False),
+            ENUM(name="plugin_status", create_type=False),
             server_default=sa.text("'inactive'"),
             nullable=False,
         ),

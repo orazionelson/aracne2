@@ -86,7 +86,7 @@ The seed is **idempotent** — safe to run multiple times.
 |------------|----------------------------------------------|------------------------------|
 | Frontend   | http://localhost:5173                        | Vue SPA with hot reload      |
 | Backend    | http://localhost:8000/api/v1/health          | Should return `status: healthy` |
-| API docs   | http://localhost:8000/docs                   | Swagger UI (dev only)        |
+| API docs   | http://localhost:8000/api/docs               | Swagger UI (dev only)        |
 | eXist-db   | http://localhost:8080/exist/apps/dashboard   | Login: admin / (empty password) |
 | PostgreSQL | `make shell-db`                              | psql in the container        |
 

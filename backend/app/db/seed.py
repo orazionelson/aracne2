@@ -88,7 +88,7 @@ async def seed_admin(db: object) -> None:
     if user_role:
         from datetime import UTC, datetime
 
-        user_role.revoked_at = datetime.now(UTC)
+        user_role.revoked_at = datetime.now(UTC).replace(tzinfo=None)
 
     admin_role = await db.scalar(select(Role).where(Role.name == "Admin"))  # type: ignore[union-attr]
     db.add(UserRole(user_id=admin.id, role_id=admin_role.id))  # type: ignore[union-attr]
