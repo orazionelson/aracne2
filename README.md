@@ -29,7 +29,7 @@ Browser ──── REST API + JWT ──── FastAPI backend ──── Po
 
 ### Prerequisites
 
-- Docker and docker-compose
+- Docker Engine ≥ 24 with Compose plugin (install from https://get.docker.com — do not use the Snap version)
 - `make`
 
 ### First run
@@ -41,7 +41,7 @@ cd aracne2
 
 # 2. Create the environment file
 cp .env.example .env
-# Edit .env — set JWT_SECRET (min 64 chars) and all passwords
+# Edit .env: set JWT_SECRET (min 64 chars), POSTGRES_PASSWORD, leave EXIST_PASSWORD empty
 
 # 3. Start all services
 make up
@@ -53,15 +53,20 @@ make migrate
 make seed
 
 # 6. Verify
-curl http://localhost:8000/api/v1/health
+curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 ```
+
+> **Note on `EXIST_PASSWORD`:** eXist-db 6.2.0 ignores this variable on first boot
+> and starts with an empty admin password. Leave `EXIST_PASSWORD=` empty in `.env`.
+
+> **Full step-by-step guide** (including troubleshooting): see [quickstart.md](quickstart.md).
 
 | Service | URL |
 |---------|-----|
 | Frontend (dev) | http://localhost:5173 |
 | Backend API | http://localhost:8000/api/v1 |
-| API docs (dev only) | http://localhost:8000/api/docs |
-| eXist-db dashboard | http://localhost:8080/exist/apps/dashboard |
+| API docs (dev only) | http://localhost:8000/docs |
+| eXist-db dashboard | http://localhost:8080/exist/apps/dashboard (login: admin / empty password) |
 | PostgreSQL | localhost:5432 (127.0.0.1 only) |
 
 ### Common commands
@@ -115,11 +120,6 @@ make help          # Full command reference
 │       ├── views/             # page components
 │       ├── components/        # reusable components
 │       └── locales/           # i18n (en, it)
-├── .claude/                   # Claude Code project configuration
-│   ├── settings.json          # hooks, permissions
-│   ├── skills/                # /phase, /new-migration, /test-backend
-│   ├── hooks/                 # protect-sensitive.sh, autoformat-python.sh
-│   └── rules/                 # backend.md, frontend.md
 ├── docs/
 │   ├── phases/                # implementation phase specifications
 │   └── reference/             # API format, DB schema
@@ -191,18 +191,6 @@ Before going to production:
 - Generate a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_hex(64))"`)
 - Uncomment the HSTS header in `nginx.conf` once HTTPS is active
 - Change all default passwords in `.env`
-
-## Development with Claude Code
-
-This project uses Claude Code with a configured `.claude/` directory.
-
-Custom skills available:
-
-| Skill | Usage |
-|-------|-------|
-| `/phase` | Implement a development phase: `/phase 02_AUTH` |
-| `/new-migration` | Create and verify a migration: `/new-migration add collection_permissions` |
-| `/test-backend` | Run tests and auto-fix failures: `/test-backend` |
 
 ## License
 
