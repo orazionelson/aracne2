@@ -10,18 +10,13 @@ class PlatformException(Exception):
 
 
 class NotFoundError(PlatformException):
-    def __init__(self, resource: str, identifier: str = "") -> None:
-        label = f"{resource} '{identifier}'" if identifier else resource
-        super().__init__(
-            code="RESOURCE_NOT_FOUND",
-            message=f"{label} not found",
-            status_code=404,
-        )
+    def __init__(self, message: str = "Resource not found") -> None:
+        super().__init__(code="RESOURCE_NOT_FOUND", message=message, status_code=404)
 
 
 class ConflictError(PlatformException):
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(code=code, message=message, status_code=409)
+    def __init__(self, message: str = "Resource already exists") -> None:
+        super().__init__(code="CONFLICT", message=message, status_code=409)
 
 
 class AuthenticationError(PlatformException):

@@ -31,6 +31,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/users",
+      name: "users",
+      component: () => import("@/views/UsersView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "EditorInChief" },
+    },
+    {
+      path: "/users/:id",
+      name: "user-detail",
+      component: () => import("@/views/UserDetailView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "not-found",
       component: () => import("@/views/NotFoundView.vue"),

@@ -14,6 +14,8 @@ from app.models.user import User as _User
 
 TEST_USER_USERNAME = "testuser"
 TEST_USER_PASSWORD = "testpassword1"
+ADMIN_USERNAME = "admin_test"
+ADMIN_PASSWORD = "adminpass1"
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -61,6 +63,25 @@ async def seeded_roles(db_session: AsyncSession) -> list[str]:
         db_session.add(Role(name=name, description=f"{name} role"))
     await db_session.flush()
     return roles
+
+
+@pytest_asyncio.fixture
+async def seeded_admin(db_session: AsyncSession, seeded_roles: list[str]) -> _User:
+    user = _User(
+        username=ADMIN_USERNAME,
+        email="admin_test@example.com",
+        password_hash=hash_password(ADMIN_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    admin_role = await db_session.scalar(
+        select(_Role).where(_Role.name == "Admin")
+    )
+    db_session.add(UserRole(user_id=user.id, role_id=admin_role.id))
+    await db_session.flush()
+    return user
 
 
 @pytest_asyncio.fixture
