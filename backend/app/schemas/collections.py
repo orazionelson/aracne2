@@ -81,3 +81,16 @@ class RejectAction(BaseModel):
 
 class DocumentInfo(BaseModel):
     filename: str
+
+
+class PermissionEntry(BaseModel):
+    collection_id: uuid.UUID
+    user_id: uuid.UUID
+    granted_by_id: uuid.UUID | None
+    granted_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PermissionGrant(BaseModel):
+    user_id: uuid.UUID

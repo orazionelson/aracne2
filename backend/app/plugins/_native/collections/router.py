@@ -27,6 +27,8 @@ from app.schemas.collections import (
     CollectionResponse,
     CollectionUpdate,
     DocumentInfo,
+    PermissionEntry,
+    PermissionGrant,
     RejectAction,
     WorkflowAction,
 )
@@ -38,10 +40,13 @@ from app.services.xmldb import (
     delete_document,
     download_document,
     get_collection,
+    grant_permission,
     list_collections,
     list_documents,
+    list_permissions,
     publish_collection,
     reject_collection,
+    revoke_permission,
     submit_collection,
     unpublish_collection,
     update_collection,
@@ -304,3 +309,49 @@ async def document_delete(
     """Delete a document from the collection."""
     role: str = request.state.role
     await delete_document(db, existdb, collection_id, filename, current_user, role)
+
+
+# ── Permission management ─────────────────────────────────────────────────────
+
+@router.get("/{collection_id}/permissions")
+async def permission_list(
+    collection_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[list[PermissionEntry]]:
+    """List all explicit read-access grants for a collection. EditorInChief+ only."""
+    role: str = request.state.role
+    entries = await list_permissions(db, collection_id, current_user, role)
+    return DataResponse(data=entries)
+
+
+@router.post("/{collection_id}/permissions", status_code=201)
+async def permission_grant(
+    collection_id: uuid.UUID,
+    body: PermissionGrant,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[PermissionEntry]:
+    """Grant a user explicit read access to a collection. EditorInChief+ only.
+
+    Idempotent: re-granting an existing permission returns the existing entry
+    with HTTP 201 (no duplicate row is created).
+    """
+    role: str = request.state.role
+    entry = await grant_permission(db, collection_id, body, current_user, role)
+    return DataResponse(data=entry)
+
+
+@router.delete("/{collection_id}/permissions/{user_id}", status_code=204)
+async def permission_revoke(
+    collection_id: uuid.UUID,
+    user_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> None:
+    """Revoke a user's explicit read access to a collection. EditorInChief+ only."""
+    role: str = request.state.role
+    await revoke_permission(db, collection_id, user_id, current_user, role)

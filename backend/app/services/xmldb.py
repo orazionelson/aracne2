@@ -31,6 +31,7 @@ from app.db.existdb import ExistDBClient
 from app.middleware.acl import ROLE_LEVEL
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection, CollectionStatus
+from app.models.collection_permission import CollectionPermission
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.collections import (
@@ -39,6 +40,8 @@ from app.schemas.collections import (
     CollectionResponse,
     CollectionUpdate,
     DocumentInfo,
+    PermissionEntry,
+    PermissionGrant,
     RejectAction,
     WorkflowAction,
 )
@@ -76,12 +79,30 @@ def _level(role: str) -> int:
     return ROLE_LEVEL.get(role, 0)
 
 
-def _assert_read_access(collection: Collection, actor: User, role: str) -> None:
+async def _assert_read_access(
+    db: AsyncSession, collection: Collection, actor: User, role: str
+) -> None:
+    """Raise AuthorizationError if the actor cannot read the collection.
+
+    Access is granted when ANY of the following holds:
+    - Actor has EditorInChief or Admin role (see all).
+    - Collection is published (any authenticated user).
+    - Actor is the assigned editor for the collection.
+    - Actor has an explicit row in collection_permissions for this collection.
+    """
     if _level(role) >= _level("EditorInChief"):
         return
     if collection.status == CollectionStatus.published:
-        return  # published collections are readable by any authenticated user
+        return
     if collection.editor_id == actor.id:
+        return
+    has_grant = await db.scalar(
+        select(CollectionPermission).where(
+            CollectionPermission.collection_id == collection.id,
+            CollectionPermission.user_id == actor.id,
+        )
+    )
+    if has_grant:
         return
     raise AuthorizationError("No access to this collection")
 
@@ -168,10 +189,24 @@ async def list_collections(
     if _level(role) >= _level("EditorInChief"):
         pass  # see all
     elif role == "Editor":
-        stmt = stmt.where(Collection.editor_id == actor.id)
+        # Assigned collections + any collection where the editor has an explicit grant
+        perm_sq = select(CollectionPermission.collection_id).where(
+            CollectionPermission.user_id == actor.id
+        )
+        stmt = stmt.where(
+            or_(Collection.editor_id == actor.id, Collection.id.in_(perm_sq))
+        )
     else:
-        # User role: only published collections
-        stmt = stmt.where(Collection.status == CollectionStatus.published)
+        # User / Designer: published collections + explicit permission grants
+        perm_sq = select(CollectionPermission.collection_id).where(
+            CollectionPermission.user_id == actor.id
+        )
+        stmt = stmt.where(
+            or_(
+                Collection.status == CollectionStatus.published,
+                Collection.id.in_(perm_sq),
+            )
+        )
 
     if status:
         stmt = stmt.where(Collection.status == status)
@@ -197,7 +232,7 @@ async def get_collection(
     role: str,
 ) -> CollectionResponse:
     col = await _get_or_404(db, collection_id)
-    _assert_read_access(col, actor, role)
+    await _assert_read_access(db, col, actor, role)
     return CollectionResponse.model_validate(col)
 
 
@@ -464,7 +499,7 @@ async def list_documents(
 ) -> list[DocumentInfo]:
     """Return the list of XML documents stored in the collection on eXist-db."""
     col = await _get_or_404(db, collection_id)
-    _assert_read_access(col, actor, role)
+    await _assert_read_access(db, col, actor, role)
     filenames = await existdb.list_collection(col.slug)
     return [DocumentInfo(filename=f) for f in filenames]
 
@@ -515,7 +550,7 @@ async def download_document(
 ) -> bytes:
     """Retrieve raw XML bytes for a document stored in eXist-db."""
     col = await _get_or_404(db, collection_id)
-    _assert_read_access(col, actor, role)
+    await _assert_read_access(db, col, actor, role)
     _validate_filename(filename)
     return await existdb.get_document(col.slug, filename)
 
@@ -538,3 +573,105 @@ async def delete_document(
     await existdb.delete_document(col.slug, filename)
     _audit(db, "document.deleted", actor, col, {"filename": filename})
     logger.info("document_deleted", slug=col.slug, filename=filename, actor=actor.username)
+
+
+# ── Collection permission management ──────────────────────────────────────────
+
+async def list_permissions(
+    db: AsyncSession,
+    collection_id: uuid.UUID,
+    actor: User,
+    role: str,
+) -> list[PermissionEntry]:
+    """Return all explicit permission grants for the collection. EiC/Admin only."""
+    _assert_eic(role)
+    await _get_or_404(db, collection_id)  # 404 if collection does not exist
+    rows = list(
+        await db.scalars(
+            select(CollectionPermission).where(
+                CollectionPermission.collection_id == collection_id
+            )
+        )
+    )
+    return [PermissionEntry.model_validate(r) for r in rows]
+
+
+async def grant_permission(
+    db: AsyncSession,
+    collection_id: uuid.UUID,
+    body: PermissionGrant,
+    actor: User,
+    role: str,
+) -> PermissionEntry:
+    """Grant a user explicit read access to the collection. EiC/Admin only.
+
+    Idempotent: if the grant already exists it is returned as-is.
+    """
+    _assert_eic(role)
+    col = await _get_or_404(db, collection_id)
+    target_user = await _get_user_or_404(db, body.user_id)
+
+    existing = await db.get(
+        CollectionPermission, {"collection_id": collection_id, "user_id": target_user.id}
+    )
+    if existing:
+        return PermissionEntry.model_validate(existing)
+
+    perm = CollectionPermission(
+        collection_id=collection_id,
+        user_id=target_user.id,
+        granted_by_id=actor.id,
+    )
+    db.add(perm)
+    _audit(
+        db,
+        "collection.permission_granted",
+        actor,
+        col,
+        {"target_user": target_user.username},
+    )
+    await db.flush()
+    logger.info(
+        "collection_permission_granted",
+        slug=col.slug,
+        target=target_user.username,
+        actor=actor.username,
+    )
+    return PermissionEntry.model_validate(perm)
+
+
+async def revoke_permission(
+    db: AsyncSession,
+    collection_id: uuid.UUID,
+    user_id: uuid.UUID,
+    actor: User,
+    role: str,
+) -> None:
+    """Revoke a user's explicit read access to the collection. EiC/Admin only."""
+    _assert_eic(role)
+    col = await _get_or_404(db, collection_id)
+
+    perm = await db.get(
+        CollectionPermission, {"collection_id": collection_id, "user_id": user_id}
+    )
+    if not perm:
+        raise NotFoundError("Permission grant not found")
+
+    target_user = await db.get(User, user_id)
+    username = target_user.username if target_user else str(user_id)
+
+    _audit(
+        db,
+        "collection.permission_revoked",
+        actor,
+        col,
+        {"target_user": username},
+    )
+    await db.delete(perm)
+    await db.flush()
+    logger.info(
+        "collection_permission_revoked",
+        slug=col.slug,
+        target=username,
+        actor=actor.username,
+    )

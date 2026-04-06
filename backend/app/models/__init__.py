@@ -1,6 +1,7 @@
 # Import all models so that Alembic autogenerate can discover them
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection
+from app.models.collection_permission import CollectionPermission
 from app.models.notification import Notification
 from app.models.plugin import Plugin
 from app.models.role import Role, UserRole
@@ -18,4 +19,5 @@ __all__ = [
     "Notification",
     "SystemSetting",
     "Collection",
+    "CollectionPermission",
 ]
