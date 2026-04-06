@@ -152,7 +152,7 @@
     "no_actions": "Nessuna azione disponibile.",
     "documents": "Documenti",
     "upload": "Carica XML",
-    "upload_hint": "Nome file: solo lettere, cifre, trattini, underscore — deve terminare con .xml (es. mio-documento.xml)",
+    "upload_hint": "Nome file: lettere, cifre, punti, trattini, underscore — deve terminare con .xml (es. ara1.100.xml o mio-documento.xml)",
     "download": "Scarica",
     "delete_document": "Elimina",
     "confirm_delete_document": "Eliminare questo documento? L'azione è irreversibile.",

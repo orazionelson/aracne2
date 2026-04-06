@@ -57,7 +57,7 @@ def _now() -> datetime:
 
 # ── Filename validation ────────────────────────────────────────────────────────
 
-_FILENAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_\-]*\.xml$")
+_FILENAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._\-]*\.xml$")
 _MAX_FILENAME_LEN = 128
 
 
