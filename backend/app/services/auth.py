@@ -64,6 +64,38 @@ def create_refresh_token(user_id: uuid.UUID, jti: uuid.UUID) -> str:
     return str(jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
 
 
+def decode_raw_token(token: str) -> dict[str, object]:
+    """Decode a JWT without enforcing the type claim. Internal use only."""
+    try:
+        return cast(
+            dict[str, object],
+            jwt.decode(token, settings.jwt_secret, algorithms=["HS256"]),
+        )
+    except JWTError as exc:
+        raise AuthenticationError(
+            code="INVALID_TOKEN", message="Token is invalid or expired"
+        ) from exc
+
+
+def create_impersonation_token(admin: "User", target: "User", role: str) -> str:
+    """Return a short-lived impersonation JWT.
+
+    The token carries the target user's identity and role but also records the
+    admin's ID so audit logs can attribute the action. No session row is
+    created: the token is stateless and non-renewable.
+    """
+    expire = _now() + timedelta(minutes=30)
+    payload = {
+        "sub": str(target.id),
+        "role": role,
+        "impersonated_by": str(admin.id),
+        "exp": expire,
+        "iat": _now(),
+        "type": "impersonation",
+    }
+    return str(jwt.encode(payload, settings.jwt_secret, algorithm="HS256"))
+
+
 def decode_token(token: str, expected_type: str) -> dict[str, object]:
     """
     Decode and validate a JWT. Raises AuthenticationError on any failure.

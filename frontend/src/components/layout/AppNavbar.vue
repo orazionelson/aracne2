@@ -5,6 +5,8 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
 
+const props = defineProps<{ topOffset?: number }>();
+
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
@@ -30,7 +32,10 @@ function closeMenu(): void {
 </script>
 
 <template>
-  <nav class="fixed inset-x-0 top-0 z-50 bg-gray-900 text-white">
+  <nav
+    class="fixed inset-x-0 z-50 bg-gray-900 text-white"
+    :style="props.topOffset ? `top: ${props.topOffset}px` : 'top: 0'"
+  >
     <!-- Top bar -->
     <div class="flex h-14 items-center gap-4 px-4">
       <!-- Brand -->

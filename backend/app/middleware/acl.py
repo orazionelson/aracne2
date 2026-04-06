@@ -12,7 +12,7 @@ from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.db.postgres import get_async_session
 from app.models.session import Session
 from app.models.user import User
-from app.services.auth import decode_token
+from app.services.auth import decode_raw_token, decode_token
 
 logger = structlog.get_logger()
 
@@ -40,6 +40,24 @@ async def _get_current_user(
         raise AuthenticationError(
             code="MISSING_TOKEN", message="Authorization header required"
         )
+
+    # Peek at the token type before dispatching to the appropriate path.
+    raw = decode_raw_token(credentials.credentials)
+
+    if raw.get("type") == "impersonation":
+        # Stateless impersonation token: no session row, non-renewable.
+        user_id = uuid.UUID(str(raw["sub"]))
+        user = await db.get(User, user_id)
+        if not user or not user.is_active or user.deleted_at:
+            raise AuthenticationError(
+                code="USER_INACTIVE", message="User account is inactive"
+            )
+        request.state.user = user
+        request.state.role = str(raw.get("role", "User"))
+        request.state.impersonated_by = str(raw.get("impersonated_by", ""))
+        return user
+
+    # Normal access token: validate type claim and look up the session.
     payload = decode_token(credentials.credentials, "access")
     jti = uuid.UUID(str(payload["jti"]))
 

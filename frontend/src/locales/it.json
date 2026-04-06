@@ -11,6 +11,8 @@
     "sign_in": "Accedi",
     "sign_in_loading": "Accesso in corso...",
     "sign_out": "Esci",
+    "impersonating": "Stai impersonando {username} ({role})",
+    "exit_impersonation": "Esci",
     "username_or_email": "Nome utente o Email",
     "password": "Password",
     "show_password": "Mostra",
@@ -74,7 +76,8 @@
     "assigned_at": "Assegnato",
     "all_roles": "Tutti i ruoli",
     "filter_active": "Solo attivi",
-    "filter_inactive": "Solo inattivi"
+    "filter_inactive": "Solo inattivi",
+    "impersonate": "Impersona"
   },
   "notifications": {
     "title": "Notifiche",

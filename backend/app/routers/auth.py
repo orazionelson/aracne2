@@ -7,14 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.postgres import get_async_session
-from app.middleware.acl import get_current_user
+from app.middleware.acl import get_current_user, require_role
 from app.middleware.rate_limiter import STRICT_LIMIT, limiter
+from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.auth import LoginRequest, PasswordChangeRequest, TokenResponse, UserMeResponse
+from app.schemas.auth import ImpersonationResponse, LoginRequest, PasswordChangeRequest, TokenResponse, UserMeResponse
 from app.schemas.common import DataResponse
 from app.services.auth import (
     authenticate_user,
     change_password,
+    create_impersonation_token,
     create_session,
     decode_token,
     get_active_role,
@@ -152,5 +154,74 @@ async def password_change(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[dict[str, str]]:
+    from app.core.exceptions import AuthorizationError
+    if getattr(request.state, "impersonated_by", None):
+        raise AuthorizationError()
     await change_password(db, current_user, body.current_password, body.new_password)
     return DataResponse(data={"message": "Password changed successfully"})
+
+
+@router.post("/impersonate/{user_id}")
+async def impersonate(
+    user_id: uuid.UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[ImpersonationResponse]:
+    """Start an impersonation session as a non-Admin user.
+
+    Returns a short-lived (30 min) stateless JWT. The caller's refresh cookie
+    is left untouched, so calling POST /auth/refresh after restoring the
+    original access token resumes the Admin session normally.
+
+    Restrictions:
+    - Cannot impersonate while already impersonating.
+    - Cannot impersonate Admin users.
+    - Target user must be active and not deleted.
+    """
+    from app.core.exceptions import AuthorizationError, NotFoundError
+
+    if getattr(request.state, "impersonated_by", None):
+        raise AuthorizationError()
+
+    target = await db.get(User, user_id)
+    if not target or not target.is_active or target.deleted_at:
+        raise NotFoundError(message="User not found")
+
+    target_role = await get_active_role(db, target.id)
+    if target_role == "Admin":
+        raise AuthorizationError()
+
+    token = create_impersonation_token(current_user, target, target_role)
+
+    db.add(AuditLog(
+        action="user.impersonation_started",
+        actor_id=current_user.id,
+        actor_username=current_user.username,
+        target_type="user",
+        target_id=str(target.id),
+        target_label=target.username,
+        payload={"target_role": target_role},
+    ))
+
+    logger.info(
+        "impersonation_started",
+        admin=current_user.username,
+        target=target.username,
+        target_role=target_role,
+    )
+    return DataResponse(
+        data=ImpersonationResponse(
+            access_token=token,
+            impersonated_user=UserMeResponse(
+                id=str(target.id),
+                username=target.username,
+                email=target.email,
+                display_name=target.display_name,
+                role=target_role,
+                preferred_lang=target.preferred_lang,
+                created_at=target.created_at.isoformat(),
+                last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
+            ),
+        )
+    )

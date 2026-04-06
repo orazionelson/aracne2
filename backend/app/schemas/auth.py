@@ -23,6 +23,12 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"  # noqa: S105
 
 
+class ImpersonationResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"  # noqa: S105
+    impersonated_user: "UserMeResponse"
+
+
 class UserMeResponse(BaseModel):
     id: str
     username: str

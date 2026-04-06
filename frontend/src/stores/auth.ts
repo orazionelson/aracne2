@@ -25,10 +25,17 @@ interface UserMe {
   last_login_at: string | null;
 }
 
+interface ImpersonationState {
+  username: string;
+  role: string;
+  adminToken: string;
+}
+
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<UserMe | null>(null);
   const accessToken = ref<string | null>(null);
   const isLoading = ref(false);
+  const impersonating = ref<ImpersonationState | null>(null);
 
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value);
   const userRole = computed(() => user.value?.role ?? "User");
@@ -89,6 +96,28 @@ export const useAuthStore = defineStore("auth", () => {
     applyLocale(res.data.data.preferred_lang);
   }
 
+  async function startImpersonation(userId: string): Promise<void> {
+    const res = await api.post<{ access_token: string; impersonated_user: UserMe }>(
+      `/auth/impersonate/${userId}`,
+    );
+    const data = res.data.data;
+    impersonating.value = {
+      username: data.impersonated_user.username,
+      role: data.impersonated_user.role,
+      adminToken: accessToken.value!,
+    };
+    accessToken.value = data.access_token;
+    user.value = data.impersonated_user;
+    applyLocale(data.impersonated_user.preferred_lang);
+  }
+
+  async function exitImpersonation(): Promise<void> {
+    if (!impersonating.value) return;
+    accessToken.value = impersonating.value.adminToken;
+    impersonating.value = null;
+    await loadMe();
+  }
+
   // Called at SPA boot: attempts a silent token refresh.
   // If the refresh cookie is present and valid, recovers access_token and user data.
   // If it fails, the user is treated as unauthenticated.
@@ -110,10 +139,13 @@ export const useAuthStore = defineStore("auth", () => {
     userRole,
     hasMinRole,
     hasRole,
+    impersonating,
     login,
     logout,
     refresh,
     loadMe,
     hydrate,
+    startImpersonation,
+    exitImpersonation,
   };
 });

@@ -11,6 +11,8 @@
     "sign_in": "Sign in",
     "sign_in_loading": "Signing in...",
     "sign_out": "Sign out",
+    "impersonating": "You are impersonating {username} ({role})",
+    "exit_impersonation": "Exit",
     "username_or_email": "Username or Email",
     "password": "Password",
     "show_password": "Show",
@@ -74,7 +76,8 @@
     "assigned_at": "Assigned",
     "all_roles": "All roles",
     "filter_active": "Active only",
-    "filter_inactive": "Inactive only"
+    "filter_inactive": "Inactive only",
+    "impersonate": "Impersonate"
   },
   "notifications": {
     "title": "Notifications",

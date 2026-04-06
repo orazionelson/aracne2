@@ -5,6 +5,20 @@ import { useI18n } from "vue-i18n";
 import { apiClient } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 
+const impersonateError = ref<string | null>(null);
+
+async function impersonate(userId: string): Promise<void> {
+  impersonateError.value = null;
+  try {
+    await auth.startImpersonation(userId);
+    router.push({ name: "home" });
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    impersonateError.value = msg ?? t("common.error");
+  }
+}
+
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
@@ -165,6 +179,7 @@ onMounted(fetchUsers);
 
     <!-- Error -->
     <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
+    <p v-if="impersonateError" class="mb-4 text-red-600">{{ impersonateError }}</p>
 
     <!-- Loading -->
     <p v-if="isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
@@ -198,12 +213,21 @@ onMounted(fetchUsers);
             </td>
             <td class="px-4 py-2 text-gray-500">{{ formatDate(user.last_login_at) }}</td>
             <td v-if="auth.hasMinRole('Admin')" class="px-4 py-2">
-              <button
-                class="text-sm text-blue-600 hover:underline"
-                @click="goToDetail(user.username)"
-              >
-                {{ t("users.edit") }}
-              </button>
+              <div class="flex items-center gap-3">
+                <button
+                  class="text-sm text-blue-600 hover:underline"
+                  @click="goToDetail(user.username)"
+                >
+                  {{ t("users.edit") }}
+                </button>
+                <button
+                  v-if="user.role !== 'Admin' && !auth.impersonating"
+                  class="text-sm text-amber-600 hover:underline"
+                  @click="impersonate(user.id)"
+                >
+                  {{ t("users.impersonate") }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
