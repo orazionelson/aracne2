@@ -388,6 +388,12 @@ quality baseline regardless of jurisdictional obligations.
   asyncpg rejects timezone-aware datetimes on tz-naive columns, which can silently bypass
   session expiry checks. Use `datetime.now(UTC)` as the default callable (never `datetime.utcnow`).
   Never use bare `Mapped[datetime]` without an explicit `DateTime(timezone=True)` in `mapped_column`.
+- **`CORS_ORIGINS` must be validated at startup** — `cors_origins` in `app/config.py` enforces:
+  (1) no `*` wildcard (incompatible with `allow_credentials=True` — browsers always block it, but
+  it is still a dangerous misconfiguration); (2) every origin must start with `http://` or `https://`
+  (bare hostnames, `null`, `file://` etc. are rejected); (3) in production, non-localhost `http://`
+  origins are rejected — only HTTPS is allowed. Validation lives in the `cors_origins` computed
+  field and raises `ValueError` at boot so misconfigurations are caught immediately.
 - **Do not commit** partial code — every function must be complete and working
 - When a prompt says "stub": a function that exists, has the correct signature,
   and returns an empty list/dict or `None`. Not bare `pass`, not `TODO`.

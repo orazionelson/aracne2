@@ -1,5 +1,6 @@
 import json
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,8 +59,34 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         v = self.cors_origins_raw.strip()
         if v.startswith("["):
-            return json.loads(v)
-        return [o.strip() for o in v.split(",") if o.strip()]
+            origins: list[str] = json.loads(v)
+        else:
+            origins = [o.strip() for o in v.split(",") if o.strip()]
+
+        _LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+        for origin in origins:
+            if origin == "*":
+                raise ValueError(
+                    "CORS_ORIGINS must not contain '*' — list explicit origins. "
+                    "Wildcard with allow_credentials=True violates the CORS spec "
+                    "and credentials are never sent by browsers to a '*' origin."
+                )
+            if not (origin.startswith("http://") or origin.startswith("https://")):
+                raise ValueError(
+                    f"CORS origin {origin!r} must start with 'http://' or 'https://'. "
+                    "Bare hostnames, 'null', 'file://', and other schemes are not allowed."
+                )
+            if self.environment == "production" and origin.startswith("http://"):
+                host = urlparse(origin).hostname or ""
+                if host not in _LOCALHOST_HOSTS:
+                    raise ValueError(
+                        f"CORS origin {origin!r} uses HTTP in production. "
+                        "Only HTTPS origins are allowed in production "
+                        "(localhost is exempt for internal tooling)."
+                    )
+
+        return origins
 
     # Application
     environment: Literal["development", "production", "test"] = "development"
