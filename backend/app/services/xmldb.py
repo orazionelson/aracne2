@@ -135,8 +135,13 @@ def _assert_admin(role: str) -> None:
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-async def _get_or_404(db: AsyncSession, collection_id: uuid.UUID) -> Collection:
-    row = await db.get(Collection, collection_id)
+async def _get_or_404(db: AsyncSession, collection_id: str) -> Collection:
+    """Fetch a collection by UUID or slug; raise 404 if not found."""
+    try:
+        cid = uuid.UUID(collection_id)
+        row = await db.get(Collection, cid)
+    except ValueError:
+        row = await db.scalar(select(Collection).where(Collection.slug == collection_id))
     if not row:
         raise NotFoundError("Collection not found")
     return row
@@ -229,7 +234,7 @@ async def list_collections(
 
 async def get_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     actor: User,
     role: str,
 ) -> CollectionResponse:
@@ -272,7 +277,7 @@ async def create_collection(
 
 async def update_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: CollectionUpdate,
     actor: User,
     role: str,
@@ -300,7 +305,7 @@ async def update_collection(
 async def delete_collection(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     actor: User,
     role: str,
 ) -> None:
@@ -327,7 +332,7 @@ async def _get_user_or_404(db: AsyncSession, user_id: uuid.UUID) -> User:
 
 async def assign_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: AssignAction,
     actor: User,
     role: str,
@@ -374,7 +379,7 @@ async def assign_collection(
 
 async def submit_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
@@ -407,7 +412,7 @@ async def submit_collection(
 
 async def reject_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: RejectAction,
     actor: User,
     role: str,
@@ -438,7 +443,7 @@ async def reject_collection(
 
 async def publish_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
@@ -469,7 +474,7 @@ async def publish_collection(
 
 async def unpublish_collection(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
@@ -495,7 +500,7 @@ async def unpublish_collection(
 async def list_documents(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     actor: User,
     role: str,
 ) -> list[DocumentInfo]:
@@ -509,7 +514,7 @@ async def list_documents(
 async def upload_document(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     xml_bytes: bytes,
     actor: User,
@@ -545,7 +550,7 @@ async def upload_document(
 async def download_document(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     actor: User,
     role: str,
@@ -560,7 +565,7 @@ async def download_document(
 async def delete_document(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     actor: User,
     role: str,
@@ -581,7 +586,7 @@ async def delete_document(
 
 async def list_permissions(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     actor: User,
     role: str,
 ) -> list[PermissionEntry]:
@@ -600,7 +605,7 @@ async def list_permissions(
 
 async def grant_permission(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: PermissionGrant,
     actor: User,
     role: str,
@@ -644,7 +649,7 @@ async def grant_permission(
 
 async def revoke_permission(
     db: AsyncSession,
-    collection_id: uuid.UUID,
+    collection_id: str,
     user_id: uuid.UUID,
     actor: User,
     role: str,
@@ -687,7 +692,7 @@ _DEFAULT_MAX_SEARCH_RESULTS = 50
 async def search_in_collection(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     query: str,
     actor: User,
     role: str,
@@ -722,7 +727,7 @@ async def search_in_collection(
 async def get_document_metadata(
     db: AsyncSession,
     existdb: ExistDBClient,
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     actor: User,
     role: str,

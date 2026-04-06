@@ -136,6 +136,8 @@
     "assign_editor": "Assegna editor",
     "reassign_editor": "Riassegna editor",
     "assign_user_id": "ID utente editor (UUID)",
+    "assign_username": "Username dell'editor",
+    "assign_user_not_found": "Username non trovato nella lista degli editor",
     "assign_note": "Nota (opzionale)",
     "assign_submit": "Assegna",
     "submit_hint": "Pronto per la revisione? Invia la collezione al team editoriale.",

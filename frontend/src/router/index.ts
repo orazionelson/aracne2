@@ -49,7 +49,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: "/collections/:id",
+      path: "/collections/:slug",
       name: "collection-detail",
       component: () => import("@/views/CollectionDetailView.vue"),
       meta: { requiresAuth: true },

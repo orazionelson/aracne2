@@ -2,6 +2,12 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api, { apiClient } from "@/services/api";
 
+export interface EditorOption {
+  id: string;
+  username: string;
+  display_name: string | null;
+}
+
 export type CollectionStatus = "draft" | "assigned" | "review" | "published";
 
 export interface Collection {
@@ -40,6 +46,7 @@ export const useCollectionStore = defineStore("collections", () => {
   const collections = ref<Collection[]>([]);
   const current = ref<Collection | null>(null);
   const documents = ref<DocumentInfo[]>([]);
+  const editors = ref<EditorOption[]>([]);
   const pagination = ref<Pagination | null>(null);
   const isLoading = ref(false);
 
@@ -63,8 +70,17 @@ export const useCollectionStore = defineStore("collections", () => {
     }
   }
 
-  async function fetchCollection(id: string): Promise<void> {
-    current.value = await apiClient.get<Collection>(`/collections/${id}`);
+  async function fetchCollection(slug: string): Promise<void> {
+    current.value = await apiClient.get<Collection>(`/collections/${slug}`);
+  }
+
+  async function fetchEditors(): Promise<void> {
+    // Fetch users with role Editor; used for the assign-editor autocomplete.
+    interface UserRow { id: string; username: string; display_name: string | null }
+    const res = await apiClient.getPaginated<UserRow>("/users", {
+      params: { role: "Editor", per_page: 200 },
+    });
+    editors.value = res.data as EditorOption[];
   }
 
   async function createCollection(body: {
@@ -177,10 +193,12 @@ export const useCollectionStore = defineStore("collections", () => {
     collections,
     current,
     documents,
+    editors,
     pagination,
     isLoading,
     fetchCollections,
     fetchCollection,
+    fetchEditors,
     createCollection,
     updateCollection,
     deleteCollection,

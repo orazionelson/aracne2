@@ -136,6 +136,8 @@
     "assign_editor": "Assign editor",
     "reassign_editor": "Reassign editor",
     "assign_user_id": "Editor user ID (UUID)",
+    "assign_username": "Editor username",
+    "assign_user_not_found": "Username not found in the editors list",
     "assign_note": "Optional note",
     "assign_submit": "Assign",
     "submit_hint": "Ready for review? Submit the collection to the editorial team.",

@@ -74,7 +74,7 @@ async function submitCreate(): Promise<void> {
     newTitle.value = "";
     newDesc.value = "";
     newPublic.value = false;
-    router.push({ name: "collection-detail", params: { id: col.id } });
+    router.push({ name: "collection-detail", params: { slug: col.slug } });
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -220,7 +220,7 @@ async function confirmDelete(id: string, title: string): Promise<void> {
           >
             <td class="py-2 pr-4 font-medium text-gray-900">
               <router-link
-                :to="{ name: 'collection-detail', params: { id: col.id } }"
+                :to="{ name: 'collection-detail', params: { slug: col.slug } }"
                 class="hover:text-indigo-600 hover:underline"
               >
                 {{ col.title }}

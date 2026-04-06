@@ -138,7 +138,7 @@ async def collection_create(
 
 @router.get("/{collection_id}")
 async def collection_detail(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -150,7 +150,7 @@ async def collection_detail(
 
 @router.patch("/{collection_id}")
 async def collection_update(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: CollectionUpdate,
     request: Request,
     current_user: Annotated[User, _eic],
@@ -163,7 +163,7 @@ async def collection_update(
 
 @router.delete("/{collection_id}", status_code=204)
 async def collection_delete(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _admin],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -177,7 +177,7 @@ async def collection_delete(
 
 @router.post("/{collection_id}/assign")
 async def collection_assign(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: AssignAction,
     request: Request,
     current_user: Annotated[User, _eic],
@@ -190,7 +190,7 @@ async def collection_assign(
 
 @router.post("/{collection_id}/submit")
 async def collection_submit(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     request: Request,
     current_user: Annotated[User, _auth],
@@ -203,7 +203,7 @@ async def collection_submit(
 
 @router.post("/{collection_id}/reject")
 async def collection_reject(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: RejectAction,
     request: Request,
     current_user: Annotated[User, _eic],
@@ -216,7 +216,7 @@ async def collection_reject(
 
 @router.post("/{collection_id}/publish")
 async def collection_publish(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     request: Request,
     current_user: Annotated[User, _eic],
@@ -229,7 +229,7 @@ async def collection_publish(
 
 @router.post("/{collection_id}/unpublish")
 async def collection_unpublish(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: WorkflowAction,
     request: Request,
     current_user: Annotated[User, _admin],
@@ -244,7 +244,7 @@ async def collection_unpublish(
 
 @router.get("/{collection_id}/documents")
 async def document_list(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -258,7 +258,7 @@ async def document_list(
 
 @router.post("/{collection_id}/documents", status_code=201)
 async def document_upload(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -282,7 +282,7 @@ async def document_upload(
 
 @router.get("/{collection_id}/documents/{filename}")
 async def document_download(
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     request: Request,
     current_user: Annotated[User, _auth],
@@ -303,7 +303,7 @@ async def document_download(
 
 @router.delete("/{collection_id}/documents/{filename}", status_code=204)
 async def document_delete(
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     request: Request,
     current_user: Annotated[User, _auth],
@@ -319,7 +319,7 @@ async def document_delete(
 
 @router.get("/{collection_id}/search")
 async def collection_search(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -341,7 +341,7 @@ async def collection_search(
 
 @router.get("/{collection_id}/documents/{filename}/metadata")
 async def document_metadata(
-    collection_id: uuid.UUID,
+    collection_id: str,
     filename: str,
     request: Request,
     current_user: Annotated[User, _auth],
@@ -364,7 +364,7 @@ async def document_metadata(
 
 @router.get("/{collection_id}/permissions")
 async def permission_list(
-    collection_id: uuid.UUID,
+    collection_id: str,
     request: Request,
     current_user: Annotated[User, _eic],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -377,7 +377,7 @@ async def permission_list(
 
 @router.post("/{collection_id}/permissions", status_code=201)
 async def permission_grant(
-    collection_id: uuid.UUID,
+    collection_id: str,
     body: PermissionGrant,
     request: Request,
     current_user: Annotated[User, _eic],
@@ -395,7 +395,7 @@ async def permission_grant(
 
 @router.delete("/{collection_id}/permissions/{user_id}", status_code=204)
 async def permission_revoke(
-    collection_id: uuid.UUID,
+    collection_id: str,
     user_id: uuid.UUID,
     request: Request,
     current_user: Annotated[User, _eic],

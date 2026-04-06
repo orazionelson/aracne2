@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
@@ -11,9 +11,13 @@ const router = useRouter();
 const auth = useAuthStore();
 const store = useCollectionStore();
 
-const id = route.params.id as string;
+const slug = route.params.slug as string;
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+
+// Keep a local reference to the collection UUID used for API calls.
+// The URL uses slug; the backend accepts both.
+const collectionId = computed(() => store.current?.id ?? slug);
 
 // ── Edit form ─────────────────────────────────────────────────────────────────
 const editing = ref(false);
@@ -35,7 +39,7 @@ async function submitEdit(): Promise<void> {
   saveError.value = null;
   isSaving.value = true;
   try {
-    await store.updateCollection(id, {
+    await store.updateCollection(collectionId.value, {
       title: editTitle.value.trim(),
       description: editDesc.value.trim() || undefined,
       is_public: editPublic.value,
@@ -65,18 +69,34 @@ const isAssignedEditor = computed(
 
 // ── Assign ───────────────────────────────────────────────────────────────────
 const showAssignForm = ref(false);
-const assignUserId = ref("");
+const assignUsername = ref("");
 const assignNote = ref("");
 const isAssigning = ref(false);
 const assignError = ref<string | null>(null);
 
+// Resolve username → UUID from the loaded editors list.
+const resolvedEditorId = computed(() => {
+  const match = store.editors.find((e) => e.username === assignUsername.value.trim());
+  return match?.id ?? null;
+});
+
+watch(showAssignForm, async (open) => {
+  if (open && store.editors.length === 0) {
+    await store.fetchEditors();
+  }
+});
+
 async function submitAssign(): Promise<void> {
   assignError.value = null;
+  if (!resolvedEditorId.value) {
+    assignError.value = t("collections.assign_user_not_found");
+    return;
+  }
   isAssigning.value = true;
   try {
-    await store.assignCollection(id, assignUserId.value.trim(), assignNote.value.trim());
+    await store.assignCollection(collectionId.value, resolvedEditorId.value, assignNote.value.trim());
     showAssignForm.value = false;
-    assignUserId.value = "";
+    assignUsername.value = "";
     assignNote.value = "";
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
@@ -104,25 +124,25 @@ async function doWorkflow(
 }
 
 async function handleSubmit(): Promise<void> {
-  await doWorkflow(() => store.submitCollection(id, workflowNote.value.trim() || undefined));
+  await doWorkflow(() => store.submitCollection(collectionId.value, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
 }
 
 async function handleReject(): Promise<void> {
   if (!rejectNote.value.trim()) return;
-  await doWorkflow(() => store.rejectCollection(id, rejectNote.value.trim()));
+  await doWorkflow(() => store.rejectCollection(collectionId.value, rejectNote.value.trim()));
   showRejectForm.value = false;
   rejectNote.value = "";
 }
 
 async function handlePublish(): Promise<void> {
-  await doWorkflow(() => store.publishCollection(id, workflowNote.value.trim() || undefined));
+  await doWorkflow(() => store.publishCollection(collectionId.value, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
 }
 
 async function handleUnpublish(): Promise<void> {
   if (!confirm(t("collections.confirm_unpublish"))) return;
-  await doWorkflow(() => store.unpublishCollection(id));
+  await doWorkflow(() => store.unpublishCollection(collectionId.value));
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -143,7 +163,7 @@ async function onFileSelected(event: Event): Promise<void> {
   docError.value = null;
   isUploading.value = true;
   try {
-    await store.uploadDocument(id, file);
+    await store.uploadDocument(collectionId.value, file);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -156,7 +176,7 @@ async function onFileSelected(event: Event): Promise<void> {
 
 async function handleDownload(filename: string): Promise<void> {
   try {
-    await store.downloadDocument(id, filename);
+    await store.downloadDocument(collectionId.value, filename);
   } catch {
     alert(t("common.error"));
   }
@@ -166,7 +186,7 @@ async function handleDeleteDoc(filename: string): Promise<void> {
   if (!confirm(t("collections.confirm_delete_document"))) return;
   docError.value = null;
   try {
-    await store.deleteDocument(id, filename);
+    await store.deleteDocument(collectionId.value, filename);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -187,7 +207,7 @@ async function handleSearch(): Promise<void> {
   isSearching.value = true;
   searchDone.value = false;
   try {
-    searchResults.value = await store.searchDocuments(id, searchQuery.value.trim());
+    searchResults.value = await store.searchDocuments(collectionId.value, searchQuery.value.trim());
     searchDone.value = true;
   } catch {
     searchError.value = t("common.error");
@@ -199,7 +219,7 @@ async function handleSearch(): Promise<void> {
 // ── Init ──────────────────────────────────────────────────────────────────────
 onMounted(async () => {
   try {
-    await Promise.all([store.fetchCollection(id), store.fetchDocuments(id)]);
+    await Promise.all([store.fetchCollection(slug), store.fetchDocuments(slug)]);
   } catch {
     error.value = t("common.error");
   } finally {
@@ -254,7 +274,10 @@ function statusClass(s: string): string {
             </p>
             <p class="mt-1 text-xs text-gray-400">
               {{ t("collections.editor_label") }}:
-              {{ store.current.editor_id ?? t("collections.unassigned") }}
+              {{
+                store.editors.find((e) => e.id === store.current!.editor_id)?.username
+                ?? (store.current.editor_id ? store.current.editor_id : t("collections.unassigned"))
+              }}
             </p>
           </div>
           <button
@@ -334,12 +357,23 @@ function statusClass(s: string): string {
             {{ store.current.status === "assigned" ? t("collections.reassign_editor") : t("collections.assign_editor") }}
           </button>
           <form v-if="showAssignForm" class="mt-2 space-y-2" @submit.prevent="submitAssign">
-            <input
-              v-model="assignUserId"
-              required
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-              :placeholder="t('collections.assign_user_id')"
-            />
+            <div>
+              <input
+                v-model="assignUsername"
+                required
+                list="editor-list"
+                autocomplete="off"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                :placeholder="t('collections.assign_username')"
+              />
+              <datalist id="editor-list">
+                <option
+                  v-for="e in store.editors"
+                  :key="e.id"
+                  :value="e.username"
+                >{{ e.display_name ?? e.username }}</option>
+              </datalist>
+            </div>
             <input
               v-model="assignNote"
               class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
