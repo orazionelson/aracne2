@@ -2,9 +2,10 @@
 
 ## Prerequisites
 
-- Docker ≥ 24 with the Compose plugin (`docker compose version`)
+- Docker Engine ≥ 24 with the Compose plugin (`docker compose version`)
+  - **Do not use Docker via Snap** — it causes socket permission issues. Install from https://get.docker.com
 - GNU Make
-- Python 3.12 (only to generate the JWT secret — no local install needed if you use the Docker method below)
+- Node.js ≥ 18 with npm (needed once to generate `package-lock.json` if missing)
 
 ---
 
@@ -16,12 +17,12 @@ cd aracne2
 cp .env.example .env
 ```
 
-Open `.env` and fill in the three mandatory values:
+Open `.env` and fill in the mandatory values:
 
 ```dotenv
-JWT_SECRET=          # minimum 64 characters — see below
-POSTGRES_PASSWORD=   # any strong password
-EXIST_PASSWORD=      # any strong password
+JWT_SECRET=     # minimum 64 characters — generate with the command below
+POSTGRES_PASSWORD=changeme_postgres
+EXIST_PASSWORD=  # leave empty — eXist-db 6.2.0 ignores this on first boot
 ```
 
 Generate a JWT secret:
@@ -30,7 +31,9 @@ Generate a JWT secret:
 python3 -c "import secrets; print(secrets.token_hex(64))"
 ```
 
-Everything else in `.env` can stay at its default value for local development.
+> **Important:** `EXIST_PASSWORD` must be left empty for local development.
+> eXist-db 6.2.0 ignores this variable on first boot and starts with an empty admin password.
+> The backend is already configured to authenticate with an empty password.
 
 ---
 
@@ -41,9 +44,7 @@ make up
 ```
 
 This builds and starts four containers: `postgres`, `existdb`, `backend`, `frontend`.
-
-> **Note:** eXist-db takes ~30 seconds to become healthy. The backend and frontend
-> wait for their dependencies automatically before starting.
+All four must reach `Healthy` status before the stack is usable.
 
 Watch startup progress:
 
@@ -51,7 +52,7 @@ Watch startup progress:
 make logs
 ```
 
-When you see the backend log `Application startup complete`, the stack is ready.
+When you see `Application startup complete` in the backend logs, the stack is ready.
 
 ---
 
@@ -61,8 +62,8 @@ When you see the backend log `Application startup complete`, the stack is ready.
 make migrate
 ```
 
-This runs `alembic upgrade head` inside the backend container, creating all tables,
-triggers, and indexes.
+Runs `alembic upgrade head` inside the backend container, creating all tables,
+triggers, and indexes in PostgreSQL.
 
 ---
 
@@ -81,13 +82,13 @@ The seed is **idempotent** — safe to run multiple times.
 
 ## 5. Verify everything is running
 
-| Service   | URL                                        | Notes                        |
-|-----------|--------------------------------------------|------------------------------|
-| Frontend  | http://localhost:5173                      | Vue SPA with hot reload      |
-| Backend   | http://localhost:8000/api/v1/health        | Should return `{"data": ...}` |
-| API docs  | http://localhost:8000/docs                 | Swagger UI (dev only)        |
-| eXist-db  | http://localhost:8080/exist/apps/dashboard | Admin password = EXIST_PASSWORD |
-| PostgreSQL| `make shell-db`                            | psql in the container        |
+| Service    | URL                                          | Notes                        |
+|------------|----------------------------------------------|------------------------------|
+| Frontend   | http://localhost:5173                        | Vue SPA with hot reload      |
+| Backend    | http://localhost:8000/api/v1/health          | Should return `status: healthy` |
+| API docs   | http://localhost:8000/docs                   | Swagger UI (dev only)        |
+| eXist-db   | http://localhost:8080/exist/apps/dashboard   | Login: admin / (empty password) |
+| PostgreSQL | `make shell-db`                              | psql in the container        |
 
 Quick health check:
 
@@ -102,14 +103,14 @@ Expected response:
   "data": {
     "status": "healthy",
     "version": "1.0.0",
-    "postgres": "ok",
-    "existdb": "ok"
+    "environment": "development",
+    "services": {
+      "postgres": { "status": "ok", "detail": null },
+      "existdb": { "status": "ok", "detail": null }
+    }
   }
 }
 ```
-
-`status` can be `"degraded"` if eXist-db is still warming up — wait a few seconds
-and retry.
 
 ---
 
@@ -165,15 +166,27 @@ make seed
 
 ## Troubleshooting
 
-**Backend fails to start with `JWT_SECRET must be at least 64 characters`**
-→ Your `.env` has an empty or short `JWT_SECRET`. Generate one with the command in step 1.
+**`permission denied while trying to connect to the Docker daemon socket`**
+→ Your user is not in the `docker` group, or Docker is installed via Snap.
+  Install Docker Engine from https://get.docker.com, then:
+  `sudo usermod -aG docker $USER && newgrp docker`
 
-**`make migrate` fails with `connection refused`**
-→ The stack is not up. Run `make up` first.
+**Backend fails with `error parsing value for field "cors_origins"`**
+→ Your `.env` has inline comments (e.g. `CORS_ORIGINS=http://... # comment`).
+  Comments must be on their own line — copy `.env.example` again and re-fill values.
 
-**eXist-db dashboard shows `401 Unauthorized`**
-→ Use username `admin` and the `EXIST_PASSWORD` value from your `.env`.
+**Backend fails with `JWT_SECRET must be at least 64 characters`**
+→ Your `.env` has an empty or short `JWT_SECRET`. Generate one:
+  `python3 -c "import secrets; print(secrets.token_hex(64))"`
+
+**eXist-db shows `status: error` in health check**
+→ Make sure `EXIST_PASSWORD=` is empty in your `.env` (no value after `=`).
+  Then do a full reset: `make down && docker volume rm aracne2_existdb_data && make up`
+
+**eXist-db dashboard asks for a password**
+→ Leave the password field empty. eXist-db 6.2.0 starts with an empty admin password.
 
 **Port already in use**
 → All ports are bound to `127.0.0.1` only. Check for conflicting local services:
-`sudo lsof -i :5432` / `:8080` / `:8000` / `:5173`.
+  `sudo lsof -i :5432` / `:8080` / `:8000` / `:5173`
+  PostgreSQL running locally? `sudo systemctl stop postgresql`
