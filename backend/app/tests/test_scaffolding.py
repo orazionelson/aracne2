@@ -62,16 +62,16 @@ async def test_orm_user_insert_does_not_raise(db_session, seeded_roles) -> None:
     The trigger is tested separately in tests/integration/test_pg_triggers.py
     which runs against a real PostgreSQL container in CI.
     """
-    import passlib.hash as ph
     from sqlalchemy import select
 
+    from app.core.password import hash_password
     from app.models import User, UserRole
 
     user = User(
         id=uuid.uuid4(),
         username="testuser_scaffold",
         email="scaffold@test.com",
-        password_hash=ph.bcrypt.hash("Password1!"),
+        password_hash=hash_password("Password1!"),
     )
     db_session.add(user)
     await db_session.flush()

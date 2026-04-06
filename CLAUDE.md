@@ -46,7 +46,7 @@ The backend never has server-side templates. The frontend never accesses databas
 | ORM              | SQLAlchemy 2.x async (mapped_column, Mapped)        |
 | Migrations       | Alembic                                             |
 | Validation       | Pydantic v2 (model_validator, field_validator)      |
-| Auth tokens      | python-jose (JWT) + passlib[bcrypt]                 |
+| Auth tokens      | python-jose (JWT) + bcrypt (direct, no passlib)     |
 | HTTP client      | httpx (AsyncClient)                                 |
 | Relational DB    | PostgreSQL 15 (asyncpg driver)                      |
 | XML DB           | eXist-db 6.x (REST API + XQuery 3.1)                |
@@ -381,6 +381,13 @@ quality baseline regardless of jurisdictional obligations.
 - **Do not use** deprecated `response_model` in FastAPI — use return type annotations
 - **Do not use** synchronous SQLAlchemy `Session` — only `AsyncSession`
 - **Do not use** `datetime.utcnow()` (deprecated) — use `datetime.now(UTC)`
+- **Do not use** `passlib` — it is unmaintained (last release 2020) and incompatible
+  with `bcrypt >= 4.1.0`. Use `bcrypt` directly via `app.core.password`
+  (`hash_password` / `verify_password`). Never call `bcrypt` functions outside that module.
+- **Do not use** `datetime.now(UTC)` with `TIMESTAMP WITHOUT TIME ZONE` columns —
+  asyncpg rejects timezone-aware datetimes on tz-naive columns. All SQLAlchemy models
+  must use `TIMESTAMP(timezone=True)` by default. If a tz-naive column is unavoidable,
+  use `datetime.now(UTC).replace(tzinfo=None)` explicitly.
 - **Do not commit** partial code — every function must be complete and working
 - When a prompt says "stub": a function that exists, has the correct signature,
   and returns an empty list/dict or `None`. Not bare `pass`, not `TODO`.

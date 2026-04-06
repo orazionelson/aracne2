@@ -66,12 +66,12 @@ async def seed_admin(db: object) -> None:
         logger.info("seed_admin_skipped", reason="already exists")
         return
 
-    import passlib.hash as ph
+    from app.core.password import hash_password
 
     admin = User(
         username=settings.admin_username,
         email=settings.admin_email,
-        password_hash=ph.bcrypt.hash(settings.admin_password, rounds=settings.bcrypt_rounds),
+        password_hash=hash_password(settings.admin_password),
         is_active=True,
         is_verified=True,
     )

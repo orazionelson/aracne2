@@ -34,7 +34,6 @@ Business logic for all auth operations. No FastAPI imports — pure async functi
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import passlib.hash as ph
 import structlog
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -42,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import AuthenticationError, DomainValidationError
+from app.core.password import hash_password, verify_password
 from app.models.role import UserRole
 from app.models.session import Session
 from app.models.user import User
@@ -118,7 +118,7 @@ async def authenticate_user(
     # Always run hash check to avoid timing attacks even when user is not found
     dummy = "$2b$12$" + "a" * 53
     candidate_hash = user.password_hash if user else dummy
-    valid = ph.bcrypt.verify(password, candidate_hash)
+    valid = verify_password(password, candidate_hash)
     if not user or not valid or not user.is_active:
         raise AuthenticationError(
             code="INVALID_CREDENTIALS",
@@ -254,7 +254,7 @@ async def change_password(
     new_password: str,
 ) -> None:
     """Verify current password and set new hash. Invalidates all sessions."""
-    if not ph.bcrypt.verify(current_password, user.password_hash):
+    if not verify_password(current_password, user.password_hash):
         raise AuthenticationError(
             code="INVALID_CREDENTIALS",
             message="Current password is incorrect",
@@ -264,7 +264,7 @@ async def change_password(
             code="PASSWORD_TOO_SHORT",
             message="Password must be at least 8 characters",
         )
-    user.password_hash = ph.bcrypt.hash(new_password, rounds=settings.bcrypt_rounds)
+    user.password_hash = hash_password(new_password)
 
     # Revoke all active sessions for this user
     stmt = select(Session).where(
