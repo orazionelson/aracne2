@@ -9,6 +9,10 @@ knowing which plugins are listening.
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import structlog
+
+logger = structlog.get_logger()
+
 
 class HookEvent:
     """Constants for built-in system hook events."""
@@ -42,9 +46,22 @@ class HookRegistry:
             handlers.remove(handler)
 
     async def emit(self, event: str, **kwargs: Any) -> None:
-        """Call all handlers registered for *event* in registration order."""
+        """Call all handlers registered for *event* in registration order.
+
+        Errors in individual handlers are caught and logged so that one
+        failing handler never prevents subsequent handlers or the calling
+        service from completing successfully.
+        """
         for handler in self._handlers.get(event, []):
-            await handler(**kwargs)
+            try:
+                await handler(**kwargs)
+            except Exception as exc:
+                logger.error(
+                    "hook_handler_error",
+                    event=event,
+                    handler=handler.__name__,
+                    error=str(exc),
+                )
 
 
 hook_registry = HookRegistry()

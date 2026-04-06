@@ -43,9 +43,21 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/notifications",
+      name: "notifications",
+      component: () => import("@/views/NotificationsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin/plugins",
       name: "admin-plugins",
       component: () => import("@/views/admin/PluginsView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
+      path: "/admin/settings",
+      name: "admin-settings",
+      component: () => import("@/views/admin/SettingsView.vue"),
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {

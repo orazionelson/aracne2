@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.hooks import HookEvent, hook_registry
 from app.core.password import hash_password
 from app.models.audit_log import AuditLog
 from app.models.role import Role, UserRole
@@ -192,6 +193,7 @@ async def create_user(
             await db.flush()
 
     await _audit(db, "user.created", actor, user, {"role": body.role})
+    await hook_registry.emit(HookEvent.ON_USER_CREATED, db=db, actor=actor, user=user)
     logger.info("user_created", actor=actor.username, target=user.username)
     return await _build_response(db, user)
 
@@ -246,6 +248,7 @@ async def update_user(
         else "user.updated"
     )
     await _audit(db, action, actor, user, changed if changed else None)
+    await hook_registry.emit(HookEvent.ON_USER_UPDATED, db=db, actor=actor, user=user, changes=changed)
     logger.info(
         "user_updated",
         actor=actor.username,
@@ -285,6 +288,7 @@ async def soft_delete_user(
         s.revoked_reason = "user_deleted"
 
     await _audit(db, "user.soft_deleted", actor, user)
+    await hook_registry.emit(HookEvent.ON_USER_DELETED, db=db, actor=actor, user=user)
     logger.info("user_soft_deleted", actor=actor.username, target=user.username)
 
 

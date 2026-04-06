@@ -25,6 +25,8 @@
     "home": "Home",
     "users": "Utenti",
     "plugins": "Plugin",
+    "notifications": "Notifiche",
+    "settings": "Impostazioni",
     "profile": "Profilo"
   },
   "profile": {
@@ -71,6 +73,21 @@
     "all_roles": "Tutti i ruoli",
     "filter_active": "Solo attivi",
     "filter_inactive": "Solo inattivi"
+  },
+  "notifications": {
+    "title": "Notifiche",
+    "empty": "Nessuna notifica.",
+    "mark_read": "Segna come letta",
+    "mark_all_read": "Segna tutte come lette",
+    "unread_only": "Solo non lette"
+  },
+  "settings": {
+    "title": "Impostazioni di sistema",
+    "key": "Chiave",
+    "value": "Valore",
+    "type": "Tipo",
+    "edit": "Modifica",
+    "empty": "Nessuna impostazione trovata."
   },
   "plugins": {
     "title": "Plugin",
