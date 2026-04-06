@@ -259,6 +259,18 @@ Endpoint notation used in prompts:
     Always use `x: dict | None = None` and initialize in the body.
 11. **Alembic downgrade always implemented** — every `downgrade()` must fully
     revert its `upgrade()`. Never `pass`.
+12. **Alembic enum creation** — PostgreSQL has no `CREATE TYPE IF NOT EXISTS`. To
+    create an enum type safely in a migration use a raw `DO` block with an exception
+    handler, then reference the type with `postgresql.ENUM(name="...", create_type=False)`:
+    ```sql
+    DO $$ BEGIN
+        CREATE TYPE my_enum AS ENUM ('a', 'b');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+    ```
+    Never use `sa.Enum(..., create_type=False)` inside `op.create_table()` — SQLAlchemy
+    ignores `create_type=False` on `sa.Enum` in that context and tries to emit
+    `CREATE TYPE`, causing `DuplicateObjectError` on re-runs.
 
 ### Frontend
 1. **`<script setup lang="ts">`** in every Vue component
@@ -273,6 +285,12 @@ Endpoint notation used in prompts:
    Hardcoded strings in templates are forbidden. Keys must exist in both
    `src/locales/en.json` and `src/locales/it.json` before the component is committed.
    After login, apply `user.preferred_lang` to `i18n.locale` immediately.
+8. **`useI18n()` is only valid inside `setup()`** — never call it in Pinia stores,
+   plain functions, or module scope. For stores that need to translate strings,
+   import the `i18n` instance directly from `src/main.ts` and use
+   `i18n.global.locale.value` / `i18n.global.t(...)`. Export `i18n` from `main.ts`:
+   `export const i18n = createI18n(...)`. Never call Vue composables outside a
+   component `setup()` context.
 
 ---
 
@@ -394,6 +412,13 @@ quality baseline regardless of jurisdictional obligations.
   (bare hostnames, `null`, `file://` etc. are rejected); (3) in production, non-localhost `http://`
   origins are rejected — only HTTPS is allowed. Validation lives in the `cors_origins` computed
   field and raises `ValueError` at boot so misconfigurations are caught immediately.
+- **structlog processor compatibility** — `add_logger_name` requires a stdlib logger
+  with a `.name` attribute; it is incompatible with `PrintLoggerFactory` (the default
+  in development) and raises `AttributeError: 'PrintLogger' object has no attribute 'name'`.
+  Never include `structlog.stdlib.add_logger_name` in the processor chain when using
+  `PrintLoggerFactory`. Use it only when the chain ends with `ProcessorFormatter`
+  (stdlib integration). Similarly, never pass both `stream=` and `handlers=` to
+  `logging.basicConfig` — use one or the other.
 - **Do not commit** partial code — every function must be complete and working
 - When a prompt says "stub": a function that exists, has the correct signature,
   and returns an empty list/dict or `None`. Not bare `pass`, not `TODO`.
