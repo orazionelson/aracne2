@@ -152,6 +152,7 @@
     "no_actions": "No actions available.",
     "documents": "Documents",
     "upload": "Upload XML",
+    "upload_hint": "Filename: letters, digits, hyphens, underscores only — must end in .xml (e.g. my-document.xml)",
     "download": "Download",
     "delete_document": "Delete",
     "confirm_delete_document": "Delete this document? This action cannot be undone.",

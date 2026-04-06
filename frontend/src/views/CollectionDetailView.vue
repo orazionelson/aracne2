@@ -15,10 +15,6 @@ const slug = route.params.slug as string;
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
-// Keep a local reference to the collection UUID used for API calls.
-// The URL uses slug; the backend accepts both.
-const collectionId = computed(() => store.current?.id ?? slug);
-
 // ── Edit form ─────────────────────────────────────────────────────────────────
 const editing = ref(false);
 const editTitle = ref("");
@@ -39,7 +35,7 @@ async function submitEdit(): Promise<void> {
   saveError.value = null;
   isSaving.value = true;
   try {
-    await store.updateCollection(collectionId.value, {
+    await store.updateCollection(slug, {
       title: editTitle.value.trim(),
       description: editDesc.value.trim() || undefined,
       is_public: editPublic.value,
@@ -115,7 +111,7 @@ async function submitAssign(): Promise<void> {
   }
   isAssigning.value = true;
   try {
-    await store.assignCollection(collectionId.value, resolvedEditorId.value, assignNote.value.trim());
+    await store.assignCollection(slug, resolvedEditorId.value, assignNote.value.trim());
     showAssignForm.value = false;
     assignUsername.value = "";
     assignNote.value = "";
@@ -145,25 +141,25 @@ async function doWorkflow(
 }
 
 async function handleSubmit(): Promise<void> {
-  await doWorkflow(() => store.submitCollection(collectionId.value, workflowNote.value.trim() || undefined));
+  await doWorkflow(() => store.submitCollection(slug, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
 }
 
 async function handleReject(): Promise<void> {
   if (!rejectNote.value.trim()) return;
-  await doWorkflow(() => store.rejectCollection(collectionId.value, rejectNote.value.trim()));
+  await doWorkflow(() => store.rejectCollection(slug, rejectNote.value.trim()));
   showRejectForm.value = false;
   rejectNote.value = "";
 }
 
 async function handlePublish(): Promise<void> {
-  await doWorkflow(() => store.publishCollection(collectionId.value, workflowNote.value.trim() || undefined));
+  await doWorkflow(() => store.publishCollection(slug, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
 }
 
 async function handleUnpublish(): Promise<void> {
   if (!confirm(t("collections.confirm_unpublish"))) return;
-  await doWorkflow(() => store.unpublishCollection(collectionId.value));
+  await doWorkflow(() => store.unpublishCollection(slug));
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -184,7 +180,7 @@ async function onFileSelected(event: Event): Promise<void> {
   docError.value = null;
   isUploading.value = true;
   try {
-    await store.uploadDocument(collectionId.value, file);
+    await store.uploadDocument(slug, file);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -197,7 +193,7 @@ async function onFileSelected(event: Event): Promise<void> {
 
 async function handleDownload(filename: string): Promise<void> {
   try {
-    await store.downloadDocument(collectionId.value, filename);
+    await store.downloadDocument(slug, filename);
   } catch {
     alert(t("common.error"));
   }
@@ -207,7 +203,7 @@ async function handleDeleteDoc(filename: string): Promise<void> {
   if (!confirm(t("collections.confirm_delete_document"))) return;
   docError.value = null;
   try {
-    await store.deleteDocument(collectionId.value, filename);
+    await store.deleteDocument(slug, filename);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -228,7 +224,7 @@ async function handleSearch(): Promise<void> {
   isSearching.value = true;
   searchDone.value = false;
   try {
-    searchResults.value = await store.searchDocuments(collectionId.value, searchQuery.value.trim());
+    searchResults.value = await store.searchDocuments(slug, searchQuery.value.trim());
     searchDone.value = true;
   } catch {
     searchError.value = t("common.error");
@@ -533,6 +529,9 @@ function statusClass(s: string): string {
           />
         </div>
 
+        <p v-if="canWrite" class="mb-3 text-xs text-gray-400">
+          {{ t("collections.upload_hint") }}
+        </p>
         <p v-if="docError" class="mb-3 text-sm text-red-600">{{ docError }}</p>
 
         <!-- Search -->
