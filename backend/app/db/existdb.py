@@ -177,19 +177,39 @@ class ExistDBClient:
         return r.status_code == 200
 
     async def create_collection(self, slug: str) -> None:
-        """Create /db/aracne2/collections/{slug} in eXist-db."""
-        await self.xquery(
-            "system/create_collection.xq",
-            {"root": f"{_DB_ROOT}/collections", "name": slug},
+        """Create /db/aracne2/collections/{slug} in eXist-db.
+
+        eXist-db 6.2.0 does not support external variable binding via the
+        REST API (neither URL params nor the XML <variables> format work).
+        We use REST directly: PUT a placeholder document (which implicitly
+        creates the collection), then DELETE the placeholder.
+        """
+        client = self._require()
+        placeholder = self._rest_url(self.col_path(slug), "__init__.xml")
+        r = await client.put(
+            placeholder,
+            content=b"<init/>",
+            headers={"Content-Type": "application/xml"},
         )
+        if r.status_code not in (200, 201):
+            raise ExternalServiceError(
+                "existdb", f"create_collection failed ({r.status_code}): {r.text[:200]}"
+            )
+        await client.delete(placeholder)
         logger.info("existdb_collection_created", slug=slug)
 
     async def delete_collection(self, slug: str) -> None:
-        """Recursively delete /db/aracne2/collections/{slug} from eXist-db."""
-        await self.xquery(
-            "system/delete_collection.xq",
-            {"path": self.col_path(slug)},
-        )
+        """Recursively delete /db/aracne2/collections/{slug} from eXist-db.
+
+        Uses REST DELETE on the collection path, which eXist-db honours
+        without requiring XQuery external variables.
+        """
+        client = self._require()
+        r = await client.delete(self._rest_url(self.col_path(slug)))
+        if r.status_code not in (200, 204):
+            raise ExternalServiceError(
+                "existdb", f"delete_collection failed ({r.status_code}): {r.text[:200]}"
+            )
         logger.info("existdb_collection_deleted", slug=slug)
 
     async def list_collection(self, slug: str) -> list[str]:
