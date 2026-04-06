@@ -19,7 +19,7 @@ services:
       - aracne2
 
   existdb:
-    image: existdb/existdb:6.2.0
+    image: existdb/existdb:6.4.1
     environment:
       EXIST_PASSWORD: ${EXIST_PASSWORD}
     volumes:
