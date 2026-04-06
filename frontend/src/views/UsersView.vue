@@ -117,8 +117,8 @@ async function fetchUsers(): Promise<void> {
   }
 }
 
-function goToDetail(id: string): void {
-  router.push({ name: "user-detail", params: { id } });
+function goToDetail(username: string): void {
+  router.push({ name: "user-detail", params: { username } });
 }
 
 function formatDate(iso: string | null): string {
@@ -200,7 +200,7 @@ onMounted(fetchUsers);
             <td v-if="auth.hasMinRole('Admin')" class="px-4 py-2">
               <button
                 class="text-sm text-blue-600 hover:underline"
-                @click="goToDetail(user.id)"
+                @click="goToDetail(user.username)"
               >
                 {{ t("users.edit") }}
               </button>

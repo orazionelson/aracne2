@@ -123,8 +123,13 @@ async def list_users(
     return responses, total
 
 
-async def get_user(db: AsyncSession, user_id: uuid.UUID) -> UserResponse:
-    user = await db.get(User, user_id)
+async def get_user(db: AsyncSession, user_id: str) -> UserResponse:
+    """Fetch a user by UUID or username."""
+    try:
+        uid = uuid.UUID(user_id)
+        user = await db.get(User, uid)
+    except ValueError:
+        user = await db.scalar(select(User).where(User.username == user_id))
     if not user:
         raise NotFoundError(message="User not found")
     return await _build_response(db, user)

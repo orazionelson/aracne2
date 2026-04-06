@@ -50,7 +50,7 @@ async function fetchUser(): Promise<void> {
   isLoading.value = true;
   error.value = null;
   try {
-    const data = await apiClient.get<UserResponse>(`/users/${route.params.id}`);
+    const data = await apiClient.get<UserResponse>(`/users/${route.params.username}`);
     user.value = data;
     formEmail.value = data.email;
     formDisplayName.value = data.display_name ?? "";

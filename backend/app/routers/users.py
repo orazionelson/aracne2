@@ -95,7 +95,7 @@ async def user_create(
 
 @router.get("/{user_id}")
 async def user_detail(
-    user_id: uuid.UUID,
+    user_id: str,
     current_user: Annotated[User, Depends(require_role(min_role="EditorInChief"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:

@@ -37,7 +37,7 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "EditorInChief" },
     },
     {
-      path: "/users/:id",
+      path: "/users/:username",
       name: "user-detail",
       component: () => import("@/views/UserDetailView.vue"),
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
