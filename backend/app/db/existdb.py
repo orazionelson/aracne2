@@ -55,6 +55,13 @@ class ExistDBClient:
         except Exception:
             return False
 
+    async def ensure_root(self) -> None:
+        """Create /db/aracne2 and /db/aracne2/collections if absent.
+
+        Safe to call at every startup — the XQuery is fully idempotent.
+        """
+        await self.xquery("system/ensure_root.xq")
+
     # ── Internal helpers ───────────────────────────────────────────────────────
 
     def _require(self) -> httpx.AsyncClient:
