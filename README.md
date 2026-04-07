@@ -130,6 +130,36 @@ make help          # Full command reference
 └── .env.example
 ```
 
+## TEI schema management
+
+Aracne2 supports per-collection TEI schemas for XML validation and CodeMirror 5 autocomplete.
+
+### Registering a schema
+
+Go to **Settings → Schemas** and create a new schema entry (name only). Then attach the files:
+
+- **Validation schema** (.rng / .dtd / .xsd) — used to validate documents on demand and at workflow transitions. Upload a file or import from a public URL.
+- **CM5 schema** (custom XML format, `<cm_tei_schema>` root) — used by the CodeMirror editor for tag/attribute autocomplete. Upload a file or import from a public URL.
+
+Both files are optional and independent. A schema with only a CM5 file enables autocomplete without validation, and vice versa.
+
+URL import uses an SSRF guard: only public IP addresses are accepted. Private, loopback, link-local, multicast and reserved ranges are blocked.
+
+### Linking a schema to a collection
+
+1. Open the collection detail page (`/collections/{slug}`).
+2. Click **Edit** (top right).
+3. Select the desired schema from the **TEI Schema** dropdown.
+4. Click **Save**.
+
+### Using the schema in the editor
+
+When editing a document (`/collections/{slug}/document/{filename}/edit`):
+
+- If the collection has a schema with a CM5 file, the editor loads it automatically and shows a green **TEI P5** badge in the toolbar.
+- If no collection-specific CM5 file is found, the editor falls back to the global `/cmschemas/tei-p5.xml` static file (place it in `frontend/public/cmschemas/`).
+- If the collection has a schema with a validation file, a **Validate** button appears in the toolbar. Validation also runs automatically after each save. Results appear in a panel below the editor (line · column · message). Validation failure is non-blocking: the document is always saved regardless.
+
 ## API conventions
 
 All responses use a consistent envelope:
