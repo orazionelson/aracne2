@@ -96,8 +96,11 @@ class Settings(BaseSettings):
     public_registration: bool = False
     max_upload_size_mb: int = 50
 
-    # TEI schema storage — filesystem directory for validation and CM5 schema files
-    schemas_dir: Path = Path("/data/schemas")
+    # TEI schema storage — filesystem directory for validation and CM5 schema files.
+    # Defaults to /app/schemas, which is inside the backend volume mount and writable
+    # in development. Override via SCHEMAS_DIR env variable in production to point
+    # to a persistent volume (e.g. /data/schemas mounted via docker-compose).
+    schemas_dir: Path = Path("/app/schemas")
 
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"

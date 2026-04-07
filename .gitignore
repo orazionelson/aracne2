@@ -20,3 +20,6 @@ frontend/dist/
 # Docker volumes (local dev)
 postgres_data/
 existdb_data/
+
+# TEI schema files stored by the backend service
+backend/schemas/
