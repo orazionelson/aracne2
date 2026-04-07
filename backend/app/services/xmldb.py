@@ -18,6 +18,7 @@ import re
 import uuid
 import zipfile
 from datetime import UTC, datetime
+from typing import Union
 
 import defusedxml.ElementTree as _safe_xml
 import structlog
@@ -58,6 +59,14 @@ logger = structlog.get_logger()
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _natural_sort_key(s: str) -> list[Union[int, str]]:
+    """Sort key that orders numeric segments numerically.
+
+    e.g. ['ara8.17.xml', 'ara8.61.xml', 'ara8.114.xml'] sorts correctly.
+    """
+    return [int(c) if c.isdigit() else c for c in re.split(r"(\d+)", s)]
 
 
 # ── Filename validation ────────────────────────────────────────────────────────
@@ -513,6 +522,7 @@ async def list_documents(
     col = await _get_or_404(db, collection_id)
     await _assert_read_access(db, col, actor, role)
     filenames = await existdb.list_collection(col.slug)
+    filenames.sort(key=_natural_sort_key)
     return [DocumentInfo(filename=f) for f in filenames]
 
 

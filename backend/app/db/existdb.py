@@ -92,36 +92,29 @@ class ExistDBClient:
     ) -> bytes:
         """Execute an XQuery from app/xqueries/ and return raw response bytes.
 
-        eXist-db 6.x REST API binding strategy:
-        - Without variables: form-encoded POST with _query and _wrap=no.
-        - With variables: XML POST (<query> document format) with _wrap=no
-          as a URL parameter.  URL query params are NOT bound to external
-          XQuery variables by eXist-db; only the XML format works.
+        Variable binding strategy: eXist-db REST API external variable binding
+        (XML <variables> format and URL query params) is unreliable across
+        versions. Instead, when variables are provided, their values are inlined
+        directly into the XQuery prolog by replacing the ``external`` keyword
+        with a literal assignment before the query is sent.
+
+        All queries are submitted as form-encoded POST with ``_wrap=no``.
         """
         query = self._load_xq(query_file)
-        client = self._require()
-
         if variables:
-            r = await client.post(
-                self._rest_url("db"),
-                params={"_wrap": "no"},
-                content=self._build_xquery_xml(query, variables),
-                headers={"Content-Type": "application/xml"},
-            )
-        else:
-            r = await client.post(
-                self._rest_url("db"),
-                content=urlencode({"_query": query, "_wrap": "no"}).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
+            query = self._inline_prolog_variables(query, variables)
+        client = self._require()
+        r = await client.post(
+            self._rest_url("db"),
+            content=urlencode({"_query": query, "_wrap": "no"}).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
         if r.status_code not in (200, 201):
             logger.error(
                 "existdb_xquery_failed",
                 query_file=query_file,
                 status=r.status_code,
                 response_body=r.text[:500],
-                request_url=str(r.request.url),
             )
             raise ExternalServiceError(
                 "existdb", f"XQuery '{query_file}' failed ({r.status_code}): {r.text[:300]}"
@@ -129,41 +122,23 @@ class ExistDBClient:
         return r.content
 
     @staticmethod
-    def _build_xquery_xml(query: str, variables: dict[str, str]) -> bytes:
-        """Serialize an eXist-db XML query document with external variable bindings.
+    def _inline_prolog_variables(query: str, variables: dict[str, str]) -> str:
+        """Inline variable values into the XQuery prolog.
 
-        Format per eXist-db REST API: <query> with <text> (CDATA) and
-        <variables>.  The <properties> element is intentionally omitted
-        because eXist-db 6.2.0 does not honour it and returns 400.
+        Replaces each ``declare variable $name ... external;`` declaration with
+        ``declare variable $name := 'value';``, making the query self-contained.
+        Single quotes inside values are doubled (XQuery escaping rule).
+        This avoids eXist-db REST external variable binding, which is unreliable.
         """
-        _NS = "http://exist.sourceforge.net/NS/exist"
-        _XSI = "http://www.w3.org/2001/XMLSchema-instance"
-
-        def _esc(s: str) -> str:
-            return (
-                s.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace('"', "&quot;")
+        import re
+        for name, value in variables.items():
+            escaped = value.replace("'", "''")
+            query = re.sub(
+                rf"declare\s+variable\s+\${re.escape(name)}(?:\s+as\s+\S+)?\s+external\s*;",
+                f"declare variable ${name} := '{escaped}';",
+                query,
             )
-
-        # Protect any ]]> sequences inside the query so the CDATA stays valid
-        safe_query = query.replace("]]>", "]]]]><![CDATA[>")
-
-        var_xml = "".join(
-            f"<variable>"
-            f"<qname><localname>{name}</localname></qname>"
-            f'<value xmlns:xsi="{_XSI}" xsi:type="xs:string">{_esc(value)}</value>'
-            f"</variable>"
-            for name, value in variables.items()
-        )
-        body = (
-            f'<query xmlns="{_NS}" xmlns:xs="http://www.w3.org/2001/XMLSchema">'
-            f"<text><![CDATA[{safe_query}]]></text>"
-            f"<variables>{var_xml}</variables>"
-            f"</query>"
-        )
-        return body.encode("utf-8")
+        return query
 
     # ── Collection operations ──────────────────────────────────────────────────
 

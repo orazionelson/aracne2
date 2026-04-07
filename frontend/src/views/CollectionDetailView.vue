@@ -540,7 +540,10 @@ function statusClass(s: string): string {
       <!-- Documents section -->
       <section class="rounded border border-gray-200 p-5">
         <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-gray-700">{{ t("collections.documents") }}</h2>
+          <h2 class="text-sm font-semibold text-gray-700">
+            {{ t("collections.documents") }}
+            <span class="ml-1 font-normal text-gray-400">({{ store.documents.length }})</span>
+          </h2>
           <div v-if="canWrite" class="flex gap-2">
             <button
               :disabled="isUploading || isUploadingZip"
