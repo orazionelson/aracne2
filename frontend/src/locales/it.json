@@ -169,6 +169,9 @@
     "no_results": "Nessun risultato per \"{q}\".",
     "view_document": "Visualizza"
   },
+  "documents": {
+    "action_view": "visualizza"
+  },
   "errors": {
     "not_found": "404 — Pagina non trovata"
   }

@@ -220,14 +220,8 @@ async function onZipSelected(event: Event): Promise<void> {
   }
 }
 
-async function handleViewDoc(filename: string): Promise<void> {
-  try {
-    const url = await store.viewDocument(slug, filename);
-    window.open(url, "_blank");
-    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } catch {
-    alert(t("common.error"));
-  }
+function handleViewDoc(filename: string): void {
+  router.push({ name: "document-view", params: { slug, filename } });
 }
 
 async function handleDownload(filename: string): Promise<void> {

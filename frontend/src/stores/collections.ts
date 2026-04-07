@@ -198,16 +198,13 @@ export const useCollectionStore = defineStore("collections", () => {
     URL.revokeObjectURL(url);
   }
 
-  async function viewDocument(collectionId: string, filename: string): Promise<string> {
-    // Returns a temporary blob URL pointing to the raw XML bytes so the caller
-    // can open it in a new tab. Revocation is the caller's responsibility.
-    const response = await api.get(
+  async function fetchDocumentRaw(collectionId: string, filename: string): Promise<string> {
+    // Returns the raw XML text — used by DocumentView to display inline.
+    const response = await api.get<string>(
       `/collections/${collectionId}/documents/${filename}`,
-      { responseType: "blob" },
+      { responseType: "text" },
     );
-    return URL.createObjectURL(
-      new Blob([response.data as Blob], { type: "application/xml" }),
-    );
+    return response.data;
   }
 
   async function deleteDocument(collectionId: string, filename: string): Promise<void> {
@@ -247,7 +244,7 @@ export const useCollectionStore = defineStore("collections", () => {
     uploadDocument,
     uploadZip,
     downloadDocument,
-    viewDocument,
+    fetchDocumentRaw,
     deleteDocument,
     searchDocuments,
   };
