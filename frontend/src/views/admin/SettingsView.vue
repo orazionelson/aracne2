@@ -56,6 +56,12 @@ function isEditing(key: string): boolean {
   return key in drafts.value;
 }
 
+// Settings with a fixed set of allowed values — show a <select> instead of
+// a free-text input.  Add new entries here when introducing enum-like settings.
+const SETTING_OPTIONS: Record<string, string[]> = {
+  document_editor_mode: ['single', 'split'],
+};
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const schemaError = ref<string | null>(null);
 const newSchemaName = ref("");
@@ -233,7 +239,16 @@ onMounted(async () => {
               <td class="px-4 py-3">
                 <template v-if="isEditing(s.key)">
                   <div class="flex flex-col gap-1">
-                    <template v-if="s.type === 'bool'">
+                    <template v-if="SETTING_OPTIONS[s.key]">
+                      <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                        <option
+                          v-for="opt in SETTING_OPTIONS[s.key]"
+                          :key="opt"
+                          :value="opt"
+                        >{{ opt }}</option>
+                      </select>
+                    </template>
+                    <template v-else-if="s.type === 'bool'">
                       <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
                         <option value="true">true</option>
                         <option value="false">false</option>
