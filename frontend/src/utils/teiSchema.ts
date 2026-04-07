@@ -66,22 +66,11 @@ function xmlElementToNode(el: Element): SchemaNode {
         result[name] = [existing as SchemaNode];
       }
       (result[name] as SchemaNode[]).push(child as SchemaNode);
+    } else if (name === 'children' && typeof child === 'string') {
+      // <children> text is a comma-separated list of tag names.
+      // CM5 xml-hint expects result.children to be string[], not a single string.
+      result[name] = child.split(',').map(s => s.trim()).filter(Boolean);
     } else {
-      // Normalize the children field so it is always an array
-      if (typeof child === 'object' && child !== null) {
-        const c = child as SchemaNode;
-        if ('children' in c && typeof c.children === 'string') {
-          child = { children: [c.children] };
-        }
-      }
-      if (
-        node.nodeName === 'children' &&
-        typeof child === 'object' &&
-        Array.isArray((child as SchemaNode).children) &&
-        ((child as SchemaNode).children as string[]).length === 0
-      ) {
-        child = { children: [''] };
-      }
       result[name] = child;
     }
   }
