@@ -45,11 +45,20 @@ logger = structlog.get_logger()
 # Maximum size (bytes) accepted when importing a schema via URL
 _MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB
 
-# lxml parser with external entity resolution disabled
+# Parser for user-supplied XML documents: external entities and network disabled (XXE prevention).
 _safe_xml_parser = etree.XMLParser(
     resolve_entities=False,
     no_network=True,
     load_dtd=False,
+)
+
+# Parser for schema files we stored ourselves (RNG/XSD): network enabled so that
+# XSD schemas that import external namespaces (e.g. TEI All references isocat DCR)
+# can resolve their imports. Entity resolution is still disabled.
+_schema_xml_parser = etree.XMLParser(
+    resolve_entities=False,
+    no_network=False,
+    load_dtd=True,
 )
 
 _FORMAT_EXT: dict[SchemaFormat, str] = {
@@ -123,8 +132,14 @@ def _errors_from_log(log: etree._ListErrorLog) -> list[ValidationError]:  # type
 
 
 def _validate_rng(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
-    schema_doc = etree.parse(str(schema_path))
-    relaxng = etree.RelaxNG(schema_doc)
+    try:
+        schema_doc = etree.parse(str(schema_path), parser=_schema_xml_parser)
+        relaxng = etree.RelaxNG(schema_doc)
+    except etree.LxmlError as exc:
+        raise DomainValidationError(
+            "SCHEMA_PARSE_ERROR",
+            f"The RNG schema file could not be loaded: {exc}",
+        ) from exc
     try:
         doc = etree.fromstring(xml_bytes, parser=_safe_xml_parser)
     except etree.XMLSyntaxError as exc:
@@ -134,7 +149,13 @@ def _validate_rng(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
 
 
 def _validate_dtd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
-    dtd = etree.DTD(file=str(schema_path))
+    try:
+        dtd = etree.DTD(file=str(schema_path))
+    except etree.LxmlError as exc:
+        raise DomainValidationError(
+            "SCHEMA_PARSE_ERROR",
+            f"The DTD schema file could not be loaded: {exc}",
+        ) from exc
     try:
         doc = etree.fromstring(xml_bytes, parser=_safe_xml_parser)
     except etree.XMLSyntaxError as exc:
@@ -144,8 +165,14 @@ def _validate_dtd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
 
 
 def _validate_xsd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
-    schema_doc = etree.parse(str(schema_path))
-    xmlschema = etree.XMLSchema(schema_doc)
+    try:
+        schema_doc = etree.parse(str(schema_path), parser=_schema_xml_parser)
+        xmlschema = etree.XMLSchema(schema_doc)
+    except etree.LxmlError as exc:
+        raise DomainValidationError(
+            "SCHEMA_PARSE_ERROR",
+            f"The XSD schema file could not be loaded: {exc}",
+        ) from exc
     try:
         doc = etree.fromstring(xml_bytes, parser=_safe_xml_parser)
     except etree.XMLSyntaxError as exc:
