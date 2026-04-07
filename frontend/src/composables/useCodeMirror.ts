@@ -13,7 +13,7 @@
  *   display/autorefresh, scroll/annotatescrollbar, comment/comment
  */
 
-import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, type Ref } from 'vue';
 import CodeMirror, { type Editor } from 'codemirror';
 import type { CM5Schema } from '@/utils/teiSchema';
 
@@ -202,6 +202,34 @@ export function useCodeMirror(
     }
 
     editorInstance.value = instance;
+
+    // Watch for schema arriving after the editor is initialized (async load).
+    // Update hintOptions and extraKeys so Ctrl+Space and trigger keys work.
+    watch(
+      () => options.schema,
+      (s) => {
+        if (!editorInstance.value) return;
+        editorInstance.value.setOption(
+          'hintOptions',
+          s ? { schemaInfo: s, completeSingle: false } : undefined,
+        );
+        const current = (
+          editorInstance.value.getOption('extraKeys') ?? {}
+        ) as unknown as CodeMirror.KeyMap;
+        if (s) {
+          current["'<'"] = completeIfAfterLt;
+          current["'/'"] = completeIfAfterLt;
+          current["' '"] = completeIfInTag;
+          current["'='"] = completeIfInTag;
+        } else {
+          delete current["'<'"];
+          delete current["'/'"];
+          delete current["' '"];
+          delete current["'='"];
+        }
+        editorInstance.value.setOption('extraKeys', current);
+      },
+    );
   });
 
   onBeforeUnmount(() => {
