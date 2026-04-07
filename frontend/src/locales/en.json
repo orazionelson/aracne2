@@ -184,6 +184,8 @@
     "saved": "Saved",
     "schema_loaded": "TEI P5 schema loaded — autocomplete active",
     "schema_error": "CM5 schema error — check console",
+    "split_fallback": "single mode",
+    "split_fallback_title": "Document does not contain <teiHeader> and <text> — showing full XML",
     "pretty_print": "Indent",
     "fullscreen": "Fullscreen",
     "exit_fullscreen": "Exit fullscreen",

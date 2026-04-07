@@ -29,5 +29,9 @@ export const useSettingStore = defineStore("settings", () => {
     if (idx !== -1) settings.value[idx] = updated;
   }
 
-  return { settings, isLoading, fetchSettings, updateSetting };
+  function getSetting(key: string): string | null {
+    return settings.value.find((s) => s.key === key)?.value ?? null;
+  }
+
+  return { settings, isLoading, fetchSettings, updateSetting, getSetting };
 });

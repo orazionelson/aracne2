@@ -35,6 +35,7 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("zip_max_size_mb", "50", "int"),
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),
+    ("document_editor_mode", "single", "string"),
 ]
 
 

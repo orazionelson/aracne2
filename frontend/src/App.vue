@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, RouterView } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import { useSettingStore } from "@/stores/settings";
 import AppNavbar from "@/components/layout/AppNavbar.vue";
 
 const { t } = useI18n();
 const auth = useAuthStore();
 const route = useRoute();
+const settingStore = useSettingStore();
 
 // Show navbar on all authenticated pages; hide on login and 404
 const showNav = computed(() => auth.isAuthenticated && route.name !== "not-found");
+
+// Fetch platform settings once as soon as the user is authenticated (login or
+// session restore at boot). Settings are small and needed by multiple views.
+watch(
+  () => auth.isAuthenticated,
+  (authenticated) => { if (authenticated) settingStore.fetchSettings(); },
+  { immediate: true },
+);
 
 // Banner height in px — must match the h-10 class on the banner element.
 const BANNER_HEIGHT = 40;
