@@ -121,6 +121,22 @@ async def schema_import_cm5(
     return DataResponse(data=data)
 
 
+@router.post("/{schema_id}/generate-cm5")
+async def schema_generate_cm5(
+    schema_id: uuid.UUID,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[TeiSchemaResponse]:
+    """Generate a CM5 autocomplete schema from the uploaded validation schema. [EiC+]
+
+    Parses the stored RNG / XSD / DTD file, extracts element and attribute
+    structure, and writes ``generated-cm5.xml``.  No request body needed.
+    """
+    data = await svc.generate_cm5(db, schema_id)
+    await db.commit()
+    return DataResponse(data=data)
+
+
 @router.get("/{schema_id}/cm5-file")
 async def schema_cm5_file(
     schema_id: uuid.UUID,

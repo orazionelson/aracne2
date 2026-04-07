@@ -215,6 +215,8 @@
     "upload": "Carica",
     "delete": "Elimina",
     "confirm_delete": "Eliminare questo schema? Le collezioni collegate perderanno il loro schema.",
+    "generate_cm5": "Genera CM5",
+    "generate_cm5_no_validation": "Carica prima uno schema di validazione",
     "actions": "Azioni"
   },
   "settings": {

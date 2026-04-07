@@ -215,6 +215,8 @@
     "upload": "Upload",
     "delete": "Delete",
     "confirm_delete": "Delete this schema? Collections linked to it will lose their schema.",
+    "generate_cm5": "Generate CM5",
+    "generate_cm5_no_validation": "Upload a validation schema first",
     "actions": "Actions"
   },
   "settings": {

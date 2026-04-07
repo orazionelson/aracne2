@@ -67,6 +67,8 @@ const activePanel = ref<Record<string, string>>({});
 const importUrl = ref<Record<string, string>>({});
 const isImporting = ref<Record<string, boolean>>({});
 const panelError = ref<Record<string, string>>({});
+const isGenerating = ref<Record<string, boolean>>({});
+const generateOk = ref<Record<string, boolean>>({});
 
 async function loadSchemas(): Promise<void> {
   schemaError.value = null;
@@ -126,6 +128,23 @@ async function handleFileUpload(
   } finally {
     isImporting.value[id] = false;
     (event.target as HTMLInputElement).value = "";
+  }
+}
+
+async function generateCm5(id: string): Promise<void> {
+  panelError.value[id] = "";
+  generateOk.value[id] = false;
+  isGenerating.value[id] = true;
+  try {
+    await schemaStore.generateCm5(id);
+    generateOk.value[id] = true;
+    setTimeout(() => { generateOk.value[id] = false; }, 3000);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    panelError.value[id] = msg ?? t("common.error");
+  } finally {
+    isGenerating.value[id] = false;
   }
 }
 
@@ -355,6 +374,16 @@ onMounted(async () => {
                 @click="togglePanel(s.id, 'import-cm5')"
               >
                 {{ t("schemas.import_cm5") }}
+              </button>
+              <button
+                :disabled="isGenerating[s.id] || !s.validation_filename"
+                :title="!s.validation_filename ? t('schemas.generate_cm5_no_validation') : ''"
+                class="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                @click="generateCm5(s.id)"
+              >
+                <span v-if="isGenerating[s.id]">{{ t("common.loading") }}</span>
+                <span v-else-if="generateOk[s.id]">✓ CM5</span>
+                <span v-else>{{ t("schemas.generate_cm5") }}</span>
               </button>
               <button
                 class="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"

@@ -1,8 +1,8 @@
 """
 schemas — TEI schema management service.
 
-Handles file storage, URL import (with SSRF guard), and XML validation
-against RNG / DTD / XSD schemas using lxml.
+Handles file storage, URL import (with SSRF guard), XML validation against
+RNG / DTD / XSD schemas using lxml, and CM5 schema generation.
 
 Security — SSRF guard on URL import
 -------------------------------------
@@ -20,6 +20,22 @@ same Docker network — while allowing any legitimate public schema source.
 Note: the DNS lookup (``socket.gethostbyname``) runs synchronously.  It is
 a one-time, admin-only action that completes in under 100 ms in the common
 case; running it in a thread executor is intentionally deferred for now.
+
+CM5 schema generation
+---------------------
+``generate_cm5`` extracts an element-to-children / element-to-attrs mapping
+from the already-uploaded validation schema (RNG, XSD, or DTD) and writes
+the ``<cm_tei_schema>`` XML consumed by CodeMirror 5's xml-hint addon.
+
+Algorithm overview:
+- **RNG**: recursively resolves ``<ref>`` elements against the define map,
+  stopping at ``<element>`` boundaries to collect child element names;
+  stops at ``<element>`` boundaries again when collecting attributes.
+  Cycles are prevented by a frozenset of visited define names.
+- **XSD**: follows ``<xs:group ref>`` chains to collect child element refs;
+  follows ``<xs:attributeGroup ref>`` chains to collect attributes.
+- **DTD**: uses lxml's built-in DTD parser which exposes the parsed content
+  model tree directly (``ElementContent`` left/right nodes).
 """
 
 import ipaddress
@@ -62,6 +78,8 @@ _schema_xml_parser = etree.XMLParser(
 )
 
 _XSD_NS = "http://www.w3.org/2001/XMLSchema"
+_RNG_NS = "http://relaxng.org/ns/structure/1.0"
+_XML_NS = "http://www.w3.org/XML/1998/namespace"
 
 
 def _build_xmlschema(schema_path: Path) -> etree.XMLSchema:
@@ -393,3 +411,400 @@ async def get_cm5_content(db: AsyncSession, schema_id: uuid.UUID) -> bytes:
     if not path.exists():
         raise NotFoundError("CM5 schema file is missing on the server — please re-upload it.")
     return path.read_bytes()
+
+
+# ── CM5 schema generation ──────────────────────────────────────────────────────
+#
+# Each _*_extract() function returns (top_element, elements) where:
+#   top_element : str — the root TEI element name (e.g. "TEI")
+#   elements    : dict[str, dict] — maps each element name to:
+#                   {"children": list[str], "attrs": dict[str, list[str]]}
+#
+# _build_cm5_xml() serialises that structure to the <cm_tei_schema> XML format
+# consumed by teiSchema.ts / CodeMirror 5 xml-hint.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── RNG helpers ────────────────────────────────────────────────────────────────
+
+def _rng_child_elements(
+    node: etree._Element,  # type: ignore[name-defined]
+    defines: dict[str, list[etree._Element]],  # type: ignore[name-defined]
+    visited: frozenset[str],
+) -> set[str]:
+    """Return the set of element names reachable as children of *node*.
+
+    Stops at ``<element>`` boundaries (their interior belongs to a different
+    element's context).  Prevents cycles via the *visited* frozenset of
+    already-expanded define names.
+    """
+    try:
+        local = etree.QName(node.tag).localname
+    except ValueError:
+        return set()
+
+    if local == "element":
+        name = node.get("name", "")
+        # Skip namespace-prefixed names (Schematron sch:rule, etc.)
+        return {name} if name and ":" not in name else set()
+
+    if local == "ref":
+        ref_name = node.get("name", "")
+        if not ref_name or ref_name in visited:
+            return set()
+        nv = visited | {ref_name}
+        result: set[str] = set()
+        for defn in defines.get(ref_name, []):
+            for child in defn:
+                result |= _rng_child_elements(child, defines, nv)
+        return result
+
+    # Leaf constructs that never contain element references
+    if local in {"text", "data", "value", "empty", "notAllowed",
+                 "param", "externalRef", "anyName", "nsName", "except"}:
+        return set()
+
+    # Structural wrappers: group, choice, optional, zeroOrMore, oneOrMore,
+    # interleave, mixed — recurse into all children
+    result: set[str] = set()
+    for child in node:
+        result |= _rng_child_elements(child, defines, visited)
+    return result
+
+
+def _rng_attrs(
+    node: etree._Element,  # type: ignore[name-defined]
+    defines: dict[str, list[etree._Element]],  # type: ignore[name-defined]
+    visited: frozenset[str],
+) -> dict[str, list[str]]:
+    """Return {attr_name: [allowed_values]} reachable from *node*.
+
+    Does not cross ``<element>`` boundaries (avoids collecting sibling
+    element attributes as the parent's own attributes).
+    """
+    try:
+        local = etree.QName(node.tag).localname
+    except ValueError:
+        return {}
+
+    if local == "element":
+        return {}  # stop — nested element's attrs are its own concern
+
+    if local == "attribute":
+        name = node.get("name", "")
+        if not name:
+            return {}
+        values = [v.text or "" for v in node.iter(f"{{{_RNG_NS}}}value")]
+        return {name: values}
+
+    if local == "ref":
+        ref_name = node.get("name", "")
+        if not ref_name or ref_name in visited:
+            return {}
+        nv = visited | {ref_name}
+        result: dict[str, list[str]] = {}
+        for defn in defines.get(ref_name, []):
+            for child in defn:
+                for k, v in _rng_attrs(child, defines, nv).items():
+                    result.setdefault(k, v)
+        return result
+
+    result: dict[str, list[str]] = {}
+    for child in node:
+        for k, v in _rng_attrs(child, defines, visited).items():
+            result.setdefault(k, v)
+    return result
+
+
+def _rng_extract(path: Path) -> tuple[str, dict[str, dict]]:
+    """Parse an RNG file and extract element → {children, attrs}."""
+    tree = etree.parse(str(path), parser=_schema_xml_parser)
+    root = tree.getroot()
+
+    # Collect all <define> elements; handles combine="choice" by keeping all variants.
+    defines: dict[str, list[etree._Element]] = {}  # type: ignore[name-defined]
+    for defn in root.iter(f"{{{_RNG_NS}}}define"):
+        name = defn.get("name")
+        if name:
+            defines.setdefault(name, []).append(defn)
+
+    # Find every named <element> node across all defines.
+    element_nodes: dict[str, list[etree._Element]] = {}  # type: ignore[name-defined]
+    for defn_list in defines.values():
+        for defn in defn_list:
+            for el_node in defn.iter(f"{{{_RNG_NS}}}element"):
+                name = el_node.get("name", "")
+                if name and ":" not in name:
+                    element_nodes.setdefault(name, []).append(el_node)
+
+    elements: dict[str, dict] = {}
+    for el_name, nodes in element_nodes.items():
+        children: set[str] = set()
+        attrs: dict[str, list[str]] = {}
+        for node in nodes:
+            for child in node:
+                children |= _rng_child_elements(child, defines, frozenset())
+                for k, v in _rng_attrs(child, defines, frozenset()).items():
+                    attrs.setdefault(k, v)
+        elements[el_name] = {
+            "children": sorted(children),
+            "attrs": attrs,
+        }
+
+    return _find_top(elements), elements
+
+
+# ── XSD helpers ────────────────────────────────────────────────────────────────
+
+def _xsd_child_elements(
+    node: etree._Element,  # type: ignore[name-defined]
+    groups: dict[str, etree._Element],  # type: ignore[name-defined]
+    visited: frozenset[str],
+) -> set[str]:
+    """Return element names referenced (via ref=) inside XSD content model nodes."""
+    try:
+        local = etree.QName(node.tag).localname
+    except ValueError:
+        return set()
+
+    if local == "element":
+        ref = node.get("ref", "")
+        # Strip namespace prefix (e.g. tei:p → p)
+        return {ref.split(":")[-1]} if ref else set()
+
+    if local == "group":
+        ref = node.get("ref", "")
+        if ref:
+            key = ref.split(":")[-1]
+            if key not in visited and key in groups:
+                return _xsd_child_elements(groups[key], groups, visited | {key})
+        return set()
+
+    # Skip constructs that never contribute element children
+    if local in {"annotation", "documentation", "appinfo",
+                 "simpleType", "simpleContent", "attribute", "attributeGroup",
+                 "anyAttribute"}:
+        return set()
+
+    result: set[str] = set()
+    for child in node:
+        result |= _xsd_child_elements(child, groups, visited)
+    return result
+
+
+def _xsd_attrs(
+    node: etree._Element,  # type: ignore[name-defined]
+    attr_groups: dict[str, etree._Element],  # type: ignore[name-defined]
+    visited: frozenset[str],
+) -> dict[str, list[str]]:
+    """Return {attr_name: [allowed_values]} from XSD attribute / attributeGroup nodes."""
+    try:
+        local = etree.QName(node.tag).localname
+    except ValueError:
+        return {}
+
+    if local == "attribute":
+        name = node.get("name")
+        if not name:
+            return {}
+        values = [e.get("value", "") for e in node.iter(f"{{{_XSD_NS}}}enumeration")]
+        return {name: values}
+
+    if local == "attributeGroup":
+        ref = node.get("ref", "")
+        if ref:
+            key = ref.split(":")[-1]
+            if key not in visited and key in attr_groups:
+                return _xsd_attrs(attr_groups[key], attr_groups, visited | {key})
+        return {}
+
+    if local in {"annotation", "documentation", "appinfo", "simpleType"}:
+        return {}
+
+    result: dict[str, list[str]] = {}
+    for child in node:
+        for k, v in _xsd_attrs(child, attr_groups, visited).items():
+            result.setdefault(k, v)
+    return result
+
+
+def _xsd_extract(path: Path) -> tuple[str, dict[str, dict]]:
+    """Parse an XSD file and extract element → {children, attrs}."""
+    tree = etree.parse(str(path), parser=_schema_xml_parser)
+    root = tree.getroot()
+
+    groups: dict[str, etree._Element] = {}  # type: ignore[name-defined]
+    attr_groups: dict[str, etree._Element] = {}  # type: ignore[name-defined]
+    top_level: list[tuple[str, etree._Element]] = []  # type: ignore[name-defined]
+
+    for child in root:
+        try:
+            local = etree.QName(child.tag).localname
+        except ValueError:
+            continue
+        name = child.get("name")
+        if not name:
+            continue
+        if local == "group":
+            groups[name] = child
+        elif local == "attributeGroup":
+            attr_groups[name] = child
+        elif local == "element":
+            top_level.append((name, child))
+
+    elements: dict[str, dict] = {}
+    for el_name, el_node in top_level:
+        children: set[str] = set()
+        attrs: dict[str, list[str]] = {}
+        for sub in el_node:
+            children |= _xsd_child_elements(sub, groups, frozenset({el_name}))
+            for k, v in _xsd_attrs(sub, attr_groups, frozenset()).items():
+                attrs.setdefault(k, v)
+        elements[el_name] = {
+            "children": sorted(children),
+            "attrs": attrs,
+        }
+
+    return _find_top(elements), elements
+
+
+# ── DTD helpers ────────────────────────────────────────────────────────────────
+
+def _dtd_walk_content(node: object, result: set[str]) -> None:
+    """Recursively collect element names from an lxml DTD ElementContent tree."""
+    if node is None:
+        return
+    node_type = getattr(node, "type", None)
+    if node_type == "element":
+        name = getattr(node, "name", "")
+        if name and name != "#PCDATA":
+            result.add(name)
+    elif node_type in ("seq", "or"):
+        _dtd_walk_content(getattr(node, "left", None), result)
+        _dtd_walk_content(getattr(node, "right", None), result)
+
+
+def _dtd_extract(path: Path) -> tuple[str, dict[str, dict]]:
+    """Parse a DTD file and extract element → {children, attrs}."""
+    try:
+        dtd = etree.DTD(file=str(path))
+    except etree.LxmlError as exc:
+        raise DomainValidationError("SCHEMA_PARSE_ERROR", f"DTD parse error: {exc}") from exc
+
+    # Build element → attrs map in one pass over all attribute declarations.
+    attrs_map: dict[str, dict[str, list[str]]] = {}
+    for attr in dtd.attributes():
+        values = list(attr.values()) if attr.type == "enumeration" else []
+        attrs_map.setdefault(attr.elemname, {})[attr.name] = values
+
+    elements: dict[str, dict] = {}
+    for el_decl in dtd.elements():
+        children: set[str] = set()
+        _dtd_walk_content(el_decl.content, children)
+        elements[el_decl.name] = {
+            "children": sorted(children),
+            "attrs": attrs_map.get(el_decl.name, {}),
+        }
+
+    return _find_top(elements), elements
+
+
+# ── Shared utilities ───────────────────────────────────────────────────────────
+
+def _find_top(elements: dict[str, dict]) -> str:
+    """Return the top-level element name (the one not referenced by any other element)."""
+    all_children: set[str] = set()
+    for info in elements.values():
+        all_children.update(info["children"])
+    candidates = sorted(set(elements) - all_children)
+    return candidates[0] if candidates else "TEI"
+
+
+def _attr_qname(name: str) -> str | None:
+    """Convert an attribute name to an lxml-safe form, or None if unsupported."""
+    if name.startswith("xml:"):
+        return f"{{{_XML_NS}}}{name[4:]}"
+    if ":" in name:
+        # Other namespace prefixes require explicit namespace declarations — skip.
+        return None
+    if not name or not (name[0].isalpha() or name[0] == "_"):
+        return None
+    return name
+
+
+def _build_cm5_xml(top: str, elements: dict[str, dict]) -> bytes:
+    """Serialise the extracted element map to the <cm_tei_schema> XML format."""
+    root_el = etree.Element("cm_tei_schema")
+    top_el = etree.SubElement(root_el, "top")
+    top_el.text = top
+
+    for tag_name in sorted(elements):
+        info = elements[tag_name]
+        try:
+            el = etree.SubElement(root_el, tag_name)
+        except (ValueError, TypeError):
+            continue  # skip elements whose name is not a valid XML NCName
+
+        for attr_name, values in sorted(info["attrs"].items()):
+            qn = _attr_qname(attr_name)
+            if qn is None:
+                continue
+            try:
+                el.set(qn, ",".join(values) if values else "")
+            except (ValueError, TypeError):
+                pass
+
+        if info["children"]:
+            ch_el = etree.SubElement(el, "children")
+            ch_el.text = ",".join(info["children"])
+
+    return etree.tostring(root_el, xml_declaration=True, encoding="UTF-8", pretty_print=True)
+
+
+# ── Service function ───────────────────────────────────────────────────────────
+
+async def generate_cm5(db: AsyncSession, schema_id: uuid.UUID) -> TeiSchemaResponse:
+    """Generate a CM5 autocomplete schema from the uploaded validation schema.
+
+    Reads the already-stored RNG / XSD / DTD file, extracts element and
+    attribute structure, and writes ``generated-cm5.xml`` to disk.  The
+    schema record's ``cm5_filename`` is updated to point to the new file.
+
+    Raises ``DomainValidationError`` if no validation file is attached or the
+    file is missing on disk.
+    """
+    row = await _get_schema_or_404(db, schema_id)
+    if not row.validation_filename or not row.validation_format:
+        raise DomainValidationError(
+            "NO_VALIDATION_FILE",
+            "This schema has no validation file — upload one before generating CM5.",
+        )
+    path = _validation_path(schema_id, row.validation_format)
+    if not path.exists():
+        raise DomainValidationError(
+            "MISSING_SCHEMA_FILE",
+            "Validation schema file is missing on disk — please re-upload it.",
+        )
+
+    fmt = row.validation_format
+    try:
+        if fmt == SchemaFormat.rng:
+            top, extracted = _rng_extract(path)
+        elif fmt == SchemaFormat.xsd:
+            top, extracted = _xsd_extract(path)
+        else:
+            top, extracted = _dtd_extract(path)
+    except etree.LxmlError as exc:
+        raise DomainValidationError(
+            "SCHEMA_PARSE_ERROR",
+            f"Could not parse the validation schema: {exc}",
+        ) from exc
+
+    logger.info(
+        "cm5_generated",
+        schema_id=str(schema_id),
+        format=fmt.value,
+        top=top,
+        element_count=len(extracted),
+    )
+    cm5_bytes = _build_cm5_xml(top, extracted)
+    return await upload_cm5(db, schema_id, "generated-cm5.xml", cm5_bytes)

@@ -78,6 +78,13 @@ export const useSchemaStore = defineStore("schemas", () => {
     return updated;
   }
 
+  /** Generate the CM5 autocomplete schema from the uploaded validation schema. */
+  async function generateCm5(id: string): Promise<TeiSchema> {
+    const updated = await apiClient.post<TeiSchema>(`/schemas/${id}/generate-cm5`, {});
+    _replace(updated);
+    return updated;
+  }
+
   /** Load the raw CM5 XML text for use in the CodeMirror editor. */
   async function fetchCm5Content(id: string): Promise<string> {
     const response = await api.get<string>(`/schemas/${id}/cm5-file`, { responseType: "text" });
@@ -111,6 +118,7 @@ export const useSchemaStore = defineStore("schemas", () => {
     uploadCm5,
     importCm5,
     fetchCm5Content,
+    generateCm5,
     validateDocument,
   };
 });
