@@ -42,7 +42,6 @@ import 'codemirror/addon/fold/foldgutter.css';
 import 'codemirror/addon/dialog/dialog.css';
 import 'codemirror/addon/hint/show-hint.css';
 import 'codemirror/addon/display/fullscreen.css';
-import 'codemirror/addon/scroll/annotatescrollbar.css';
 
 // ── Autocomplete trigger helpers (ported from cm-tei-schema.js) ────────────────
 
@@ -158,10 +157,14 @@ export function useCodeMirror(
       hintOptions,
       extraKeys: {
         // Autocomplete triggers (only active when schema is loaded)
-        "'<'": options.schema ? completeIfAfterLt : CodeMirror.Pass,
-        "'/'": options.schema ? completeIfAfterLt : CodeMirror.Pass,
-        "' '": options.schema ? completeIfInTag : CodeMirror.Pass,
-        "'='": options.schema ? completeIfInTag : CodeMirror.Pass,
+        ...(options.schema
+          ? {
+              "'<'": completeIfAfterLt,
+              "'/'": completeIfAfterLt,
+              "' '": completeIfInTag,
+              "'='": completeIfInTag,
+            }
+          : {}),
         'Ctrl-Space': 'autocomplete',
         // Navigation
         'Ctrl-J': 'toMatchingTag',
