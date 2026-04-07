@@ -150,7 +150,7 @@ export function useCodeMirror(
       styleActiveLine: true,
       autoRefresh: true,
       foldGutter: true,
-      matchTags: { bothTags: true },
+      matchTags: { bothTags: false },
       autoCloseTags: true,
       readOnly: options.readOnly ?? false,
       gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
