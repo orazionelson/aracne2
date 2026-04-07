@@ -217,6 +217,15 @@
     "actions": "Actions"
   },
   "settings": {
+    "title": "System Settings",
+    "tab_settings": "System Settings",
+    "tab_schemas": "Schemas",
+    "key": "Key",
+    "value": "Value",
+    "type": "Type",
+    "edit": "Edit",
+    "empty": "No settings found."
+  },
   "errors": {
     "not_found": "404 — Page not found"
   }

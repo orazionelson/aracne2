@@ -217,6 +217,15 @@
     "actions": "Azioni"
   },
   "settings": {
+    "title": "Impostazioni di sistema",
+    "tab_settings": "Impostazioni di sistema",
+    "tab_schemas": "Schemi",
+    "key": "Chiave",
+    "value": "Valore",
+    "type": "Tipo",
+    "edit": "Modifica",
+    "empty": "Nessuna impostazione trovata."
+  },
   "errors": {
     "not_found": "404 — Pagina non trovata"
   }
