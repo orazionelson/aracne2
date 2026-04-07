@@ -52,14 +52,60 @@ _safe_xml_parser = etree.XMLParser(
     load_dtd=False,
 )
 
-# Parser for schema files we stored ourselves (RNG/XSD): network enabled so that
-# XSD schemas that import external namespaces (e.g. TEI All references isocat DCR)
-# can resolve their imports. Entity resolution is still disabled.
+# Parser for schema files we stored ourselves (RNG/XSD).
+# Entity resolution is disabled; network is enabled so that xs:import
+# directives can attempt to fetch external schemas.
 _schema_xml_parser = etree.XMLParser(
     resolve_entities=False,
     no_network=False,
     load_dtd=True,
 )
+
+_XSD_NS = "http://www.w3.org/2001/XMLSchema"
+
+
+def _build_xmlschema(schema_path: Path) -> etree.XMLSchema:
+    """Load an XSD schema, stripping unresolvable xs:import directives.
+
+    Some TEI XSD schemas (notably tei_all.xsd) import external namespaces
+    such as ISOcat DCR (http://www.isocat.org/ns/dcr) that are no longer
+    available on the internet. lxml's XMLSchema compiler raises
+    XMLSchemaParseError when it cannot resolve an xs:import target.
+
+    Strategy: if XMLSchema compilation fails, remove the xs:import element
+    whose namespace matches the error and retry. Repeat until the schema
+    compiles or no more imports can be removed. This is safe because:
+    - The removed namespaces are external attribute decorators (DCR tags),
+      not structural TEI elements — stripping them does not change how TEI
+      content is validated.
+    - The schema file itself is trusted (uploaded/imported by an admin).
+    """
+    tree = etree.parse(str(schema_path), parser=_schema_xml_parser)
+    root = tree.getroot()
+
+    for _ in range(20):  # safety cap — a schema won't have more than 20 bad imports
+        try:
+            return etree.XMLSchema(tree)
+        except etree.XMLSchemaParseError as exc:
+            msg = str(exc)
+            # Extract the offending namespace from the error message.
+            # Typical format: "… '{http://some.ns/}attr' does not resolve …"
+            import re as _re
+            match = _re.search(r"'\{([^}]+)\}", msg)
+            if not match:
+                raise  # unknown error shape — propagate as-is
+
+            bad_ns = match.group(1)
+            # Find and remove all xs:import elements for that namespace.
+            imports = root.findall(f"{{{_XSD_NS}}}import[@namespace='{bad_ns}']")
+            if not imports:
+                raise  # can't fix it — propagate
+            for imp in imports:
+                root.remove(imp)
+                logger.debug("xsd_import_stripped", namespace=bad_ns)
+
+    # Should never reach here given the cap above.
+    return etree.XMLSchema(tree)
 
 _FORMAT_EXT: dict[SchemaFormat, str] = {
     SchemaFormat.rng: "rng",
@@ -166,8 +212,7 @@ def _validate_dtd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
 
 def _validate_xsd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
     try:
-        schema_doc = etree.parse(str(schema_path), parser=_schema_xml_parser)
-        xmlschema = etree.XMLSchema(schema_doc)
+        xmlschema = _build_xmlschema(schema_path)
     except etree.LxmlError as exc:
         raise DomainValidationError(
             "SCHEMA_PARSE_ERROR",
