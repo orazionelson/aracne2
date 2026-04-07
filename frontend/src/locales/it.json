@@ -172,10 +172,13 @@
     "search_reset": "Cancella risultati",
     "search_results": "Risultati ricerca",
     "no_results": "Nessun risultato per \"{q}\".",
-    "view_document": "Visualizza"
+    "view_document": "Visualizza",
+    "edit_document": "Modifica"
   },
   "documents": {
-    "action_view": "visualizza"
+    "action_view": "visualizza",
+    "action_edit": "modifica",
+    "saved": "Salvato"
   },
   "errors": {
     "not_found": "404 — Pagina non trovata"

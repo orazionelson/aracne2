@@ -809,6 +809,13 @@ function statusClass(s: string): string {
                   {{ t("collections.view_document") }}
                 </button>
                 <button
+                  v-if="canWrite"
+                  class="text-xs text-amber-600 hover:text-amber-800"
+                  @click="router.push({ name: 'document-edit', params: { slug, filename: doc.filename } })"
+                >
+                  {{ t("collections.edit_document") }}
+                </button>
+                <button
                   class="text-xs text-indigo-600 hover:text-indigo-800"
                   @click="handleDownload(doc.filename)"
                 >

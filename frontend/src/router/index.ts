@@ -61,6 +61,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/collections/:slug/document/:filename/edit",
+      name: "document-edit",
+      component: () => import("@/views/DocumentEditView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/notifications",
       name: "notifications",
       component: () => import("@/views/NotificationsView.vue"),

@@ -562,6 +562,47 @@ async def upload_document(
     return DocumentInfo(filename=filename)
 
 
+async def update_document(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    xml_bytes: bytes,
+    actor: User,
+    role: str,
+) -> DocumentInfo:
+    """Overwrite an existing XML document with new content.
+
+    The document must already exist in the collection. ACL rules are identical
+    to upload: the assigned editor can edit only when the collection is in
+    'assigned' state; EiC and Admin are unrestricted.
+    """
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+
+    # Confirm the document exists before overwriting.
+    existing = await existdb.list_collection(col.slug)
+    if filename not in existing:
+        raise NotFoundError(f"Document '{filename}' not found in collection '{col.slug}'")
+
+    try:
+        _safe_xml.fromstring(xml_bytes)
+    except Exception as exc:
+        raise DomainValidationError("INVALID_XML", f"Document is not valid XML: {exc}") from exc
+
+    await existdb.put_document(col.slug, filename, xml_bytes)
+    _audit(
+        db,
+        "document.updated",
+        actor,
+        col,
+        {"filename": filename, "size": len(xml_bytes)},
+    )
+    logger.info("document_updated", slug=col.slug, filename=filename, actor=actor.username)
+    return DocumentInfo(filename=filename)
+
+
 async def download_document(
     db: AsyncSession,
     existdb: ExistDBClient,

@@ -172,10 +172,13 @@
     "search_reset": "Clear results",
     "search_results": "Search results",
     "no_results": "No results for \"{q}\".",
-    "view_document": "View"
+    "view_document": "View",
+    "edit_document": "Edit"
   },
   "documents": {
-    "action_view": "view"
+    "action_view": "view",
+    "action_edit": "edit",
+    "saved": "Saved"
   },
   "errors": {
     "not_found": "404 — Page not found"

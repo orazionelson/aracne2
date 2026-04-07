@@ -198,6 +198,18 @@ export const useCollectionStore = defineStore("collections", () => {
     URL.revokeObjectURL(url);
   }
 
+  async function updateDocument(
+    collectionId: string,
+    filename: string,
+    content: string,
+  ): Promise<void> {
+    await api.put(
+      `/collections/${collectionId}/documents/${filename}`,
+      content,
+      { headers: { "Content-Type": "application/xml" } },
+    );
+  }
+
   async function fetchDocumentRaw(collectionId: string, filename: string): Promise<string> {
     // Returns the raw XML text — used by DocumentView to display inline.
     const response = await api.get<string>(
@@ -244,6 +256,7 @@ export const useCollectionStore = defineStore("collections", () => {
     uploadDocument,
     uploadZip,
     downloadDocument,
+    updateDocument,
     fetchDocumentRaw,
     deleteDocument,
     searchDocuments,

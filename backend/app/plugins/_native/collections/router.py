@@ -55,6 +55,7 @@ from app.services.xmldb import (
     submit_collection,
     unpublish_collection,
     update_collection,
+    update_document,
     upload_document,
     upload_zip_batch,
 )
@@ -308,6 +309,28 @@ async def document_upload_zip(
         db, existdb, collection_id, zip_bytes, current_user, role
     )
     return DataResponse(data=result)
+
+
+@router.put("/{collection_id}/documents/{filename}")
+async def document_update(
+    collection_id: str,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[DocumentInfo]:
+    """Overwrite an existing XML document with raw XML from the request body.
+
+    Content-Type must be ``application/xml`` or ``text/xml``.
+    The document must already exist in the collection.
+    """
+    role: str = request.state.role
+    xml_bytes = await request.body()
+    doc = await update_document(
+        db, existdb, collection_id, filename, xml_bytes, current_user, role
+    )
+    return DataResponse(data=doc)
 
 
 @router.get("/{collection_id}/documents/{filename}")
