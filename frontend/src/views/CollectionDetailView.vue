@@ -171,6 +171,69 @@ const isUploadingZip = ref(false);
 const uploadProgress = ref({ done: 0, total: 0 });
 const zipResult = ref<ZipUploadResult | null>(null);
 
+// ── Pagination ────────────────────────────────────────────────────────────────
+const PAGE_SIZES = [10, 25, 50, 100] as const;
+const pageSize = ref<number>(25);
+const currentPage = ref(1);
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(store.documents.length / pageSize.value)),
+);
+const paginatedDocuments = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return store.documents.slice(start, start + pageSize.value);
+});
+
+watch(pageSize, () => {
+  currentPage.value = 1;
+  selectedFilenames.value = [];
+});
+
+// ── Multi-select ──────────────────────────────────────────────────────────────
+const selectedFilenames = ref<string[]>([]);
+const isDeleting = ref(false);
+
+const allPageSelected = computed(
+  () =>
+    paginatedDocuments.value.length > 0 &&
+    paginatedDocuments.value.every((d) => selectedFilenames.value.includes(d.filename)),
+);
+
+function toggleSelectAll(): void {
+  const pageNames = paginatedDocuments.value.map((d) => d.filename);
+  if (allPageSelected.value) {
+    selectedFilenames.value = selectedFilenames.value.filter((f) => !pageNames.includes(f));
+  } else {
+    selectedFilenames.value = [...new Set([...selectedFilenames.value, ...pageNames])];
+  }
+}
+
+function goToPage(page: number): void {
+  currentPage.value = page;
+  selectedFilenames.value = [];
+}
+
+async function handleDeleteSelected(): Promise<void> {
+  if (selectedFilenames.value.length === 0) return;
+  if (!confirm(t("collections.confirm_delete_selected", { n: selectedFilenames.value.length }))) return;
+  docError.value = null;
+  isDeleting.value = true;
+  const toDelete = [...selectedFilenames.value];
+  const errors: string[] = [];
+  for (const filename of toDelete) {
+    try {
+      await store.deleteDocument(slug, filename);
+      selectedFilenames.value = selectedFilenames.value.filter((f) => f !== filename);
+    } catch {
+      errors.push(filename);
+    }
+  }
+  isDeleting.value = false;
+  if (errors.length > 0) docError.value = `${t("common.error")}: ${errors.join(", ")}`;
+  // Clamp current page after deletions
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+}
+
 const canWrite = computed(
   () =>
     isEiC.value ||
@@ -681,36 +744,112 @@ function statusClass(s: string): string {
         <div v-if="store.documents.length === 0" class="text-sm text-gray-500">
           {{ t("collections.no_documents") }}
         </div>
-        <ul v-else class="divide-y divide-gray-100">
-          <li
-            v-for="doc in store.documents"
-            :key="doc.filename"
-            class="flex items-center justify-between py-2"
-          >
-            <span class="font-mono text-sm text-gray-800">{{ doc.filename }}</span>
-            <div class="flex gap-3">
+
+        <template v-else>
+          <!-- List controls: select-all + page size -->
+          <div class="mb-1 flex items-center justify-between border-b border-gray-100 pb-2">
+            <label v-if="canWrite" class="flex cursor-pointer items-center gap-2 text-xs text-gray-500">
+              <input
+                type="checkbox"
+                :checked="allPageSelected"
+                :indeterminate="selectedFilenames.length > 0 && !allPageSelected"
+                class="cursor-pointer"
+                @change="toggleSelectAll"
+              />
+              <span v-if="selectedFilenames.length > 0" class="font-medium text-indigo-600">
+                {{ t("collections.selected_count", { n: selectedFilenames.length }) }}
+              </span>
+              <span v-else>{{ t("collections.select_all") }}</span>
+            </label>
+            <span v-else />
+
+            <div class="flex items-center gap-2 text-xs text-gray-500">
               <button
-                class="text-xs text-indigo-500 hover:text-indigo-700"
-                @click="handleViewDoc(doc.filename)"
+                v-if="canWrite && selectedFilenames.length > 0"
+                :disabled="isDeleting"
+                class="rounded border border-red-300 px-2 py-0.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                @click="handleDeleteSelected"
               >
-                {{ t("collections.view_document") }}
+                {{ t("collections.delete_selected", { n: selectedFilenames.length }) }}
               </button>
-              <button
-                class="text-xs text-indigo-600 hover:text-indigo-800"
-                @click="handleDownload(doc.filename)"
+              <select
+                v-model.number="pageSize"
+                class="rounded border border-gray-200 px-1 py-0.5 text-xs"
               >
-                {{ t("collections.download") }}
+                <option v-for="n in PAGE_SIZES" :key="n" :value="n">{{ n }}</option>
+              </select>
+              <span>{{ t("collections.per_page") }}</span>
+            </div>
+          </div>
+
+          <ul class="divide-y divide-gray-100">
+            <li
+              v-for="doc in paginatedDocuments"
+              :key="doc.filename"
+              class="flex items-center justify-between py-2"
+              :class="selectedFilenames.includes(doc.filename) ? 'bg-indigo-50' : ''"
+            >
+              <div class="flex items-center gap-3">
+                <input
+                  v-if="canWrite"
+                  type="checkbox"
+                  :checked="selectedFilenames.includes(doc.filename)"
+                  class="cursor-pointer"
+                  @change="selectedFilenames.includes(doc.filename)
+                    ? selectedFilenames.splice(selectedFilenames.indexOf(doc.filename), 1)
+                    : selectedFilenames.push(doc.filename)"
+                />
+                <span class="font-mono text-sm text-gray-800">{{ doc.filename }}</span>
+              </div>
+              <div class="flex gap-3">
+                <button
+                  class="text-xs text-indigo-500 hover:text-indigo-700"
+                  @click="handleViewDoc(doc.filename)"
+                >
+                  {{ t("collections.view_document") }}
+                </button>
+                <button
+                  class="text-xs text-indigo-600 hover:text-indigo-800"
+                  @click="handleDownload(doc.filename)"
+                >
+                  {{ t("collections.download") }}
+                </button>
+                <button
+                  v-if="canWrite"
+                  class="text-xs text-red-500 hover:text-red-700"
+                  @click="handleDeleteDoc(doc.filename)"
+                >
+                  {{ t("collections.delete_document") }}
+                </button>
+              </div>
+            </li>
+          </ul>
+
+          <!-- Pagination -->
+          <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+            <span>
+              {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, store.documents.length) }}
+              / {{ store.documents.length }}
+            </span>
+            <div class="flex items-center gap-1">
+              <button
+                :disabled="currentPage === 1"
+                class="rounded border px-2 py-0.5 disabled:opacity-40 hover:bg-gray-100"
+                @click="goToPage(currentPage - 1)"
+              >
+                ←
               </button>
+              <span class="px-2">{{ currentPage }} / {{ totalPages }}</span>
               <button
-                v-if="canWrite"
-                class="text-xs text-red-500 hover:text-red-700"
-                @click="handleDeleteDoc(doc.filename)"
+                :disabled="currentPage === totalPages"
+                class="rounded border px-2 py-0.5 disabled:opacity-40 hover:bg-gray-100"
+                @click="goToPage(currentPage + 1)"
               >
-                {{ t("collections.delete_document") }}
+                →
               </button>
             </div>
-          </li>
-        </ul>
+          </div>
+        </template>
       </section>
     </template>
   </div>
