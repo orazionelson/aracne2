@@ -183,6 +183,7 @@
     "action_edit": "modifica",
     "saved": "Salvato",
     "schema_loaded": "Schema TEI P5 caricato — autocomplete attivo",
+    "schema_error": "Errore schema CM5 — controlla la console",
     "pretty_print": "Indenta",
     "fullscreen": "Schermo intero",
     "exit_fullscreen": "Esci da schermo intero",

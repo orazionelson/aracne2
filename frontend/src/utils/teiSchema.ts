@@ -85,6 +85,12 @@ function documentToSchema(doc: Document): CM5Schema {
   // Replicates the original jQuery $.ajax response structure where the
   // response is a Document and root['#document']['cm_tei_schema'] is used.
   const schemaEl = doc.documentElement;
+  if (schemaEl.nodeName !== 'cm_tei_schema') {
+    throw new Error(
+      `Invalid CM5 schema file: root element must be <cm_tei_schema>, got <${schemaEl.nodeName}>. ` +
+      'Upload the custom CM5 XML file, not the RNG/XSD validation schema.',
+    );
+  }
 
   // Build the intermediate node from the root element's children
   const inner = xmlElementToNode(schemaEl);

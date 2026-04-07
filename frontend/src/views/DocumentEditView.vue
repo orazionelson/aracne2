@@ -28,6 +28,7 @@ const saved = ref(false);
 const schema = ref<CM5Schema | undefined>(undefined);
 const hasValidationSchema = ref(false);
 const validationResult = ref<ValidationResult | null>(null);
+const schemaWarning = ref<string | null>(null);
 
 // ── Editor ─────────────────────────────────────────────────────────────────────
 const editorContainer = ref<HTMLElement | null>(null);
@@ -49,8 +50,10 @@ async function loadCm5Schema(schemaId: string | null): Promise<CM5Schema | undef
     if (schemaRecord?.cm5_filename) {
       try {
         const xmlText = await schemaStore.fetchCm5Content(schemaId);
-        return loadTeiSchema(xmlText, 'text');
-      } catch {
+        return await loadTeiSchema(xmlText, 'text');
+      } catch (err) {
+        // Show a warning so the user knows why autocomplete is degraded
+        schemaWarning.value = err instanceof Error ? err.message : String(err);
         // Fall through to global fallback
       }
     }
@@ -161,6 +164,13 @@ async function runValidation(): Promise<void> {
           :title="t('documents.schema_loaded')"
         >
           TEI P5
+        </span>
+        <span
+          v-if="!isSchemaLoading && schemaWarning"
+          class="max-w-sm truncate rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
+          :title="schemaWarning"
+        >
+          {{ t('documents.schema_error') }}
         </span>
       </div>
 

@@ -183,6 +183,7 @@
     "action_edit": "edit",
     "saved": "Saved",
     "schema_loaded": "TEI P5 schema loaded — autocomplete active",
+    "schema_error": "CM5 schema error — check console",
     "pretty_print": "Indent",
     "fullscreen": "Fullscreen",
     "exit_fullscreen": "Exit fullscreen",
