@@ -164,8 +164,10 @@
     "confirm_delete_document": "Delete this document? This action cannot be undone.",
     "no_documents": "No documents in this collection.",
     "search_button": "Search",
+    "search_reset": "Clear results",
     "search_results": "Search results",
-    "no_results": "No results for \"{q}\"."
+    "no_results": "No results for \"{q}\".",
+    "view_document": "View"
   },
   "errors": {
     "not_found": "404 — Page not found"

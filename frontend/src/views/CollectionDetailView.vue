@@ -220,6 +220,16 @@ async function onZipSelected(event: Event): Promise<void> {
   }
 }
 
+async function handleViewDoc(filename: string): Promise<void> {
+  try {
+    const url = await store.viewDocument(slug, filename);
+    window.open(url, "_blank");
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch {
+    alert(t("common.error"));
+  }
+}
+
 async function handleDownload(filename: string): Promise<void> {
   try {
     await store.downloadDocument(slug, filename);
@@ -260,6 +270,13 @@ async function handleSearch(): Promise<void> {
   } finally {
     isSearching.value = false;
   }
+}
+
+function resetSearch(): void {
+  searchQuery.value = "";
+  searchResults.value = [];
+  searchDone.value = false;
+  searchError.value = null;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -628,9 +645,17 @@ function statusClass(s: string): string {
 
         <!-- Search results -->
         <div v-if="searchDone" class="mb-4">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {{ t("collections.search_results") }}
-          </p>
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {{ t("collections.search_results") }}
+            </p>
+            <button
+              class="text-xs text-gray-400 hover:text-gray-700"
+              @click="resetSearch"
+            >
+              {{ t("collections.search_reset") }}
+            </button>
+          </div>
           <p
             v-if="searchResults.length === 0"
             class="text-sm text-gray-500"
@@ -643,7 +668,15 @@ function statusClass(s: string): string {
               :key="hit.filename"
               class="rounded border border-gray-100 bg-gray-50 px-3 py-2"
             >
-              <p class="font-mono text-sm font-medium text-gray-800">{{ hit.filename }}</p>
+              <div class="flex items-center justify-between">
+                <p class="font-mono text-sm font-medium text-gray-800">{{ hit.filename }}</p>
+                <button
+                  class="text-xs text-indigo-500 hover:text-indigo-700"
+                  @click="handleViewDoc(hit.filename)"
+                >
+                  {{ t("collections.view_document") }}
+                </button>
+              </div>
               <p class="mt-0.5 text-xs text-gray-500">…{{ hit.snippet }}…</p>
             </li>
           </ul>
@@ -662,6 +695,12 @@ function statusClass(s: string): string {
           >
             <span class="font-mono text-sm text-gray-800">{{ doc.filename }}</span>
             <div class="flex gap-3">
+              <button
+                class="text-xs text-indigo-500 hover:text-indigo-700"
+                @click="handleViewDoc(doc.filename)"
+              >
+                {{ t("collections.view_document") }}
+              </button>
               <button
                 class="text-xs text-indigo-600 hover:text-indigo-800"
                 @click="handleDownload(doc.filename)"
