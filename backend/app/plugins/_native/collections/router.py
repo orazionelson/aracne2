@@ -36,6 +36,7 @@ from app.schemas.collections import (
     ZipUploadResult,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
+from app.schemas.tei_schemas import ValidationResult
 from app.services.xmldb import (
     assign_collection,
     create_collection,
@@ -58,6 +59,7 @@ from app.services.xmldb import (
     update_document,
     upload_document,
     upload_zip_batch,
+    validate_document,
 )
 
 router = APIRouter(prefix="/collections", tags=["collections"])
@@ -457,3 +459,25 @@ async def permission_revoke(
     """Revoke a user's explicit read access to a collection. EditorInChief+ only."""
     role: str = request.state.role
     await revoke_permission(db, collection_id, user_id, current_user, role)
+
+
+# ── Document validation ───────────────────────────────────────────────────────
+
+@router.post("/{collection_id}/documents/{filename}/validate")
+async def document_validate(
+    collection_id: str,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[ValidationResult]:
+    """Validate a document against the collection's TEI schema.
+
+    Requires the collection to have a schema with a validation file attached.
+    Returns a ValidationResult with a list of errors (empty list = valid).
+    Validation failure does not prevent saving — it is informational.
+    """
+    role: str = request.state.role
+    result = await validate_document(db, existdb, collection_id, filename, current_user, role)
+    return DataResponse(data=result)

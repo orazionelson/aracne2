@@ -112,20 +112,26 @@ function documentToSchema(doc: Document): CM5Schema {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Load and parse a TEI P5 XML schema file into the format expected by
+ * Load and parse a TEI P5 XML schema into the format expected by
  * CodeMirror 5's xml-hint addon (hintOptions.schemaInfo).
  *
- * The XML file must be reachable from the browser (e.g. placed in
- * frontend/public/cmschemas/).
- *
- * @param schemaUrl  URL to the .xml schema file, e.g. '/cmschemas/tei.xml'
+ * @param source  Either a URL string (fetched) or raw XML text (parsed directly),
+ *                depending on the *mode* parameter.
+ * @param mode    'url'  — fetch the URL and parse the response (default).
+ *               'text' — parse *source* directly as XML text (used when the
+ *                         backend serves the CM5 file content via API).
  */
-export async function loadTeiSchema(schemaUrl: string): Promise<CM5Schema> {
-  const response = await fetch(schemaUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to load TEI schema from ${schemaUrl}: HTTP ${response.status}`);
+export async function loadTeiSchema(source: string, mode: 'url' | 'text' = 'url'): Promise<CM5Schema> {
+  let text: string;
+  if (mode === 'text') {
+    text = source;
+  } else {
+    const response = await fetch(source);
+    if (!response.ok) {
+      throw new Error(`Failed to load TEI schema from ${source}: HTTP ${response.status}`);
+    }
+    text = await response.text();
   }
-  const text = await response.text();
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, 'application/xml');
   const parseError = doc.querySelector('parsererror');

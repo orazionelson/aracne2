@@ -22,6 +22,7 @@ export interface Collection {
   assigned_at: string | null;
   submitted_at: string | null;
   published_at: string | null;
+  schema_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,7 +107,7 @@ export const useCollectionStore = defineStore("collections", () => {
 
   async function updateCollection(
     id: string,
-    body: { title?: string; description?: string; is_public?: boolean },
+    body: { title?: string; description?: string; is_public?: boolean; schema_id?: string | null },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);
   }

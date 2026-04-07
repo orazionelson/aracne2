@@ -72,6 +72,14 @@ class Collection(Base):
         DateTime(timezone=True), nullable=False, default=_now
     )
 
+    # TEI schema attached to this collection (nullable — no schema = no validation/autocomplete)
+    schema_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tei_schemas.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
         "User", foreign_keys=[owner_id]

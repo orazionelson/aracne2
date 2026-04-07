@@ -88,6 +88,8 @@
   },
   "settings": {
     "title": "System Settings",
+    "tab_settings": "System Settings",
+    "tab_schemas": "Schemas",
     "key": "Key",
     "value": "Value",
     "type": "Type",
@@ -173,7 +175,8 @@
     "search_results": "Search results",
     "no_results": "No results for \"{q}\".",
     "view_document": "View",
-    "edit_document": "Edit"
+    "edit_document": "Edit",
+    "schema_label": "TEI Schema"
   },
   "documents": {
     "action_view": "view",
@@ -182,8 +185,38 @@
     "schema_loaded": "TEI P5 schema loaded — autocomplete active",
     "pretty_print": "Indent",
     "fullscreen": "Fullscreen",
-    "exit_fullscreen": "Exit fullscreen"
+    "exit_fullscreen": "Exit fullscreen",
+    "validate": "Validate",
+    "validating": "Validating...",
+    "valid": "Valid",
+    "invalid": "Invalid ({n} errors)",
+    "no_schema": "No schema",
+    "no_validation_file": "No validation schema attached"
   },
+  "schemas": {
+    "tab": "Schemas",
+    "title": "TEI Schemas",
+    "name": "Name",
+    "validation": "Validation",
+    "cm5": "CM5",
+    "created_at": "Created",
+    "no_schemas": "No schemas defined.",
+    "create": "New schema",
+    "name_placeholder": "Schema name (e.g. TEI All)",
+    "add": "Add",
+    "none": "No schema",
+    "upload_validation": "Upload validation schema (.rng / .dtd / .xsd)",
+    "import_validation": "Import validation from URL",
+    "upload_cm5": "Upload CM5 schema",
+    "import_cm5": "Import CM5 from URL",
+    "url_placeholder": "https://...",
+    "import": "Import",
+    "upload": "Upload",
+    "delete": "Delete",
+    "confirm_delete": "Delete this schema? Collections linked to it will lose their schema.",
+    "actions": "Actions"
+  },
+  "settings": {
   "errors": {
     "not_found": "404 — Page not found"
   }

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -94,6 +95,9 @@ class Settings(BaseSettings):
     platform_name: str = "Aracne2"
     public_registration: bool = False
     max_upload_size_mb: int = 50
+
+    # TEI schema storage — filesystem directory for validation and CM5 schema files
+    schemas_dir: Path = Path("/data/schemas")
 
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"

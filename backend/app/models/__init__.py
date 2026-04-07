@@ -1,6 +1,7 @@
 # Import all models so that Alembic autogenerate can discover them
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection
+from app.models.tei_schema import TeiSchema
 from app.models.collection_permission import CollectionPermission
 from app.models.plugin_data import PluginData
 from app.models.notification import Notification
@@ -22,4 +23,5 @@ __all__ = [
     "Collection",
     "CollectionPermission",
     "PluginData",
+    "TeiSchema",
 ]

@@ -309,6 +309,14 @@ async def update_collection(
     if body.is_public is not None and body.is_public != col.is_public:
         col.is_public = body.is_public
         changed["is_public"] = body.is_public
+    if "schema_id" in body.model_fields_set:
+        # None means "clear the schema"; a UUID means "attach this schema"
+        if body.schema_id is not None:
+            from app.models.tei_schema import TeiSchema as _TeiSchema
+            if not await db.get(_TeiSchema, body.schema_id):
+                raise NotFoundError(f"Schema {body.schema_id} not found.")
+        col.schema_id = body.schema_id
+        changed["schema_id"] = str(body.schema_id) if body.schema_id else None
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)
@@ -917,3 +925,43 @@ async def get_document_metadata(
         size=int(root.findtext("size") or 0),
         child_count=int(root.findtext("child-count") or 0),
     )
+
+
+async def validate_document(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    actor: User,
+    role: str,
+) -> "ValidationResult":
+    """Validate an XML document against the TEI schema attached to its collection.
+
+    Requires the collection to have a schema with a validation file.
+    Validation failure is non-blocking: this function always returns a
+    ValidationResult; it never raises on schema errors.
+
+    Raises NotFoundError if the collection, document, or schema is missing.
+    Raises DomainValidationError if the schema has no validation file attached.
+    """
+    from app.models.tei_schema import TeiSchema as _TeiSchema
+    from app.schemas.tei_schemas import ValidationResult
+    from app.services.schemas import validate_xml
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+
+    if not col.schema_id:
+        raise DomainValidationError(
+            "NO_SCHEMA",
+            "This collection has no TEI schema attached. Assign a schema first.",
+        )
+    schema = await db.get(_TeiSchema, col.schema_id)
+    if schema is None:
+        raise NotFoundError("The schema attached to this collection no longer exists.")
+
+    # Download document bytes from eXist-db
+    xml_bytes = await existdb.get_document(col.slug, filename)
+
+    return validate_xml(xml_bytes, schema)

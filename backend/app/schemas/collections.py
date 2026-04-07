@@ -39,6 +39,9 @@ class CollectionUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     is_public: bool | None = None
+    # schema_id: present in payload (even as null) means "set/clear the schema";
+    # absent from payload means "leave unchanged". Use model_fields_set to distinguish.
+    schema_id: uuid.UUID | None = None
 
     @field_validator("title")
     @classmethod
@@ -60,6 +63,7 @@ class CollectionResponse(BaseModel):
     assigned_at: datetime | None
     submitted_at: datetime | None
     published_at: datetime | None
+    schema_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

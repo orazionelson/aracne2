@@ -88,6 +88,8 @@
   },
   "settings": {
     "title": "Impostazioni di sistema",
+    "tab_settings": "Impostazioni di sistema",
+    "tab_schemas": "Schemi",
     "key": "Chiave",
     "value": "Valore",
     "type": "Tipo",
@@ -173,7 +175,8 @@
     "search_results": "Risultati ricerca",
     "no_results": "Nessun risultato per \"{q}\".",
     "view_document": "Visualizza",
-    "edit_document": "Modifica"
+    "edit_document": "Modifica",
+    "schema_label": "Schema TEI"
   },
   "documents": {
     "action_view": "visualizza",
@@ -182,8 +185,38 @@
     "schema_loaded": "Schema TEI P5 caricato — autocomplete attivo",
     "pretty_print": "Indenta",
     "fullscreen": "Schermo intero",
-    "exit_fullscreen": "Esci da schermo intero"
+    "exit_fullscreen": "Esci da schermo intero",
+    "validate": "Valida",
+    "validating": "Validazione...",
+    "valid": "Valido",
+    "invalid": "Non valido ({n} errori)",
+    "no_schema": "Nessuno schema",
+    "no_validation_file": "Nessuno schema di validazione allegato"
   },
+  "schemas": {
+    "tab": "Schemi",
+    "title": "Schemi TEI",
+    "name": "Nome",
+    "validation": "Validazione",
+    "cm5": "CM5",
+    "created_at": "Creato",
+    "no_schemas": "Nessuno schema definito.",
+    "create": "Nuovo schema",
+    "name_placeholder": "Nome schema (es. TEI All)",
+    "add": "Aggiungi",
+    "none": "Nessuno schema",
+    "upload_validation": "Carica schema di validazione (.rng / .dtd / .xsd)",
+    "import_validation": "Importa validazione da URL",
+    "upload_cm5": "Carica schema CM5",
+    "import_cm5": "Importa CM5 da URL",
+    "url_placeholder": "https://...",
+    "import": "Importa",
+    "upload": "Carica",
+    "delete": "Elimina",
+    "confirm_delete": "Eliminare questo schema? Le collezioni collegate perderanno il loro schema.",
+    "actions": "Azioni"
+  },
+  "settings": {
   "errors": {
     "not_found": "404 — Pagina non trovata"
   }

@@ -2,20 +2,26 @@
 import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingStore } from "@/stores/settings";
+import { useSchemaStore } from "@/stores/schemas";
+import type { TeiSchema } from "@/stores/schemas";
 
 const { t } = useI18n();
-const store = useSettingStore();
+const settingStore = useSettingStore();
+const schemaStore = useSchemaStore();
 
+// ── Tab ───────────────────────────────────────────────────────────────────────
+const activeTab = ref<"settings" | "schemas">("settings");
+
+// ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
-// Map of key → draft value being edited (null = not editing)
 const drafts = ref<Record<string, string>>({});
 const saving = ref<Record<string, boolean>>({});
 const saveError = ref<Record<string, string>>({});
 
-async function load(): Promise<void> {
+async function loadSettings(): Promise<void> {
   error.value = null;
   try {
-    await store.fetchSettings();
+    await settingStore.fetchSettings();
   } catch {
     error.value = t("common.error");
   }
@@ -35,7 +41,7 @@ async function save(key: string): Promise<void> {
   saving.value[key] = true;
   saveError.value[key] = "";
   try {
-    await store.updateSetting(key, drafts.value[key]);
+    await settingStore.updateSetting(key, drafts.value[key]);
     delete drafts.value[key];
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
@@ -50,96 +56,361 @@ function isEditing(key: string): boolean {
   return key in drafts.value;
 }
 
-onMounted(load);
+// ── Schemas ───────────────────────────────────────────────────────────────────
+const schemaError = ref<string | null>(null);
+const newSchemaName = ref("");
+const isCreating = ref(false);
+const createError = ref<string | null>(null);
+
+// Per-schema UI state (upload / import panels)
+const activePanel = ref<Record<string, string>>({});
+const importUrl = ref<Record<string, string>>({});
+const isImporting = ref<Record<string, boolean>>({});
+const panelError = ref<Record<string, string>>({});
+
+async function loadSchemas(): Promise<void> {
+  schemaError.value = null;
+  try {
+    await schemaStore.fetchSchemas();
+  } catch {
+    schemaError.value = t("common.error");
+  }
+}
+
+async function createSchema(): Promise<void> {
+  if (!newSchemaName.value.trim()) return;
+  createError.value = null;
+  isCreating.value = true;
+  try {
+    await schemaStore.createSchema(newSchemaName.value.trim());
+    newSchemaName.value = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    createError.value = msg ?? t("common.error");
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+async function deleteSchema(s: TeiSchema): Promise<void> {
+  if (!confirm(t("schemas.confirm_delete"))) return;
+  await schemaStore.deleteSchema(s.id);
+}
+
+function togglePanel(id: string, panel: string): void {
+  activePanel.value[id] = activePanel.value[id] === panel ? "" : panel;
+  panelError.value[id] = "";
+}
+
+async function handleFileUpload(
+  id: string,
+  event: Event,
+  type: "validation" | "cm5",
+): Promise<void> {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  panelError.value[id] = "";
+  isImporting.value[id] = true;
+  try {
+    if (type === "validation") {
+      await schemaStore.uploadValidation(id, file);
+    } else {
+      await schemaStore.uploadCm5(id, file);
+    }
+    activePanel.value[id] = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    panelError.value[id] = msg ?? t("common.error");
+  } finally {
+    isImporting.value[id] = false;
+    (event.target as HTMLInputElement).value = "";
+  }
+}
+
+async function handleImport(id: string, type: "validation" | "cm5"): Promise<void> {
+  const url = importUrl.value[id]?.trim();
+  if (!url) return;
+  panelError.value[id] = "";
+  isImporting.value[id] = true;
+  try {
+    if (type === "validation") {
+      await schemaStore.importValidation(id, url);
+    } else {
+      await schemaStore.importCm5(id, url);
+    }
+    importUrl.value[id] = "";
+    activePanel.value[id] = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    panelError.value[id] = msg ?? t("common.error");
+  } finally {
+    isImporting.value[id] = false;
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadSettings(), loadSchemas()]);
+});
 </script>
 
 <template>
   <div class="mx-auto max-w-4xl p-6">
-    <h1 class="mb-6 text-2xl font-bold">{{ t("settings.title") }}</h1>
-
-    <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
-    <p v-if="store.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
-
-    <div v-else-if="store.settings.length > 0" class="overflow-x-auto">
-      <table class="w-full border-collapse text-sm">
-        <thead>
-          <tr class="bg-gray-100 text-left">
-            <th class="px-4 py-2 font-semibold w-56">{{ t("settings.key") }}</th>
-            <th class="px-4 py-2 font-semibold">{{ t("settings.value") }}</th>
-            <th class="px-4 py-2 font-semibold w-16">{{ t("settings.type") }}</th>
-            <th class="px-4 py-2 font-semibold"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="s in store.settings"
-            :key="s.key"
-            class="border-b hover:bg-gray-50 align-top"
-          >
-            <td class="px-4 py-3">
-              <code class="text-xs text-gray-700">{{ s.key }}</code>
-              <p v-if="s.description" class="mt-0.5 text-xs text-gray-400">
-                {{ s.description }}
-              </p>
-            </td>
-            <td class="px-4 py-3">
-              <template v-if="isEditing(s.key)">
-                <div class="flex flex-col gap-1">
-                  <template v-if="s.type === 'bool'">
-                    <select
-                      v-model="drafts[s.key]"
-                      class="rounded border px-2 py-1 text-sm"
-                    >
-                      <option value="true">true</option>
-                      <option value="false">false</option>
-                    </select>
-                  </template>
-                  <template v-else>
-                    <input
-                      v-model="drafts[s.key]"
-                      :type="s.type === 'int' ? 'number' : 'text'"
-                      class="rounded border px-2 py-1 text-sm"
-                    />
-                  </template>
-                  <p v-if="saveError[s.key]" class="text-xs text-red-600">
-                    {{ saveError[s.key] }}
-                  </p>
-                </div>
-              </template>
-              <span v-else class="font-mono text-sm">{{ s.value }}</span>
-            </td>
-            <td class="px-4 py-3 text-gray-400 text-xs">{{ s.type }}</td>
-            <td class="px-4 py-3">
-              <template v-if="isEditing(s.key)">
-                <div class="flex gap-2">
-                  <button
-                    :disabled="saving[s.key]"
-                    class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
-                    @click="save(s.key)"
-                  >
-                    {{ t("common.save") }}
-                  </button>
-                  <button
-                    class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
-                    @click="cancelEdit(s.key)"
-                  >
-                    {{ t("common.cancel") }}
-                  </button>
-                </div>
-              </template>
-              <button
-                v-else
-                class="text-xs text-blue-600 hover:underline"
-                @click="startEdit(s.key, s.value)"
-              >
-                {{ t("settings.edit") }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Tab bar -->
+    <div class="mb-6 flex gap-4 border-b">
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'settings'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'settings'"
+      >
+        {{ t("settings.tab_settings") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'schemas'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'schemas'"
+      >
+        {{ t("settings.tab_schemas") }}
+      </button>
     </div>
 
-    <p v-else class="mt-4 text-gray-500">{{ t("settings.empty") }}</p>
+    <!-- ── System Settings tab ── -->
+    <template v-if="activeTab === 'settings'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("settings.title") }}</h1>
+      <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
+      <p v-if="settingStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
+      <div v-else-if="settingStore.settings.length > 0" class="overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="bg-gray-100 text-left">
+              <th class="w-56 px-4 py-2 font-semibold">{{ t("settings.key") }}</th>
+              <th class="px-4 py-2 font-semibold">{{ t("settings.value") }}</th>
+              <th class="w-16 px-4 py-2 font-semibold">{{ t("settings.type") }}</th>
+              <th class="px-4 py-2 font-semibold"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="s in settingStore.settings"
+              :key="s.key"
+              class="border-b align-top hover:bg-gray-50"
+            >
+              <td class="px-4 py-3">
+                <code class="text-xs text-gray-700">{{ s.key }}</code>
+                <p v-if="s.description" class="mt-0.5 text-xs text-gray-400">
+                  {{ s.description }}
+                </p>
+              </td>
+              <td class="px-4 py-3">
+                <template v-if="isEditing(s.key)">
+                  <div class="flex flex-col gap-1">
+                    <template v-if="s.type === 'bool'">
+                      <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                      </select>
+                    </template>
+                    <template v-else>
+                      <input
+                        v-model="drafts[s.key]"
+                        :type="s.type === 'int' ? 'number' : 'text'"
+                        class="rounded border px-2 py-1 text-sm"
+                      />
+                    </template>
+                    <p v-if="saveError[s.key]" class="text-xs text-red-600">
+                      {{ saveError[s.key] }}
+                    </p>
+                  </div>
+                </template>
+                <span v-else class="font-mono text-sm">{{ s.value }}</span>
+              </td>
+              <td class="px-4 py-3 text-xs text-gray-400">{{ s.type }}</td>
+              <td class="px-4 py-3">
+                <template v-if="isEditing(s.key)">
+                  <div class="flex gap-2">
+                    <button
+                      :disabled="saving[s.key]"
+                      class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                      @click="save(s.key)"
+                    >
+                      {{ t("common.save") }}
+                    </button>
+                    <button
+                      class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                      @click="cancelEdit(s.key)"
+                    >
+                      {{ t("common.cancel") }}
+                    </button>
+                  </div>
+                </template>
+                <button
+                  v-else
+                  class="text-xs text-blue-600 hover:underline"
+                  @click="startEdit(s.key, s.value)"
+                >
+                  {{ t("settings.edit") }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="mt-4 text-gray-500">{{ t("settings.empty") }}</p>
+    </template>
+
+    <!-- ── Schemas tab ── -->
+    <template v-if="activeTab === 'schemas'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("schemas.title") }}</h1>
+
+      <!-- Create schema form -->
+      <div class="mb-6 flex items-center gap-2">
+        <input
+          v-model="newSchemaName"
+          type="text"
+          :placeholder="t('schemas.name_placeholder')"
+          class="rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          @keydown.enter="createSchema"
+        />
+        <button
+          :disabled="isCreating || !newSchemaName.trim()"
+          class="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40"
+          @click="createSchema"
+        >
+          {{ t("schemas.add") }}
+        </button>
+        <span v-if="createError" class="text-xs text-red-600">{{ createError }}</span>
+      </div>
+
+      <p v-if="schemaError" class="mb-4 text-red-600">{{ schemaError }}</p>
+      <p v-if="schemaStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
+
+      <p v-else-if="schemaStore.schemas.length === 0" class="text-gray-500">
+        {{ t("schemas.no_schemas") }}
+      </p>
+
+      <div v-else class="space-y-4">
+        <div
+          v-for="s in schemaStore.schemas"
+          :key="s.id"
+          class="rounded border border-gray-200 bg-white"
+        >
+          <!-- Schema row -->
+          <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex items-center gap-3">
+              <span class="font-medium text-gray-800">{{ s.name }}</span>
+              <!-- Validation badge -->
+              <span
+                v-if="s.validation_format"
+                class="rounded bg-blue-100 px-2 py-0.5 text-xs font-mono text-blue-700"
+              >
+                {{ s.validation_format.toUpperCase() }}
+              </span>
+              <span v-else class="text-xs text-gray-400">{{ t("schemas.validation") }}: —</span>
+              <!-- CM5 badge -->
+              <span
+                v-if="s.cm5_filename"
+                class="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700"
+              >
+                CM5
+              </span>
+              <span v-else class="text-xs text-gray-400">CM5: —</span>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-1">
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                :class="{ 'bg-gray-100': activePanel[s.id] === 'upload-validation' }"
+                @click="togglePanel(s.id, 'upload-validation')"
+              >
+                {{ t("schemas.upload_validation") }}
+              </button>
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                :class="{ 'bg-gray-100': activePanel[s.id] === 'import-validation' }"
+                @click="togglePanel(s.id, 'import-validation')"
+              >
+                {{ t("schemas.import_validation") }}
+              </button>
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                :class="{ 'bg-gray-100': activePanel[s.id] === 'upload-cm5' }"
+                @click="togglePanel(s.id, 'upload-cm5')"
+              >
+                {{ t("schemas.upload_cm5") }}
+              </button>
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                :class="{ 'bg-gray-100': activePanel[s.id] === 'import-cm5' }"
+                @click="togglePanel(s.id, 'import-cm5')"
+              >
+                {{ t("schemas.import_cm5") }}
+              </button>
+              <button
+                class="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                @click="deleteSchema(s)"
+              >
+                {{ t("schemas.delete") }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Expandable panels -->
+          <div
+            v-if="activePanel[s.id]"
+            class="border-t bg-gray-50 px-4 py-3"
+          >
+            <p v-if="panelError[s.id]" class="mb-2 text-xs text-red-600">
+              {{ panelError[s.id] }}
+            </p>
+
+            <!-- Upload panels (validation or CM5) -->
+            <template
+              v-if="activePanel[s.id] === 'upload-validation' || activePanel[s.id] === 'upload-cm5'"
+            >
+              <input
+                type="file"
+                :accept="activePanel[s.id] === 'upload-validation' ? '.rng,.dtd,.xsd' : '.xml'"
+                :disabled="isImporting[s.id]"
+                class="text-sm"
+                @change="handleFileUpload(s.id, $event, activePanel[s.id] === 'upload-validation' ? 'validation' : 'cm5')"
+              />
+            </template>
+
+            <!-- Import URL panels (validation or CM5) -->
+            <template
+              v-if="activePanel[s.id] === 'import-validation' || activePanel[s.id] === 'import-cm5'"
+            >
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="importUrl[s.id]"
+                  type="url"
+                  :placeholder="t('schemas.url_placeholder')"
+                  class="flex-1 rounded border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  @keydown.enter="handleImport(s.id, activePanel[s.id] === 'import-validation' ? 'validation' : 'cm5')"
+                />
+                <button
+                  :disabled="isImporting[s.id] || !importUrl[s.id]"
+                  class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40"
+                  @click="handleImport(s.id, activePanel[s.id] === 'import-validation' ? 'validation' : 'cm5')"
+                >
+                  {{ isImporting[s.id] ? t("common.loading") : t("schemas.import") }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>

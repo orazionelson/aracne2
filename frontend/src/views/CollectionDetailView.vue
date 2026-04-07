@@ -4,12 +4,14 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useCollectionStore, type ZipUploadResult } from "@/stores/collections";
+import { useSchemaStore } from "@/stores/schemas";
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const store = useCollectionStore();
+const schemaStore = useSchemaStore();
 
 const slug = route.params.slug as string;
 const isLoading = ref(true);
@@ -20,6 +22,7 @@ const editing = ref(false);
 const editTitle = ref("");
 const editDesc = ref("");
 const editPublic = ref(false);
+const editSchemaId = ref<string | null>(null);
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
 
@@ -28,6 +31,7 @@ function startEdit(): void {
   editTitle.value = store.current.title;
   editDesc.value = store.current.description ?? "";
   editPublic.value = store.current.is_public;
+  editSchemaId.value = store.current.schema_id;
   editing.value = true;
 }
 
@@ -39,6 +43,7 @@ async function submitEdit(): Promise<void> {
       title: editTitle.value.trim(),
       description: editDesc.value.trim() || undefined,
       is_public: editPublic.value,
+      schema_id: editSchemaId.value,
     });
     editing.value = false;
   } catch (err) {
@@ -339,7 +344,11 @@ function resetSearch(): void {
 // ── Init ──────────────────────────────────────────────────────────────────────
 onMounted(async () => {
   try {
-    await Promise.all([store.fetchCollection(slug), store.fetchDocuments(slug)]);
+    await Promise.all([
+      store.fetchCollection(slug),
+      store.fetchDocuments(slug),
+      schemaStore.fetchSchemas(),
+    ]);
   } catch {
     error.value = t("common.error");
   } finally {
@@ -439,6 +448,21 @@ function statusClass(s: string): string {
             <label for="edit-public" class="text-sm text-gray-700">
               {{ t("collections.is_public") }}
             </label>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-gray-600">
+              {{ t("collections.schema_label") }}
+            </label>
+            <select
+              v-model="editSchemaId"
+              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            >
+              <option :value="null">{{ t("schemas.none") }}</option>
+              <option v-for="s in schemaStore.schemas" :key="s.id" :value="s.id">
+                {{ s.name }}
+                <template v-if="s.validation_format"> ({{ s.validation_format.toUpperCase() }})</template>
+              </option>
+            </select>
           </div>
           <p v-if="saveError" class="text-sm text-red-600">{{ saveError }}</p>
           <div class="flex gap-3">
