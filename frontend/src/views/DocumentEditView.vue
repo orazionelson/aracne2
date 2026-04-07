@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -50,7 +50,7 @@ const canSplit = ref(true);
 // ── Editor ─────────────────────────────────────────────────────────────────────
 const editorContainer = ref<HTMLElement | null>(null);
 
-const { getValue, setValue, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
+const { getValue, setValue, refresh, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
   editorContainer,
   {
     get schema() { return schema.value; },
@@ -223,6 +223,11 @@ onMounted(async () => {
   schema.value = await loadCm5Schema(schemaId);
   isSchemaLoading.value = false;
   isLoading.value = false;
+  // CM5 was initialised while the container was hidden (v-show). After the
+  // container becomes visible, autoRefresh polls up to 250 ms before it calls
+  // refresh(). Force an immediate repaint so the first tab is never blank.
+  await nextTick();
+  refresh();
 });
 
 // ── Save ───────────────────────────────────────────────────────────────────────

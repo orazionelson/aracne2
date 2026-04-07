@@ -125,6 +125,12 @@ export function useCodeMirror(
     }
   }
 
+  function refresh(): void {
+    // Force CM5 to re-measure and repaint — needed after the container
+    // transitions from display:none (v-show) to visible.
+    editorInstance.value?.refresh();
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -243,6 +249,7 @@ export function useCodeMirror(
     isFullscreen,
     getValue,
     setValue,
+    refresh,
     toggleFullscreen,
     foldAll,
     prettyPrint,
