@@ -178,7 +178,11 @@
   "documents": {
     "action_view": "view",
     "action_edit": "edit",
-    "saved": "Saved"
+    "saved": "Saved",
+    "schema_loaded": "TEI P5 schema loaded — autocomplete active",
+    "pretty_print": "Indent",
+    "fullscreen": "Fullscreen",
+    "exit_fullscreen": "Exit fullscreen"
   },
   "errors": {
     "not_found": "404 — Page not found"
