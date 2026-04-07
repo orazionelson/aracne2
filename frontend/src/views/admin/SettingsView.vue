@@ -362,20 +362,6 @@ onMounted(async () => {
                 {{ t("schemas.import_validation") }}
               </button>
               <button
-                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                :class="{ 'bg-gray-100': activePanel[s.id] === 'upload-cm5' }"
-                @click="togglePanel(s.id, 'upload-cm5')"
-              >
-                {{ t("schemas.upload_cm5") }}
-              </button>
-              <button
-                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                :class="{ 'bg-gray-100': activePanel[s.id] === 'import-cm5' }"
-                @click="togglePanel(s.id, 'import-cm5')"
-              >
-                {{ t("schemas.import_cm5") }}
-              </button>
-              <button
                 :disabled="isGenerating[s.id] || !s.validation_filename"
                 :title="!s.validation_filename ? t('schemas.generate_cm5_no_validation') : ''"
                 class="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-40"
@@ -403,35 +389,31 @@ onMounted(async () => {
               {{ panelError[s.id] }}
             </p>
 
-            <!-- Upload panels (validation or CM5) -->
-            <template
-              v-if="activePanel[s.id] === 'upload-validation' || activePanel[s.id] === 'upload-cm5'"
-            >
+            <!-- Upload validation schema -->
+            <template v-if="activePanel[s.id] === 'upload-validation'">
               <input
                 type="file"
-                :accept="activePanel[s.id] === 'upload-validation' ? '.rng,.dtd,.xsd' : '.xml'"
+                accept=".rng,.dtd,.xsd"
                 :disabled="isImporting[s.id]"
                 class="text-sm"
-                @change="handleFileUpload(s.id, $event, activePanel[s.id] === 'upload-validation' ? 'validation' : 'cm5')"
+                @change="handleFileUpload(s.id, $event, 'validation')"
               />
             </template>
 
-            <!-- Import URL panels (validation or CM5) -->
-            <template
-              v-if="activePanel[s.id] === 'import-validation' || activePanel[s.id] === 'import-cm5'"
-            >
+            <!-- Import validation schema from URL -->
+            <template v-if="activePanel[s.id] === 'import-validation'">
               <div class="flex items-center gap-2">
                 <input
                   v-model="importUrl[s.id]"
                   type="url"
                   :placeholder="t('schemas.url_placeholder')"
                   class="flex-1 rounded border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                  @keydown.enter="handleImport(s.id, activePanel[s.id] === 'import-validation' ? 'validation' : 'cm5')"
+                  @keydown.enter="handleImport(s.id, 'validation')"
                 />
                 <button
                   :disabled="isImporting[s.id] || !importUrl[s.id]"
                   class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40"
-                  @click="handleImport(s.id, activePanel[s.id] === 'import-validation' ? 'validation' : 'cm5')"
+                  @click="handleImport(s.id, 'validation')"
                 >
                   {{ isImporting[s.id] ? t("common.loading") : t("schemas.import") }}
                 </button>
