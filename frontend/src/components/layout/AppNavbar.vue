@@ -3,6 +3,19 @@ import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { onClickOutside } from "@vueuse/core";
+import {
+  HomeIcon,
+  FolderOpenIcon,
+  WrenchScrewdriverIcon,
+  UsersIcon,
+  PuzzlePieceIcon,
+  BoltIcon,
+  TagIcon,
+  BellIcon,
+  Cog6ToothIcon,
+  UserCircleIcon,
+  ArrowRightOnRectangleIcon,
+} from "@heroicons/vue/24/outline";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
 import { useUiConfigStore } from "@/stores/ui_config";
@@ -54,7 +67,7 @@ function closeTools(): void {
   >
     <!-- Top bar -->
     <div class="flex h-14 items-center gap-4 px-4">
-      <!-- Brand: logo + platform name -->
+      <!-- Brand -->
       <router-link
         to="/"
         class="flex shrink-0 items-center gap-2 text-lg font-bold tracking-tight hover:opacity-80"
@@ -70,29 +83,33 @@ function closeTools(): void {
       </router-link>
 
       <!-- Desktop primary links -->
-      <div class="hidden flex-1 items-center gap-4 text-sm md:flex">
+      <div class="hidden flex-1 items-center gap-1 text-sm md:flex">
         <router-link
           to="/"
-          class="text-gray-400 transition-colors hover:text-white"
-          exact-active-class="!text-white font-medium"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          exact-active-class="!text-white bg-white/10"
         >
+          <HomeIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.home") }}
         </router-link>
+
         <router-link
           to="/collections"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
         >
+          <FolderOpenIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.collections") }}
         </router-link>
 
         <!-- Tools dropdown -->
         <div ref="toolsRef" class="relative">
           <button
-            class="flex items-center gap-1 text-gray-400 transition-colors hover:text-white"
-            :class="toolsOpen ? '!text-white' : ''"
+            class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            :class="toolsOpen ? '!text-white bg-white/10' : ''"
             @click="toolsOpen = !toolsOpen"
           >
+            <WrenchScrewdriverIcon class="h-4 w-4 shrink-0" />
             {{ t("nav.tools") }}
             <svg
               class="h-3 w-3 transition-transform"
@@ -106,41 +123,45 @@ function closeTools(): void {
 
           <div
             v-if="toolsOpen"
-            class="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-lg border border-white/10 bg-gray-900 py-1 shadow-xl"
+            class="absolute left-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-lg border border-white/10 bg-gray-900 py-1 shadow-xl"
           >
             <router-link
               v-if="auth.hasMinRole('EditorInChief')"
               to="/users"
-              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-              active-class="!text-white font-medium bg-white/5"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
               @click="closeTools"
             >
+              <UsersIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.users") }}
             </router-link>
             <router-link
               v-if="auth.hasMinRole('Admin')"
               to="/admin/plugins"
-              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-              active-class="!text-white font-medium bg-white/5"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
               @click="closeTools"
             >
+              <PuzzlePieceIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.plugins") }}
             </router-link>
             <router-link
               v-if="auth.hasMinRole('Admin')"
               to="/admin/webhooks"
-              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-              active-class="!text-white font-medium bg-white/5"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
               @click="closeTools"
             >
+              <BoltIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.webhooks") }}
             </router-link>
             <router-link
               to="/entities"
-              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-              active-class="!text-white font-medium bg-white/5"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
               @click="closeTools"
             >
+              <TagIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.entities") }}
             </router-link>
           </div>
@@ -148,42 +169,50 @@ function closeTools(): void {
       </div>
 
       <!-- Desktop right side -->
-      <div class="ml-auto hidden items-center gap-5 text-sm md:flex">
-        <span class="text-xs text-gray-500">
+      <div class="ml-auto hidden items-center gap-1 text-sm md:flex">
+        <span class="mr-2 text-xs text-gray-500">
           {{ auth.user?.username }} &middot; {{ auth.user?.role }}
         </span>
+
         <router-link
           to="/notifications"
-          class="relative text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
+          class="relative flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
         >
+          <BellIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.notifications") }}
           <span
             v-if="notif.unreadCount > 0"
-            class="absolute -right-3 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
+            class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
           >
             {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
           </span>
         </router-link>
+
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/settings"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
         >
+          <Cog6ToothIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.settings") }}
         </router-link>
+
         <router-link
           to="/profile"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
         >
+          <UserCircleIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.profile") }}
         </router-link>
+
         <button
-          class="text-gray-400 transition-colors hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
           @click="handleLogout"
         >
+          <ArrowRightOnRectangleIcon class="h-4 w-4 shrink-0" />
           {{ t("auth.sign_out") }}
         </button>
       </div>
@@ -217,68 +246,75 @@ function closeTools(): void {
       <p class="mb-3 text-xs text-gray-500">
         {{ auth.user?.username }} &middot; {{ auth.user?.role }}
       </p>
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-0.5">
         <router-link
           to="/"
-          class="text-gray-400 hover:text-white"
-          exact-active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          exact-active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <HomeIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.home") }}
         </router-link>
         <router-link
           to="/collections"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <FolderOpenIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.collections") }}
         </router-link>
         <router-link
           v-if="auth.hasMinRole('EditorInChief')"
           to="/users"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <UsersIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.users") }}
         </router-link>
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/plugins"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <PuzzlePieceIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.plugins") }}
         </router-link>
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/webhooks"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <BoltIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.webhooks") }}
         </router-link>
         <router-link
           to="/entities"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <TagIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.entities") }}
         </router-link>
         <router-link
           to="/notifications"
-          class="relative text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <BellIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.notifications") }}
           <span
             v-if="notif.unreadCount > 0"
-            class="ml-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
+            class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white"
           >
             {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
           </span>
@@ -286,24 +322,27 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/settings"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <Cog6ToothIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.settings") }}
         </router-link>
         <router-link
           to="/profile"
-          class="text-gray-400 hover:text-white"
-          active-class="!text-white font-medium"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
+          <UserCircleIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.profile") }}
         </router-link>
         <button
-          class="text-left text-gray-400 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-left text-gray-400 hover:bg-white/10 hover:text-white"
           @click="handleLogout"
         >
+          <ArrowRightOnRectangleIcon class="h-4 w-4 shrink-0" />
           {{ t("auth.sign_out") }}
         </button>
       </div>
