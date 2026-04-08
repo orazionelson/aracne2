@@ -7,7 +7,7 @@ Create Date: 2026-04-09
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ENUM, UUID
 
 revision = "0023"
 down_revision = "0022"
@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column(
             "type",
-            sa.Enum(name="entity_type", create_type=False),
+            ENUM(name="entity_type", create_type=False),
             nullable=False,
         ),
         sa.Column("canonical_form", sa.String(512), nullable=False),
