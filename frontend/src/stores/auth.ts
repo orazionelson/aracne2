@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { i18n } from "@/main";
 import api from "@/services/api";
+import { useNotificationStore } from "@/stores/notifications";
 
 // Editor and Designer are lateral roles at the same level (2).
 // Endpoints exclusive to one lateral role use an explicit role-name check,
@@ -109,6 +110,10 @@ export const useAuthStore = defineStore("auth", () => {
     accessToken.value = data.access_token;
     user.value = data.impersonated_user;
     applyLocale(data.impersonated_user.preferred_lang);
+    // Refresh notification state for the impersonated user.
+    const notif = useNotificationStore();
+    notif.reset();
+    await notif.fetchUnreadCount().catch(() => undefined);
   }
 
   async function exitImpersonation(): Promise<void> {
@@ -116,6 +121,10 @@ export const useAuthStore = defineStore("auth", () => {
     accessToken.value = impersonating.value.adminToken;
     impersonating.value = null;
     await loadMe();
+    // Refresh notification state back to the real user.
+    const notif = useNotificationStore();
+    notif.reset();
+    await notif.fetchUnreadCount().catch(() => undefined);
   }
 
   // Called at SPA boot: attempts a silent token refresh.

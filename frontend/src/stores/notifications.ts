@@ -66,6 +66,12 @@ export const useNotificationStore = defineStore("notifications", () => {
     }
   }
 
+  function reset(): void {
+    notifications.value = [];
+    pagination.value = null;
+    unreadCount.value = 0;
+  }
+
   return {
     notifications,
     pagination,
@@ -76,5 +82,6 @@ export const useNotificationStore = defineStore("notifications", () => {
     markRead,
     markAllRead,
     removeNotification,
+    reset,
   };
 });
