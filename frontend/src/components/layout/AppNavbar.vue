@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { onClickOutside } from "@vueuse/core";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
 import { useUiConfigStore } from "@/stores/ui_config";
@@ -12,9 +13,15 @@ const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const notif = useNotificationStore();
-
 const uiConfig = useUiConfigStore();
+
 const menuOpen = ref(false);
+const toolsOpen = ref(false);
+const toolsRef = ref<HTMLElement | null>(null);
+
+onClickOutside(toolsRef, () => {
+  toolsOpen.value = false;
+});
 
 onMounted(async () => {
   if (auth.isAuthenticated) {
@@ -30,6 +37,10 @@ async function handleLogout(): Promise<void> {
 
 function closeMenu(): void {
   menuOpen.value = false;
+}
+
+function closeTools(): void {
+  toolsOpen.value = false;
 }
 </script>
 
@@ -74,37 +85,66 @@ function closeMenu(): void {
         >
           {{ t("nav.collections") }}
         </router-link>
-        <router-link
-          v-if="auth.hasMinRole('EditorInChief')"
-          to="/users"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
-        >
-          {{ t("nav.users") }}
-        </router-link>
-        <router-link
-          v-if="auth.hasMinRole('Admin')"
-          to="/admin/plugins"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
-        >
-          {{ t("nav.plugins") }}
-        </router-link>
-        <router-link
-          v-if="auth.hasMinRole('Admin')"
-          to="/admin/webhooks"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
-        >
-          {{ t("nav.webhooks") }}
-        </router-link>
-        <router-link
-          to="/entities"
-          class="text-gray-400 transition-colors hover:text-white"
-          active-class="!text-white font-medium"
-        >
-          {{ t("nav.entities") }}
-        </router-link>
+
+        <!-- Tools dropdown -->
+        <div ref="toolsRef" class="relative">
+          <button
+            class="flex items-center gap-1 text-gray-400 transition-colors hover:text-white"
+            :class="toolsOpen ? '!text-white' : ''"
+            @click="toolsOpen = !toolsOpen"
+          >
+            {{ t("nav.tools") }}
+            <svg
+              class="h-3 w-3 transition-transform"
+              :class="toolsOpen ? 'rotate-180' : ''"
+              viewBox="0 0 12 12"
+              fill="currentColor"
+            >
+              <path d="M6 8L1 3h10z" />
+            </svg>
+          </button>
+
+          <div
+            v-if="toolsOpen"
+            class="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-lg border border-white/10 bg-gray-900 py-1 shadow-xl"
+          >
+            <router-link
+              v-if="auth.hasMinRole('EditorInChief')"
+              to="/users"
+              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white font-medium bg-white/5"
+              @click="closeTools"
+            >
+              {{ t("nav.users") }}
+            </router-link>
+            <router-link
+              v-if="auth.hasMinRole('Admin')"
+              to="/admin/plugins"
+              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white font-medium bg-white/5"
+              @click="closeTools"
+            >
+              {{ t("nav.plugins") }}
+            </router-link>
+            <router-link
+              v-if="auth.hasMinRole('Admin')"
+              to="/admin/webhooks"
+              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white font-medium bg-white/5"
+              @click="closeTools"
+            >
+              {{ t("nav.webhooks") }}
+            </router-link>
+            <router-link
+              to="/entities"
+              class="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white font-medium bg-white/5"
+              @click="closeTools"
+            >
+              {{ t("nav.entities") }}
+            </router-link>
+          </div>
+        </div>
       </div>
 
       <!-- Desktop right side -->
