@@ -91,12 +91,9 @@ async function fetchEntities(page = 1): Promise<void> {
     if (filterQ.value.trim()) params["q"] = filterQ.value.trim();
     if (filterUnlinked.value) params["unlinked"] = true;
 
-    const res = await apiClient.get<{ data: NamedEntity[]; pagination: Pagination }>(
-      "/entities/admin",
-      { params }
-    );
-    entities.value = res.data;
-    pagination.value = res.pagination;
+    const res = await apiClient.getPaginated<NamedEntity>("/entities/admin", { params });
+    entities.value = res.data as NamedEntity[];
+    pagination.value = res.pagination as Pagination;
   } catch {
     error.value = t("common.error");
   } finally {
@@ -107,12 +104,12 @@ async function fetchEntities(page = 1): Promise<void> {
 async function fetchOccurrences(entityId: string, page = 1): Promise<void> {
   isLoadingOccurrences.value = true;
   try {
-    const res = await apiClient.get<{ data: Occurrence[]; pagination: Pagination }>(
+    const res = await apiClient.getPaginated<Occurrence>(
       `/entities/${entityId}/occurrences`,
       { params: { page, per_page: 20 } }
     );
-    occurrences.value = res.data;
-    occurrencesPagination.value = res.pagination;
+    occurrences.value = res.data as Occurrence[];
+    occurrencesPagination.value = res.pagination as Pagination;
   } catch {
     occurrences.value = [];
   } finally {

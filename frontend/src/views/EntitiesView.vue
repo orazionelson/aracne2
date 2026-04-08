@@ -61,12 +61,9 @@ async function fetchEntities(page = 1): Promise<void> {
     if (filterType.value) params["type"] = filterType.value;
     if (filterQ.value.trim()) params["q"] = filterQ.value.trim();
 
-    const res = await apiClient.get<{ data: NamedEntity[]; pagination: Pagination }>(
-      "/entities",
-      { params }
-    );
-    entities.value = res.data;
-    pagination.value = res.pagination;
+    const res = await apiClient.getPaginated<NamedEntity>("/entities", { params });
+    entities.value = res.data as NamedEntity[];
+    pagination.value = res.pagination as Pagination;
     // Close panel when results change
     selectedEntity.value = null;
     occurrences.value = [];
@@ -80,12 +77,12 @@ async function fetchEntities(page = 1): Promise<void> {
 async function fetchOccurrences(entityId: string, page = 1): Promise<void> {
   isLoadingOccurrences.value = true;
   try {
-    const res = await apiClient.get<{ data: Occurrence[]; pagination: Pagination }>(
+    const res = await apiClient.getPaginated<Occurrence>(
       `/entities/${entityId}/occurrences`,
       { params: { page, per_page: 20 } }
     );
-    occurrences.value = res.data;
-    occurrencesPagination.value = res.pagination;
+    occurrences.value = res.data as Occurrence[];
+    occurrencesPagination.value = res.pagination as Pagination;
   } catch {
     occurrences.value = [];
   } finally {
