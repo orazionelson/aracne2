@@ -80,6 +80,42 @@ const bodyCm = useCodeMirror(bodyEditorContainer, {
   lockBoundaryLines: 2, // locks <text><body> and </body></text>
 });
 
+// ── TEI Help panel ────────────────────────────────────────────────────────────
+const showHelpPanel = ref(false);
+const helpTagInput = ref('');
+const selectedHelpTag = ref('');
+const helpDropdownOpen = ref(false);
+
+/** All element names from the loaded CM5 schema, sorted alphabetically. */
+const elementNames = computed((): string[] => {
+  if (!schema.value) return [];
+  return Object.keys(schema.value).filter((k) => k !== '!top').sort();
+});
+
+/** Up to 30 matching element names for the autocomplete dropdown. */
+const filteredHelpTags = computed((): string[] => {
+  const q = helpTagInput.value.trim().toLowerCase();
+  if (!q) return elementNames.value.slice(0, 30);
+  return elementNames.value.filter((n) => n.toLowerCase().startsWith(q)).slice(0, 30);
+});
+
+/** TEI P5 documentation URL for the currently selected tag. */
+const helpUrl = computed((): string => {
+  if (!selectedHelpTag.value) return '';
+  return `https://tei-c.org/release/doc/tei-p5-doc/en/html/ref-${selectedHelpTag.value}.html`;
+});
+
+function selectHelpTag(tag: string): void {
+  selectedHelpTag.value = tag;
+  helpTagInput.value = tag;
+  helpDropdownOpen.value = false;
+}
+
+function onHelpInputBlur(): void {
+  // Delay so a click on a dropdown item fires before the list disappears.
+  setTimeout(() => { helpDropdownOpen.value = false; }, 150);
+}
+
 // ── Delegate toolbar actions to the active editor ──────────────────────────────
 const isFullscreen = computed(() => {
   if (!splitMode.value || !canSplit.value) return singleCm.isFullscreen.value;
@@ -291,7 +327,9 @@ async function runValidation(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-3.5rem)] flex-col px-4 py-4">
+  <div class="flex h-[calc(100vh-3.5rem)] flex-row">
+  <!-- Main editor column -->
+  <div class="flex min-w-0 flex-1 flex-col px-4 py-4">
     <!-- Header bar -->
     <div class="mb-3 flex flex-shrink-0 items-center justify-between">
       <div class="flex items-center gap-3">
@@ -367,6 +405,17 @@ async function runValidation(): Promise<void> {
         </span>
         <span v-if="saved" class="text-xs text-green-600">{{ t('documents.saved') }}</span>
         <span v-if="saveError" class="max-w-xs truncate text-xs text-red-600">{{ saveError }}</span>
+        <button
+          :class="[
+            'rounded border px-2 py-1 text-xs',
+            showHelpPanel
+              ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="showHelpPanel = !showHelpPanel"
+        >
+          {{ t('documents.tei_help') }}
+        </button>
         <button
           :disabled="isSaving || isLoading"
           class="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
@@ -467,6 +516,68 @@ async function runValidation(): Promise<void> {
         </tbody>
       </table>
     </div>
+  </div>
+  <!-- TEI Help panel -->
+  <div
+    v-if="showHelpPanel"
+    class="flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white"
+  >
+    <!-- Panel header -->
+    <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
+      <span class="text-sm font-semibold text-gray-700">{{ t('documents.tei_help') }}</span>
+      <button
+        class="text-gray-400 hover:text-gray-700"
+        @click="showHelpPanel = false"
+      >
+        ✕
+      </button>
+    </div>
+
+    <!-- Tag autocomplete -->
+    <div class="relative flex-shrink-0 px-3 py-2">
+      <input
+        v-model="helpTagInput"
+        type="text"
+        :placeholder="schema ? t('documents.tei_help_placeholder') : t('documents.tei_help_no_schema')"
+        :disabled="!schema"
+        class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+        @focus="helpDropdownOpen = true"
+        @input="helpDropdownOpen = true"
+        @blur="onHelpInputBlur"
+      />
+      <!-- Dropdown -->
+      <ul
+        v-if="helpDropdownOpen && filteredHelpTags.length > 0"
+        class="absolute left-3 right-3 z-20 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white shadow-md"
+      >
+        <li
+          v-for="tag in filteredHelpTags"
+          :key="tag"
+          class="cursor-pointer px-3 py-1.5 font-mono text-sm hover:bg-indigo-50 hover:text-indigo-700"
+          @mousedown.prevent="selectHelpTag(tag)"
+        >
+          {{ tag }}
+        </li>
+      </ul>
+    </div>
+
+    <!-- Documentation iframe -->
+    <div class="min-h-0 flex-1">
+      <iframe
+        v-if="helpUrl"
+        :src="helpUrl"
+        class="h-full w-full border-0"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        :title="selectedHelpTag"
+      />
+      <p
+        v-else
+        class="px-3 py-4 text-xs text-gray-400"
+      >
+        {{ t('documents.tei_help_select') }}
+      </p>
+    </div>
+  </div>
   </div>
 </template>
 

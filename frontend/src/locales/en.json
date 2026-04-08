@@ -216,7 +216,11 @@
     "valid": "Valid",
     "invalid": "Invalid ({n} errors)",
     "no_schema": "No schema",
-    "no_validation_file": "No validation schema attached"
+    "no_validation_file": "No validation schema attached",
+    "tei_help": "TEI Help",
+    "tei_help_placeholder": "Search tag...",
+    "tei_help_no_schema": "No schema loaded — assign a CM5 schema to this collection",
+    "tei_help_select": "Type a tag name to view its documentation"
   },
   "schemas": {
     "tab": "Schemas",
