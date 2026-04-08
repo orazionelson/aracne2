@@ -4,15 +4,17 @@ import { useI18n } from "vue-i18n";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
+import { useBodyTemplateStore } from "@/stores/body_templates";
 import type { TeiSchema } from "@/stores/schemas";
 
 const { t } = useI18n();
 const settingStore = useSettingStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
+const bodyTemplateStore = useBodyTemplateStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas" | "licenses">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -256,8 +258,81 @@ async function deleteLicense(id: string): Promise<void> {
   await licenseStore.deleteLicense(id);
 }
 
+// ── Body Templates ────────────────────────────────────────────────────────────
+const bodyTemplateError = ref<string | null>(null);
+const newTplLabel = ref("");
+const newTplSnippet = ref("");
+const isCreatingTpl = ref(false);
+const createTplError = ref<string | null>(null);
+const editingTpl = ref<string | null>(null);
+const tplDraft = ref<{ label: string; snippet: string }>({ label: "", snippet: "" });
+const savingTpl = ref<Record<string, boolean>>({});
+const saveTplError = ref<Record<string, string>>({});
+
+async function loadBodyTemplates(): Promise<void> {
+  bodyTemplateError.value = null;
+  try {
+    await bodyTemplateStore.fetchTemplates();
+  } catch {
+    bodyTemplateError.value = t("common.error");
+  }
+}
+
+async function createBodyTemplate(): Promise<void> {
+  if (!newTplLabel.value.trim() || !newTplSnippet.value.trim()) return;
+  createTplError.value = null;
+  isCreatingTpl.value = true;
+  try {
+    await bodyTemplateStore.createTemplate(
+      newTplLabel.value.trim(),
+      newTplSnippet.value.trim(),
+    );
+    newTplLabel.value = "";
+    newTplSnippet.value = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    createTplError.value = msg ?? t("common.error");
+  } finally {
+    isCreatingTpl.value = false;
+  }
+}
+
+function startEditTpl(id: string, label: string, snippet: string): void {
+  editingTpl.value = id;
+  tplDraft.value = { label, snippet };
+  saveTplError.value[id] = "";
+}
+
+function cancelEditTpl(): void {
+  editingTpl.value = null;
+}
+
+async function saveEditTpl(id: string): Promise<void> {
+  savingTpl.value[id] = true;
+  saveTplError.value[id] = "";
+  try {
+    await bodyTemplateStore.patchTemplate(id, {
+      label: tplDraft.value.label.trim(),
+      snippet: tplDraft.value.snippet.trim(),
+    });
+    editingTpl.value = null;
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    saveTplError.value[id] = msg ?? t("common.error");
+  } finally {
+    savingTpl.value[id] = false;
+  }
+}
+
+async function deleteBodyTemplate(id: string): Promise<void> {
+  if (!confirm(t("body_templates.confirm_delete"))) return;
+  await bodyTemplateStore.deleteTemplate(id);
+}
+
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadSchemas(), loadLicenses()]);
+  await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates()]);
 });
 </script>
 
@@ -297,6 +372,17 @@ onMounted(async () => {
         @click="activeTab = 'licenses'"
       >
         {{ t("settings.tab_licenses") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'body_templates'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'body_templates'"
+      >
+        {{ t("settings.tab_body_templates") }}
       </button>
     </div>
 
@@ -656,6 +742,113 @@ onMounted(async () => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Body Templates tab ── -->
+    <template v-if="activeTab === 'body_templates'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("body_templates.title") }}</h1>
+      <p v-if="bodyTemplateError" class="mb-4 text-red-600">{{ bodyTemplateError }}</p>
+
+      <!-- Add form -->
+      <div class="mb-6 rounded border border-gray-200 bg-gray-50 p-4">
+        <p class="mb-3 text-sm font-medium text-gray-700">{{ t("body_templates.add") }}</p>
+        <div class="space-y-2">
+          <input
+            v-model="newTplLabel"
+            type="text"
+            :placeholder="t('body_templates.label_placeholder')"
+            class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+          />
+          <textarea
+            v-model="newTplSnippet"
+            rows="6"
+            :placeholder="t('body_templates.snippet_placeholder')"
+            class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+          />
+        </div>
+        <p v-if="createTplError" class="mt-1 text-xs text-red-600">{{ createTplError }}</p>
+        <button
+          :disabled="isCreatingTpl || !newTplLabel.trim() || !newTplSnippet.trim()"
+          class="mt-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          @click="createBodyTemplate"
+        >
+          {{ t("body_templates.add") }}
+        </button>
+      </div>
+
+      <!-- Template list -->
+      <p v-if="bodyTemplateStore.templates.length === 0" class="text-sm text-gray-500">
+        {{ t("body_templates.no_templates") }}
+      </p>
+      <div v-else class="space-y-3">
+        <div
+          v-for="tpl in bodyTemplateStore.templates"
+          :key="tpl.id"
+          class="rounded border border-gray-200 bg-white p-4"
+        >
+          <!-- View mode -->
+          <template v-if="editingTpl !== tpl.id">
+            <div class="mb-2 flex items-center gap-2">
+              <span class="font-medium text-gray-800">{{ tpl.label }}</span>
+              <span
+                v-if="tpl.is_native"
+                class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500"
+              >
+                {{ t("body_templates.native_badge") }}
+              </span>
+            </div>
+            <pre class="mb-3 overflow-x-auto rounded bg-gray-50 p-3 text-xs text-gray-700">{{ tpl.snippet }}</pre>
+            <div class="flex gap-2">
+              <button
+                class="text-xs text-indigo-600 hover:text-indigo-800"
+                @click="startEditTpl(tpl.id, tpl.label, tpl.snippet)"
+              >
+                {{ t("body_templates.edit") }}
+              </button>
+              <button
+                class="text-xs text-red-500 hover:text-red-700"
+                @click="deleteBodyTemplate(tpl.id)"
+              >
+                {{ t("body_templates.delete") }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Edit mode -->
+          <template v-else>
+            <div class="space-y-2">
+              <input
+                v-model="tplDraft.label"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              <textarea
+                v-model="tplDraft.snippet"
+                rows="8"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <p v-if="saveTplError[tpl.id]" class="mt-1 text-xs text-red-600">
+              {{ saveTplError[tpl.id] }}
+            </p>
+            <div class="mt-2 flex gap-2">
+              <button
+                :disabled="savingTpl[tpl.id] || !tplDraft.label.trim() || !tplDraft.snippet.trim()"
+                class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                @click="saveEditTpl(tpl.id)"
+              >
+                {{ t("body_templates.save") }}
+              </button>
+              <button
+                class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                @click="cancelEditTpl"
+              >
+                {{ t("body_templates.cancel") }}
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </template>

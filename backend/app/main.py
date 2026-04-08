@@ -17,7 +17,8 @@ from app.db.existdb import existdb_client
 from app.db.postgres import engine
 from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
-from app.routers import auth, health, licenses as licenses_router, notifications, plugins
+from app.routers import auth, body_templates as body_templates_router, health
+from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import schemas as schemas_router, settings as settings_router, users
 
 configure_logging()
@@ -42,6 +43,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await db.execute(text("SELECT 1"))
     except Exception as exc:
         structlog.get_logger().warning("startup_postgres_check_failed", error=str(exc))
+    # Seed default data (idempotent — safe to run on every startup)
+    try:
+        from app.db.postgres import AsyncSessionLocal
+        from app.db.seed import seed_body_templates, seed_licenses
+
+        async with AsyncSessionLocal() as db:
+            await seed_licenses(db)
+            await seed_body_templates(db)
+            await db.commit()
+    except Exception as exc:
+        structlog.get_logger().warning("startup_seed_failed", error=str(exc))
     # Discover plugins, sync DB registry, mount active routers
     try:
         from app.db.postgres import AsyncSessionLocal
@@ -175,3 +187,4 @@ app.include_router(plugins.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
 app.include_router(licenses_router.router, prefix="/api/v1")
+app.include_router(body_templates_router.router, prefix="/api/v1")

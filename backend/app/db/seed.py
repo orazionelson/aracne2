@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.postgres import AsyncSessionLocal
+from app.models.body_template import BodyTemplate
 from app.models.license import License
 from app.models.role import Role, UserRole
 from app.models.session import Session  # noqa: F401 — ensure model is registered
@@ -101,6 +102,38 @@ async def seed_licenses(db: AsyncSession) -> None:
     logger.info("seed_licenses_done")
 
 
+DEFAULT_BODY_TEMPLATES: list[tuple[str, str]] = [
+    (
+        "generic",
+        "<docDate>\n  <date>YYYY-MM-DD</date>\n</docDate>\n"
+        "<div type=\"protocollo\"/>\n"
+        "<div type=\"testo\"/>\n"
+        "<div type=\"escatocollo\"/>",
+    ),
+    (
+        "epistola",
+        "<docDate>\n  <date/>\n</docDate>\n"
+        "<div type=\"inscriptio\"/>\n"
+        "<div type=\"rubrica\"/>\n"
+        "<div type=\"salutatio\"/>\n"
+        "<div type=\"exordium\"/>\n"
+        "<div type=\"narratio\"/>\n"
+        "<div type=\"petitio\"/>\n"
+        "<div type=\"conclusio\"/>",
+    ),
+]
+
+
+async def seed_body_templates(db: AsyncSession) -> None:
+    """Seed default body templates if not already present (matched by label)."""
+    for label, snippet in DEFAULT_BODY_TEMPLATES:
+        exists = await db.scalar(select(BodyTemplate).where(BodyTemplate.label == label))
+        if not exists:
+            db.add(BodyTemplate(label=label, snippet=snippet, is_native=True))
+    await db.flush()
+    logger.info("seed_body_templates_done")
+
+
 async def seed_admin(db: AsyncSession) -> None:
     if not settings.admin_password:
         logger.warning(
@@ -148,6 +181,7 @@ async def main() -> None:
         await seed_roles(db)
         await seed_settings(db)
         await seed_licenses(db)
+        await seed_body_templates(db)
         await seed_admin(db)
         await db.commit()
     print("Seed completed successfully.")
