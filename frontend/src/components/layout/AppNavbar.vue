@@ -98,6 +98,13 @@ function closeMenu(): void {
         >
           {{ t("nav.webhooks") }}
         </router-link>
+        <router-link
+          to="/entities"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.entities") }}
+        </router-link>
       </div>
 
       <!-- Desktop right side -->
@@ -213,6 +220,14 @@ function closeMenu(): void {
           @click="closeMenu"
         >
           {{ t("nav.webhooks") }}
+        </router-link>
+        <router-link
+          to="/entities"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.entities") }}
         </router-link>
         <router-link
           to="/notifications"

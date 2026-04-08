@@ -112,6 +112,18 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/admin/entities",
+      name: "admin-entities",
+      component: () => import("@/views/admin/NamedEntitiesView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
+      path: "/entities",
+      name: "entities",
+      component: () => import("@/views/EntitiesView.vue"),
+      // Public — no requiresAuth
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "not-found",
       component: () => import("@/views/NotFoundView.vue"),
