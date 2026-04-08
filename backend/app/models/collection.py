@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -76,6 +76,18 @@ class Collection(Base):
     schema_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("tei_schemas.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+
+    # Publication metadata (maps to TEI publicationStmt fields)
+    publisher: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
+    pub_place: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
+    pub_year: Mapped[int | None] = mapped_column(SmallInteger, nullable=True, default=None)
+    # availability: FK to the license selected for this collection
+    license_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("licenses.id", ondelete="SET NULL"),
         nullable=True,
         default=None,
     )

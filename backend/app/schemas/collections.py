@@ -39,15 +39,27 @@ class CollectionUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     is_public: bool | None = None
-    # schema_id: present in payload (even as null) means "set/clear the schema";
+    # schema_id / license_id: present in payload (even as null) means "set/clear";
     # absent from payload means "leave unchanged". Use model_fields_set to distinguish.
     schema_id: uuid.UUID | None = None
+    # Publication metadata (TEI publicationStmt fields)
+    publisher: str | None = None
+    pub_place: str | None = None
+    pub_year: int | None = None
+    license_id: uuid.UUID | None = None
 
     @field_validator("title")
     @classmethod
     def title_not_empty(cls, v: str | None) -> str | None:
         if v is not None and not v.strip():
             raise ValueError("title cannot be empty")
+        return v
+
+    @field_validator("pub_year")
+    @classmethod
+    def pub_year_range(cls, v: int | None) -> int | None:
+        if v is not None and not (1000 <= v <= 9999):
+            raise ValueError("pub_year must be a 4-digit year (1000–9999)")
         return v
 
 
@@ -64,6 +76,11 @@ class CollectionResponse(BaseModel):
     submitted_at: datetime | None
     published_at: datetime | None
     schema_id: uuid.UUID | None
+    # Publication metadata
+    publisher: str | None
+    pub_place: str | None
+    pub_year: int | None
+    license_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

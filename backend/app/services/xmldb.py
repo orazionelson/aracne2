@@ -317,6 +317,23 @@ async def update_collection(
                 raise NotFoundError(f"Schema {body.schema_id} not found.")
         col.schema_id = body.schema_id
         changed["schema_id"] = str(body.schema_id) if body.schema_id else None
+    # Publication metadata — treat each field as "set when present in payload"
+    if "publisher" in body.model_fields_set:
+        col.publisher = body.publisher
+        changed["publisher"] = body.publisher
+    if "pub_place" in body.model_fields_set:
+        col.pub_place = body.pub_place
+        changed["pub_place"] = body.pub_place
+    if "pub_year" in body.model_fields_set:
+        col.pub_year = body.pub_year
+        changed["pub_year"] = body.pub_year
+    if "license_id" in body.model_fields_set:
+        if body.license_id is not None:
+            from app.models.license import License as _License
+            if not await db.get(_License, body.license_id):
+                raise NotFoundError(f"License {body.license_id} not found.")
+        col.license_id = body.license_id
+        changed["license_id"] = str(body.license_id) if body.license_id else None
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

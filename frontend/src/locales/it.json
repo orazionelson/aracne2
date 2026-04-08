@@ -179,7 +179,12 @@
     "no_results": "Nessun risultato per \"{q}\".",
     "view_document": "Visualizza",
     "edit_document": "Modifica",
-    "schema_label": "Schema TEI"
+    "schema_label": "Schema TEI",
+    "publisher_label": "Editore",
+    "pub_place_label": "Luogo di pubblicazione",
+    "pub_year_label": "Anno",
+    "availability_label": "Disponibilità (licenza)",
+    "no_license": "Nessuna licenza"
   },
   "documents": {
     "action_view": "visualizza",

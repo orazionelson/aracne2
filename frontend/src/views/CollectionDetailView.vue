@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useCollectionStore, type ZipUploadResult } from "@/stores/collections";
 import { useSchemaStore } from "@/stores/schemas";
+import { useLicenseStore } from "@/stores/licenses";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -12,6 +13,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const store = useCollectionStore();
 const schemaStore = useSchemaStore();
+const licenseStore = useLicenseStore();
 
 const slug = route.params.slug as string;
 const isLoading = ref(true);
@@ -23,6 +25,10 @@ const editTitle = ref("");
 const editDesc = ref("");
 const editPublic = ref(false);
 const editSchemaId = ref<string | null>(null);
+const editPublisher = ref("");
+const editPubPlace = ref("");
+const editPubYear = ref<number | null>(null);
+const editLicenseId = ref<string | null>(null);
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
 
@@ -32,6 +38,10 @@ function startEdit(): void {
   editDesc.value = store.current.description ?? "";
   editPublic.value = store.current.is_public;
   editSchemaId.value = store.current.schema_id;
+  editPublisher.value = store.current.publisher ?? "";
+  editPubPlace.value = store.current.pub_place ?? "";
+  editPubYear.value = store.current.pub_year ?? null;
+  editLicenseId.value = store.current.license_id ?? null;
   editing.value = true;
 }
 
@@ -44,6 +54,10 @@ async function submitEdit(): Promise<void> {
       description: editDesc.value.trim() || undefined,
       is_public: editPublic.value,
       schema_id: editSchemaId.value,
+      publisher: editPublisher.value.trim() || null,
+      pub_place: editPubPlace.value.trim() || null,
+      pub_year: editPubYear.value,
+      license_id: editLicenseId.value,
     });
     editing.value = false;
   } catch (err) {
@@ -375,6 +389,7 @@ onMounted(async () => {
       store.fetchDocuments(slug),
       schemaStore.fetchSchemas(),
       store.fetchEditors(),
+      licenseStore.fetchLicenses(),
     ]);
   } catch {
     error.value = t("common.error");
@@ -494,6 +509,65 @@ function statusClass(s: string): string {
                 <template v-if="s.validation_format"> ({{ s.validation_format.toUpperCase() }})</template>
               </option>
             </select>
+          </div>
+          <!-- Publication metadata -->
+          <div class="border-t border-gray-200 pt-3">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              publicationStmt
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.publisher_label") }}
+                </label>
+                <input
+                  v-model="editPublisher"
+                  type="text"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.pub_place_label") }}
+                </label>
+                <input
+                  v-model="editPubPlace"
+                  type="text"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.pub_year_label") }}
+                </label>
+                <input
+                  v-model.number="editPubYear"
+                  type="number"
+                  min="1000"
+                  max="9999"
+                  placeholder="YYYY"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.availability_label") }}
+                </label>
+                <select
+                  v-model="editLicenseId"
+                  class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                >
+                  <option :value="null">{{ t("collections.no_license") }}</option>
+                  <option
+                    v-for="lic in licenseStore.licenses.filter(l => l.is_active)"
+                    :key="lic.id"
+                    :value="lic.id"
+                  >
+                    {{ lic.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
           </div>
           <p v-if="saveError" class="text-sm text-red-600">{{ saveError }}</p>
           <div class="flex gap-3">

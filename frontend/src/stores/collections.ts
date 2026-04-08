@@ -23,6 +23,11 @@ export interface Collection {
   submitted_at: string | null;
   published_at: string | null;
   schema_id: string | null;
+  // Publication metadata (TEI publicationStmt fields)
+  publisher: string | null;
+  pub_place: string | null;
+  pub_year: number | null;
+  license_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,7 +112,16 @@ export const useCollectionStore = defineStore("collections", () => {
 
   async function updateCollection(
     id: string,
-    body: { title?: string; description?: string; is_public?: boolean; schema_id?: string | null },
+    body: {
+      title?: string;
+      description?: string;
+      is_public?: boolean;
+      schema_id?: string | null;
+      publisher?: string | null;
+      pub_place?: string | null;
+      pub_year?: number | null;
+      license_id?: string | null;
+    },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);
   }

@@ -179,7 +179,12 @@
     "no_results": "No results for \"{q}\".",
     "view_document": "View",
     "edit_document": "Edit",
-    "schema_label": "TEI Schema"
+    "schema_label": "TEI Schema",
+    "publisher_label": "Publisher",
+    "pub_place_label": "Place of publication",
+    "pub_year_label": "Year",
+    "availability_label": "Availability (license)",
+    "no_license": "No license"
   },
   "documents": {
     "action_view": "view",
