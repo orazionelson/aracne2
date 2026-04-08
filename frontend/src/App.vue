@@ -21,6 +21,9 @@ onMounted(() => { uiConfig.fetchConfig(); });
 // Show navbar on all authenticated pages; hide on login and 404
 const showNav = computed(() => auth.isAuthenticated && route.name !== "not-found");
 
+// Show footer everywhere except login and 404
+const showFooter = computed(() => route.name !== "login" && route.name !== "not-found");
+
 // Fetch platform settings once as soon as the user is authenticated (login or
 // session restore at boot). Settings are small and needed by multiple views.
 watch(
@@ -62,6 +65,6 @@ const BANNER_HEIGHT = 40;
     <main class="flex-1">
       <RouterView />
     </main>
-    <AppFooter v-if="showNav" />
+    <AppFooter v-if="showFooter" />
   </div>
 </template>
