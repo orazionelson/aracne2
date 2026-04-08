@@ -103,10 +103,11 @@ export function useCodeMirror(
 
   function setValue(content: string): void {
     if (!editorInstance.value) return;
-    // Preserve cursor position when possible
-    const cursor = editorInstance.value.getCursor();
     editorInstance.value.setValue(content);
-    editorInstance.value.setCursor(cursor);
+    // Force a synchronous display update after a full document swap.
+    // Without this, CM5's internal line-measure cache is stale and
+    // click events crash with "Cannot read properties of undefined (reading 'map')".
+    editorInstance.value.refresh();
   }
 
   function toggleFullscreen(): void {
