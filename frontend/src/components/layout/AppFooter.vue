@@ -9,8 +9,8 @@ const year = computed(() => new Date().getFullYear());
 </script>
 
 <template>
-  <footer class="border-t border-gray-200 bg-white">
-    <div class="mx-auto flex max-w-screen-xl items-center justify-between px-6 py-4 text-xs text-gray-400">
+  <footer class="border-t border-gray-300 bg-white">
+    <div class="mx-auto flex max-w-screen-xl items-center justify-between px-6 py-4 text-xs text-gray-600">
       <span>© {{ year }} {{ uiConfig.config.platform_name }}</span>
       <span>{{ t("footer.powered_by") }}</span>
     </div>
