@@ -36,6 +36,9 @@ const editHasSingleAuthor = ref(false);
 const editAuthor = ref("");
 const viaf = useViafAutocomplete();
 const viafOpen = ref(false);
+// Top-level computed so Vue auto-unwraps in template (avoids nested .value issues)
+const viafResults = computed(() => viaf.results.value);
+const viafLoading = computed(() => viaf.isLoading.value);
 
 function onAuthorInput(e: Event): void {
   const val = (e.target as HTMLInputElement).value;
@@ -670,16 +673,16 @@ function statusClass(s: string): string {
                   @blur="closeViafDropdown"
                 />
                 <span
-                  v-if="viaf.isLoading.value"
+                  v-if="viafLoading"
                   class="absolute right-2 top-1.5 text-xs text-gray-400"
                 >…</span>
               </div>
               <ul
-                v-if="viafOpen && viaf.results.value.length > 0"
+                v-if="viafOpen && viafResults.length > 0"
                 class="absolute z-30 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-56 overflow-y-auto"
               >
                 <li
-                  v-for="name in viaf.results.value"
+                  v-for="name in viafResults"
                   :key="name"
                   class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
                   @mousedown.prevent="selectViafName(name)"
