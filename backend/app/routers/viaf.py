@@ -12,7 +12,10 @@ router = APIRouter(prefix="/viaf", tags=["viaf"])
 
 _VIAF_AUTOSUGGEST = "https://viaf.org/viaf/AutoSuggest"
 _TIMEOUT = 8.0
-_HEADERS = {"User-Agent": "Aracne2/1.0 (TEI CMS; https://github.com/orazionelson/aracne2)"}
+_HEADERS = {
+    "User-Agent": "Aracne2/1.0 (TEI CMS; https://github.com/orazionelson/aracne2)",
+    "Accept": "application/json",
+}
 
 logger = structlog.get_logger()
 
