@@ -228,11 +228,15 @@ onMounted(async () => {
   isSchemaLoading.value = false;
   isLoading.value = false;
 
-  // Container is now visible. Wait for Vue to apply the DOM change, then load
-  // content and refresh so CM5 can measure the real dimensions correctly.
+  // Wait for Vue to remove display:none (nextTick), then wait for the browser
+  // to complete its layout pass (requestAnimationFrame) before calling
+  // setValue + refresh. Without rAF, CM5 reads zero dimensions and enters
+  // a broken state where clicks insert phantom blank lines.
   await nextTick();
-  if (xmlToLoad) setValue(xmlToLoad);
-  refresh();
+  requestAnimationFrame(() => {
+    if (xmlToLoad) setValue(xmlToLoad);
+    refresh();
+  });
 });
 
 // ── Save ───────────────────────────────────────────────────────────────────────
