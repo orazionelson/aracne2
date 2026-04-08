@@ -27,6 +27,8 @@ class GeminiProvider(BaseAiProvider):
                 params={"key": self._api_key, "alt": "sse"},
                 json=payload,
             ) as resp:
+                if not resp.is_success:
+                    await resp.aread()  # buffer error body so .text is readable after raise
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):

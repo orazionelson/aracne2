@@ -221,11 +221,17 @@ async def stream_completion(
         async for chunk in provider.stream(filled):
             yield chunk
     except httpx.HTTPStatusError as exc:
-        # exc.response is a streaming response — .text is not readable without
-        # calling .read() first, which is not allowed here. Use status_code only.
-        raise ExternalServiceError(
-            provider_name,
-            f"HTTP {exc.response.status_code}",
+        # Providers pre-read error responses with aread() so .text is safe here.
+        try:
+            detail = exc.response.text[:400]
+        except Exception:
+            detail = f"HTTP {exc.response.status_code}"
+        logger.warning(
+            "ai_provider_http_error",
+            provider=provider_name,
+            status_code=exc.response.status_code,
+            detail=detail,
         )
+        raise ExternalServiceError(provider_name, detail)
     except httpx.RequestError as exc:
         raise ExternalServiceError(provider_name, str(exc))

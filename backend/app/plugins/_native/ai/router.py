@@ -12,6 +12,7 @@ from app.db.postgres import get_async_session
 from app.middleware.acl import require_role
 from app.models.user import User
 from app.plugins._native.ai import service
+from app.core.exceptions import ExternalServiceError
 from app.plugins._native.ai.service import AiDisabledError, AiRateLimitError
 from app.schemas.ai import (
     AiCompleteRequest,
@@ -113,6 +114,9 @@ async def ai_complete(
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
         except (AiDisabledError, AiRateLimitError) as exc:
             yield f"data: {json.dumps({'error': exc.message})}\n\n"
+        except ExternalServiceError as exc:
+            detail: str = exc.details.get("detail") or exc.message  # type: ignore[assignment]
+            yield f"data: {json.dumps({'error': detail})}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         finally:

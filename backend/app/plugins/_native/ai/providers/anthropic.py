@@ -31,6 +31,8 @@ class AnthropicProvider(BaseAiProvider):
         }
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream("POST", _API_URL, headers=headers, json=payload) as resp:
+                if not resp.is_success:
+                    await resp.aread()  # buffer error body so .text is readable after raise
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
