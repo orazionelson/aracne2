@@ -176,6 +176,32 @@ const isUploadingZip = ref(false);
 const uploadProgress = ref({ done: 0, total: 0 });
 const zipResult = ref<ZipUploadResult | null>(null);
 
+// ── New document ──────────────────────────────────────────────────────────────
+const showNewDocForm = ref(false);
+const newDocFilename = ref("");
+const isCreatingDoc = ref(false);
+const newDocError = ref<string | null>(null);
+
+async function handleCreateDocument(): Promise<void> {
+  const name = newDocFilename.value.trim();
+  if (!name) return;
+  const filename = name.endsWith(".xml") ? name : `${name}.xml`;
+  newDocError.value = null;
+  isCreatingDoc.value = true;
+  try {
+    const doc = await store.createDocument(slug, filename);
+    showNewDocForm.value = false;
+    newDocFilename.value = "";
+    router.push({ name: "document-edit", params: { slug, filename: doc.filename } });
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    newDocError.value = msg ?? t("common.error");
+  } finally {
+    isCreatingDoc.value = false;
+  }
+}
+
 // ── Pagination ────────────────────────────────────────────────────────────────
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 const pageSize = ref<number>(25);
@@ -643,6 +669,13 @@ function statusClass(s: string): string {
             <span class="ml-1 font-normal text-gray-400">({{ store.documents.length }})</span>
           </h2>
           <div v-if="canWrite" class="flex gap-2">
+            <!-- New document -->
+            <button
+              class="rounded border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100"
+              @click="showNewDocForm = !showNewDocForm; newDocError = null"
+            >
+              {{ t("collections.new_document") }}
+            </button>
             <button
               :disabled="isUploading || isUploadingZip"
               class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
@@ -661,6 +694,35 @@ function statusClass(s: string): string {
             >
               {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
             </button>
+          </div>
+
+          <!-- New document inline form -->
+          <div
+            v-if="showNewDocForm && canWrite"
+            class="mt-3 flex items-center gap-2"
+          >
+            <input
+              v-model="newDocFilename"
+              type="text"
+              :placeholder="t('collections.new_document_placeholder')"
+              class="rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              @keydown.enter="handleCreateDocument"
+              @keydown.esc="showNewDocForm = false"
+            />
+            <button
+              :disabled="isCreatingDoc || !newDocFilename.trim()"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40"
+              @click="handleCreateDocument"
+            >
+              {{ isCreatingDoc ? t("common.loading") : t("collections.new_document_create") }}
+            </button>
+            <button
+              class="text-sm text-gray-400 hover:text-gray-700"
+              @click="showNewDocForm = false"
+            >
+              {{ t("common.cancel") }}
+            </button>
+            <span v-if="newDocError" class="text-xs text-red-600">{{ newDocError }}</span>
           </div>
           <input
             ref="fileInput"

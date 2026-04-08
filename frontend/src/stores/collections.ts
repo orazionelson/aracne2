@@ -160,6 +160,47 @@ export const useCollectionStore = defineStore("collections", () => {
     );
   }
 
+  /** Create a new document with a minimal TEI skeleton and open the editor. */
+  async function createDocument(collectionId: string, filename: string): Promise<DocumentInfo> {
+    const skeleton = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+   <teiHeader>
+      <fileDesc>
+         <titleStmt>
+            <title>Document title</title>
+            <author>Document Author</author>
+         </titleStmt>
+         <publicationStmt>
+            <p>Pub Info</p>
+         </publicationStmt>
+         <sourceDesc>
+            <p>Source info</p>
+         </sourceDesc>
+      </fileDesc>
+   </teiHeader>
+   <text>
+      <body>
+         <docDate>
+            <date>YYYY-MM-DD</date>
+         </docDate>
+         <div type="protocollo"/>
+         <div type="testo"/>
+         <div type="escatocollo"/>
+      </body>
+   </text>
+</TEI>`;
+    const blob = new Blob([skeleton], { type: 'application/xml' });
+    const file = new File([blob], filename, { type: 'application/xml' });
+    const form = new FormData();
+    form.append('file', file);
+    const doc = await apiClient.upload<DocumentInfo>(
+      `/collections/${collectionId}/documents`,
+      form,
+    );
+    documents.value.push(doc);
+    return doc;
+  }
+
   async function uploadDocument(collectionId: string, file: File): Promise<void> {
     const form = new FormData();
     form.append("file", file);
@@ -254,6 +295,7 @@ export const useCollectionStore = defineStore("collections", () => {
     publishCollection,
     unpublishCollection,
     fetchDocuments,
+    createDocument,
     uploadDocument,
     uploadZip,
     downloadDocument,
