@@ -220,7 +220,8 @@
     "tei_help": "TEI Help",
     "tei_help_placeholder": "Cerca tag...",
     "tei_help_no_schema": "Nessuno schema caricato — assegna uno schema CM5 alla collezione",
-    "tei_help_select": "Digita un nome tag per vedere la documentazione"
+    "tei_help_select": "Digita un nome tag per vedere la documentazione",
+    "search_google": "Cerca su Google"
   },
   "schemas": {
     "tab": "Schemi",

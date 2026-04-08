@@ -514,6 +514,12 @@ async function runValidation(): Promise<void> {
             <td class="px-3 py-1 text-red-700">
               {{ err.message }}
               <span v-if="err.path" class="ml-1 font-mono text-red-400">({{ err.path }})</span>
+              <a
+                :href="`https://www.google.com/search?q=${encodeURIComponent(err.message + (err.path ? ' ' + err.path : ''))}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="ml-2 whitespace-nowrap text-blue-500 underline hover:text-blue-700"
+              >{{ t('documents.search_google') }}</a>
             </td>
           </tr>
         </tbody>

@@ -220,7 +220,8 @@
     "tei_help": "TEI Help",
     "tei_help_placeholder": "Search tag...",
     "tei_help_no_schema": "No schema loaded — assign a CM5 schema to this collection",
-    "tei_help_select": "Type a tag name to view its documentation"
+    "tei_help_select": "Type a tag name to view its documentation",
+    "search_google": "Search on Google"
   },
   "schemas": {
     "tab": "Schemas",
