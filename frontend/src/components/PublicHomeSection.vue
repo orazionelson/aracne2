@@ -113,14 +113,15 @@ onMounted(() => {
             </div>
             <!-- Document snippets (only shown when search matched document content) -->
             <ul v-if="col.doc_hits.length > 0" class="mt-3 space-y-1">
-              <li
-                v-for="hit in col.doc_hits"
-                :key="hit.filename"
-                class="rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700"
-              >
-                <span class="font-medium text-gray-500">{{ hit.filename }}</span>
-                <span class="mx-1 text-gray-300">—</span>
-                <span class="italic">…{{ hit.snippet }}…</span>
+              <li v-for="hit in col.doc_hits" :key="hit.filename">
+                <router-link
+                  :to="{ name: 'public-document', params: { slug: col.slug, filename: hit.filename } }"
+                  class="block rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700 hover:bg-yellow-100"
+                >
+                  <span class="font-medium text-gray-500">{{ hit.filename }}</span>
+                  <span class="mx-1 text-gray-300">—</span>
+                  <span class="italic">…{{ hit.snippet }}…</span>
+                </router-link>
               </li>
             </ul>
 
