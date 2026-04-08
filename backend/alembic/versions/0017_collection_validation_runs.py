@@ -7,6 +7,7 @@ Create Date: 2026-04-08
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "0017"
@@ -40,7 +41,7 @@ def upgrade() -> None:
         sa.Column("schema_id", UUID(as_uuid=True), nullable=True),
         sa.Column(
             "status",
-            sa.Enum(
+            PG_ENUM(
                 "pending", "running", "done", "failed",
                 name="validation_run_status",
                 create_type=False,
