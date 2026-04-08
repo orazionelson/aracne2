@@ -7,7 +7,10 @@ const route = useRoute();
 
 const slug = route.params.slug as string;
 
-const EVT_BASE = (import.meta.env.VITE_EVT_BASE_URL as string | undefined) ?? '';
+// In development fall back to the EVT container port if VITE_EVT_BASE_URL is unset.
+const EVT_BASE =
+  (import.meta.env.VITE_EVT_BASE_URL as string | undefined) ||
+  (import.meta.env.DEV ? 'http://localhost:8181' : '');
 const evtSrc = `${EVT_BASE}/evt/${slug}/`;
 </script>
 

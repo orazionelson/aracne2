@@ -20,6 +20,12 @@ RUN npm install --legacy-peer-deps --ignore-scripts && \
 # Build the distribution
 RUN npm run build
 
+# Remove <base href="..."> from index.html so that relative URLs (config/config.json,
+# data/*.xml) resolve from the current path (/evt/{slug}/) instead of from root (/).
+# This is required for the per-collection nginx proxy routing to work correctly.
+# EVT uses hash-based routing so removing <base href> does not break navigation.
+RUN sed -i 's|<base href="[^"]*">||g' dist/index.html
+
 # ── Stage 2: serve with nginx ─────────────────────────────────────────────────
 FROM nginx:alpine
 
