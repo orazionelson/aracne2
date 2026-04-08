@@ -60,6 +60,7 @@ services:
     env_file: .env
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     command: npm run dev -- --host 0.0.0.0
     ports:
       - "127.0.0.1:5173:5173"
