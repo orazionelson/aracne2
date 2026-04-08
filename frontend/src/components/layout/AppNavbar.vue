@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
+import { useUiConfigStore } from "@/stores/ui_config";
 
 const props = defineProps<{ topOffset?: number }>();
 
@@ -12,6 +13,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const notif = useNotificationStore();
 
+const uiConfig = useUiConfigStore();
 const menuOpen = ref(false);
 
 onMounted(async () => {
@@ -33,18 +35,27 @@ function closeMenu(): void {
 
 <template>
   <nav
-    class="fixed inset-x-0 z-50 bg-gray-900 text-white"
-    :style="props.topOffset ? `top: ${props.topOffset}px` : 'top: 0'"
+    class="fixed inset-x-0 z-50 text-white"
+    :style="{
+      top: props.topOffset ? `${props.topOffset}px` : '0',
+      backgroundColor: uiConfig.config.navbar_bg_color,
+    }"
   >
     <!-- Top bar -->
     <div class="flex h-14 items-center gap-4 px-4">
-      <!-- Brand -->
+      <!-- Brand: logo + platform name -->
       <router-link
         to="/"
-        class="text-lg font-bold tracking-tight hover:text-gray-300"
+        class="flex shrink-0 items-center gap-2 text-lg font-bold tracking-tight hover:opacity-80"
         @click="closeMenu"
       >
-        Aracne2
+        <img
+          v-if="uiConfig.config.platform_logo_url"
+          :src="uiConfig.config.platform_logo_url"
+          alt="Logo"
+          class="h-8 w-auto object-contain"
+        />
+        <span>{{ uiConfig.config.platform_name }}</span>
       </router-link>
 
       <!-- Desktop primary links -->
@@ -146,7 +157,7 @@ function closeMenu(): void {
     <!-- Mobile menu -->
     <div
       v-if="menuOpen"
-      class="border-t border-gray-700 bg-gray-900 px-4 pb-4 pt-2 text-sm md:hidden"
+      class="border-t border-white/20 px-4 pb-4 pt-2 text-sm md:hidden"
     >
       <p class="mb-3 text-xs text-gray-500">
         {{ auth.user?.username }} &middot; {{ auth.user?.role }}

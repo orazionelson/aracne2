@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { useRoute, RouterView } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingStore } from "@/stores/settings";
+import { useUiConfigStore } from "@/stores/ui_config";
 import AppNavbar from "@/components/layout/AppNavbar.vue";
 
 const { t } = useI18n();
 const auth = useAuthStore();
 const route = useRoute();
 const settingStore = useSettingStore();
+const uiConfig = useUiConfigStore();
+
+// Fetch public UI config at boot so the navbar has the correct logo/colour
+// even before the user logs in.
+onMounted(() => { uiConfig.fetchConfig(); });
 
 // Show navbar on all authenticated pages; hide on login and 404
 const showNav = computed(() => auth.isAuthenticated && route.name !== "not-found");

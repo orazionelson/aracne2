@@ -13,6 +13,16 @@ class SettingResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UiConfigResponse(BaseModel):
+    platform_name: str
+    platform_logo_url: str
+    navbar_bg_color: str
+
+
+class LogoUploadResponse(BaseModel):
+    url: str
+
+
 class SettingUpdate(BaseModel):
     value: str
 

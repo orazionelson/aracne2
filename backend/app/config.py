@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     # to a persistent volume (e.g. /data/schemas mounted via docker-compose).
     schemas_dir: Path = Path("/app/schemas")
 
+    # Media storage — filesystem directory for uploaded platform assets (logo, etc.).
+    # Defaults to /app/media. Override via MEDIA_DIR env variable in production.
+    media_dir: Path = Path("/app/media")
+
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"
     admin_email: str = "admin@example.com"

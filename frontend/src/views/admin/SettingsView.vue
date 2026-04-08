@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 import { useBodyTemplateStore } from "@/stores/body_templates";
+import { useUiConfigStore } from "@/stores/ui_config";
 import type { TeiSchema } from "@/stores/schemas";
 
 const { t } = useI18n();
@@ -12,9 +13,10 @@ const settingStore = useSettingStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
+const uiConfigStore = useUiConfigStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -331,8 +333,78 @@ async function deleteBodyTemplate(id: string): Promise<void> {
   await bodyTemplateStore.deleteTemplate(id);
 }
 
+// ── Appearance ────────────────────────────────────────────────────────────────
+
+const COLOR_PRESETS: Array<{ label: string; value: string }> = [
+  { label: "Gray", value: "#111827" },
+  { label: "Blue", value: "#1e40af" },
+  { label: "Indigo", value: "#3730a3" },
+  { label: "Navy", value: "#1e3a5f" },
+  { label: "Green", value: "#166534" },
+  { label: "Red", value: "#991b1b" },
+  { label: "Purple", value: "#6b21a8" },
+  { label: "Slate", value: "#1e293b" },
+];
+
+const logoUrlDraft = ref("");
+const isSavingLogoUrl = ref(false);
+const logoUrlError = ref("");
+const isUploadingLogo = ref(false);
+const uploadLogoError = ref("");
+
+const currentLogoUrl = computed(() => settingStore.getSetting("platform_logo_url") ?? "");
+const currentNavbarColor = computed(() => settingStore.getSetting("navbar_bg_color") ?? "#1e40af");
+
+function initAppearanceDraft(): void {
+  logoUrlDraft.value = currentLogoUrl.value;
+}
+
+async function saveLogoUrl(): Promise<void> {
+  isSavingLogoUrl.value = true;
+  logoUrlError.value = "";
+  try {
+    await settingStore.updateSetting("platform_logo_url", logoUrlDraft.value.trim());
+    await uiConfigStore.fetchConfig();
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    logoUrlError.value = msg ?? t("common.error");
+  } finally {
+    isSavingLogoUrl.value = false;
+  }
+}
+
+async function handleLogoUpload(event: Event): Promise<void> {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  isUploadingLogo.value = true;
+  uploadLogoError.value = "";
+  try {
+    const url = await settingStore.uploadLogo(file);
+    logoUrlDraft.value = url;
+    await uiConfigStore.fetchConfig();
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    uploadLogoError.value = msg ?? t("common.error");
+  } finally {
+    isUploadingLogo.value = false;
+    (event.target as HTMLInputElement).value = "";
+  }
+}
+
+async function selectNavbarColor(color: string): Promise<void> {
+  try {
+    await settingStore.updateSetting("navbar_bg_color", color);
+    await uiConfigStore.fetchConfig();
+  } catch {
+    // ignore — not critical
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates()]);
+  initAppearanceDraft();
 });
 </script>
 
@@ -383,6 +455,17 @@ onMounted(async () => {
         @click="activeTab = 'body_templates'"
       >
         {{ t("settings.tab_body_templates") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'appearance'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'appearance'; initAppearanceDraft()"
+      >
+        {{ t("settings.tab_appearance") }}
       </button>
     </div>
 
@@ -851,6 +934,115 @@ onMounted(async () => {
           </template>
         </div>
       </div>
+    </template>
+
+    <!-- ── Appearance tab ── -->
+    <template v-if="activeTab === 'appearance'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("settings.tab_appearance") }}</h1>
+
+      <!-- Logo section -->
+      <section class="mb-8 rounded border border-gray-200 p-5">
+        <h2 class="mb-4 text-sm font-semibold text-gray-800">
+          {{ t("settings.appearance_logo_title") }}
+        </h2>
+
+        <!-- Current logo preview -->
+        <div class="mb-4 flex items-center gap-4">
+          <div class="flex h-16 w-32 items-center justify-center rounded border border-gray-200 bg-gray-50">
+            <img
+              v-if="currentLogoUrl"
+              :src="currentLogoUrl"
+              alt="current logo"
+              class="max-h-14 max-w-28 object-contain"
+            />
+            <span v-else class="text-xs text-gray-400">—</span>
+          </div>
+          <div class="text-xs text-gray-500">
+            <p>{{ t("settings.appearance_logo_url_hint") }}</p>
+            <p class="mt-1 font-mono">{{ currentLogoUrl || "—" }}</p>
+          </div>
+        </div>
+
+        <!-- Upload a file -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-gray-700 mb-1">
+            {{ t("settings.appearance_logo_upload") }}
+          </label>
+          <input
+            type="file"
+            accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
+            :disabled="isUploadingLogo"
+            class="text-sm text-gray-600 file:mr-3 file:rounded file:border file:border-gray-300 file:bg-white file:px-3 file:py-1 file:text-xs file:text-gray-700 hover:file:bg-gray-50"
+            @change="handleLogoUpload"
+          />
+          <p v-if="uploadLogoError" class="mt-1 text-xs text-red-600">{{ uploadLogoError }}</p>
+        </div>
+
+        <!-- Or enter a URL manually -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">
+            {{ t("settings.appearance_logo_url_label") }}
+          </label>
+          <div class="flex gap-2">
+            <input
+              v-model="logoUrlDraft"
+              type="text"
+              :placeholder="t('settings.appearance_logo_url_hint')"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+            <button
+              :disabled="isSavingLogoUrl || !logoUrlDraft.trim()"
+              class="rounded bg-gray-900 px-3 py-1.5 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+              @click="saveLogoUrl"
+            >
+              {{ t("settings.appearance_logo_save_url") }}
+            </button>
+          </div>
+          <p v-if="logoUrlError" class="mt-1 text-xs text-red-600">{{ logoUrlError }}</p>
+        </div>
+      </section>
+
+      <!-- Navbar colour section -->
+      <section class="rounded border border-gray-200 p-5">
+        <h2 class="mb-4 text-sm font-semibold text-gray-800">
+          {{ t("settings.appearance_color_title") }}
+        </h2>
+        <div class="flex flex-wrap gap-3">
+          <button
+            v-for="preset in COLOR_PRESETS"
+            :key="preset.value"
+            :title="preset.label"
+            class="flex flex-col items-center gap-1"
+            @click="selectNavbarColor(preset.value)"
+          >
+            <span
+              class="block h-9 w-14 rounded border-2 shadow-sm transition-all"
+              :class="currentNavbarColor === preset.value ? 'border-indigo-500 scale-105' : 'border-transparent hover:border-gray-400'"
+              :style="{ backgroundColor: preset.value }"
+            />
+            <span class="text-xs text-gray-500">{{ preset.label }}</span>
+          </button>
+        </div>
+
+        <!-- Colour preview -->
+        <div class="mt-5">
+          <p class="mb-2 text-xs text-gray-500">{{ t("settings.appearance_color_preview") }}</p>
+          <div
+            class="flex h-12 items-center gap-3 rounded px-4 text-white"
+            :style="{ backgroundColor: currentNavbarColor }"
+          >
+            <img
+              v-if="currentLogoUrl"
+              :src="currentLogoUrl"
+              alt="logo preview"
+              class="h-7 w-auto object-contain"
+            />
+            <span class="text-sm font-bold">{{ uiConfigStore.config.platform_name }}</span>
+            <span class="ml-auto text-xs opacity-70">{{ t("nav.collections") }}</span>
+            <span class="text-xs opacity-70">{{ t("nav.profile") }}</span>
+          </div>
+        </div>
+      </section>
     </template>
   </div>
 </template>

@@ -1,12 +1,18 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings as app_settings
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.schemas.settings import SettingResponse, SettingUpdate
+from app.schemas.settings import LogoUploadResponse, SettingResponse, SettingUpdate, UiConfigResponse
+
+# Allowed MIME types / extensions for logo upload.
+_LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+_LOGO_URL = "/api/v1/settings/logo/file"
 
 
 def _validate_value(key: str, value: str, type_: str) -> None:
@@ -36,6 +42,70 @@ async def get_setting(db: AsyncSession, key: str) -> SettingResponse:
     if not row:
         raise NotFoundError(f"Setting '{key}' not found")
     return SettingResponse.model_validate(row)
+
+
+def get_logo_path() -> Path | None:
+    """Return the path of the uploaded logo file, or None if no file is present."""
+    media = app_settings.media_dir
+    if not media.exists():
+        return None
+    for ext in _LOGO_ALLOWED_EXT:
+        p = media / f"logo{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+async def get_public_config(db: AsyncSession) -> UiConfigResponse:
+    """Return the UI configuration settings that the frontend needs at boot (no auth)."""
+    keys = {"platform_name", "platform_logo_url", "navbar_bg_color"}
+    rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
+    values = {r.key: r.value for r in rows}
+    return UiConfigResponse(
+        platform_name=values.get("platform_name", "Aracne2"),
+        platform_logo_url=values.get("platform_logo_url", "/aracne-logo.png"),
+        navbar_bg_color=values.get("navbar_bg_color", "#1e40af"),
+    )
+
+
+async def upload_logo(
+    db: AsyncSession,
+    content: bytes,
+    filename: str,
+    actor: User,
+) -> LogoUploadResponse:
+    """Save a logo image file and update the platform_logo_url setting.
+
+    Removes any previously uploaded logo before saving the new one.
+    """
+    ext = Path(filename).suffix.lower()
+    if ext not in _LOGO_ALLOWED_EXT:
+        raise DomainValidationError(
+            "INVALID_FILE_TYPE",
+            f"Logo must be one of: {', '.join(sorted(_LOGO_ALLOWED_EXT))}",
+        )
+
+    media = app_settings.media_dir
+    media.mkdir(parents=True, exist_ok=True)
+
+    # Remove any previously uploaded logo (different extension).
+    for old_ext in _LOGO_ALLOWED_EXT:
+        old = media / f"logo{old_ext}"
+        if old.exists():
+            old.unlink()
+
+    (media / f"logo{ext}").write_bytes(content)
+
+    # Update the setting so /ui-config reflects the new logo URL.
+    row = await db.get(SystemSetting, "platform_logo_url")
+    if row:
+        row.value = _LOGO_URL
+        row.updated_by = actor.id
+        row.updated_at = datetime.now(UTC)
+    else:
+        db.add(SystemSetting(key="platform_logo_url", value=_LOGO_URL, type="string"))
+    await db.flush()
+    return LogoUploadResponse(url=_LOGO_URL)
 
 
 async def update_setting(
