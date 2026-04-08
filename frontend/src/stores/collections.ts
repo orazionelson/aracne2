@@ -54,6 +54,84 @@ export interface ZipUploadResult {
   errors: ZipUploadError[];
 }
 
+export interface DocumentMeta {
+  publisher?: string | null;
+  pub_place?: string | null;
+  pub_year?: number | null;
+  license_name?: string | null;
+  license_url?: string | null;
+  resp_stmts?: { resp: string; name: string }[] | null;
+}
+
+// ── TEI skeleton helpers ──────────────────────────────────────────────────────
+
+function _esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function _buildSkeleton(meta?: DocumentMeta): string {
+  // publicationStmt
+  const hasPub = meta && (meta.publisher || meta.pub_place || meta.pub_year || meta.license_name);
+  let pubStmt: string;
+  if (hasPub) {
+    const lines: string[] = [];
+    if (meta!.publisher) lines.push(`            <publisher>${_esc(meta!.publisher)}</publisher>`);
+    if (meta!.pub_place) lines.push(`            <pubPlace>${_esc(meta!.pub_place)}</pubPlace>`);
+    if (meta!.pub_year)  lines.push(`            <date>${meta!.pub_year}</date>`);
+    if (meta!.license_name) {
+      const attr = meta!.license_url ? ` target="${_esc(meta!.license_url)}"` : "";
+      lines.push(
+        `            <availability>\n               <licence${attr}>${_esc(meta!.license_name)}</licence>\n            </availability>`,
+      );
+    }
+    pubStmt = `<publicationStmt>\n${lines.join("\n")}\n         </publicationStmt>`;
+  } else {
+    pubStmt = `<publicationStmt>\n            <p>Pub Info</p>\n         </publicationStmt>`;
+  }
+
+  // respStmt blocks inside titleStmt
+  const respBlock =
+    meta?.resp_stmts?.length
+      ? "\n" +
+        meta.resp_stmts
+          .map(
+            (r) =>
+              `            <respStmt>\n               <resp>${_esc(r.resp)}</resp>\n               <name>${_esc(r.name)}</name>\n            </respStmt>`,
+          )
+          .join("\n")
+      : "";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+   <teiHeader>
+      <fileDesc>
+         <titleStmt>
+            <title>Document title</title>
+            <author>Document Author</author>${respBlock}
+         </titleStmt>
+         ${pubStmt}
+         <sourceDesc>
+            <p>Source info</p>
+         </sourceDesc>
+      </fileDesc>
+   </teiHeader>
+   <text>
+      <body>
+         <docDate>
+            <date>YYYY-MM-DD</date>
+         </docDate>
+         <div type="protocollo"/>
+         <div type="testo"/>
+         <div type="escatocollo"/>
+      </body>
+   </text>
+</TEI>`;
+}
+
 interface Pagination {
   page: number;
   per_page: number;
@@ -177,35 +255,13 @@ export const useCollectionStore = defineStore("collections", () => {
     );
   }
 
-  /** Create a new document with a minimal TEI skeleton and open the editor. */
-  async function createDocument(collectionId: string, filename: string): Promise<DocumentInfo> {
-    const skeleton = `<?xml version="1.0" encoding="UTF-8"?>
-<TEI xmlns="http://www.tei-c.org/ns/1.0">
-   <teiHeader>
-      <fileDesc>
-         <titleStmt>
-            <title>Document title</title>
-            <author>Document Author</author>
-         </titleStmt>
-         <publicationStmt>
-            <p>Pub Info</p>
-         </publicationStmt>
-         <sourceDesc>
-            <p>Source info</p>
-         </sourceDesc>
-      </fileDesc>
-   </teiHeader>
-   <text>
-      <body>
-         <docDate>
-            <date>YYYY-MM-DD</date>
-         </docDate>
-         <div type="protocollo"/>
-         <div type="testo"/>
-         <div type="escatocollo"/>
-      </body>
-   </text>
-</TEI>`;
+  /** Create a new document pre-populated with the collection's publicationStmt/respStmt. */
+  async function createDocument(
+    collectionId: string,
+    filename: string,
+    meta?: DocumentMeta,
+  ): Promise<DocumentInfo> {
+    const skeleton = _buildSkeleton(meta);
     const blob = new Blob([skeleton], { type: 'application/xml' });
     const file = new File([blob], filename, { type: 'application/xml' });
     const form = new FormData();

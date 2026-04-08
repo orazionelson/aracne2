@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useCollectionStore, type ZipUploadResult } from "@/stores/collections";
+import { useCollectionStore, type ZipUploadResult, type DocumentMeta } from "@/stores/collections";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 
@@ -242,7 +242,19 @@ async function handleCreateDocument(): Promise<void> {
   newDocError.value = null;
   isCreatingDoc.value = true;
   try {
-    const doc = await store.createDocument(slug, filename);
+    const col = store.current;
+    const lic = col?.license_id
+      ? licenseStore.licenses.find((l) => l.id === col.license_id) ?? null
+      : null;
+    const meta: DocumentMeta = {
+      publisher: col?.publisher,
+      pub_place: col?.pub_place,
+      pub_year: col?.pub_year,
+      license_name: lic?.name ?? null,
+      license_url: lic?.target ?? null,
+      resp_stmts: col?.resp_stmts,
+    };
+    const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
     newDocFilename.value = "";
     router.push({ name: "document-edit", params: { slug, filename: doc.filename } });
