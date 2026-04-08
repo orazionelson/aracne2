@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -188,16 +188,11 @@ async function loadCm5Schema(schemaId: string | null): Promise<CM5Schema | undef
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────────
-// No content swapping needed — each tab has its own CM5 instance.
-// We only need to refresh the newly visible instance so CM5 re-measures
-// the container (was display:none → visible).
+// Both editor containers are always in the layout (absolute-positioned, same
+// slot) so CM5 always has real dimensions and never needs a refresh on switch.
+// Only the CSS visibility/pointer-events change — no measurement is cleared.
 function switchTab(tab: 'header' | 'body'): void {
-  if (tab === activeEditorTab.value) return;
   activeEditorTab.value = tab;
-  nextTick(() => {
-    if (tab === 'header') headerCm.refresh();
-    else bodyCm.refresh();
-  });
 }
 
 // ── Get full XML value (handles both modes) ────────────────────────────────────
@@ -426,22 +421,29 @@ async function runValidation(): Promise<void> {
       class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
     />
 
-    <!-- Split-mode editors: two independent CM5 instances, one per tab.      -->
-    <!-- v-show (not v-if) keeps both in the DOM; switching tabs only toggles -->
-    <!-- display. CM5's autoRefresh addon re-measures on visibility change.   -->
-    <!-- refresh() is also called explicitly in switchTab() via nextTick.     -->
-    <template v-if="splitMode && canSplit && !isLoading && !error">
+    <!-- Split-mode editors: two independent CM5 instances stacked absolutely   -->
+    <!-- inside a shared flex-1 wrapper. Both always occupy the same real      -->
+    <!-- dimensions — the inactive tab is hidden via visibility:hidden +       -->
+    <!-- pointer-events:none so CM5 can always measure without a refresh().    -->
+    <div
+      v-if="splitMode && canSplit && !isLoading && !error"
+      class="relative min-h-0 flex-1"
+    >
       <div
-        v-show="activeEditorTab === 'header'"
         ref="headerEditorContainer"
-        class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
+        :class="[
+          'absolute inset-0 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm',
+          activeEditorTab !== 'header' ? 'invisible pointer-events-none' : '',
+        ]"
       />
       <div
-        v-show="activeEditorTab === 'body'"
         ref="bodyEditorContainer"
-        class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
+        :class="[
+          'absolute inset-0 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm',
+          activeEditorTab !== 'body' ? 'invisible pointer-events-none' : '',
+        ]"
       />
-    </template>
+    </div>
 
     <!-- Validation errors panel -->
     <div
