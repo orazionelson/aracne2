@@ -20,6 +20,7 @@ from app.middleware.request_logger import RequestLoggerMiddleware
 from app.routers import auth, body_templates as body_templates_router, health
 from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import schemas as schemas_router, settings as settings_router, users
+from app.routers import viaf as viaf_router
 
 configure_logging()
 
@@ -188,3 +189,4 @@ app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
 app.include_router(licenses_router.router, prefix="/api/v1")
 app.include_router(body_templates_router.router, prefix="/api/v1")
+app.include_router(viaf_router.router, prefix="/api/v1")

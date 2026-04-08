@@ -1,21 +1,11 @@
 import { ref } from "vue";
-import axios from "axios";
+import { apiClient } from "@/services/api";
 
-interface ViafSuggestion {
-  displayForm: string;
-  viafid: string;
-}
-
-interface ViafResponse {
-  result: ViafSuggestion[] | null;
-}
-
-const VIAF_URL = "https://www.viaf.org/viaf/AutoSuggest";
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
 
 /**
- * Provides debounced VIAF AutoSuggest lookup.
+ * Provides debounced VIAF AutoSuggest lookup via the backend proxy.
  * Returns `results` (display names), `isLoading`, `search(query)` and `clear()`.
  *
  * Usage: call `search(value)` on every input event; bind the dropdown to `results`.
@@ -28,10 +18,9 @@ export function useViafAutocomplete() {
   async function _fetch(query: string): Promise<void> {
     isLoading.value = true;
     try {
-      const { data } = await axios.get<ViafResponse>(VIAF_URL, {
+      results.value = await apiClient.get<string[]>("/viaf/autosuggest", {
         params: { query },
       });
-      results.value = data.result ? data.result.map((r) => r.displayForm) : [];
     } catch {
       results.value = [];
     } finally {
