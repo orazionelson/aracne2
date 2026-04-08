@@ -190,7 +190,9 @@
     "resp_stmts_add": "Aggiungi responsabile",
     "resp_stmts_remove": "Rimuovi",
     "single_author_question": "I documenti della collezione sono tutti relativi a un singolo autore?",
-    "author_label": "Autore"
+    "author_label": "Autore",
+    "single_source_question": "La collezione trascritta proviene da un'unica fonte primaria (sia essa manoscritta o a stampa)?",
+    "main_source_label": "Fonte principale (listBibl)"
   },
   "documents": {
     "action_view": "visualizza",

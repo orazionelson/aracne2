@@ -190,7 +190,9 @@
     "resp_stmts_add": "Add responsible party",
     "resp_stmts_remove": "Remove",
     "single_author_question": "Are all documents in this collection by a single author?",
-    "author_label": "Author"
+    "author_label": "Author",
+    "single_source_question": "Does the transcribed collection come from a single primary source (manuscript or print)?",
+    "main_source_label": "Primary source (listBibl)"
   },
   "documents": {
     "action_view": "view",

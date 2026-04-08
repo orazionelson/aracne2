@@ -345,6 +345,9 @@ async def update_collection(
     if "author" in body.model_fields_set:
         col.author = body.author
         changed["author"] = body.author
+    if "listbibl_bibl_main" in body.model_fields_set:
+        col.listbibl_bibl_main = body.listbibl_bibl_main
+        changed["listbibl_bibl_main"] = body.listbibl_bibl_main
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

@@ -31,6 +31,8 @@ const editPubYear = ref<number | null>(null);
 const editLicenseId = ref<string | null>(null);
 const editHasSingleAuthor = ref(false);
 const editAuthor = ref("");
+const editHasSingleSource = ref(false);
+const editMainSource = ref("");
 const editRespStmts = ref<{ resp: string; name: string }[]>([]);
 // per-row autocomplete open state
 const respNameOpen = ref<boolean[]>([]);
@@ -78,6 +80,8 @@ function startEdit(): void {
   editLicenseId.value = store.current.license_id ?? null;
   editHasSingleAuthor.value = !!store.current.author;
   editAuthor.value = store.current.author ?? "";
+  editHasSingleSource.value = !!store.current.listbibl_bibl_main;
+  editMainSource.value = store.current.listbibl_bibl_main ?? "";
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -102,6 +106,7 @@ async function submitEdit(): Promise<void> {
         ? editRespStmts.value.filter((r) => r.resp.trim() || r.name.trim())
         : null,
       author: editHasSingleAuthor.value ? (editAuthor.value.trim() || null) : null,
+      listbibl_bibl_main: editHasSingleSource.value ? (editMainSource.value.trim() || null) : null,
     });
     editing.value = false;
   } catch (err) {
@@ -259,6 +264,7 @@ async function handleCreateDocument(): Promise<void> {
       license_url: lic?.target ?? null,
       resp_stmts: col?.resp_stmts,
       author: col?.author,
+      listbibl_bibl_main: col?.listbibl_bibl_main,
     };
     const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
@@ -591,6 +597,35 @@ function statusClass(s: string): string {
               </label>
               <input
                 v-model="editAuthor"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <!-- Single primary source -->
+          <div class="border-t border-gray-200 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">
+                {{ t("collections.single_source_question") }}
+              </span>
+              <button
+                type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                :class="editHasSingleSource ? 'bg-indigo-600' : 'bg-gray-200'"
+                @click="editHasSingleSource = !editHasSingleSource; if (!editHasSingleSource) editMainSource = ''"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                  :class="editHasSingleSource ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <div v-if="editHasSingleSource" class="mt-2">
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("collections.main_source_label") }}
+              </label>
+              <input
+                v-model="editMainSource"
                 type="text"
                 class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
               />

@@ -32,6 +32,8 @@ export interface Collection {
   resp_stmts: { resp: string; name: string }[] | null;
   // Single author shared by all documents in the collection
   author: string | null;
+  // Primary source — maps to <listBibl><bibl type="main_source">
+  listbibl_bibl_main: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +66,7 @@ export interface DocumentMeta {
   license_url?: string | null;
   resp_stmts?: { resp: string; name: string }[] | null;
   author?: string | null;
+  listbibl_bibl_main?: string | null;
 }
 
 // ── TEI skeleton helpers ──────────────────────────────────────────────────────
@@ -121,7 +124,11 @@ function _buildSkeleton(meta?: DocumentMeta): string {
          </titleStmt>
          ${pubStmt}
          <sourceDesc>
-            <p>Source info</p>
+            ${
+  meta?.listbibl_bibl_main
+    ? `<listBibl>\n               <bibl type="main_source">${_esc(meta.listbibl_bibl_main)}</bibl>\n            </listBibl>`
+    : "<p>Source info</p>"
+}
          </sourceDesc>
       </fileDesc>
    </teiHeader>
@@ -209,6 +216,7 @@ export const useCollectionStore = defineStore("collections", () => {
       license_id?: string | null;
       resp_stmts?: { resp: string; name: string }[] | null;
       author?: string | null;
+      listbibl_bibl_main?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

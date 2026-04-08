@@ -56,6 +56,8 @@ class CollectionUpdate(BaseModel):
     resp_stmts: list[RespStmtItem] | None = None
     # Single author shared by all documents; None means "leave unchanged"
     author: str | None = None
+    # Primary source for all documents; None means "leave unchanged"
+    listbibl_bibl_main: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -93,6 +95,7 @@ class CollectionResponse(BaseModel):
     # TEI respStmt
     resp_stmts: list[RespStmtItem] | None
     author: str | None
+    listbibl_bibl_main: str | None
     created_at: datetime
     updated_at: datetime
 
