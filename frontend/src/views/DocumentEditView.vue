@@ -333,6 +333,7 @@ const aiContext = computed<Record<string, string>>(() => ({
 
 function openAiPanel(): void {
   aiStore.clearResponse();
+  showHelpPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -456,7 +457,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
               : 'border-gray-200 text-gray-600 hover:bg-gray-100',
           ]"
-          @click="showHelpPanel = !showHelpPanel"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) showAiPanel = false"
         >
           {{ t('documents.tei_help') }}
         </button>
@@ -486,17 +487,6 @@ async function runValidation(): Promise<void> {
     <p class="mb-2 flex-shrink-0 text-xs text-gray-400">
       Ctrl+Space autocomplete · Ctrl+/ commento · Ctrl+J tag corrispondente · F11 fullscreen · Ctrl+F cerca
     </p>
-
-    <!-- AI panel -->
-    <div v-if="showAiPanel" class="mb-3 flex-shrink-0">
-      <AiPanel
-        prompt-slug="document_edit_suggest"
-        :context="aiContext"
-        :title="t('ai.panel_editor_title')"
-        @apply="handleAiApply"
-        @close="showAiPanel = false"
-      />
-    </div>
 
     <!-- Split-mode tab bar -->
     <div
@@ -653,6 +643,21 @@ async function runValidation(): Promise<void> {
         {{ t('documents.tei_help_select') }}
       </p>
     </div>
+  </div>
+
+  <!-- AI sidebar panel -->
+  <div
+    v-if="showAiPanel"
+    class="flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white"
+  >
+    <AiPanel
+      sidebar
+      prompt-slug="document_edit_suggest"
+      :context="aiContext"
+      :title="t('ai.panel_editor_title')"
+      @apply="handleAiApply"
+      @close="showAiPanel = false"
+    />
   </div>
   </div>
 </template>

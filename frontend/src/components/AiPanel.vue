@@ -9,6 +9,8 @@ const props = defineProps<{
   context: Record<string, string>;
   /** Label shown in the panel header (e.g. the prompt label). */
   title?: string;
+  /** When true the panel fills its parent container (sidebar mode). */
+  sidebar?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -76,12 +78,16 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="flex flex-col rounded-xl border border-gray-200 bg-white shadow-lg"
-    style="min-width: 320px; max-width: 520px;"
+    :class="sidebar
+      ? 'flex h-full flex-col'
+      : 'flex flex-col rounded-xl border border-gray-200 bg-white shadow-lg'"
+    :style="sidebar ? undefined : 'min-width: 320px; max-width: 520px;'"
   >
     <!-- Header -->
     <div
-      class="flex items-center justify-between rounded-t-xl px-4 py-3 text-white"
+      :class="sidebar
+        ? 'flex flex-shrink-0 items-center justify-between px-4 py-3 text-white'
+        : 'flex items-center justify-between rounded-t-xl px-4 py-3 text-white'"
       :style="{ backgroundColor: '#1e40af' }"
     >
       <span class="text-sm font-semibold">
@@ -106,8 +112,10 @@ onUnmounted(() => {
 
     <!-- Response area -->
     <div
-      class="min-h-32 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800"
-      style="max-height: 380px;"
+      :class="sidebar
+        ? 'min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'
+        : 'min-h-32 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'"
+      :style="sidebar ? undefined : 'max-height: 380px;'"
     >
       <span v-if="!ai.response && ai.isStreaming" class="animate-pulse text-gray-400">
         {{ t("ai.thinking") }}
