@@ -185,10 +185,15 @@ onMounted(async () => {
     try { await schemaStore.fetchSchemas(); } catch { /* non-fatal */ }
   }
 
+  // Parse XML and populate draft slots — but do NOT call setValue yet.
+  // The CM5 container is still hidden (v-show bound to isLoading). Calling
+  // setValue on a display:none element leaves CM5 in a broken state where
+  // the editor appears blank and inserts phantom blank lines on click.
+  // We defer setValue until after the container is visible (below).
+  let xmlToLoad = '';
+
   if (xmlResult.status === 'fulfilled') {
     const xml = xmlResult.value;
-
-    // In split mode, initialise both draft slots before loading into editor
     if (splitMode.value) {
       const parts = splitXml(xml);
       if (parts) {
@@ -198,14 +203,13 @@ onMounted(async () => {
         outerBetween.value   = parts.between;
         outerAfter.value     = parts.after;
         canSplit.value = true;
-        // Load the active tab (header) into the single CM5 instance
-        setValue(parts.header);
+        xmlToLoad = parts.header;
       } else {
         canSplit.value = false;
-        setValue(xml);
+        xmlToLoad = xml;
       }
     } else {
-      setValue(xml);
+      xmlToLoad = xml;
     }
   } else {
     error.value = t('common.error');
@@ -223,10 +227,11 @@ onMounted(async () => {
   schema.value = await loadCm5Schema(schemaId);
   isSchemaLoading.value = false;
   isLoading.value = false;
-  // CM5 was initialised while the container was hidden (v-show). After the
-  // container becomes visible, autoRefresh polls up to 250 ms before it calls
-  // refresh(). Force an immediate repaint so the first tab is never blank.
+
+  // Container is now visible. Wait for Vue to apply the DOM change, then load
+  // content and refresh so CM5 can measure the real dimensions correctly.
   await nextTick();
+  if (xmlToLoad) setValue(xmlToLoad);
   refresh();
 });
 
