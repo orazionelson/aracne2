@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.postgres import AsyncSessionLocal
+from app.models.ai_prompt import AiPrompt
 from app.models.body_template import BodyTemplate
 from app.models.license import License
 from app.models.role import Role, UserRole
@@ -43,6 +44,16 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("public_home_enabled", "false", "bool"),
     ("home_show_collections", "true", "bool"),
     ("home_show_search", "true", "bool"),
+    # AI integration settings (encrypted values are written empty; Admin fills them).
+    ("ai_provider", "disabled", "string"),
+    ("ai_openai_api_key", "", "string"),
+    ("ai_openai_model", "gpt-4o", "string"),
+    ("ai_anthropic_api_key", "", "string"),
+    ("ai_anthropic_model", "claude-opus-4-6", "string"),
+    ("ai_gemini_api_key", "", "string"),
+    ("ai_gemini_model", "gemini-1.5-pro", "string"),
+    ("ai_max_requests_per_hour", "20", "int"),
+    ("ai_privacy_warning_enabled", "false", "bool"),
 ]
 
 # Default Creative Commons licenses (name, target).
@@ -139,6 +150,73 @@ async def seed_body_templates(db: AsyncSession) -> None:
     logger.info("seed_body_templates_done")
 
 
+# slug, label, description, template, context_vars, target_context
+DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
+    (
+        "validate_errors_explain",
+        "Explain validation errors",
+        "Analyzes XML validation errors and explains how to fix each one.",
+        (
+            "You are a TEI P5 XML expert. Analyze the following validation errors "
+            "and explain clearly and concisely how to fix each one.\n\n"
+            "File: {filename}\n"
+            "Schema: {schema}\n\n"
+            "Validation errors:\n{errors}"
+        ),
+        ["filename", "schema", "errors"],
+        "validation",
+    ),
+    (
+        "document_edit_suggest",
+        "Suggest TEI encoding improvements",
+        "Reviews a selected XML fragment and suggests improved TEI P5 encoding.",
+        (
+            "You are a TEI P5 XML expert. Review the following XML selection "
+            "and suggest improvements to the TEI encoding. "
+            "Return only the corrected XML, without explanations.\n\n"
+            "File: {filename}\n"
+            "Collection: {collection_slug}\n\n"
+            "Selection:\n{selection}"
+        ),
+        ["filename", "collection_slug", "selection"],
+        "editor",
+    ),
+    (
+        "xslt_debug",
+        "Debug XSLT stylesheet",
+        "Analyzes an XSLT 1.0 stylesheet and explains the reported error.",
+        (
+            "You are an XSLT 1.0 expert. Analyze the following stylesheet "
+            "and the reported error. Explain the cause and suggest a fix.\n\n"
+            "Error:\n{error_msg}\n\n"
+            "Stylesheet:\n{xslt_source}"
+        ),
+        ["error_msg", "xslt_source"],
+        "xslt",
+    ),
+]
+
+
+async def seed_ai_prompts(db: AsyncSession) -> None:
+    """Seed native AI prompt templates if not already present (matched by slug)."""
+    for slug, label, description, template, context_vars, target_context in DEFAULT_AI_PROMPTS:
+        exists = await db.scalar(select(AiPrompt).where(AiPrompt.slug == slug))
+        if not exists:
+            db.add(
+                AiPrompt(
+                    slug=slug,
+                    label=label,
+                    description=description,
+                    template=template,
+                    context_vars=context_vars,
+                    target_context=target_context,
+                    is_native=True,
+                )
+            )
+    await db.flush()
+    logger.info("seed_ai_prompts_done")
+
+
 async def seed_admin(db: AsyncSession) -> None:
     if not settings.admin_password:
         logger.warning(
@@ -187,6 +265,7 @@ async def main() -> None:
         await seed_settings(db)
         await seed_licenses(db)
         await seed_body_templates(db)
+        await seed_ai_prompts(db)
         await seed_admin(db)
         await db.commit()
     print("Seed completed successfully.")

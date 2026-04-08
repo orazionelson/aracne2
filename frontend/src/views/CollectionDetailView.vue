@@ -9,6 +9,8 @@ import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 import { useCollectionValidationStore } from "@/stores/collection_validation";
+import { useAiStore } from "@/stores/ai";
+import AiPanel from "@/components/AiPanel.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -19,6 +21,27 @@ const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
 const validationStore = useCollectionValidationStore();
+const aiStore = useAiStore();
+
+// ── AI panel per-document ─────────────────────────────────────────────────────
+const aiDocFilename = ref<string | null>(null);
+const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== "disabled");
+
+function buildAiValidationContext(docFilename: string): Record<string, string> {
+  const doc = validationStore.currentRun?.results?.documents?.find(
+    (d) => d.filename === docFilename,
+  );
+  return {
+    filename: docFilename,
+    schema: store.current?.schema_id ?? "",
+    errors: JSON.stringify(doc?.errors ?? []),
+  };
+}
+
+function openAiForDoc(docFilename: string): void {
+  aiStore.clearResponse();
+  aiDocFilename.value = docFilename;
+}
 
 // ── Validation report expand state ────────────────────────────────────────────
 const validationExpandedDoc = ref<string | null>(null);
@@ -527,6 +550,7 @@ onMounted(async () => {
     if (auth.hasMinRole("EditorInChief")) {
       tasks.push(store.fetchEditors());
       tasks.push(validationStore.fetchLatest(slug));
+      tasks.push(aiStore.fetchConfig().catch(() => { /* non-fatal */ }));
     }
     await Promise.all(tasks);
   } catch {
@@ -1535,6 +1559,24 @@ function statusClass(s: string): string {
                   </tr>
                 </tbody>
               </table>
+
+              <!-- AI analysis button -->
+              <div v-if="aiEnabled" class="mt-2">
+                <button
+                  v-if="aiDocFilename !== doc.filename"
+                  class="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 hover:bg-violet-100"
+                  @click="openAiForDoc(doc.filename)"
+                >
+                  {{ t("ai.button_validation") }}
+                </button>
+                <AiPanel
+                  v-else
+                  prompt-slug="validate_errors_explain"
+                  :context="buildAiValidationContext(doc.filename)"
+                  :title="t('ai.panel_validation_title')"
+                  @close="aiDocFilename = null"
+                />
+              </div>
             </div>
           </div>
         </div>

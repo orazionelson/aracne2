@@ -6,7 +6,9 @@ import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useUiConfigStore } from "@/stores/ui_config";
+import { useAiStore } from "@/stores/ai";
 import type { TeiSchema } from "@/stores/schemas";
+import type { AiPrompt } from "@/stores/ai";
 
 const { t } = useI18n();
 const settingStore = useSettingStore();
@@ -14,9 +16,10 @@ const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
 const uiConfigStore = useUiConfigStore();
+const aiStore = useAiStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance" | "homepage">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance" | "homepage" | "ai">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -425,8 +428,63 @@ async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
   }
 }
 
+// ── AI ────────────────────────────────────────────────────────────────────────
+
+const aiError = ref<string | null>(null);
+const editingPrompt = ref<string | null>(null);
+const promptDraft = ref<{ label: string; template: string }>({ label: "", template: "" });
+const savingPrompt = ref<Record<string, boolean>>({});
+const savePromptError = ref<Record<string, string>>({});
+const isDeletingPrompt = ref<Record<string, boolean>>({});
+
+async function loadAiPrompts(): Promise<void> {
+  aiError.value = null;
+  try {
+    await aiStore.fetchPrompts();
+    await aiStore.fetchConfig();
+  } catch {
+    aiError.value = t("common.error");
+  }
+}
+
+function startEditPrompt(prompt: AiPrompt): void {
+  editingPrompt.value = prompt.slug;
+  promptDraft.value = { label: prompt.label, template: prompt.template };
+  savePromptError.value[prompt.slug] = "";
+}
+
+function cancelEditPrompt(): void {
+  editingPrompt.value = null;
+}
+
+async function saveEditPrompt(slug: string): Promise<void> {
+  savingPrompt.value[slug] = true;
+  savePromptError.value[slug] = "";
+  try {
+    await aiStore.updatePrompt(slug, {
+      label: promptDraft.value.label.trim(),
+      template: promptDraft.value.template.trim(),
+    });
+    editingPrompt.value = null;
+  } catch (err) {
+    savePromptError.value[slug] = (err as Error).message ?? t("common.error");
+  } finally {
+    savingPrompt.value[slug] = false;
+  }
+}
+
+async function deleteAiPrompt(slug: string): Promise<void> {
+  if (!confirm(t("ai.confirm_delete_prompt"))) return;
+  isDeletingPrompt.value[slug] = true;
+  try {
+    await aiStore.deletePrompt(slug);
+  } finally {
+    isDeletingPrompt.value[slug] = false;
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates()]);
+  await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates(), loadAiPrompts()]);
   initAppearanceDraft();
 });
 </script>
@@ -500,6 +558,17 @@ onMounted(async () => {
         @click="activeTab = 'homepage'"
       >
         {{ t("settings.tab_homepage") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'ai'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'ai'"
+      >
+        {{ t("settings.tab_ai") }}
       </button>
     </div>
 
@@ -963,6 +1032,133 @@ onMounted(async () => {
                 @click="cancelEditTpl"
               >
                 {{ t("body_templates.cancel") }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── AI tab ── -->
+    <template v-if="activeTab === 'ai'">
+      <h1 class="mb-2 text-2xl font-bold">{{ t("settings.ai_title") }}</h1>
+      <p class="mb-6 text-sm text-gray-500">
+        {{ t("settings.ai_subtitle") }}
+      </p>
+
+      <!-- Provider & keys — managed via System Settings tab -->
+      <div
+        v-if="aiStore.config"
+        class="mb-6 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm"
+      >
+        <span class="font-medium text-gray-700">{{ t("settings.ai_provider_label") }}:</span>
+        <span
+          :class="[
+            'ml-2 rounded px-2 py-0.5 text-xs font-medium',
+            aiStore.config.provider === 'disabled'
+              ? 'bg-gray-100 text-gray-500'
+              : 'bg-green-100 text-green-700',
+          ]"
+        >
+          {{ aiStore.config.provider }}
+        </span>
+        <span v-if="aiStore.config.provider !== 'disabled'" class="ml-2 text-gray-500">
+          {{ aiStore.config.model }}
+        </span>
+        <span class="ml-4 text-xs text-gray-400">
+          {{ t("settings.ai_rate_limit_label", { n: aiStore.config.rate_limit }) }}
+        </span>
+        <span class="ml-1 text-xs text-gray-400">·</span>
+        <span class="ml-1 text-xs text-gray-400">
+          {{ t("settings.ai_configure_hint") }}
+        </span>
+      </div>
+
+      <!-- Prompt library -->
+      <h2 class="mb-4 text-sm font-semibold text-gray-700">{{ t("settings.ai_prompts_title") }}</h2>
+      <p v-if="aiError" class="mb-4 text-red-600 text-sm">{{ aiError }}</p>
+      <p v-if="aiStore.prompts.length === 0" class="text-sm text-gray-400">
+        {{ t("settings.ai_no_prompts") }}
+      </p>
+
+      <div v-else class="space-y-3">
+        <div
+          v-for="prompt in aiStore.prompts"
+          :key="prompt.slug"
+          class="rounded border border-gray-200 bg-white p-4"
+        >
+          <!-- View mode -->
+          <template v-if="editingPrompt !== prompt.slug">
+            <div class="mb-2 flex items-center gap-2">
+              <span class="font-medium text-gray-800">{{ prompt.label }}</span>
+              <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
+                {{ prompt.slug }}
+              </span>
+              <span
+                v-if="prompt.is_native"
+                class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-600"
+              >
+                {{ t("ai.native_badge") }}
+              </span>
+              <span
+                v-if="prompt.target_context"
+                class="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-600"
+              >
+                {{ prompt.target_context }}
+              </span>
+            </div>
+            <p v-if="prompt.description" class="mb-2 text-xs text-gray-400">
+              {{ prompt.description }}
+            </p>
+            <pre class="mb-3 max-h-32 overflow-y-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{{ prompt.template }}</pre>
+            <div class="flex gap-2">
+              <button
+                class="text-xs text-indigo-600 hover:text-indigo-800"
+                @click="startEditPrompt(prompt)"
+              >
+                {{ t("ai.edit_prompt") }}
+              </button>
+              <button
+                v-if="!prompt.is_native"
+                :disabled="isDeletingPrompt[prompt.slug]"
+                class="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
+                @click="deleteAiPrompt(prompt.slug)"
+              >
+                {{ t("ai.delete_prompt") }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Edit mode -->
+          <template v-else>
+            <div class="space-y-2">
+              <input
+                v-model="promptDraft.label"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              <textarea
+                v-model="promptDraft.template"
+                rows="8"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <p v-if="savePromptError[prompt.slug]" class="mt-1 text-xs text-red-600">
+              {{ savePromptError[prompt.slug] }}
+            </p>
+            <div class="mt-2 flex gap-2">
+              <button
+                :disabled="savingPrompt[prompt.slug]"
+                class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                @click="saveEditPrompt(prompt.slug)"
+              >
+                {{ t("common.save") }}
+              </button>
+              <button
+                class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                @click="cancelEditPrompt"
+              >
+                {{ t("common.cancel") }}
               </button>
             </div>
           </template>

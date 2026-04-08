@@ -5,9 +5,11 @@ import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
 import { useSchemaStore } from '@/stores/schemas';
 import { useSettingStore } from '@/stores/settings';
+import { useAiStore } from '@/stores/ai';
 import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
+import AiPanel from '@/components/AiPanel.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -15,6 +17,7 @@ const router = useRouter();
 const store = useCollectionStore();
 const schemaStore = useSchemaStore();
 const settingStore = useSettingStore();
+const aiStore = useAiStore();
 
 const slug = route.params.slug as string;
 const filename = route.params.filename as string;
@@ -287,6 +290,8 @@ onMounted(async () => {
   // mount with the initial XML already set, so CM5 gets the content at init
   // time on a visible, properly sized element.
   isLoading.value = false;
+  // Fetch AI config to know whether to show the AI button (non-fatal).
+  try { await aiStore.fetchConfig(); } catch { /* non-fatal */ }
 });
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -305,6 +310,35 @@ async function handleSave(): Promise<void> {
   } finally {
     isSaving.value = false;
   }
+}
+
+// ── AI ────────────────────────────────────────────────────────────────────────
+const showAiPanel = ref(false);
+const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== 'disabled');
+
+const activeEditor = computed(() => {
+  if (splitMode.value && canSplit.value) {
+    return activeEditorTab.value === 'header'
+      ? headerCm.editorInstance.value
+      : bodyCm.editorInstance.value;
+  }
+  return singleCm.editorInstance.value;
+});
+
+const aiContext = computed<Record<string, string>>(() => ({
+  filename,
+  collection_slug: slug,
+  selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+}));
+
+function openAiPanel(): void {
+  aiStore.clearResponse();
+  showAiPanel.value = true;
+}
+
+function handleAiApply(response: string): void {
+  activeEditor.value?.replaceSelection(response);
+  showAiPanel.value = false;
 }
 
 // ── Validate ───────────────────────────────────────────────────────────────────
@@ -417,6 +451,18 @@ async function runValidation(): Promise<void> {
           {{ t('documents.tei_help') }}
         </button>
         <button
+          v-if="aiEnabled && !isLoading"
+          :class="[
+            'rounded border px-2 py-1 text-xs',
+            showAiPanel
+              ? 'border-violet-400 bg-violet-50 text-violet-700'
+              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="showAiPanel ? (showAiPanel = false) : openAiPanel()"
+        >
+          {{ t('ai.button_editor') }}
+        </button>
+        <button
           :disabled="isSaving || isLoading"
           class="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           @click="handleSave"
@@ -430,6 +476,17 @@ async function runValidation(): Promise<void> {
     <p class="mb-2 flex-shrink-0 text-xs text-gray-400">
       Ctrl+Space autocomplete · Ctrl+/ commento · Ctrl+J tag corrispondente · F11 fullscreen · Ctrl+F cerca
     </p>
+
+    <!-- AI panel -->
+    <div v-if="showAiPanel" class="mb-3 flex-shrink-0">
+      <AiPanel
+        prompt-slug="document_edit_suggest"
+        :context="aiContext"
+        :title="t('ai.panel_editor_title')"
+        @apply="handleAiApply"
+        @close="showAiPanel = false"
+      />
+    </div>
 
     <!-- Split-mode tab bar -->
     <div

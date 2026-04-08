@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
+from app.core.encryption import SENSITIVE_KEYS, decrypt_value, encrypt_value, mask_value
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.models.system_setting import SystemSetting
 from app.models.user import User
@@ -32,16 +33,38 @@ def _validate_value(key: str, value: str, type_: str) -> None:
             )
 
 
+def _to_response(row: SystemSetting) -> SettingResponse:
+    """Build a SettingResponse, masking the value for sensitive keys."""
+    r = SettingResponse.model_validate(row)
+    if row.key in SENSITIVE_KEYS:
+        r.value = mask_value(row.value)
+    return r
+
+
 async def list_settings(db: AsyncSession) -> list[SettingResponse]:
     rows = await db.scalars(select(SystemSetting).order_by(SystemSetting.key))
-    return [SettingResponse.model_validate(r) for r in rows]
+    return [_to_response(r) for r in rows]
 
 
 async def get_setting(db: AsyncSession, key: str) -> SettingResponse:
     row = await db.get(SystemSetting, key)
     if not row:
         raise NotFoundError(f"Setting '{key}' not found")
-    return SettingResponse.model_validate(row)
+    return _to_response(row)
+
+
+async def get_decrypted_setting(db: AsyncSession, key: str) -> str:
+    """Return the plaintext value of a setting, decrypting if necessary.
+
+    For use by internal services (e.g. the AI provider dispatcher) that need
+    the actual value.  Never call this from a router — use get_setting() there.
+    """
+    row = await db.get(SystemSetting, key)
+    if not row:
+        return ""
+    if key in SENSITIVE_KEYS:
+        return decrypt_value(row.value, app_settings.jwt_secret)
+    return row.value
 
 
 def get_logo_path() -> Path | None:
@@ -121,8 +144,13 @@ async def update_setting(
     if not row:
         raise NotFoundError(f"Setting '{key}' not found")
     _validate_value(key, body.value, row.type)
-    row.value = body.value
+    stored_value = (
+        encrypt_value(body.value, app_settings.jwt_secret)
+        if key in SENSITIVE_KEYS
+        else body.value
+    )
+    row.value = stored_value
     row.updated_by = actor.id
     row.updated_at = datetime.now(UTC)
     await db.flush()
-    return SettingResponse.model_validate(row)
+    return _to_response(row)
