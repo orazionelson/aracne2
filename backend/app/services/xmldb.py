@@ -354,6 +354,13 @@ async def update_collection(
     if "objectdesc_form" in body.model_fields_set:
         col.objectdesc_form = body.objectdesc_form
         changed["objectdesc_form"] = body.objectdesc_form
+    if "body_template_id" in body.model_fields_set:
+        if body.body_template_id is not None:
+            from app.models.body_template import BodyTemplate as _BodyTemplate
+            if not await db.get(_BodyTemplate, body.body_template_id):
+                raise NotFoundError(f"Body template {body.body_template_id} not found.")
+        col.body_template_id = body.body_template_id
+        changed["body_template_id"] = str(body.body_template_id) if body.body_template_id else None
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

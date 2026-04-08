@@ -38,6 +38,8 @@ export interface Collection {
   msidentifier_idno: string | null;
   // Physical form — maps to <msDesc><physDesc><objectDesc form="...">
   objectdesc_form: string | null;
+  // Body template applied to new documents
+  body_template_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +75,7 @@ export interface DocumentMeta {
   listbibl_bibl_main?: string | null;
   msidentifier_idno?: string | null;
   objectdesc_form?: string | null;
+  body_snippet?: string | null;
 }
 
 // ── TEI skeleton helpers ──────────────────────────────────────────────────────
@@ -150,12 +153,14 @@ function _buildSkeleton(meta?: DocumentMeta): string {
    </teiHeader>
    <text>
       <body>
-         <docDate>
-            <date>YYYY-MM-DD</date>
-         </docDate>
-         <div type="protocollo"/>
-         <div type="testo"/>
-         <div type="escatocollo"/>
+         ${
+  meta?.body_snippet
+    ? meta.body_snippet
+        .split("\n")
+        .map((line, i) => (i === 0 ? line : `         ${line}`))
+        .join("\n")
+    : `<docDate>\n            <date>YYYY-MM-DD</date>\n         </docDate>\n         <div type="protocollo"/>\n         <div type="testo"/>\n         <div type="escatocollo"/>`
+}
       </body>
    </text>
 </TEI>`;
@@ -235,6 +240,7 @@ export const useCollectionStore = defineStore("collections", () => {
       listbibl_bibl_main?: string | null;
       msidentifier_idno?: string | null;
       objectdesc_form?: string | null;
+      body_template_id?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

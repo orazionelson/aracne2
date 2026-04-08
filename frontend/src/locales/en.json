@@ -196,7 +196,9 @@
     "single_ms_question": "Does the collection refer to a specific manuscript?",
     "ms_identifier_label": "Manuscript identifier (msIdentifier/idno)",
     "objectdesc_form_question": "Do you want to specify the physical form of the original source?",
-    "objectdesc_form_label": "Form (objectDesc)"
+    "objectdesc_form_label": "Form (objectDesc)",
+    "body_template_label": "Body template for new documents",
+    "body_template_none": "No template (default)"
   },
   "documents": {
     "action_view": "view",

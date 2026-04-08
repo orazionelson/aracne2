@@ -196,7 +196,9 @@
     "single_ms_question": "La collezione fa riferimento a uno specifico manoscritto?",
     "ms_identifier_label": "Segnatura del manoscritto (msIdentifier/idno)",
     "objectdesc_form_question": "Vuoi specificare la forma della fonte originale della collezione?",
-    "objectdesc_form_label": "Forma (objectDesc)"
+    "objectdesc_form_label": "Forma (objectDesc)",
+    "body_template_label": "Template body per i nuovi documenti",
+    "body_template_none": "Nessun template (default)"
   },
   "documents": {
     "action_view": "visualizza",

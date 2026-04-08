@@ -65,6 +65,8 @@ class CollectionUpdate(BaseModel):
     objectdesc_form: Literal[
         "codex", "leaf", "roll", "tablet", "sheet", "fascicle", "fragment", "other"
     ] | None = None
+    # Body template for new documents; present in payload means "set/clear"
+    body_template_id: uuid.UUID | None = None
 
     @field_validator("title")
     @classmethod
@@ -105,6 +107,7 @@ class CollectionResponse(BaseModel):
     listbibl_bibl_main: str | None
     msidentifier_idno: str | None
     objectdesc_form: str | None
+    body_template_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

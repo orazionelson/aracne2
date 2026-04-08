@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useCollectionStore, type ZipUploadResult, type DocumentMeta } from "@/stores/collections";
+import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 
@@ -14,6 +15,7 @@ const auth = useAuthStore();
 const store = useCollectionStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
+const bodyTemplateStore = useBodyTemplateStore();
 
 const slug = route.params.slug as string;
 const isLoading = ref(true);
@@ -37,6 +39,7 @@ const editHasMsIdentifier = ref(false);
 const editMsIdentifier = ref("");
 const editHasObjectDescForm = ref(false);
 const editObjectDescForm = ref("");
+const editBodyTemplateId = ref<string | null>(null);
 
 const OBJECTDESC_FORMS = [
   "codex", "leaf", "roll", "tablet", "sheet", "fascicle", "fragment", "other",
@@ -94,6 +97,7 @@ function startEdit(): void {
   editMsIdentifier.value = store.current.msidentifier_idno ?? "";
   editHasObjectDescForm.value = !!store.current.objectdesc_form;
   editObjectDescForm.value = store.current.objectdesc_form ?? "";
+  editBodyTemplateId.value = store.current.body_template_id ?? null;
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -121,6 +125,7 @@ async function submitEdit(): Promise<void> {
       listbibl_bibl_main: editHasSingleSource.value ? (editMainSource.value.trim() || null) : null,
       msidentifier_idno: editHasMsIdentifier.value ? (editMsIdentifier.value.trim() || null) : null,
       objectdesc_form: editHasObjectDescForm.value ? (editObjectDescForm.value || null) : null,
+      body_template_id: editBodyTemplateId.value,
     });
     editing.value = false;
   } catch (err) {
@@ -281,6 +286,9 @@ async function handleCreateDocument(): Promise<void> {
       listbibl_bibl_main: col?.listbibl_bibl_main,
       msidentifier_idno: col?.msidentifier_idno,
       objectdesc_form: col?.objectdesc_form,
+      body_snippet: col?.body_template_id
+        ? (bodyTemplateStore.templates.find((t) => t.id === col.body_template_id)?.snippet ?? null)
+        : null,
     };
     const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
@@ -469,6 +477,7 @@ onMounted(async () => {
       schemaStore.fetchSchemas(),
       store.fetchEditors(),
       licenseStore.fetchLicenses(),
+      bodyTemplateStore.fetchTemplates(),
     ]);
   } catch {
     error.value = t("common.error");
@@ -586,6 +595,25 @@ function statusClass(s: string): string {
               <option v-for="s in schemaStore.schemas" :key="s.id" :value="s.id">
                 {{ s.name }}
                 <template v-if="s.validation_format"> ({{ s.validation_format.toUpperCase() }})</template>
+              </option>
+            </select>
+          </div>
+          <!-- Body template -->
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-gray-600">
+              {{ t("collections.body_template_label") }}
+            </label>
+            <select
+              v-model="editBodyTemplateId"
+              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            >
+              <option :value="null">{{ t("collections.body_template_none") }}</option>
+              <option
+                v-for="tpl in bodyTemplateStore.templates"
+                :key="tpl.id"
+                :value="tpl.id"
+              >
+                {{ tpl.label }}
               </option>
             </select>
           </div>

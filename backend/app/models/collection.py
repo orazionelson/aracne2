@@ -108,6 +108,13 @@ class Collection(Base):
     )
     # Physical form of the source — maps to <msDesc><physDesc><objectDesc form="...">
     objectdesc_form: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    # Body template applied to new documents created in this collection
+    body_template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("body_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
