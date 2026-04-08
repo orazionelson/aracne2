@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 class PublicDocumentInfo(BaseModel):
     filename: str
+    title: str | None
+    author: str | None
 
 
 class PublicCollectionDetail(BaseModel):

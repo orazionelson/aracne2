@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { apiClient } from "@/services/api";
 
-interface PublicDocumentInfo { filename: string }
+interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
 interface PublicCollectionDetail {
   slug: string;
   title: string;
@@ -100,10 +100,17 @@ onMounted(async () => {
             :key="doc.filename"
             class="flex items-center justify-between px-5 py-3 hover:bg-gray-50"
           >
-            <span class="font-mono text-sm text-gray-700">{{ doc.filename }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-gray-800">
+                {{ doc.title || doc.filename }}
+              </p>
+              <p v-if="doc.author" class="truncate text-xs text-gray-400 italic">
+                {{ doc.author }}
+              </p>
+            </div>
             <router-link
               :to="{ name: 'public-document', params: { slug, filename: doc.filename } }"
-              class="text-sm text-indigo-600 hover:underline"
+              class="ml-4 shrink-0 text-sm text-indigo-600 hover:underline"
             >
               {{ t("documents.action_view") }}
             </router-link>

@@ -9,6 +9,7 @@ filesystem reads on every request.
 
 from pathlib import Path
 
+import defusedxml.ElementTree as ET
 import structlog
 from lxml import etree
 from sqlalchemy import select
@@ -52,20 +53,47 @@ async def _get_public_collection(db: AsyncSession, slug: str) -> Collection:
     return col
 
 
+async def _list_documents_with_titles(slug: str) -> list[PublicDocumentInfo]:
+    """Fetch filenames, titles and authors from eXist-db via XQuery.
+
+    Falls back to filename-only list (without title/author) if the XQuery
+    fails or returns malformed XML.
+    """
+    col_path = existdb_client.col_path(slug)
+    try:
+        raw = await existdb_client.xquery(
+            "collections/list_with_titles.xq",
+            variables={"collection_path": col_path},
+        )
+        root = ET.fromstring(raw)
+        docs: list[PublicDocumentInfo] = []
+        for el in root.findall("doc"):
+            filename = (el.findtext("filename") or "").strip()
+            if not filename:
+                continue
+            title = (el.findtext("title") or "").strip() or None
+            author = (el.findtext("author") or "").strip() or None
+            docs.append(PublicDocumentInfo(filename=filename, title=title, author=author))
+        docs.sort(key=lambda d: _natural_sort_key(d.filename))
+        return docs
+    except Exception as exc:
+        logger.warning("public_view_list_titles_failed", slug=slug, error=str(exc))
+        # Graceful fallback: plain filename list
+        try:
+            filenames = await existdb_client.list_collection(slug)
+            filenames.sort(key=_natural_sort_key)
+            return [PublicDocumentInfo(filename=f, title=None, author=None) for f in filenames]
+        except Exception:
+            return []
+
+
 async def get_public_collection_detail(
     db: AsyncSession,
     slug: str,
 ) -> PublicCollectionDetail:
     """Return collection metadata and sorted document list for public view."""
     col = await _get_public_collection(db, slug)
-
-    try:
-        filenames = await existdb_client.list_collection(slug)
-        filenames.sort(key=_natural_sort_key)
-    except Exception as exc:
-        logger.warning("public_view_list_failed", slug=slug, error=str(exc))
-        filenames = []
-
+    documents = await _list_documents_with_titles(slug)
     return PublicCollectionDetail(
         slug=col.slug,
         title=col.title,
@@ -73,7 +101,7 @@ async def get_public_collection_detail(
         author=col.author,
         publisher=col.publisher,
         pub_year=col.pub_year,
-        documents=[PublicDocumentInfo(filename=f) for f in filenames],
+        documents=documents,
     )
 
 
