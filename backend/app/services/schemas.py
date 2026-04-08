@@ -39,6 +39,7 @@ Algorithm overview:
 """
 
 import ipaddress
+import re as _re
 import socket
 import uuid
 from pathlib import Path
@@ -108,7 +109,6 @@ def _build_xmlschema(schema_path: Path) -> etree.XMLSchema:
             msg = str(exc)
             # Extract the offending namespace from the error message.
             # Typical format: "… '{http://some.ns/}attr' does not resolve …"
-            import re as _re
             match = _re.search(r"'\{([^}]+)\}", msg)
             if not match:
                 raise  # unknown error shape — propagate as-is
@@ -188,16 +188,73 @@ def _check_ssrf(url: str) -> None:
 
 # ── Validation helpers ─────────────────────────────────────────────────────────
 
-def _errors_from_log(log: etree._ListErrorLog) -> list[ValidationError]:  # type: ignore[name-defined]
-    return [
-        ValidationError(
+# Rewrite common lxml RelaxNG / XSD / DTD error messages to human-readable form.
+_MSG_TRANSFORMS: list[tuple[_re.Pattern[str], str]] = [
+    (_re.compile(r"^Element (.+?) failed to validate content$"),
+     r"Invalid content in element <\1>"),
+    (_re.compile(r"^Did not expect element (.+?) there$"),
+     r"Element <\1> is not allowed here"),
+    (_re.compile(r"^Expecting an element (.+?), got nothing$"),
+     r"Missing required element <\1>"),
+    (_re.compile(r"^Expecting an element\s*,\s*got nothing$"),
+     "Missing required child element"),
+    (_re.compile(r"^Invalid attribute (.+?) for element (.+?)$"),
+     r"Attribute '\1' is not valid on element <\2>"),
+    (_re.compile(r"^Character data not allowed here$"),
+     "Text content is not allowed here"),
+    (_re.compile(r"^Expecting text content$"),
+     "This element should contain text"),
+]
+
+
+def _humanize_message(message: str) -> str:
+    """Rewrite a raw lxml error message to a clearer English sentence."""
+    for pattern, replacement in _MSG_TRANSFORMS:
+        if pattern.match(message):
+            return pattern.sub(replacement, message)
+    return message
+
+
+def _resolve_xpath(doc: etree._Element, xpath: str) -> str:  # type: ignore[name-defined]
+    """Convert a numeric XPath like /*/*[1]/*/*[3] to a named path like /TEI/teiHeader/fileDesc/sourceDesc.
+
+    Falls back to the original xpath string if resolution fails.
+    """
+    try:
+        results = doc.xpath(xpath)
+        if not results or not hasattr(results[0], "tag"):
+            return xpath
+        parts: list[str] = []
+        node = results[0]
+        while node is not None:
+            try:
+                local = etree.QName(node.tag).localname
+            except (ValueError, TypeError):
+                local = str(node.tag)
+            parts.append(local)
+            node = node.getparent()  # type: ignore[assignment]
+        return "/" + "/".join(reversed(parts))
+    except Exception:
+        return xpath
+
+
+def _errors_from_log(
+    log: etree._ListErrorLog,  # type: ignore[name-defined]
+    doc: etree._Element | None = None,  # type: ignore[name-defined]
+) -> list[ValidationError]:
+    errors = []
+    for e in log:
+        raw_path: str | None = getattr(e, "path", None) or None
+        friendly_path: str | None = (
+            _resolve_xpath(doc, raw_path) if doc is not None and raw_path else raw_path
+        )
+        errors.append(ValidationError(
             line=e.line,
             col=e.column,
-            message=e.message,
-            path=getattr(e, "path", None) or None,
-        )
-        for e in log
-    ]
+            message=_humanize_message(e.message),
+            path=friendly_path,
+        ))
+    return errors
 
 
 def _validate_rng(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
@@ -214,7 +271,7 @@ def _validate_rng(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
     except etree.XMLSyntaxError as exc:
         return [ValidationError(line=exc.lineno or 0, col=exc.offset or 0, message=str(exc))]
     relaxng.validate(doc)
-    return _errors_from_log(relaxng.error_log)
+    return _errors_from_log(relaxng.error_log, doc)
 
 
 def _validate_dtd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
@@ -230,7 +287,7 @@ def _validate_dtd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
     except etree.XMLSyntaxError as exc:
         return [ValidationError(line=exc.lineno or 0, col=exc.offset or 0, message=str(exc))]
     dtd.validate(doc)
-    return _errors_from_log(dtd.error_log)
+    return _errors_from_log(dtd.error_log, doc)
 
 
 def _validate_xsd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
@@ -246,7 +303,7 @@ def _validate_xsd(xml_bytes: bytes, schema_path: Path) -> list[ValidationError]:
     except etree.XMLSyntaxError as exc:
         return [ValidationError(line=exc.lineno or 0, col=exc.offset or 0, message=str(exc))]
     xmlschema.validate(doc)
-    return _errors_from_log(xmlschema.error_log)
+    return _errors_from_log(xmlschema.error_log, doc)
 
 
 def validate_xml(xml_bytes: bytes, schema: TeiSchema) -> ValidationResult:
