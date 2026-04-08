@@ -91,6 +91,9 @@ class Collection(Base):
         nullable=True,
         default=None,
     )
+    # TEI respStmt fields
+    resp: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
+    resp_name: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]

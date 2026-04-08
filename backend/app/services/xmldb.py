@@ -334,6 +334,12 @@ async def update_collection(
                 raise NotFoundError(f"License {body.license_id} not found.")
         col.license_id = body.license_id
         changed["license_id"] = str(body.license_id) if body.license_id else None
+    if "resp" in body.model_fields_set:
+        col.resp = body.resp
+        changed["resp"] = body.resp
+    if "resp_name" in body.model_fields_set:
+        col.resp_name = body.resp_name
+        changed["resp_name"] = body.resp_name
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

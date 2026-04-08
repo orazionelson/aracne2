@@ -47,6 +47,9 @@ class CollectionUpdate(BaseModel):
     pub_place: str | None = None
     pub_year: int | None = None
     license_id: uuid.UUID | None = None
+    # TEI respStmt fields
+    resp: str | None = None
+    resp_name: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -81,6 +84,9 @@ class CollectionResponse(BaseModel):
     pub_place: str | None
     pub_year: int | None
     license_id: uuid.UUID | None
+    # TEI respStmt
+    resp: str | None
+    resp_name: str | None
     created_at: datetime
     updated_at: datetime
 

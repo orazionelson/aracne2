@@ -28,6 +28,9 @@ export interface Collection {
   pub_place: string | null;
   pub_year: number | null;
   license_id: string | null;
+  // TEI respStmt
+  resp: string | null;
+  resp_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -121,6 +124,8 @@ export const useCollectionStore = defineStore("collections", () => {
       pub_place?: string | null;
       pub_year?: number | null;
       license_id?: string | null;
+      resp?: string | null;
+      resp_name?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

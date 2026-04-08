@@ -29,6 +29,17 @@ const editPublisher = ref("");
 const editPubPlace = ref("");
 const editPubYear = ref<number | null>(null);
 const editLicenseId = ref<string | null>(null);
+const editResp = ref("");
+const editRespName = ref("");
+// autocomplete state for resp_name
+const respNameDropdownOpen = ref(false);
+const filteredRespNames = computed(() => {
+  const q = editRespName.value.toLowerCase();
+  return store.editors.filter((e) => {
+    const label = (e.display_name ?? e.username).toLowerCase();
+    return !q || label.includes(q);
+  });
+});
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
 
@@ -42,6 +53,8 @@ function startEdit(): void {
   editPubPlace.value = store.current.pub_place ?? "";
   editPubYear.value = store.current.pub_year ?? null;
   editLicenseId.value = store.current.license_id ?? null;
+  editResp.value = store.current.resp ?? "";
+  editRespName.value = store.current.resp_name ?? "";
   editing.value = true;
 }
 
@@ -58,6 +71,8 @@ async function submitEdit(): Promise<void> {
       pub_place: editPubPlace.value.trim() || null,
       pub_year: editPubYear.value,
       license_id: editLicenseId.value,
+      resp: editResp.value.trim() || null,
+      resp_name: editRespName.value.trim() || null,
     });
     editing.value = false;
   } catch (err) {
@@ -566,6 +581,59 @@ function statusClass(s: string): string {
                     {{ lic.name }}
                   </option>
                 </select>
+              </div>
+            </div>
+          </div>
+          <!-- respStmt -->
+          <div class="border-t border-gray-200 pt-3">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              respStmt
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.resp_label") }}
+                </label>
+                <input
+                  v-model="editResp"
+                  type="text"
+                  list="resp-datalist"
+                  autocomplete="off"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+                <datalist id="resp-datalist">
+                  <option value="transcription by" />
+                  <option value="edited by" />
+                  <option value="mark-up by" />
+                  <option value="main editor" />
+                </datalist>
+              </div>
+              <div class="relative">
+                <label class="mb-1 block text-xs font-medium text-gray-600">
+                  {{ t("collections.resp_name_label") }}
+                </label>
+                <input
+                  v-model="editRespName"
+                  type="text"
+                  autocomplete="off"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  @focus="respNameDropdownOpen = true"
+                  @blur="() => { setTimeout(() => { respNameDropdownOpen = false }, 150) }"
+                  @input="respNameDropdownOpen = true"
+                />
+                <ul
+                  v-if="respNameDropdownOpen && filteredRespNames.length > 0"
+                  class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto"
+                >
+                  <li
+                    v-for="e in filteredRespNames"
+                    :key="e.id"
+                    class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                    @mousedown.prevent="editRespName = e.display_name ?? e.username; respNameDropdownOpen = false"
+                  >
+                    {{ e.display_name ?? e.username }}
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

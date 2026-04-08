@@ -184,7 +184,9 @@
     "pub_place_label": "Luogo di pubblicazione",
     "pub_year_label": "Anno",
     "availability_label": "Disponibilità (licenza)",
-    "no_license": "Nessuna licenza"
+    "no_license": "Nessuna licenza",
+    "resp_label": "Responsabilità (resp)",
+    "resp_name_label": "Nome (respStmt)"
   },
   "documents": {
     "action_view": "visualizza",
