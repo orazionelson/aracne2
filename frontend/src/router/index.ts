@@ -106,6 +106,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/admin/webhooks",
+      name: "admin-webhooks",
+      component: () => import("@/views/admin/WebhooksView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "not-found",
       component: () => import("@/views/NotFoundView.vue"),

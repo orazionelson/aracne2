@@ -3,6 +3,7 @@
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
+    "edit": "Edit",
     "delete": "Delete",
     "confirm": "Confirm",
     "error": "An error occurred"
@@ -28,6 +29,7 @@
     "collections": "Collections",
     "users": "Users",
     "plugins": "Plugins",
+    "webhooks": "Webhooks",
     "notifications": "Notifications",
     "settings": "Settings",
     "profile": "Profile",
@@ -360,6 +362,30 @@
     "published": "Published",
     "browse": "Browse",
     "view_in_evt": "View in EVT"
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "subtitle": "Configure HTTP endpoints to receive real-time event notifications.",
+    "add": "Add webhook",
+    "empty": "No webhooks configured.",
+    "active": "Active",
+    "inactive": "Inactive",
+    "last_delivery": "Last delivery",
+    "never_triggered": "Never triggered",
+    "test": "Test",
+    "create_title": "New webhook",
+    "edit_title": "Edit webhook",
+    "field_label": "Label",
+    "field_url": "Endpoint URL",
+    "field_secret": "Secret",
+    "field_secret_hint": "optional",
+    "field_events": "Events",
+    "field_active": "Active",
+    "secret_placeholder_edit": "Leave blank to keep current secret",
+    "confirm_delete": "Delete this webhook? This action cannot be undone.",
+    "error_label_required": "Label is required.",
+    "error_url_required": "Endpoint URL is required.",
+    "error_events_required": "At least one event must be selected."
   },
   "errors": {
     "not_found": "404 — Page not found"

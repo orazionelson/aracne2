@@ -32,6 +32,7 @@ from app.core.exceptions import (
     DomainValidationError,
     NotFoundError,
 )
+from app.core.hooks import HookEvent, hook_registry
 from app.db.existdb import ExistDBClient
 from app.middleware.acl import ROLE_LEVEL
 from app.models.audit_log import AuditLog
@@ -520,6 +521,7 @@ async def submit_collection(
     )
     _audit(db, "collection.submitted", actor, col, {"note": body.note})
     await db.flush()
+    await hook_registry.emit(HookEvent.ON_COLLECTION_SUBMITTED, collection=col)
     logger.info("collection_submitted", slug=col.slug, editor=actor.username)
     return CollectionResponse.model_validate(col)
 
@@ -582,6 +584,7 @@ async def publish_collection(
         )
     _audit(db, "collection.published", actor, col, {"note": body.note})
     await db.flush()
+    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
     logger.info("collection_published", slug=col.slug, actor=actor.username)
     return CollectionResponse.model_validate(col)
 
@@ -605,6 +608,7 @@ async def unpublish_collection(
 
     _audit(db, "collection.unpublished", actor, col, {"note": body.note})
     await db.flush()
+    await hook_registry.emit(HookEvent.ON_COLLECTION_UNPUBLISHED, collection=col)
     logger.info("collection_unpublished", slug=col.slug, actor=actor.username)
     return CollectionResponse.model_validate(col)
 
@@ -667,6 +671,9 @@ async def upload_document(
         actor,
         col,
         {"filename": filename, "size": len(xml_bytes)},
+    )
+    await hook_registry.emit(
+        HookEvent.ON_DOCUMENT_UPLOADED, collection=col, filename=filename
     )
     logger.info("document_uploaded", slug=col.slug, filename=filename, actor=actor.username)
     return DocumentInfo(filename=filename)
@@ -746,6 +753,9 @@ async def delete_document(
     await existdb.delete_document(col.slug, filename)
     await _sync_doc_count(db, existdb, col)
     _audit(db, "document.deleted", actor, col, {"filename": filename})
+    await hook_registry.emit(
+        HookEvent.ON_DOCUMENT_DELETED, collection=col, filename=filename
+    )
     logger.info("document_deleted", slug=col.slug, filename=filename, actor=actor.username)
 
 

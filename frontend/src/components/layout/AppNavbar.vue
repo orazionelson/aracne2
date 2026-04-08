@@ -90,6 +90,14 @@ function closeMenu(): void {
         >
           {{ t("nav.plugins") }}
         </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/webhooks"
+          class="text-gray-400 transition-colors hover:text-white"
+          active-class="!text-white font-medium"
+        >
+          {{ t("nav.webhooks") }}
+        </router-link>
       </div>
 
       <!-- Desktop right side -->
@@ -196,6 +204,15 @@ function closeMenu(): void {
           @click="closeMenu"
         >
           {{ t("nav.plugins") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/webhooks"
+          class="text-gray-400 hover:text-white"
+          active-class="!text-white font-medium"
+          @click="closeMenu"
+        >
+          {{ t("nav.webhooks") }}
         </router-link>
         <router-link
           to="/notifications"

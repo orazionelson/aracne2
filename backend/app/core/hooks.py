@@ -25,6 +25,15 @@ class HookEvent:
     ON_PLUGIN_ACTIVATED = "plugin.activated"
     ON_PLUGIN_DEACTIVATED = "plugin.deactivated"
 
+    # Collection lifecycle events
+    ON_COLLECTION_SUBMITTED = "collection.submitted"
+    ON_COLLECTION_PUBLISHED = "collection.published"
+    ON_COLLECTION_UNPUBLISHED = "collection.unpublished"
+
+    # Document events
+    ON_DOCUMENT_UPLOADED = "document.uploaded"
+    ON_DOCUMENT_DELETED = "document.deleted"
+
 
 HookHandler = Callable[..., Awaitable[None]]
 

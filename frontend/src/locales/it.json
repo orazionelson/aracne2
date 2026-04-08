@@ -3,6 +3,7 @@
     "loading": "Caricamento...",
     "save": "Salva",
     "cancel": "Annulla",
+    "edit": "Modifica",
     "delete": "Elimina",
     "confirm": "Conferma",
     "error": "Si è verificato un errore"
@@ -28,6 +29,7 @@
     "collections": "Collezioni",
     "users": "Utenti",
     "plugins": "Plugin",
+    "webhooks": "Webhook",
     "notifications": "Notifiche",
     "settings": "Impostazioni",
     "profile": "Profilo",
@@ -360,6 +362,30 @@
     "published": "Pubblicata",
     "browse": "Sfoglia",
     "view_in_evt": "Visualizza in EVT"
+  },
+  "webhooks": {
+    "title": "Webhook",
+    "subtitle": "Configura endpoint HTTP per ricevere notifiche di eventi in tempo reale.",
+    "add": "Aggiungi webhook",
+    "empty": "Nessun webhook configurato.",
+    "active": "Attivo",
+    "inactive": "Inattivo",
+    "last_delivery": "Ultima consegna",
+    "never_triggered": "Mai attivato",
+    "test": "Test",
+    "create_title": "Nuovo webhook",
+    "edit_title": "Modifica webhook",
+    "field_label": "Etichetta",
+    "field_url": "URL endpoint",
+    "field_secret": "Secret",
+    "field_secret_hint": "opzionale",
+    "field_events": "Eventi",
+    "field_active": "Attivo",
+    "secret_placeholder_edit": "Lascia vuoto per mantenere il secret attuale",
+    "confirm_delete": "Eliminare questo webhook? L'azione è irreversibile.",
+    "error_label_required": "L'etichetta è obbligatoria.",
+    "error_url_required": "L'URL dell'endpoint è obbligatorio.",
+    "error_events_required": "Seleziona almeno un evento."
   },
   "errors": {
     "not_found": "404 — Pagina non trovata"
