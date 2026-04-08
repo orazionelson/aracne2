@@ -347,6 +347,11 @@
     "delete_prompt": "Elimina",
     "confirm_delete_prompt": "Eliminare questo prompt? L'azione è irreversibile."
   },
+  "evt": {
+    "read_button": "Leggi in EVT",
+    "viewer_title": "Lettura",
+    "loading": "Caricamento visualizzatore EVT..."
+  },
   "public": {
     "search_placeholder": "Cerca collezioni...",
     "no_collections": "Nessuna collezione pubblica disponibile.",

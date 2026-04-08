@@ -32,6 +32,13 @@ const router = createRouter({
       name: "public-document",
       component: () => import("@/views/PublicDocumentView.vue"),
     },
+    // ── EVT public viewer ──────────────────────────────────────────────────
+    {
+      path: "/collections/:slug/read",
+      name: "collection-read",
+      component: () => import("@/views/CollectionReadView.vue"),
+      // No requiresAuth — EVT view is public
+    },
     // ── Authenticated routes ───────────────────────────────────────────────
     {
       path: "/login",

@@ -10,6 +10,7 @@ import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
 import { useCollectionValidationStore } from "@/stores/collection_validation";
 import { useAiStore } from "@/stores/ai";
+import { useSettingStore } from "@/stores/settings";
 import AiPanel from "@/components/AiPanel.vue";
 
 const { t } = useI18n();
@@ -22,6 +23,7 @@ const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
 const validationStore = useCollectionValidationStore();
 const aiStore = useAiStore();
+const settingStore = useSettingStore();
 
 // ── AI panel per-document ─────────────────────────────────────────────────────
 const aiDocFilename = ref<string | null>(null);
@@ -213,6 +215,12 @@ const rejectNote = ref("");
 
 const isEiC = computed(() => auth.hasMinRole("EditorInChief"));
 const isAdmin = computed(() => auth.hasMinRole("Admin"));
+const evtEnabled = computed(
+  () =>
+    settingStore.getSetting("evt_enabled") === "true" &&
+    store.current?.is_public === true &&
+    store.current?.status === "published",
+);
 const isAssignedEditor = computed(
   () => !!auth.user && auth.user.id === store.current?.editor_id,
 );
@@ -544,6 +552,7 @@ onMounted(async () => {
       schemaStore.fetchSchemas(),
       licenseStore.fetchLicenses(),
       bodyTemplateStore.fetchTemplates(),
+      settingStore.fetchSettings().catch(() => { /* non-fatal */ }),
     ];
     // The editors list (GET /users) requires EditorInChief or above.
     // Editors and Users must not call it — they cannot assign editors anyway.
@@ -617,13 +626,22 @@ function statusClass(s: string): string {
               }}
             </p>
           </div>
-          <button
-            v-if="isEiC && !editing"
-            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
-            @click="startEdit"
-          >
-            {{ t("collections.edit") }}
-          </button>
+          <div class="flex gap-2">
+            <RouterLink
+              v-if="evtEnabled"
+              :to="{ name: 'collection-read', params: { slug } }"
+              class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+            >
+              {{ t("evt.read_button") }}
+            </RouterLink>
+            <button
+              v-if="isEiC && !editing"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+              @click="startEdit"
+            >
+              {{ t("collections.edit") }}
+            </button>
+          </div>
         </div>
       </div>
 

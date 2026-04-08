@@ -347,6 +347,11 @@
     "delete_prompt": "Delete",
     "confirm_delete_prompt": "Delete this prompt? This cannot be undone."
   },
+  "evt": {
+    "read_button": "Read in EVT",
+    "viewer_title": "Read",
+    "loading": "Loading EVT viewer..."
+  },
   "public": {
     "search_placeholder": "Search collections...",
     "no_collections": "No public collections available.",

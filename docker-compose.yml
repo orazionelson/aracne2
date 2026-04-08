@@ -70,6 +70,20 @@ services:
     networks:
       - aracne2
 
+  # ── EVT viewer (optional — activate with: docker compose --profile evt up) ──
+  evt:
+    build:
+      context: ./evt
+    profiles:
+      - evt
+    ports:
+      - "127.0.0.1:8181:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - aracne2
+
 networks:
   aracne2:
     driver: bridge
