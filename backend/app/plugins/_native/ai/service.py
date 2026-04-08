@@ -1,5 +1,6 @@
 """AI integration service — rate limiting, template filling, provider dispatch."""
 
+import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 
@@ -223,7 +224,12 @@ async def stream_completion(
     except httpx.HTTPStatusError as exc:
         # Providers pre-read error responses with aread() so .text is safe here.
         try:
-            detail = exc.response.text[:400]
+            raw = exc.response.text
+            body = json.loads(raw)
+            # Anthropic: {"error": {"message": "..."}}
+            # OpenAI:    {"error": {"message": "..."}}
+            # Gemini:    {"error": {"message": "..."}}
+            detail = body.get("error", {}).get("message") or raw[:400]
         except Exception:
             detail = f"HTTP {exc.response.status_code}"
         logger.warning(
