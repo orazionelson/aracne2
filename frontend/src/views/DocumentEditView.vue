@@ -9,7 +9,6 @@ import { useAiStore } from '@/stores/ai';
 import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
-import AiPanel from '@/components/AiPanel.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -282,6 +281,7 @@ onMounted(async () => {
   if (schemaId) {
     const rec = schemaStore.schemas.find((s) => s.id === schemaId);
     hasValidationSchema.value = !!rec?.validation_format;
+    if (rec?.name) schemaLabel.value = rec.name;
   }
 
   schema.value = await loadCm5Schema(schemaId);
@@ -315,6 +315,9 @@ async function handleSave(): Promise<void> {
 // ── AI ────────────────────────────────────────────────────────────────────────
 const showAiPanel = ref(false);
 const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== 'disabled');
+const lastAiPrompt = ref<'validate' | 'improve' | null>(null);
+const schemaLabel = ref('TEI P5');
+const aiNoErrors = ref(false);
 
 const activeEditor = computed(() => {
   if (splitMode.value && canSplit.value) {
@@ -325,23 +328,55 @@ const activeEditor = computed(() => {
   return singleCm.editorInstance.value;
 });
 
-const aiContext = computed<Record<string, string>>(() => ({
-  filename,
-  collection_slug: slug,
-  selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
-}));
-
 function openAiPanel(): void {
-  aiStore.clearResponse();
   showHelpPanel.value = false;
   showAiPanel.value = true;
 }
 
-function handleAiApply(response: string): void {
+function closeAiPanel(): void {
+  aiStore.stopStream();
+  aiStore.clearResponse();
+  aiNoErrors.value = false;
+  showAiPanel.value = false;
+}
+
+async function runValidateAi(): Promise<void> {
+  aiStore.clearResponse();
+  aiNoErrors.value = false;
+  lastAiPrompt.value = 'validate';
+  if (!validationResult.value) {
+    await runValidation();
+  }
+  if (!validationResult.value || validationResult.value.valid) {
+    aiNoErrors.value = true;
+    return;
+  }
+  const errorsText = validationResult.value.errors
+    .map(e => `Line ${e.line}, col ${e.col}: ${e.message}`)
+    .join('\n');
+  await aiStore.startStream('validate_errors_explain', {
+    filename,
+    schema: schemaLabel.value,
+    errors: errorsText,
+  });
+}
+
+async function runImproveAi(): Promise<void> {
+  lastAiPrompt.value = 'improve';
+  aiNoErrors.value = false;
+  aiStore.clearResponse();
+  await aiStore.startStream('document_edit_suggest', {
+    filename,
+    collection_slug: slug,
+    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+  });
+}
+
+function applyAiResponse(): void {
   const cm = activeEditor.value;
   if (!cm) return;
   // Strip markdown code fences that some models add despite instructions.
-  const clean = response.replace(/^```(?:xml)?\r?\n?/, '').replace(/\r?\n?```$/, '').trim();
+  const clean = aiStore.response.replace(/^```(?:xml)?\r?\n?/, '').replace(/\r?\n?```$/, '').trim();
   // If there is an active selection, replace only that. Otherwise replace the
   // full document content (the AI received the whole document as context).
   if (cm.getSelection()) {
@@ -349,7 +384,7 @@ function handleAiApply(response: string): void {
   } else {
     cm.setValue(clean);
   }
-  showAiPanel.value = false;
+  closeAiPanel();
 }
 
 // ── Validate ───────────────────────────────────────────────────────────────────
@@ -469,7 +504,7 @@ async function runValidation(): Promise<void> {
               ? 'border-violet-400 bg-violet-50 text-violet-700'
               : 'border-gray-200 text-gray-600 hover:bg-gray-100',
           ]"
-          @click="showAiPanel ? (showAiPanel = false) : openAiPanel()"
+          @click="showAiPanel ? closeAiPanel() : openAiPanel()"
         >
           {{ t('ai.button_editor') }}
         </button>
@@ -650,14 +685,58 @@ async function runValidation(): Promise<void> {
     v-if="showAiPanel"
     class="flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white"
   >
-    <AiPanel
-      sidebar
-      prompt-slug="document_edit_suggest"
-      :context="aiContext"
-      :title="t('ai.panel_editor_title')"
-      @apply="handleAiApply"
-      @close="showAiPanel = false"
-    />
+    <!-- Header with action buttons -->
+    <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
+      <div class="flex gap-1.5">
+        <button
+          :disabled="aiStore.isStreaming || !hasValidationSchema"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runValidateAi"
+        >
+          {{ t('ai.validate') }}
+        </button>
+        <button
+          :disabled="aiStore.isStreaming"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runImproveAi"
+        >
+          {{ t('ai.improve') }}
+        </button>
+      </div>
+      <button class="text-gray-400 hover:text-gray-700" @click="closeAiPanel">✕</button>
+    </div>
+
+    <!-- Response area -->
+    <div class="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800">
+      <span v-if="aiNoErrors" class="text-green-700">{{ t('ai.no_errors_to_explain') }}</span>
+      <span v-else-if="!aiStore.response && !aiStore.streamError && !aiStore.isStreaming" class="text-xs text-gray-400">
+        {{ t('ai.idle_hint') }}
+      </span>
+      <span v-else-if="!aiStore.response && aiStore.isStreaming" class="animate-pulse text-gray-400">
+        {{ t('ai.thinking') }}
+      </span>
+      <span v-else-if="aiStore.streamError" class="text-red-600">{{ aiStore.streamError }}</span>
+      <span v-else>{{ aiStore.response }}</span>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-between border-t border-gray-100 px-4 py-2">
+      <button
+        v-if="aiStore.isStreaming"
+        class="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+        @click="aiStore.stopStream()"
+      >
+        {{ t('ai.stop') }}
+      </button>
+      <span v-else class="text-xs text-gray-400">{{ aiStore.config?.provider ?? '' }}</span>
+      <button
+        v-if="lastAiPrompt === 'improve' && !aiStore.isStreaming && aiStore.response && !aiStore.streamError"
+        class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
+        @click="applyAiResponse"
+      >
+        {{ t('ai.apply') }}
+      </button>
+    </div>
   </div>
   </div>
 </template>
