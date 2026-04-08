@@ -126,7 +126,16 @@ async def _assert_read_access(
 
 
 def _assert_write_access(collection: Collection, actor: User, role: str) -> None:
-    """Raise if actor cannot modify documents in this collection."""
+    """Raise if actor cannot modify documents in this collection.
+
+    Published collections are frozen for everyone — the collection must be
+    unpublished (returned to 'assigned' or 'review') before any document
+    change is allowed.
+    """
+    if collection.status == CollectionStatus.published:
+        raise AuthorizationError(
+            "Collection is published — unpublish it before modifying documents"
+        )
     if _level(role) >= _level("EditorInChief"):
         return
     if collection.editor_id != actor.id:

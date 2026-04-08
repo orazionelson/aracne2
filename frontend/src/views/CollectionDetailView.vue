@@ -444,8 +444,9 @@ async function handleDeleteSelected(): Promise<void> {
 
 const canWrite = computed(
   () =>
-    isEiC.value ||
-    (isAssignedEditor.value && store.current?.status === "assigned"),
+    store.current?.status !== "published" &&
+    (isEiC.value ||
+      (isAssignedEditor.value && store.current?.status === "assigned")),
 );
 
 async function onFileSelected(event: Event): Promise<void> {
