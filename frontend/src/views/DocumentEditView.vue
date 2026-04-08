@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue'; // nextTick: defer setValue until container is visible
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -50,7 +50,7 @@ const canSplit = ref(true);
 // ── Editor ─────────────────────────────────────────────────────────────────────
 const editorContainer = ref<HTMLElement | null>(null);
 
-const { getValue, setValue, refresh, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
+const { getValue, setValue, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
   editorContainer,
   {
     get schema() { return schema.value; },
@@ -228,15 +228,11 @@ onMounted(async () => {
   isSchemaLoading.value = false;
   isLoading.value = false;
 
-  // Wait for Vue to remove display:none (nextTick), then wait for the browser
-  // to complete its layout pass (requestAnimationFrame) before calling
-  // setValue + refresh. Without rAF, CM5 reads zero dimensions and enters
-  // a broken state where clicks insert phantom blank lines.
+  // setValue after isLoading=false so the container is visible.
+  // ResizeObserver in useCodeMirror handles the refresh automatically
+  // when the container transitions from display:none to its real size.
   await nextTick();
-  requestAnimationFrame(() => {
-    if (xmlToLoad) setValue(xmlToLoad);
-    refresh();
-  });
+  if (xmlToLoad) setValue(xmlToLoad);
 });
 
 // ── Save ───────────────────────────────────────────────────────────────────────

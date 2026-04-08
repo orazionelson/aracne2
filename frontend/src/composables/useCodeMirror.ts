@@ -209,6 +209,12 @@ export function useCodeMirror(
 
     editorInstance.value = instance;
 
+    // Refresh CM5 whenever the container changes size — this handles the
+    // v-show transition from display:none to visible without any manual
+    // nextTick/rAF dance in the parent component.
+    const ro = new ResizeObserver(() => { instance.refresh(); });
+    ro.observe(containerRef.value);
+
     // Watch for schema arriving after the editor is initialized (async load).
     // Update hintOptions and extraKeys so Ctrl+Space and trigger keys work.
     watch(
@@ -241,6 +247,7 @@ export function useCodeMirror(
   onBeforeUnmount(() => {
     // CM5 does not have a formal destroy — just null the ref.
     // The DOM node is removed by Vue automatically.
+    // ResizeObserver is garbage-collected with the element; disconnect for hygiene.
     editorInstance.value = null;
   });
 
