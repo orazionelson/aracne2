@@ -430,6 +430,9 @@
     "error_url_required": "L'URL dell'endpoint è obbligatorio.",
     "error_events_required": "Seleziona almeno un evento."
   },
+  "footer": {
+    "powered_by": "Powered by Aracne2"
+  },
   "errors": {
     "not_found": "404 — Pagina non trovata"
   }

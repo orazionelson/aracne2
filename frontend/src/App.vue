@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useSettingStore } from "@/stores/settings";
 import { useUiConfigStore } from "@/stores/ui_config";
 import AppNavbar from "@/components/layout/AppNavbar.vue";
+import AppFooter from "@/components/layout/AppFooter.vue";
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -54,7 +55,13 @@ const BANNER_HEIGHT = 40;
     :top-offset="auth.impersonating ? BANNER_HEIGHT : 0"
   />
 
-  <main :class="showNav ? (auth.impersonating ? 'pt-24' : 'pt-14') : ''">
-    <RouterView />
-  </main>
+  <div
+    class="flex min-h-screen flex-col"
+    :class="showNav ? (auth.impersonating ? 'pt-24' : 'pt-14') : ''"
+  >
+    <main class="flex-1">
+      <RouterView />
+    </main>
+    <AppFooter v-if="showNav" />
+  </div>
 </template>
