@@ -19,6 +19,7 @@ export interface ValidationError {
   line: number;
   col: number;
   message: string;
+  path?: string;
 }
 
 export interface ValidationResult {

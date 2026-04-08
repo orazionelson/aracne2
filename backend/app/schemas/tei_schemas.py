@@ -44,6 +44,7 @@ class ValidationError(BaseModel):
     line: int
     col: int
     message: str
+    path: str | None = None  # XPath location of the error node, when available
 
 
 class ValidationResult(BaseModel):

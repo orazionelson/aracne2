@@ -190,7 +190,12 @@ def _check_ssrf(url: str) -> None:
 
 def _errors_from_log(log: etree._ListErrorLog) -> list[ValidationError]:  # type: ignore[name-defined]
     return [
-        ValidationError(line=e.line, col=e.column, message=e.message)
+        ValidationError(
+            line=e.line,
+            col=e.column,
+            message=e.message,
+            path=getattr(e, "path", None) or None,
+        )
         for e in log
     ]
 

@@ -511,7 +511,10 @@ async function runValidation(): Promise<void> {
             <td class="w-20 whitespace-nowrap px-3 py-1 font-mono text-red-400">
               {{ err.line }}:{{ err.col }}
             </td>
-            <td class="px-3 py-1 text-red-700">{{ err.message }}</td>
+            <td class="px-3 py-1 text-red-700">
+              {{ err.message }}
+              <span v-if="err.path" class="ml-1 font-mono text-red-400">({{ err.path }})</span>
+            </td>
           </tr>
         </tbody>
       </table>
