@@ -156,7 +156,11 @@ export function useCodeMirror(
       styleActiveLine: true,
       autoRefresh: true,
       foldGutter: true,
-      matchTags: { bothTags: false },
+      // matchTags disabled: the addon crashes with "Cannot read properties of
+      // undefined (reading 'from')" when setValue() invalidates TextMarkers that
+      // a pending doMatchTags callback still holds. Ctrl+J (toMatchingTag) still
+      // works — it uses a separate code path that does not depend on this addon.
+      matchTags: false,
       autoCloseTags: true,
       readOnly: options.readOnly ?? false,
       gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
@@ -208,12 +212,6 @@ export function useCodeMirror(
     }
 
     editorInstance.value = instance;
-
-    // Refresh CM5 whenever the container changes size — this handles the
-    // v-show transition from display:none to visible without any manual
-    // nextTick/rAF dance in the parent component.
-    const ro = new ResizeObserver(() => { instance.refresh(); });
-    ro.observe(containerRef.value);
 
     // Watch for schema arriving after the editor is initialized (async load).
     // Update hintOptions and extraKeys so Ctrl+Space and trigger keys work.

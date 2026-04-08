@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'; // nextTick: defer setValue until container is visible
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -23,8 +23,10 @@ const filename = route.params.filename as string;
 const splitMode = computed(() => settingStore.getSetting('document_editor_mode') === 'split');
 
 // ── State ──────────────────────────────────────────────────────────────────────
-const isLoading = ref(true);
+const isLoading = ref(true);   // true until XML + schema are both ready
 const isSchemaLoading = ref(true);
+// XML to pass as initialValue to CM5 — set once, before the editor mounts.
+const initialXml = ref('');
 const isSaving = ref(false);
 const isValidating = ref(false);
 const error = ref<string | null>(null);
@@ -53,6 +55,7 @@ const editorContainer = ref<HTMLElement | null>(null);
 const { getValue, setValue, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
   editorContainer,
   {
+    get initialValue() { return initialXml.value; },
     get schema() { return schema.value; },
     onChange: () => { saved.value = false; },
   },
@@ -185,13 +188,6 @@ onMounted(async () => {
     try { await schemaStore.fetchSchemas(); } catch { /* non-fatal */ }
   }
 
-  // Parse XML and populate draft slots — but do NOT call setValue yet.
-  // The CM5 container is still hidden (v-show bound to isLoading). Calling
-  // setValue on a display:none element leaves CM5 in a broken state where
-  // the editor appears blank and inserts phantom blank lines on click.
-  // We defer setValue until after the container is visible (below).
-  let xmlToLoad = '';
-
   if (xmlResult.status === 'fulfilled') {
     const xml = xmlResult.value;
     if (splitMode.value) {
@@ -203,13 +199,13 @@ onMounted(async () => {
         outerBetween.value   = parts.between;
         outerAfter.value     = parts.after;
         canSplit.value = true;
-        xmlToLoad = parts.header;
+        initialXml.value = parts.header;
       } else {
         canSplit.value = false;
-        xmlToLoad = xml;
+        initialXml.value = xml;
       }
     } else {
-      xmlToLoad = xml;
+      initialXml.value = xml;
     }
   } else {
     error.value = t('common.error');
@@ -226,13 +222,10 @@ onMounted(async () => {
 
   schema.value = await loadCm5Schema(schemaId);
   isSchemaLoading.value = false;
+  // isLoading = false triggers v-if on the CM5 container. The container
+  // mounts with initialXml already set, so CM5 gets the content at init
+  // time on a visible, properly sized element — no setValue after mount needed.
   isLoading.value = false;
-
-  // setValue after isLoading=false so the container is visible.
-  // ResizeObserver in useCodeMirror handles the refresh automatically
-  // when the container transitions from display:none to its real size.
-  await nextTick();
-  if (xmlToLoad) setValue(xmlToLoad);
 });
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -398,8 +391,11 @@ async function runValidation(): Promise<void> {
     <p v-else-if="error" class="text-sm text-red-600">{{ error }}</p>
 
     <!-- CodeMirror container (single instance, content swapped on tab switch) -->
+    <!-- CM5 mounts with v-if so the container is already visible and has real
+         dimensions when CodeMirror initialises. initialXml is set before
+         isLoading becomes false, so CM5 receives the content at init time. -->
     <div
-      v-show="!isLoading && !error"
+      v-if="!isLoading && !error"
       ref="editorContainer"
       class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
     />
