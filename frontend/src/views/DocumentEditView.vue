@@ -337,7 +337,15 @@ function openAiPanel(): void {
 }
 
 function handleAiApply(response: string): void {
-  activeEditor.value?.replaceSelection(response);
+  const cm = activeEditor.value;
+  if (!cm) return;
+  // If there is an active selection, replace only that. Otherwise replace the
+  // full document content (the AI received the whole document as context).
+  if (cm.getSelection()) {
+    cm.replaceSelection(response);
+  } else {
+    cm.setValue(response);
+  }
   showAiPanel.value = false;
 }
 
