@@ -228,11 +228,29 @@
     "title": "System Settings",
     "tab_settings": "System Settings",
     "tab_schemas": "Schemas",
+    "tab_licenses": "Licenses",
     "key": "Key",
     "value": "Value",
     "type": "Type",
     "edit": "Edit",
     "empty": "No settings found."
+  },
+  "licenses": {
+    "title": "Licenses",
+    "name": "Name",
+    "target": "URL",
+    "active": "Active",
+    "inactive": "Inactive",
+    "add": "Add license",
+    "name_placeholder": "License name (e.g. CC BY 4.0)",
+    "target_placeholder": "https://creativecommons.org/licenses/... (optional)",
+    "no_licenses": "No licenses defined.",
+    "confirm_delete": "Delete this license? Collections using it will lose their license reference.",
+    "toggle_active": "Toggle active",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete"
   },
   "errors": {
     "not_found": "404 — Page not found"

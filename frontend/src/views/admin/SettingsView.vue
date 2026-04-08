@@ -3,14 +3,16 @@ import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
+import { useLicenseStore } from "@/stores/licenses";
 import type { TeiSchema } from "@/stores/schemas";
 
 const { t } = useI18n();
 const settingStore = useSettingStore();
 const schemaStore = useSchemaStore();
+const licenseStore = useLicenseStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -176,8 +178,86 @@ async function handleImport(id: string, type: "validation" | "cm5"): Promise<voi
   }
 }
 
+// ── Licenses ──────────────────────────────────────────────────────────────────
+const licenseError = ref<string | null>(null);
+const newLicenseName = ref("");
+const newLicenseTarget = ref("");
+const isCreatingLicense = ref(false);
+const createLicenseError = ref<string | null>(null);
+// Per-license edit state
+const editingLicense = ref<string | null>(null);
+const licenseDraft = ref<{ name: string; target: string }>({ name: "", target: "" });
+const savingLicense = ref<Record<string, boolean>>({});
+const saveLicenseError = ref<Record<string, string>>({});
+
+async function loadLicenses(): Promise<void> {
+  licenseError.value = null;
+  try {
+    await licenseStore.fetchLicenses();
+  } catch {
+    licenseError.value = t("common.error");
+  }
+}
+
+async function createLicense(): Promise<void> {
+  if (!newLicenseName.value.trim()) return;
+  createLicenseError.value = null;
+  isCreatingLicense.value = true;
+  try {
+    await licenseStore.createLicense(
+      newLicenseName.value.trim(),
+      newLicenseTarget.value.trim() || null,
+    );
+    newLicenseName.value = "";
+    newLicenseTarget.value = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    createLicenseError.value = msg ?? t("common.error");
+  } finally {
+    isCreatingLicense.value = false;
+  }
+}
+
+function startEditLicense(id: string, name: string, target: string | null): void {
+  editingLicense.value = id;
+  licenseDraft.value = { name, target: target ?? "" };
+  saveLicenseError.value[id] = "";
+}
+
+function cancelEditLicense(): void {
+  editingLicense.value = null;
+}
+
+async function saveEditLicense(id: string): Promise<void> {
+  savingLicense.value[id] = true;
+  saveLicenseError.value[id] = "";
+  try {
+    await licenseStore.patchLicense(id, {
+      name: licenseDraft.value.name.trim(),
+      target: licenseDraft.value.target.trim() || null,
+    });
+    editingLicense.value = null;
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    saveLicenseError.value[id] = msg ?? t("common.error");
+  } finally {
+    savingLicense.value[id] = false;
+  }
+}
+
+async function toggleLicenseActive(id: string, current: boolean): Promise<void> {
+  await licenseStore.patchLicense(id, { is_active: !current });
+}
+
+async function deleteLicense(id: string): Promise<void> {
+  if (!confirm(t("licenses.confirm_delete"))) return;
+  await licenseStore.deleteLicense(id);
+}
+
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadSchemas()]);
+  await Promise.all([loadSettings(), loadSchemas(), loadLicenses()]);
 });
 </script>
 
@@ -206,6 +286,17 @@ onMounted(async () => {
         @click="activeTab = 'schemas'"
       >
         {{ t("settings.tab_schemas") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'licenses'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'licenses'"
+      >
+        {{ t("settings.tab_licenses") }}
       </button>
     </div>
 
@@ -434,6 +525,136 @@ onMounted(async () => {
                 </button>
               </div>
             </template>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Licenses tab ── -->
+    <template v-if="activeTab === 'licenses'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("licenses.title") }}</h1>
+
+      <!-- Add license form -->
+      <div class="mb-6 space-y-2 rounded border border-gray-200 bg-gray-50 p-4">
+        <div class="flex gap-2">
+          <input
+            v-model="newLicenseName"
+            type="text"
+            :placeholder="t('licenses.name_placeholder')"
+            class="flex-1 rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            @keydown.enter="createLicense"
+          />
+        </div>
+        <div class="flex gap-2">
+          <input
+            v-model="newLicenseTarget"
+            type="url"
+            :placeholder="t('licenses.target_placeholder')"
+            class="flex-1 rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            @keydown.enter="createLicense"
+          />
+          <button
+            :disabled="isCreatingLicense || !newLicenseName.trim()"
+            class="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40"
+            @click="createLicense"
+          >
+            {{ t("licenses.add") }}
+          </button>
+        </div>
+        <p v-if="createLicenseError" class="text-xs text-red-600">{{ createLicenseError }}</p>
+      </div>
+
+      <p v-if="licenseError" class="mb-4 text-red-600">{{ licenseError }}</p>
+      <p v-if="licenseStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
+      <p v-else-if="licenseStore.licenses.length === 0" class="text-gray-500">
+        {{ t("licenses.no_licenses") }}
+      </p>
+
+      <div v-else class="space-y-2">
+        <div
+          v-for="lic in licenseStore.licenses"
+          :key="lic.id"
+          class="rounded border border-gray-200 bg-white"
+        >
+          <!-- View row -->
+          <div v-if="editingLicense !== lic.id" class="flex items-start justify-between px-4 py-3">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span
+                  :class="[
+                    'rounded px-2 py-0.5 text-xs font-medium',
+                    lic.is_active
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-500',
+                  ]"
+                >
+                  {{ lic.is_active ? t("licenses.active") : t("licenses.inactive") }}
+                </span>
+                <span class="font-medium text-gray-800">{{ lic.name }}</span>
+              </div>
+              <a
+                v-if="lic.target"
+                :href="lic.target"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mt-0.5 block truncate text-xs text-blue-600 hover:underline"
+              >
+                {{ lic.target }}
+              </a>
+            </div>
+            <div class="ml-4 flex flex-shrink-0 items-center gap-1">
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                @click="toggleLicenseActive(lic.id, lic.is_active)"
+              >
+                {{ lic.is_active ? t("licenses.inactive") : t("licenses.active") }}
+              </button>
+              <button
+                class="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                @click="startEditLicense(lic.id, lic.name, lic.target)"
+              >
+                {{ t("licenses.edit") }}
+              </button>
+              <button
+                class="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                @click="deleteLicense(lic.id)"
+              >
+                {{ t("licenses.delete") }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Edit row -->
+          <div v-else class="space-y-2 px-4 py-3">
+            <input
+              v-model="licenseDraft.name"
+              type="text"
+              class="w-full rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <input
+              v-model="licenseDraft.target"
+              type="url"
+              :placeholder="t('licenses.target_placeholder')"
+              class="w-full rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <p v-if="saveLicenseError[lic.id]" class="text-xs text-red-600">
+              {{ saveLicenseError[lic.id] }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                :disabled="savingLicense[lic.id] || !licenseDraft.name.trim()"
+                class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                @click="saveEditLicense(lic.id)"
+              >
+                {{ t("licenses.save") }}
+              </button>
+              <button
+                class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                @click="cancelEditLicense"
+              >
+                {{ t("licenses.cancel") }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

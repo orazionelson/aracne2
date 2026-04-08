@@ -17,8 +17,8 @@ from app.db.existdb import existdb_client
 from app.db.postgres import engine
 from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
-from app.routers import auth, health, notifications, plugins, schemas as schemas_router, users
-from app.routers import settings as settings_router
+from app.routers import auth, health, licenses as licenses_router, notifications, plugins
+from app.routers import schemas as schemas_router, settings as settings_router, users
 
 configure_logging()
 
@@ -174,3 +174,4 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(plugins.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
+app.include_router(licenses_router.router, prefix="/api/v1")

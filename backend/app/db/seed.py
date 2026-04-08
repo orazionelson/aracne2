@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.postgres import AsyncSessionLocal
+from app.models.license import License
 from app.models.role import Role, UserRole
 from app.models.session import Session  # noqa: F401 — ensure model is registered
 from app.models.system_setting import SystemSetting
@@ -38,6 +39,39 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("document_editor_mode", "single", "string"),
 ]
 
+# Default Creative Commons licenses (name, target).
+# All are seeded as active. Admins can add, edit or deactivate them.
+DEFAULT_LICENSES: list[tuple[str, str]] = [
+    (
+        "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+        "https://creativecommons.org/publicdomain/zero/1.0/",
+    ),
+    (
+        "Attribution 4.0 International (CC BY 4.0)",
+        "https://creativecommons.org/licenses/by/4.0/",
+    ),
+    (
+        "Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)",
+        "https://creativecommons.org/licenses/by-sa/4.0/",
+    ),
+    (
+        "Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)",
+        "https://creativecommons.org/licenses/by-nc/4.0/",
+    ),
+    (
+        "Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)",
+        "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    ),
+    (
+        "Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)",
+        "https://creativecommons.org/licenses/by-nd/4.0/",
+    ),
+    (
+        "Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)",
+        "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+    ),
+]
+
 
 async def seed_roles(db: AsyncSession) -> None:
     for name, desc in ROLES:
@@ -55,6 +89,16 @@ async def seed_settings(db: AsyncSession) -> None:
             db.add(SystemSetting(key=key, value=value, type=type_))
     await db.flush()
     logger.info("seed_settings_done")
+
+
+async def seed_licenses(db: AsyncSession) -> None:
+    """Seed default Creative Commons licenses if not already present (matched by name)."""
+    for name, target in DEFAULT_LICENSES:
+        exists = await db.scalar(select(License).where(License.name == name))
+        if not exists:
+            db.add(License(name=name, target=target, is_active=True))
+    await db.flush()
+    logger.info("seed_licenses_done")
 
 
 async def seed_admin(db: AsyncSession) -> None:
@@ -103,6 +147,7 @@ async def main() -> None:
     async with AsyncSessionLocal() as db:
         await seed_roles(db)
         await seed_settings(db)
+        await seed_licenses(db)
         await seed_admin(db)
         await db.commit()
     print("Seed completed successfully.")
