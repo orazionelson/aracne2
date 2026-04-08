@@ -2,6 +2,25 @@
 # Loaded automatically by Claude Code on every session.
 # Do not modify without reviewing all active sessions.
 
+## Development workflow
+
+The codebase lives in a **development directory** (`repo`) from which all pushes to
+GitHub are made. A separate **test directory** is used to pull and run the app.
+
+**After every `git push`, always tell the user which commands to run in the test
+directory.** The standard post-pull checklist is:
+
+1. `git pull`
+2. `docker compose exec backend alembic upgrade head` — if any new Alembic migration
+   was added in this session (list the migration IDs explicitly)
+3. `docker compose restart backend` — if Python dependencies or `main.py` changed
+4. Nothing else needed for frontend-only changes (Vite rebuilds on the fly in dev)
+
+If a session added no migrations and no new dependencies, say so explicitly so the
+user knows only `git pull` is needed.
+
+---
+
 ## Your role
 
 You are a senior software engineer working on **Aracne2**, a modular production-ready
