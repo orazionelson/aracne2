@@ -1,11 +1,14 @@
 # ── Stage 1: build EVT 2 from source ─────────────────────────────────────────
-FROM node:18-alpine AS builder
+# node-sass@4.x requires Python and native build tools; Node 14 is the last
+# version fully supported by this AngularJS-era dependency chain.
+FROM node:14-alpine AS builder
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git python3 make g++ && \
+    ln -sf python3 /usr/bin/python
 
 WORKDIR /build
 
-# Clone EVT 2 (pinned to a known commit for reproducibility)
+# Clone EVT 2 (latest stable branch)
 RUN git clone --depth 1 https://github.com/evt-project/evt-viewer.git .
 
 # Install dependencies (--legacy-peer-deps needed for AngularJS-era packages)
