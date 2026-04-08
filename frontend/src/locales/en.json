@@ -207,7 +207,10 @@
     "validate_all_report": "Validation report",
     "validate_all_valid": "Valid",
     "validate_all_errors": "{n} errors",
-    "validate_all_previous": "Previous run:"
+    "validate_all_previous": "Previous run:",
+    "validate_all_confirm": "Validating the full collection can slow down the application significantly, especially on large collections. Proceed?",
+    "validate_all_cancel": "Stop validation",
+    "validate_all_cancelled": "Cancelled ({n} / {total} validated)"
   },
   "documents": {
     "action_view": "view",

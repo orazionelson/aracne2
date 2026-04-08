@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { apiClient } from "@/services/api";
 
-export type ValidationRunStatus = "pending" | "running" | "done" | "failed";
+export type ValidationRunStatus = "pending" | "running" | "done" | "failed" | "cancelled";
 
 export interface DocValidationError {
   line: number;
@@ -65,6 +65,19 @@ export const useCollectionValidationStore = defineStore("collectionValidation", 
     }
   }
 
+  async function cancelRun(slug: string, runId: number): Promise<void> {
+    try {
+      currentRun.value = await apiClient.post<ValidationRunInfo>(
+        `/collections/${slug}/validate-all/${runId}/cancel`,
+        {},
+      );
+    } catch {
+      // Ignore — the status will be updated on the next poll.
+    } finally {
+      _stopPolling();
+    }
+  }
+
   async function _poll(slug: string): Promise<void> {
     if (!currentRun.value) return;
     try {
@@ -72,7 +85,7 @@ export const useCollectionValidationStore = defineStore("collectionValidation", 
         `/collections/${slug}/validate-all/${currentRun.value.id}`,
       );
       currentRun.value = data;
-      if (data.status === "done" || data.status === "failed") {
+      if (data.status === "done" || data.status === "failed" || data.status === "cancelled") {
         _stopPolling();
       }
     } catch {
@@ -97,5 +110,5 @@ export const useCollectionValidationStore = defineStore("collectionValidation", 
     currentRun.value = null;
   }
 
-  return { currentRun, isStarting, startRun, fetchLatest, reset };
+  return { currentRun, isStarting, startRun, fetchLatest, cancelRun, reset };
 });

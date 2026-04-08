@@ -207,7 +207,10 @@
     "validate_all_report": "Report validazione",
     "validate_all_valid": "Valido",
     "validate_all_errors": "{n} errori",
-    "validate_all_previous": "Run precedente:"
+    "validate_all_previous": "Run precedente:",
+    "validate_all_confirm": "La validazione dell'intera collezione può rallentare l'applicazione in modo significativo, specialmente su collezioni grandi. Procedere?",
+    "validate_all_cancel": "Interrompi validazione",
+    "validate_all_cancelled": "Annullata ({n} / {total} validati)"
   },
   "documents": {
     "action_view": "visualizza",

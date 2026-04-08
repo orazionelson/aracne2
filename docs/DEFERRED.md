@@ -181,4 +181,39 @@ password reset, publication approval, or account verification.
 
 ---
 
-*Last updated: 2026-04-06*
+---
+
+## 12. Full-collection validation — performance optimisation
+
+**Current behaviour**
+`_run_validation_task` runs entirely inside the FastAPI process on the main asyncio
+event loop.  Each document is validated with `lxml` (CPU-bound) and fetched from
+eXist-db (I/O-bound), but because `lxml` is synchronous it occupies the event loop
+and degrades response times for all other requests during the run.
+
+**Measured impact**
+On a local setup with small collections (< 50 docs, simple schema) the slowdown
+is perceptible but tolerable.  On collections of several hundred documents, or
+with the full TEI All RelaxNG schema (≈ 5 MB), the validation of a single document
+can take 1–3 s, making the entire application unresponsive for the duration.
+
+**Optimisation options (in ascending complexity)**
+
+| Option | Effort | Gain | Notes |
+|--------|--------|------|-------|
+| Offload `lxml` call to a thread pool with `asyncio.to_thread()` | Low | Medium | Keeps other coroutines running between docs; CPU cores still contend |
+| Process pool via `concurrent.futures.ProcessPoolExecutor` | Medium | High | True parallelism; schema must be picklable or reloaded per worker |
+| Dedicated async task queue (ARQ + Redis worker) | High | Very high | Worker process separate from the API; prerequisite: DEFERRED item 1 |
+| Pre-parse and cache the schema object in the API process | Low | Medium | Amortises lxml schema loading (≈ 80 % of per-doc cost for large schemas) |
+
+**Recommended short-term fix**
+Wrap the `validate_xml()` call in `await asyncio.to_thread(validate_xml, xml_bytes, schema)`.
+This alone is sufficient to keep the API responsive while the validation loop runs.
+Schema caching (one `lxml.etree.RelaxNG` / `XMLSchema` instance per schema file,
+invalidated on schema upload) multiplies the benefit.
+
+**Trigger to implement**
+First complaint about API unresponsiveness during a collection validation run in a
+non-development environment.
+
+*Last updated: 2026-04-08*

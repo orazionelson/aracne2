@@ -39,6 +39,7 @@ from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.schemas.collection_validation import CollectionValidationRunResponse
 from app.schemas.tei_schemas import ValidationResult
 from app.services.collection_validation import (
+    cancel_validation_run,
     get_latest_validation_run,
     get_validation_run,
     start_validation_run,
@@ -513,6 +514,24 @@ async def collection_validate_all_run(
     """Return a specific validation run by ID [EiC+]."""
     role: str = request.state.role
     data = await get_validation_run(db, collection_id, run_id, current_user, role)
+    return DataResponse(data=data)
+
+
+@router.post("/{collection_id}/validate-all/{run_id}/cancel")
+async def collection_validate_all_cancel(
+    collection_id: str,
+    run_id: int,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionValidationRunResponse]:
+    """Cancel a pending or running validation run [EiC+].
+
+    Sets the run status to 'cancelled' immediately.  The background task
+    checks for this status cooperatively and stops after the current document.
+    """
+    role: str = request.state.role
+    data = await cancel_validation_run(db, collection_id, run_id, current_user, role)
     return DataResponse(data=data)
 
 

@@ -20,6 +20,7 @@ class ValidationRunStatus(str, enum.Enum):
     running = "running"
     done = "done"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class CollectionValidationRun(Base):

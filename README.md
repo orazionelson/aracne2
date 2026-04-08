@@ -152,6 +152,25 @@ URL import uses an SSRF guard: only public IP addresses are accepted. Private, l
 3. Select the desired schema from the **TEI Schema** dropdown.
 4. Click **Save**.
 
+### Full-collection validation
+
+EditorInChief and Admin can validate every document in a collection at once using
+the **Validate collection** button on the collection detail page.  The run executes
+in the background — the page polls for live progress and shows a per-document report
+when done.
+
+> **Performance note (development / local setups)**
+>
+> Each document is validated synchronously inside a Python background task that
+> shares the same asyncio event loop as the FastAPI server.  On large collections
+> (hundreds of documents) or with heavy schemas (RelaxNG TEI All) this will
+> noticeably slow down all other requests for the duration of the run.  The
+> **Stop validation** button cancels the run cooperatively: the task halts after
+> finishing the current document.
+>
+> For production deployments with large collections, see `docs/DEFERRED.md`
+> (item 12) for the planned optimisation path.
+
 ### Using the schema in the editor
 
 When editing a document (`/collections/{slug}/document/{filename}/edit`):

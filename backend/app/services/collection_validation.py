@@ -101,6 +101,50 @@ async def get_validation_run(
     return CollectionValidationRunResponse.model_validate(run)
 
 
+async def cancel_validation_run(
+    db: AsyncSession,
+    collection_id: str,
+    run_id: int,
+    actor: User,
+    role: str,
+) -> CollectionValidationRunResponse:
+    """Request cancellation of a pending or running validation run.
+
+    Sets status to 'cancelled' immediately.  The background task checks
+    the status after each document and stops cooperatively.
+    """
+    _assert_eic(role)
+    col = await _get_or_404(db, collection_id)
+    run = await db.scalar(
+        select(CollectionValidationRun).where(
+            CollectionValidationRun.id == run_id,
+            CollectionValidationRun.collection_id == col.id,
+        )
+    )
+    if run is None:
+        raise NotFoundError("Validation run not found.")
+    terminal = (
+        ValidationRunStatus.done,
+        ValidationRunStatus.failed,
+        ValidationRunStatus.cancelled,
+    )
+    if run.status in terminal:
+        raise DomainValidationError(
+            "VALIDATION_RUN_NOT_CANCELLABLE",
+            "This validation run has already completed and cannot be cancelled.",
+        )
+    run.status = ValidationRunStatus.cancelled
+    run.completed_at = datetime.now(UTC)
+    await db.commit()
+    logger.info(
+        "collection_validation_cancelled",
+        slug=col.slug,
+        run_id=run_id,
+        actor=actor.username,
+    )
+    return CollectionValidationRunResponse.model_validate(run)
+
+
 async def get_latest_validation_run(
     db: AsyncSession,
     collection_id: str,
@@ -192,6 +236,19 @@ async def _run_validation_task(run_id: int, slug: str, schema_id_str: str) -> No
                 run.results = {"documents": list(doc_results)}
                 await db.commit()
 
+                # Cooperative cancellation: re-read status written by the cancel
+                # endpoint.  After commit() the ORM expires the instance, so
+                # refresh() issues a SELECT and picks up any external change.
+                await db.refresh(run)
+                if run.status == ValidationRunStatus.cancelled:
+                    logger.info(
+                        "validation_task_cancelled",
+                        slug=slug,
+                        run_id=run_id,
+                        validated=len(doc_results),
+                    )
+                    return
+
             run.status = ValidationRunStatus.done
             run.completed_at = datetime.now(UTC)
             await db.commit()
@@ -215,7 +272,9 @@ async def _run_validation_task(run_id: int, slug: str, schema_id_str: str) -> No
                 async with AsyncSessionLocal() as db2:
                     run2 = await db2.get(CollectionValidationRun, run_id)
                     if run2 and run2.status not in (
-                        ValidationRunStatus.done, ValidationRunStatus.failed
+                        ValidationRunStatus.done,
+                        ValidationRunStatus.failed,
+                        ValidationRunStatus.cancelled,
                     ):
                         run2.status = ValidationRunStatus.failed
                         run2.error_message = str(exc)

@@ -28,7 +28,13 @@ function toggleValidationDoc(filename: string): void {
 }
 
 async function handleValidateAll(): Promise<void> {
+  if (!window.confirm(t("collections.validate_all_confirm"))) return;
   await validationStore.startRun(slug);
+}
+
+async function handleCancelValidation(): Promise<void> {
+  if (!validationStore.currentRun) return;
+  await validationStore.cancelRun(slug, validationStore.currentRun.id);
 }
 
 onUnmounted(() => { validationStore.reset(); });
@@ -1441,11 +1447,25 @@ function statusClass(s: string): string {
             {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
           </span>
           <span
+            v-else-if="validationStore.currentRun.status === 'cancelled'"
+            class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+          >
+            {{ t("collections.validate_all_cancelled", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+          </span>
+          <span
             v-else-if="validationStore.currentRun.status === 'failed'"
             class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
           >
             {{ t("collections.validate_all_failed", { msg: validationStore.currentRun.error_message ?? '' }) }}
           </span>
+          <!-- Stop button — visible while the run is in progress -->
+          <button
+            v-if="validationStore.currentRun.status === 'pending' || validationStore.currentRun.status === 'running'"
+            class="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
+            @click="handleCancelValidation"
+          >
+            {{ t("collections.validate_all_cancel") }}
+          </button>
         </div>
 
         <!-- Progress bar while running -->
