@@ -30,6 +30,7 @@ from app.schemas.collections import (
     DocumentMeta,
     PermissionEntry,
     PermissionGrant,
+    PublicCollectionSearchResult,
     RejectAction,
     SearchHit,
     WorkflowAction,
@@ -60,6 +61,7 @@ from app.services.xmldb import (
     reject_collection,
     revoke_permission,
     search_in_collection,
+    search_public_collections,
     submit_collection,
     unpublish_collection,
     update_collection,
@@ -110,6 +112,22 @@ async def collections_public(
             total_pages=math.ceil(total / per_page) if total else 0,
         ),
     )
+
+
+@router.get("/public/search")
+async def collections_public_search(
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+    q: str = Query(min_length=1, max_length=256),
+    max_doc_hits: int = Query(default=3, ge=1, le=10),
+) -> DataResponse[list[PublicCollectionSearchResult]]:
+    """Search published public collections by title/slug and document content.
+
+    No authentication required. Results include collections matched by metadata
+    and collections where the query appears in document text, with short snippets.
+    """
+    results = await search_public_collections(db, existdb, q, max_doc_hits)
+    return DataResponse(data=results)
 
 
 # ── Authenticated CRUD ────────────────────────────────────────────────────────

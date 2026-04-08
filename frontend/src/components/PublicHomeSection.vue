@@ -111,6 +111,19 @@ onMounted(() => {
                 {{ new Date(col.published_at).toLocaleDateString() }}
               </span>
             </div>
+            <!-- Document snippets (only shown when search matched document content) -->
+            <ul v-if="col.doc_hits.length > 0" class="mt-3 space-y-1">
+              <li
+                v-for="hit in col.doc_hits"
+                :key="hit.filename"
+                class="rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700"
+              >
+                <span class="font-medium text-gray-500">{{ hit.filename }}</span>
+                <span class="mx-1 text-gray-300">—</span>
+                <span class="italic">…{{ hit.snippet }}…</span>
+              </li>
+            </ul>
+
             <div class="mt-4 flex gap-2">
               <router-link
                 :to="{ name: 'public-collection', params: { slug: col.slug } }"

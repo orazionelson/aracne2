@@ -12,6 +12,7 @@ ACL is enforced here, not in the router layer, so that any caller
 (router, future jobs, tests) gets consistent access control.
 """
 
+import asyncio
 import io
 import os
 import re
@@ -48,6 +49,8 @@ from app.schemas.collections import (
     DocumentMeta,
     PermissionEntry,
     PermissionGrant,
+    PublicCollectionSearchResult,
+    PublicDocHit,
     RejectAction,
     RespStmtItem,
     SearchHit,
@@ -992,6 +995,64 @@ async def search_in_collection(
         )
         for hit in root.findall("hit")
     ]
+
+
+async def search_public_collections(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    query: str,
+    max_doc_hits: int = 3,
+) -> list[PublicCollectionSearchResult]:
+    """Search across all published+public collections (metadata + document content).
+
+    Metadata match: query is a case-insensitive substring of the collection title or slug.
+    Content match: XQuery contains() across document text nodes.
+
+    Collections are fetched once from PostgreSQL; eXist-db queries run in parallel
+    via asyncio.gather.  Up to *max_doc_hits* snippet hits are returned per collection.
+    """
+    stmt = (
+        select(Collection)
+        .where(
+            Collection.status == CollectionStatus.published,
+            Collection.is_public.is_(True),
+        )
+        .order_by(Collection.published_at.desc())
+        .limit(200)
+    )
+    rows = list(await db.scalars(stmt))
+
+    async def _search_col(col: Collection) -> tuple[Collection, list[PublicDocHit]]:
+        try:
+            raw = await existdb.xquery(
+                "search/fulltext_collection.xq",
+                {
+                    "collection_path": existdb.col_path(col.slug),
+                    "query": query,
+                    "max_results": str(max_doc_hits),
+                },
+            )
+            root = _safe_xml.fromstring(raw)
+            return col, [
+                PublicDocHit(filename=h.get("filename", ""), snippet=h.get("snippet", ""))
+                for h in root.findall("hit")
+            ]
+        except Exception:
+            return col, []
+
+    pairs = await asyncio.gather(*[_search_col(c) for c in rows])
+    q_lower = query.lower()
+    results: list[PublicCollectionSearchResult] = []
+    for col, hits in pairs:
+        title_match = q_lower in col.title.lower() or q_lower in col.slug.lower()
+        if title_match or hits:
+            results.append(
+                PublicCollectionSearchResult(
+                    collection=CollectionResponse.model_validate(col),
+                    doc_hits=hits,
+                )
+            )
+    return results
 
 
 async def get_document_metadata(

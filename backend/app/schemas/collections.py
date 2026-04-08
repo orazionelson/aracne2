@@ -166,3 +166,14 @@ class ZipUploadResult(BaseModel):
     uploaded: int
     skipped: list[str]
     errors: list[ZipUploadError]
+
+
+class PublicDocHit(BaseModel):
+    filename: str
+    snippet: str
+
+
+class PublicCollectionSearchResult(BaseModel):
+    """One collection matched by a public full-text search, with optional doc snippets."""
+    collection: CollectionResponse
+    doc_hits: list[PublicDocHit]
