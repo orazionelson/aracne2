@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
+import { useViafAutocomplete } from "@/composables/useViafAutocomplete";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
@@ -33,6 +34,25 @@ const editPubYear = ref<number | null>(null);
 const editLicenseId = ref<string | null>(null);
 const editHasSingleAuthor = ref(false);
 const editAuthor = ref("");
+const viaf = useViafAutocomplete();
+const viafOpen = ref(false);
+
+function onAuthorInput(e: Event): void {
+  const val = (e.target as HTMLInputElement).value;
+  editAuthor.value = val;
+  viaf.search(val);
+  viafOpen.value = true;
+}
+
+function selectViafName(name: string): void {
+  editAuthor.value = name;
+  viaf.clear();
+  viafOpen.value = false;
+}
+
+function closeViafDropdown(): void {
+  setTimeout(() => { viafOpen.value = false; }, 150);
+}
 const editHasSingleSource = ref(false);
 const editMainSource = ref("");
 const editHasMsIdentifier = ref(false);
@@ -635,15 +655,38 @@ function statusClass(s: string): string {
                 />
               </button>
             </div>
-            <div v-if="editHasSingleAuthor" class="mt-2">
+            <div v-if="editHasSingleAuthor" class="relative mt-2">
               <label class="mb-1 block text-xs font-medium text-gray-600">
                 {{ t("collections.author_label") }}
               </label>
-              <input
-                v-model="editAuthor"
-                type="text"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-              />
+              <div class="relative">
+                <input
+                  :value="editAuthor"
+                  type="text"
+                  autocomplete="off"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  @input="onAuthorInput"
+                  @focus="viafOpen = true"
+                  @blur="closeViafDropdown"
+                />
+                <span
+                  v-if="viaf.isLoading.value"
+                  class="absolute right-2 top-1.5 text-xs text-gray-400"
+                >…</span>
+              </div>
+              <ul
+                v-if="viafOpen && viaf.results.value.length > 0"
+                class="absolute z-30 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+              >
+                <li
+                  v-for="name in viaf.results.value"
+                  :key="name"
+                  class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                  @mousedown.prevent="selectViafName(name)"
+                >
+                  {{ name }}
+                </li>
+              </ul>
             </div>
           </div>
           <!-- Single primary source -->
