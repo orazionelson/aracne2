@@ -88,6 +88,12 @@ export interface UseCodeMirrorOptions {
   readOnly?: boolean;
   /** Called whenever the editor content changes. */
   onChange?: (value: string) => void;
+  /**
+   * When true, the first and last lines of the document are made read-only.
+   * Changes that touch those lines are cancelled via beforeChange.
+   * A visual class `cm-locked-line` is applied for styling.
+   */
+  lockBoundaryLines?: boolean;
 }
 
 export function useCodeMirror(
@@ -208,6 +214,26 @@ export function useCodeMirror(
       instance.on('change', (cm) => {
         options.onChange!(cm.getValue());
       });
+    }
+
+    if (options.lockBoundaryLines) {
+      // Block any user change that touches line 0 or the last line.
+      // origin 'setValue' is allowed so programmatic content replacement works.
+      instance.on('beforeChange', (cm, change) => {
+        if (change.origin === 'setValue') return;
+        const last = cm.lastLine();
+        if (change.from.line === 0 || change.to.line >= last) {
+          change.cancel();
+        }
+      });
+
+      // Apply the visual lock class to line 0 and last line.
+      // Called once after initial content is set (or immediately if no content).
+      const markLockedLines = (cm: typeof instance) => {
+        cm.addLineClass(0, 'wrap', 'cm-locked-line');
+        cm.addLineClass(cm.lastLine(), 'wrap', 'cm-locked-line');
+      };
+      markLockedLines(instance);
     }
 
     editorInstance.value = instance;

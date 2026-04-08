@@ -70,6 +70,7 @@ const headerCm = useCodeMirror(headerEditorContainer, {
   get initialValue() { return headerInitialXml.value; },
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
+  lockBoundaryLines: true,
 });
 
 const bodyCm = useCodeMirror(bodyEditorContainer, {
@@ -467,3 +468,12 @@ async function runValidation(): Promise<void> {
     </div>
   </div>
 </template>
+
+<style>
+/* Lines protected by lockBoundaryLines — visually distinct, cursor indicates no-edit */
+.cm-locked-line {
+  background-color: #f3f4f6; /* gray-100 */
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+</style>
