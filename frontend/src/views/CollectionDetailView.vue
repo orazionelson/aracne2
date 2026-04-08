@@ -494,14 +494,19 @@ function resetSearch(): void {
 // ── Init ──────────────────────────────────────────────────────────────────────
 onMounted(async () => {
   try {
-    await Promise.all([
+    const tasks = [
       store.fetchCollection(slug),
       store.fetchDocuments(slug),
       schemaStore.fetchSchemas(),
-      store.fetchEditors(),
       licenseStore.fetchLicenses(),
       bodyTemplateStore.fetchTemplates(),
-    ]);
+    ];
+    // The editors list (GET /users) requires EditorInChief or above.
+    // Editors and Users must not call it — they cannot assign editors anyway.
+    if (auth.hasMinRole("EditorInChief")) {
+      tasks.push(store.fetchEditors());
+    }
+    await Promise.all(tasks);
   } catch {
     error.value = t("common.error");
   } finally {
