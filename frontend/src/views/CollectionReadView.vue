@@ -19,10 +19,10 @@ const evtSrc = `${EVT_BASE}/evt/${slug}/`;
     <!-- Minimal header -->
     <div class="flex flex-shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
       <RouterLink
-        :to="{ name: 'collection-detail', params: { slug } }"
+        to="/"
         class="text-sm text-gray-500 hover:text-gray-800"
       >
-        ← {{ slug }}
+        ← {{ t('nav.home') }}
       </RouterLink>
       <span class="text-gray-300">/</span>
       <span class="text-sm font-semibold text-gray-800">{{ t('evt.viewer_title') }}</span>
