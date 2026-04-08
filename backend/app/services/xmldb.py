@@ -37,6 +37,7 @@ from app.models.audit_log import AuditLog
 from app.models.collection import Collection, CollectionStatus
 from app.models.collection_permission import CollectionPermission
 from app.models.notification import Notification
+from app.models.role import Role, RoleName, UserRole
 from app.models.user import User
 from app.schemas.collections import (
     AssignAction,
@@ -192,6 +193,39 @@ def _notify(
     db.add(
         Notification(user_id=user_id, type=type_, title=title, body=body)
     )
+
+
+def _actor_label(actor: User) -> str:
+    """Return the human-readable name of an actor for notification messages."""
+    return actor.display_name or actor.username
+
+
+async def _notify_broadcast_eic(
+    db: AsyncSession,
+    actor: User,
+    type_: str,
+    title: str,
+    body: str | None = None,
+) -> None:
+    """Send a notification to every active EditorInChief and Admin, excluding the actor.
+
+    Used for events (e.g. collection submitted for review) that all senior
+    editors should be aware of regardless of who owns the collection.
+    """
+    stmt = (
+        select(User)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            Role.name.in_([RoleName.EditorInChief, RoleName.Admin]),
+            UserRole.revoked_at.is_(None),
+            User.is_active.is_(True),
+            User.id != actor.id,
+        )
+        .distinct()
+    )
+    for recipient in await db.scalars(stmt):
+        _notify(db, recipient.id, type_, title, body)
 
 
 # ── Collection CRUD ────────────────────────────────────────────────────────────
@@ -421,7 +455,7 @@ async def assign_collection(
             db,
             col.editor_id,
             "collection.unassigned",
-            f"Rimosso dall'assegnazione: {col.title}",
+            f"{_actor_label(actor)} ti ha rimosso dall'assegnazione: {col.title}",
             body.note,
         )
 
@@ -434,7 +468,7 @@ async def assign_collection(
         db,
         new_editor.id,
         "collection.assigned",
-        f"Nuova collezione assegnata: {col.title}",
+        f"{_actor_label(actor)} ti ha assegnato: {col.title}",
         body.note,
     )
     _audit(db, action, actor, col, {"editor": new_editor.username, "note": body.note})
@@ -461,15 +495,14 @@ async def submit_collection(
     col.status = CollectionStatus.review
     col.submitted_at = _now()
 
-    # Notify the collection owner (EiC/Admin who created it)
-    if col.owner_id:
-        _notify(
-            db,
-            col.owner_id,
-            "collection.submitted",
-            f"Collezione in revisione: {col.title}",
-            body.note,
-        )
+    # Broadcast to all active EditorInChief and Admin users (excluding the actor).
+    await _notify_broadcast_eic(
+        db,
+        actor,
+        "collection.submitted",
+        f"{_actor_label(actor)} ha inviato in validazione: {col.title}",
+        body.note,
+    )
     _audit(db, "collection.submitted", actor, col, {"note": body.note})
     await db.flush()
     logger.info("collection_submitted", slug=col.slug, editor=actor.username)
@@ -498,7 +531,7 @@ async def reject_collection(
             db,
             col.editor_id,
             "collection.rejected",
-            f"Revisione richiesta: {col.title}",
+            f"{_actor_label(actor)} ha rimandato in revisione: {col.title}",
             body.note,
         )
     _audit(db, "collection.rejected", actor, col, {"note": body.note})
@@ -529,7 +562,7 @@ async def publish_collection(
             db,
             col.editor_id,
             "collection.published",
-            f"Collezione pubblicata: {col.title}",
+            f"{_actor_label(actor)} ha pubblicato: {col.title}",
             body.note,
         )
     _audit(db, "collection.published", actor, col, {"note": body.note})
