@@ -55,12 +55,14 @@ async def get_evt_config(
     filenames = await existdb.list_collection(slug)
     filenames.sort()
     logger.info("evt_config_served", slug=slug, file_count=len(filenames))
+    # EVT 2 merges config.json directly into its defaults via angular.extend —
+    # it does NOT unwrap a top-level "EVT" key.  Properties must be at the root.
+    # dataUrl points to the first file; EVT 2 is designed for single-document editions.
+    first = f"data/{filenames[0]}" if filenames else ""
     return {
-        "EVT": {
-            "files": [f"data/{f}" for f in filenames],
-            "projectName": col.title,
-            "defaultEdition": "diplomatic",
-        }
+        "projectName": col.title,
+        "defaultEdition": "diplomatic",
+        "dataUrl": first,
     }
 
 
