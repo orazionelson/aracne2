@@ -198,7 +198,16 @@
     "objectdesc_form_question": "Vuoi specificare la forma della fonte originale della collezione?",
     "objectdesc_form_label": "Forma (objectDesc)",
     "body_template_label": "Template body per i nuovi documenti",
-    "body_template_none": "Nessun template (default)"
+    "body_template_none": "Nessun template (default)",
+    "validate_all": "Valida collezione",
+    "validate_all_running": "Validazione in corso... {n} / {total}",
+    "validate_all_done_ok": "Tutti i {total} documenti sono validi",
+    "validate_all_done_errors": "{errors} documenti su {total} hanno errori",
+    "validate_all_failed": "Validazione fallita: {msg}",
+    "validate_all_report": "Report validazione",
+    "validate_all_valid": "Valido",
+    "validate_all_errors": "{n} errori",
+    "validate_all_previous": "Run precedente:"
   },
   "documents": {
     "action_view": "visualizza",

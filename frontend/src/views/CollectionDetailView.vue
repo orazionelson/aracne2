@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useViafAutocomplete } from "@/composables/useViafAutocomplete";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
@@ -8,6 +8,7 @@ import { useCollectionStore, type ZipUploadResult, type DocumentMeta } from "@/s
 import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
+import { useCollectionValidationStore } from "@/stores/collection_validation";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -17,6 +18,20 @@ const store = useCollectionStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
+const validationStore = useCollectionValidationStore();
+
+// ── Validation report expand state ────────────────────────────────────────────
+const validationExpandedDoc = ref<string | null>(null);
+
+function toggleValidationDoc(filename: string): void {
+  validationExpandedDoc.value = validationExpandedDoc.value === filename ? null : filename;
+}
+
+async function handleValidateAll(): Promise<void> {
+  await validationStore.startRun(slug);
+}
+
+onUnmounted(() => { validationStore.reset(); });
 
 const slug = route.params.slug as string;
 const isLoading = ref(true);
@@ -505,6 +520,7 @@ onMounted(async () => {
     // Editors and Users must not call it — they cannot assign editors anyway.
     if (auth.hasMinRole("EditorInChief")) {
       tasks.push(store.fetchEditors());
+      tasks.push(validationStore.fetchLatest(slug));
     }
     await Promise.all(tasks);
   } catch {
@@ -1096,6 +1112,22 @@ function statusClass(s: string): string {
             {{ t("collections.documents") }}
             <span class="ml-1 font-normal text-gray-400">({{ store.documents.length }})</span>
           </h2>
+          <div class="flex gap-2">
+          <!-- Validate all — EiC+ only, collection must have a schema -->
+          <button
+            v-if="isEiC && store.current?.schema_id"
+            :disabled="validationStore.isStarting || validationStore.currentRun?.status === 'pending' || validationStore.currentRun?.status === 'running'"
+            class="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+            @click="handleValidateAll"
+          >
+            <span v-if="validationStore.currentRun?.status === 'running'">
+              {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+            </span>
+            <span v-else-if="validationStore.currentRun?.status === 'pending'">
+              {{ t("common.loading") }}
+            </span>
+            <span v-else>{{ t("collections.validate_all") }}</span>
+          </button>
           <div v-if="canWrite" class="flex gap-2">
             <!-- New document -->
             <button
@@ -1123,6 +1155,7 @@ function statusClass(s: string): string {
               {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
             </button>
           </div>
+          </div><!-- end outer flex gap-2 -->
 
           <!-- New document inline form -->
           <div
@@ -1371,6 +1404,120 @@ function statusClass(s: string): string {
             </div>
           </div>
         </template>
+      </section>
+
+      <!-- Validation report panel — EiC+ only, shown when a run exists -->
+      <section
+        v-if="isEiC && validationStore.currentRun"
+        class="rounded border border-violet-200 bg-violet-50 p-5"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-violet-800">
+            {{ t("collections.validate_all_report") }}
+          </h2>
+          <!-- Summary badge -->
+          <span
+            v-if="validationStore.currentRun.status === 'done'"
+            :class="[
+              'rounded px-2 py-0.5 text-xs font-medium',
+              validationStore.currentRun.error_count === 0
+                ? 'bg-green-100 text-green-700'
+                : 'bg-red-100 text-red-700',
+            ]"
+          >
+            {{
+              validationStore.currentRun.error_count === 0
+                ? t("collections.validate_all_done_ok", { total: validationStore.currentRun.doc_count })
+                : t("collections.validate_all_done_errors", {
+                    errors: validationStore.currentRun.error_count,
+                    total: validationStore.currentRun.doc_count,
+                  })
+            }}
+          </span>
+          <span
+            v-else-if="validationStore.currentRun.status === 'running'"
+            class="text-xs text-violet-600"
+          >
+            {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+          </span>
+          <span
+            v-else-if="validationStore.currentRun.status === 'failed'"
+            class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
+          >
+            {{ t("collections.validate_all_failed", { msg: validationStore.currentRun.error_message ?? '' }) }}
+          </span>
+        </div>
+
+        <!-- Progress bar while running -->
+        <div
+          v-if="validationStore.currentRun.status === 'running' && validationStore.currentRun.doc_count > 0"
+          class="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-violet-200"
+        >
+          <div
+            class="h-full rounded-full bg-violet-500 transition-all duration-500"
+            :style="{ width: `${(validationStore.currentRun.validated_count / validationStore.currentRun.doc_count) * 100}%` }"
+          />
+        </div>
+
+        <!-- Per-document results -->
+        <div
+          v-if="validationStore.currentRun.results?.documents?.length"
+          class="space-y-1"
+        >
+          <div
+            v-for="doc in validationStore.currentRun.results.documents"
+            :key="doc.filename"
+            class="rounded border border-violet-100 bg-white"
+          >
+            <button
+              class="flex w-full items-center justify-between px-3 py-2 text-left"
+              @click="toggleValidationDoc(doc.filename)"
+            >
+              <span class="font-mono text-sm text-gray-700">{{ doc.filename }}</span>
+              <span
+                :class="[
+                  'rounded px-2 py-0.5 text-xs font-medium',
+                  doc.valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
+                ]"
+              >
+                {{
+                  doc.valid
+                    ? t("collections.validate_all_valid")
+                    : t("collections.validate_all_errors", { n: doc.errors.length })
+                }}
+              </span>
+            </button>
+            <!-- Error list (expanded) -->
+            <div
+              v-if="!doc.valid && validationExpandedDoc === doc.filename"
+              class="border-t border-violet-100 px-3 pb-2"
+            >
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr
+                    v-for="(err, i) in doc.errors"
+                    :key="i"
+                    class="border-b border-gray-100 last:border-0"
+                  >
+                    <td class="w-20 whitespace-nowrap py-1 font-mono text-gray-400">
+                      {{ err.line }}:{{ err.col }}
+                    </td>
+                    <td class="py-1 text-red-700">
+                      {{ err.message }}
+                      <span v-if="err.path" class="ml-1 font-mono text-red-400">({{ err.path }})</span>
+                      <a
+                        :href="`https://www.google.com/search?q=${encodeURIComponent(err.message + (err.path ? ' ' + err.path : ''))}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="ml-2 whitespace-nowrap text-blue-500 underline hover:text-blue-700"
+                      >{{ t("documents.search_google") }}</a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </section>
     </template>
   </div>

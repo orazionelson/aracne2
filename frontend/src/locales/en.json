@@ -198,7 +198,16 @@
     "objectdesc_form_question": "Do you want to specify the physical form of the original source?",
     "objectdesc_form_label": "Form (objectDesc)",
     "body_template_label": "Body template for new documents",
-    "body_template_none": "No template (default)"
+    "body_template_none": "No template (default)",
+    "validate_all": "Validate collection",
+    "validate_all_running": "Validating... {n} / {total}",
+    "validate_all_done_ok": "All {total} documents are valid",
+    "validate_all_done_errors": "{errors} of {total} documents have errors",
+    "validate_all_failed": "Validation failed: {msg}",
+    "validate_all_report": "Validation report",
+    "validate_all_valid": "Valid",
+    "validate_all_errors": "{n} errors",
+    "validate_all_previous": "Previous run:"
   },
   "documents": {
     "action_view": "view",

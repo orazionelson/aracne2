@@ -36,7 +36,13 @@ from app.schemas.collections import (
     ZipUploadResult,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
+from app.schemas.collection_validation import CollectionValidationRunResponse
 from app.schemas.tei_schemas import ValidationResult
+from app.services.collection_validation import (
+    get_latest_validation_run,
+    get_validation_run,
+    start_validation_run,
+)
 from app.services.xmldb import (
     assign_collection,
     create_collection,
@@ -459,6 +465,55 @@ async def permission_revoke(
     """Revoke a user's explicit read access to a collection. EditorInChief+ only."""
     role: str = request.state.role
     await revoke_permission(db, collection_id, user_id, current_user, role)
+
+
+# ── Collection-wide validation ────────────────────────────────────────────────
+# NOTE: /validate-all/latest and /validate-all/{run_id} must be declared
+# before any route that could shadow them.
+
+@router.post("/{collection_id}/validate-all")
+async def collection_validate_all_start(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionValidationRunResponse]:
+    """Start an asynchronous full-collection validation run [EiC+].
+
+    Validates every document against the schema attached to the collection.
+    Returns immediately with the run record; poll the status endpoint to
+    track progress.
+    """
+    role: str = request.state.role
+    data = await start_validation_run(db, collection_id, current_user, role)
+    return DataResponse(data=data)
+
+
+@router.get("/{collection_id}/validate-all/latest")
+async def collection_validate_all_latest(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionValidationRunResponse | None]:
+    """Return the most recent validation run for the collection [EiC+]."""
+    role: str = request.state.role
+    data = await get_latest_validation_run(db, collection_id, current_user, role)
+    return DataResponse(data=data)
+
+
+@router.get("/{collection_id}/validate-all/{run_id}")
+async def collection_validate_all_run(
+    collection_id: str,
+    run_id: int,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionValidationRunResponse]:
+    """Return a specific validation run by ID [EiC+]."""
+    role: str = request.state.role
+    data = await get_validation_run(db, collection_id, run_id, current_user, role)
+    return DataResponse(data=data)
 
 
 # ── Document validation ───────────────────────────────────────────────────────
