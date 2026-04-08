@@ -122,6 +122,8 @@
     "description": "Description",
     "is_public": "Public",
     "public_badge": "public",
+    "evt_enabled_label": "Enable EVT viewer",
+    "evt_enabled_hint": "(single-document collections only)",
     "status": "Status",
     "editor_label": "Editor",
     "created_at": "Created",

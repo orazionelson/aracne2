@@ -133,7 +133,7 @@ onMounted(() => {
                 {{ t("public.browse") }}
               </router-link>
               <router-link
-                v-if="uiConfig.config.evt_enabled && col.doc_count === 1"
+                v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
                 :to="{ name: 'collection-read', params: { slug: col.slug } }"
                 class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
               >

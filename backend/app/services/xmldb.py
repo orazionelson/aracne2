@@ -407,6 +407,9 @@ async def update_collection(
                 raise NotFoundError(f"Body template {body.body_template_id} not found.")
         col.body_template_id = body.body_template_id
         changed["body_template_id"] = str(body.body_template_id) if body.body_template_id else None
+    if body.evt_enabled is not None and body.evt_enabled != col.evt_enabled:
+        col.evt_enabled = body.evt_enabled
+        changed["evt_enabled"] = body.evt_enabled
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

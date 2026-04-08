@@ -41,6 +41,7 @@ export interface Collection {
   // Body template applied to new documents
   body_template_id: string | null;
   doc_count: number;
+  evt_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

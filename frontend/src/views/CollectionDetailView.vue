@@ -73,6 +73,7 @@ const editing = ref(false);
 const editTitle = ref("");
 const editDesc = ref("");
 const editPublic = ref(false);
+const editEvtEnabled = ref(false);
 const editSchemaId = ref<string | null>(null);
 const editPublisher = ref("");
 const editPubPlace = ref("");
@@ -167,6 +168,7 @@ function startEdit(): void {
   editHasObjectDescForm.value = !!store.current.objectdesc_form;
   editObjectDescForm.value = store.current.objectdesc_form ?? "";
   editBodyTemplateId.value = store.current.body_template_id ?? null;
+  editEvtEnabled.value = store.current.evt_enabled;
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -195,6 +197,7 @@ async function submitEdit(): Promise<void> {
       msidentifier_idno: editHasMsIdentifier.value ? (editMsIdentifier.value.trim() || null) : null,
       objectdesc_form: editHasObjectDescForm.value ? (editObjectDescForm.value || null) : null,
       body_template_id: editBodyTemplateId.value,
+      evt_enabled: editEvtEnabled.value,
     });
     editing.value = false;
   } catch (err) {
@@ -220,7 +223,8 @@ const evtEnabled = computed(
     settingStore.getSetting("evt_enabled") === "true" &&
     store.current?.is_public === true &&
     store.current?.status === "published" &&
-    store.documents.length === 1,
+    store.documents.length === 1 &&
+    store.current?.evt_enabled === true,
 );
 const isAssignedEditor = computed(
   () => !!auth.user && auth.user.id === store.current?.editor_id,
@@ -658,6 +662,13 @@ function statusClass(s: string): string {
             <label for="edit-public" class="text-sm text-gray-700">
               {{ t("collections.is_public") }}
             </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="edit-evt-enabled" v-model="editEvtEnabled" type="checkbox" />
+            <label for="edit-evt-enabled" class="text-sm text-gray-700">
+              {{ t("collections.evt_enabled_label") }}
+            </label>
+            <span class="text-xs text-gray-400">{{ t("collections.evt_enabled_hint") }}</span>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-gray-600">

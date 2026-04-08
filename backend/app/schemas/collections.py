@@ -67,6 +67,8 @@ class CollectionUpdate(BaseModel):
     ] | None = None
     # Body template for new documents; present in payload means "set/clear"
     body_template_id: uuid.UUID | None = None
+    # Per-collection EVT viewer opt-in
+    evt_enabled: bool | None = None
 
     @field_validator("title")
     @classmethod
@@ -109,6 +111,7 @@ class CollectionResponse(BaseModel):
     objectdesc_form: str | None
     body_template_id: uuid.UUID | None
     doc_count: int
+    evt_enabled: bool
     created_at: datetime
     updated_at: datetime
 

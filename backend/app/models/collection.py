@@ -114,6 +114,12 @@ class Collection(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
+    # Per-collection EVT viewer opt-in. The global evt_enabled setting must also
+    # be true for the "View in EVT" button to appear.
+    evt_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="FALSE"
+    )
+
     # Body template applied to new documents created in this collection
     body_template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
