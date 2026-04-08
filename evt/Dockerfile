@@ -11,8 +11,11 @@ WORKDIR /build
 # Clone EVT 2 (latest stable branch)
 RUN git clone --depth 1 https://github.com/evt-project/evt-viewer.git .
 
-# Install dependencies (--legacy-peer-deps needed for AngularJS-era packages)
-RUN npm install --legacy-peer-deps
+# --ignore-scripts prevents phantomjs-prebuilt from downloading its binary
+# at install time (it is a test-only dependency, not needed for the build).
+# npm rebuild node-sass then compiles only the native bindings we do need.
+RUN npm install --legacy-peer-deps --ignore-scripts && \
+    npm rebuild node-sass
 
 # Build the distribution
 RUN npm run build
