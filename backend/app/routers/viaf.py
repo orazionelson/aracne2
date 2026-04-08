@@ -19,7 +19,7 @@ async def viaf_autosuggest(
     current_user: Annotated[User, Depends(require_role(min_role="User"))],
 ) -> DataResponse[list[str]]:
     """Proxy for VIAF AutoSuggest — returns a list of displayForm name strings."""
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         try:
             resp = await client.get(_VIAF_AUTOSUGGEST, params={"query": query})
             resp.raise_for_status()
