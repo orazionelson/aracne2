@@ -35,6 +35,11 @@ class CollectionCreate(BaseModel):
         return v
 
 
+class RespStmtItem(BaseModel):
+    resp: str
+    name: str
+
+
 class CollectionUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
@@ -47,9 +52,8 @@ class CollectionUpdate(BaseModel):
     pub_place: str | None = None
     pub_year: int | None = None
     license_id: uuid.UUID | None = None
-    # TEI respStmt fields
-    resp: str | None = None
-    resp_name: str | None = None
+    # TEI respStmt — array of responsibility statements; None means "leave unchanged"
+    resp_stmts: list[RespStmtItem] | None = None
 
     @field_validator("title")
     @classmethod
@@ -85,8 +89,7 @@ class CollectionResponse(BaseModel):
     pub_year: int | None
     license_id: uuid.UUID | None
     # TEI respStmt
-    resp: str | None
-    resp_name: str | None
+    resp_stmts: list[RespStmtItem] | None
     created_at: datetime
     updated_at: datetime
 

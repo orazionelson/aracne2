@@ -29,17 +29,38 @@ const editPublisher = ref("");
 const editPubPlace = ref("");
 const editPubYear = ref<number | null>(null);
 const editLicenseId = ref<string | null>(null);
-const editResp = ref("");
-const editRespName = ref("");
-// autocomplete state for resp_name
-const respNameDropdownOpen = ref(false);
-const filteredRespNames = computed(() => {
-  const q = editRespName.value.toLowerCase();
-  return store.editors.filter((e) => {
-    const label = (e.display_name ?? e.username).toLowerCase();
-    return !q || label.includes(q);
-  });
-});
+const editRespStmts = ref<{ resp: string; name: string }[]>([]);
+// per-row autocomplete open state
+const respNameOpen = ref<boolean[]>([]);
+
+function filteredRespNamesFor(i: number): { id: string; label: string }[] {
+  const q = (editRespStmts.value[i]?.name ?? "").toLowerCase();
+  return store.editors
+    .filter((e) => {
+      const label = (e.display_name ?? e.username).toLowerCase();
+      return !q || label.includes(q);
+    })
+    .map((e) => ({ id: e.id, label: e.display_name ?? e.username }));
+}
+
+function addRespStmt(): void {
+  editRespStmts.value.push({ resp: "", name: "" });
+  respNameOpen.value.push(false);
+}
+
+function removeRespStmt(i: number): void {
+  editRespStmts.value.splice(i, 1);
+  respNameOpen.value.splice(i, 1);
+}
+
+function closeRespNameDropdown(i: number): void {
+  setTimeout(() => { respNameOpen.value[i] = false; }, 150);
+}
+
+function selectRespName(i: number, label: string): void {
+  editRespStmts.value[i].name = label;
+  respNameOpen.value[i] = false;
+}
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
 
@@ -53,8 +74,10 @@ function startEdit(): void {
   editPubPlace.value = store.current.pub_place ?? "";
   editPubYear.value = store.current.pub_year ?? null;
   editLicenseId.value = store.current.license_id ?? null;
-  editResp.value = store.current.resp ?? "";
-  editRespName.value = store.current.resp_name ?? "";
+  editRespStmts.value = store.current.resp_stmts
+    ? store.current.resp_stmts.map((r) => ({ ...r }))
+    : [];
+  respNameOpen.value = editRespStmts.value.map(() => false);
   editing.value = true;
 }
 
@@ -71,8 +94,9 @@ async function submitEdit(): Promise<void> {
       pub_place: editPubPlace.value.trim() || null,
       pub_year: editPubYear.value,
       license_id: editLicenseId.value,
-      resp: editResp.value.trim() || null,
-      resp_name: editRespName.value.trim() || null,
+      resp_stmts: editRespStmts.value.length > 0
+        ? editRespStmts.value.filter((r) => r.resp.trim() || r.name.trim())
+        : null,
     });
     editing.value = false;
   } catch (err) {
@@ -584,56 +608,76 @@ function statusClass(s: string): string {
               </div>
             </div>
           </div>
-          <!-- respStmt -->
+          <!-- respStmt — one row per responsible party -->
           <div class="border-t border-gray-200 pt-3">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              respStmt
-            </p>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">respStmt</p>
+              <button
+                type="button"
+                class="text-xs text-indigo-600 hover:text-indigo-800"
+                @click="addRespStmt"
+              >
+                + {{ t("collections.resp_stmts_add") }}
+              </button>
+            </div>
+            <datalist id="resp-datalist">
+              <option value="transcription by" />
+              <option value="edited by" />
+              <option value="mark-up by" />
+              <option value="main editor" />
+            </datalist>
+            <div
+              v-for="(row, i) in editRespStmts"
+              :key="i"
+              class="mb-2 grid grid-cols-2 gap-3 rounded border border-gray-100 bg-white p-2"
+            >
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-600">
                   {{ t("collections.resp_label") }}
                 </label>
                 <input
-                  v-model="editResp"
+                  v-model="row.resp"
                   type="text"
                   list="resp-datalist"
                   autocomplete="off"
                   class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
-                <datalist id="resp-datalist">
-                  <option value="transcription by" />
-                  <option value="edited by" />
-                  <option value="mark-up by" />
-                  <option value="main editor" />
-                </datalist>
               </div>
               <div class="relative">
                 <label class="mb-1 block text-xs font-medium text-gray-600">
                   {{ t("collections.resp_name_label") }}
                 </label>
                 <input
-                  v-model="editRespName"
+                  v-model="row.name"
                   type="text"
                   autocomplete="off"
                   class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-                  @focus="respNameDropdownOpen = true"
-                  @blur="() => { setTimeout(() => { respNameDropdownOpen = false }, 150) }"
-                  @input="respNameDropdownOpen = true"
+                  @focus="respNameOpen[i] = true"
+                  @blur="closeRespNameDropdown(i)"
+                  @input="respNameOpen[i] = true"
                 />
                 <ul
-                  v-if="respNameDropdownOpen && filteredRespNames.length > 0"
+                  v-if="respNameOpen[i] && filteredRespNamesFor(i).length > 0"
                   class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto"
                 >
                   <li
-                    v-for="e in filteredRespNames"
-                    :key="e.id"
+                    v-for="opt in filteredRespNamesFor(i)"
+                    :key="opt.id"
                     class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
-                    @mousedown.prevent="editRespName = e.display_name ?? e.username; respNameDropdownOpen = false"
+                    @mousedown.prevent="selectRespName(i, opt.label)"
                   >
-                    {{ e.display_name ?? e.username }}
+                    {{ opt.label }}
                   </li>
                 </ul>
+              </div>
+              <div class="col-span-2 flex justify-end">
+                <button
+                  type="button"
+                  class="text-xs text-red-500 hover:text-red-700"
+                  @click="removeRespStmt(i)"
+                >
+                  {{ t("collections.resp_stmts_remove") }}
+                </button>
               </div>
             </div>
           </div>

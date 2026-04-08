@@ -1,10 +1,11 @@
 import enum
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
@@ -91,9 +92,10 @@ class Collection(Base):
         nullable=True,
         default=None,
     )
-    # TEI respStmt fields
-    resp: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
-    resp_name: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
+    # TEI respStmt — array of {resp, name} objects stored as JSONB
+    resp_stmts: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]

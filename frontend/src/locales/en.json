@@ -186,7 +186,9 @@
     "availability_label": "Availability (license)",
     "no_license": "No license",
     "resp_label": "Responsibility (resp)",
-    "resp_name_label": "Name (respStmt)"
+    "resp_name_label": "Name (respStmt)",
+    "resp_stmts_add": "Add responsible party",
+    "resp_stmts_remove": "Remove"
   },
   "documents": {
     "action_view": "view",
