@@ -13,7 +13,7 @@
  *   display/autorefresh, scroll/annotatescrollbar, comment/comment
  */
 
-import { ref, watch, onMounted, onBeforeUnmount, type Ref } from 'vue';
+import { ref, watch, onBeforeUnmount, type Ref } from 'vue';
 import CodeMirror, { type Editor } from 'codemirror';
 import type { CM5Schema } from '@/utils/teiSchema';
 
@@ -142,14 +142,12 @@ export function useCodeMirror(
     });
   }
 
-  onMounted(() => {
-    if (!containerRef.value) return;
-
+  function initializeEditor(el: HTMLElement): void {
     const hintOptions = options.schema
       ? { schemaInfo: options.schema, completeSingle: false }
       : undefined;
 
-    const instance = CodeMirror(containerRef.value, {
+    const instance = CodeMirror(el, {
       mode: 'application/xml',
       lineNumbers: true,
       lineWrapping: true,
@@ -240,12 +238,24 @@ export function useCodeMirror(
         editorInstance.value.setOption('extraKeys', current);
       },
     );
-  });
+  }
+
+  // Watch the container ref with flush:'post' so CM5 initialises the moment
+  // the element is actually inserted into the DOM (handles both the always-visible
+  // case and the v-if case where the element appears later).
+  watch(
+    containerRef,
+    (el) => {
+      if (el && !editorInstance.value) {
+        initializeEditor(el);
+      }
+    },
+    { flush: 'post' },
+  );
 
   onBeforeUnmount(() => {
     // CM5 does not have a formal destroy — just null the ref.
     // The DOM node is removed by Vue automatically.
-    // ResizeObserver is garbage-collected with the element; disconnect for hygiene.
     editorInstance.value = null;
   });
 
