@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -25,8 +25,6 @@ const splitMode = computed(() => settingStore.getSetting('document_editor_mode')
 // ── State ──────────────────────────────────────────────────────────────────────
 const isLoading = ref(true);   // true until XML + schema are both ready
 const isSchemaLoading = ref(true);
-// XML to pass as initialValue to CM5 — set once, before the editor mounts.
-const initialXml = ref('');
 const isSaving = ref(false);
 const isValidating = ref(false);
 const error = ref<string | null>(null);
@@ -43,23 +41,62 @@ const activeEditorTab = ref<'header' | 'body'>('header');
 const outerBefore = ref('');
 const outerBetween = ref(''); // whitespace/elements between </teiHeader> and <text>
 const outerAfter = ref('');
-// Drafts for each tab (updated on every tab switch and on save)
-const headerXmlDraft = ref('');
-const bodyXmlDraft = ref('');
 // False when the document lacks <teiHeader>/<text> — falls back to single editor
 const canSplit = ref(true);
 
-// ── Editor ─────────────────────────────────────────────────────────────────────
+// ── Editor containers ──────────────────────────────────────────────────────────
+// Single-mode (non-split or split-fallback)
 const editorContainer = ref<HTMLElement | null>(null);
+// Split-mode — two independent CM5 instances, toggled with v-show
+const headerEditorContainer = ref<HTMLElement | null>(null);
+const bodyEditorContainer = ref<HTMLElement | null>(null);
 
-const { getValue, setValue, toggleFullscreen, prettyPrint, isFullscreen } = useCodeMirror(
-  editorContainer,
-  {
-    get initialValue() { return initialXml.value; },
-    get schema() { return schema.value; },
-    onChange: () => { saved.value = false; },
-  },
-);
+// ── Initial XML values (set before isLoading → false so CM5 gets them at init) ─
+const initialXml = ref('');       // single mode
+const headerInitialXml = ref(''); // split — teiHeader
+const bodyInitialXml = ref('');   // split — text
+
+// ── CM5 instances ──────────────────────────────────────────────────────────────
+// Each instance only initialises if its container ref ever becomes non-null
+// (the watch in useCodeMirror fires only when the element appears in the DOM).
+
+const singleCm = useCodeMirror(editorContainer, {
+  get initialValue() { return initialXml.value; },
+  get schema() { return schema.value; },
+  onChange: () => { saved.value = false; },
+});
+
+const headerCm = useCodeMirror(headerEditorContainer, {
+  get initialValue() { return headerInitialXml.value; },
+  get schema() { return schema.value; },
+  onChange: () => { saved.value = false; },
+});
+
+const bodyCm = useCodeMirror(bodyEditorContainer, {
+  get initialValue() { return bodyInitialXml.value; },
+  get schema() { return schema.value; },
+  onChange: () => { saved.value = false; },
+});
+
+// ── Delegate toolbar actions to the active editor ──────────────────────────────
+const isFullscreen = computed(() => {
+  if (!splitMode.value || !canSplit.value) return singleCm.isFullscreen.value;
+  return activeEditorTab.value === 'header'
+    ? headerCm.isFullscreen.value
+    : bodyCm.isFullscreen.value;
+});
+
+function toggleFullscreen(): void {
+  if (!splitMode.value || !canSplit.value) { singleCm.toggleFullscreen(); return; }
+  if (activeEditorTab.value === 'header') headerCm.toggleFullscreen();
+  else bodyCm.toggleFullscreen();
+}
+
+function prettyPrint(): void {
+  if (!splitMode.value || !canSplit.value) { singleCm.prettyPrint(); return; }
+  if (activeEditorTab.value === 'header') headerCm.prettyPrint();
+  else bodyCm.prettyPrint();
+}
 
 // ── XML split utilities ────────────────────────────────────────────────────────
 
@@ -71,7 +108,6 @@ function findBlock(xml: string, tagName: string): { start: number; end: number }
   const openTag = `<${tagName}`;
   const closeTag = `</${tagName}>`;
 
-  // Find the first occurrence of <tagName followed by whitespace, > or /
   let firstOpen = -1;
   for (let i = 0; i <= xml.length - openTag.length; i++) {
     if (xml.startsWith(openTag, i)) {
@@ -152,29 +188,22 @@ async function loadCm5Schema(schemaId: string | null): Promise<CM5Schema | undef
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────────
+// No content swapping needed — each tab has its own CM5 instance.
+// We only need to refresh the newly visible instance so CM5 re-measures
+// the container (was display:none → visible).
 function switchTab(tab: 'header' | 'body'): void {
   if (tab === activeEditorTab.value) return;
-  const current = getValue();
-  if (tab === 'body') {
-    headerXmlDraft.value = current;
-    setValue(bodyXmlDraft.value);
-  } else {
-    bodyXmlDraft.value = current;
-    setValue(headerXmlDraft.value);
-  }
   activeEditorTab.value = tab;
-  saved.value = false;
+  nextTick(() => {
+    if (tab === 'header') headerCm.refresh();
+    else bodyCm.refresh();
+  });
 }
 
 // ── Get full XML value (handles both modes) ────────────────────────────────────
 function getFullValue(): string {
-  if (!splitMode.value || !canSplit.value) return getValue();
-  // Flush the active tab into the correct draft slot before reassembling
-  if (activeEditorTab.value === 'header') {
-    return reassembleXml(getValue(), bodyXmlDraft.value);
-  } else {
-    return reassembleXml(headerXmlDraft.value, getValue());
-  }
+  if (!splitMode.value || !canSplit.value) return singleCm.getValue();
+  return reassembleXml(headerCm.getValue(), bodyCm.getValue());
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
@@ -193,16 +222,15 @@ onMounted(async () => {
     if (splitMode.value) {
       const parts = splitXml(xml);
       if (parts) {
-        headerXmlDraft.value = parts.header;
-        bodyXmlDraft.value   = parts.body;
-        outerBefore.value    = parts.before;
-        outerBetween.value   = parts.between;
-        outerAfter.value     = parts.after;
+        headerInitialXml.value = parts.header;
+        bodyInitialXml.value   = parts.body;
+        outerBefore.value      = parts.before;
+        outerBetween.value     = parts.between;
+        outerAfter.value       = parts.after;
         canSplit.value = true;
-        initialXml.value = parts.header;
       } else {
         canSplit.value = false;
-        initialXml.value = xml;
+        initialXml.value = xml; // fallback to single editor
       }
     } else {
       initialXml.value = xml;
@@ -222,9 +250,9 @@ onMounted(async () => {
 
   schema.value = await loadCm5Schema(schemaId);
   isSchemaLoading.value = false;
-  // isLoading = false triggers v-if on the CM5 container. The container
-  // mounts with initialXml already set, so CM5 gets the content at init
-  // time on a visible, properly sized element — no setValue after mount needed.
+  // isLoading = false triggers v-if on the editor wrappers. The containers
+  // mount with the initial XML already set, so CM5 gets the content at init
+  // time on a visible, properly sized element.
   isLoading.value = false;
 });
 
@@ -390,15 +418,30 @@ async function runValidation(): Promise<void> {
     <p v-if="isLoading" class="text-sm text-gray-500">{{ t('common.loading') }}</p>
     <p v-else-if="error" class="text-sm text-red-600">{{ error }}</p>
 
-    <!-- CodeMirror container (single instance, content swapped on tab switch) -->
-    <!-- CM5 mounts with v-if so the container is already visible and has real
-         dimensions when CodeMirror initialises. initialXml is set before
-         isLoading becomes false, so CM5 receives the content at init time. -->
+    <!-- Single-mode editor (non-split or split-fallback) -->
+    <!-- v-if ensures the container has real dimensions when CM5 initialises. -->
     <div
-      v-if="!isLoading && !error"
+      v-if="(!splitMode || !canSplit) && !isLoading && !error"
       ref="editorContainer"
       class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
     />
+
+    <!-- Split-mode editors: two independent CM5 instances, one per tab.      -->
+    <!-- v-show (not v-if) keeps both in the DOM; switching tabs only toggles -->
+    <!-- display. CM5's autoRefresh addon re-measures on visibility change.   -->
+    <!-- refresh() is also called explicitly in switchTab() via nextTick.     -->
+    <template v-if="splitMode && canSplit && !isLoading && !error">
+      <div
+        v-show="activeEditorTab === 'header'"
+        ref="headerEditorContainer"
+        class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
+      />
+      <div
+        v-show="activeEditorTab === 'body'"
+        ref="bodyEditorContainer"
+        class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
+      />
+    </template>
 
     <!-- Validation errors panel -->
     <div
