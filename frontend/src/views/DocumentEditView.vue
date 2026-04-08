@@ -339,12 +339,14 @@ function openAiPanel(): void {
 function handleAiApply(response: string): void {
   const cm = activeEditor.value;
   if (!cm) return;
+  // Strip markdown code fences that some models add despite instructions.
+  const clean = response.replace(/^```(?:xml)?\r?\n?/, '').replace(/\r?\n?```$/, '').trim();
   // If there is an active selection, replace only that. Otherwise replace the
   // full document content (the AI received the whole document as context).
   if (cm.getSelection()) {
-    cm.replaceSelection(response);
+    cm.replaceSelection(clean);
   } else {
-    cm.setValue(response);
+    cm.setValue(clean);
   }
   showAiPanel.value = false;
 }

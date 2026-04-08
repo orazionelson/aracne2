@@ -173,7 +173,8 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
         (
             "You are a TEI P5 XML expert. Review the following XML selection "
             "and suggest improvements to the TEI encoding. "
-            "Return only the corrected XML, without explanations.\n\n"
+            "Return ONLY the corrected XML, with no explanations, no markdown, "
+            "no code fences, no ``` delimiters — raw XML only.\n\n"
             "File: {filename}\n"
             "Collection: {collection_slug}\n\n"
             "Selection:\n{selection}"
