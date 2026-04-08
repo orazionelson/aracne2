@@ -611,6 +611,15 @@ async def list_documents(
     return [DocumentInfo(filename=f) for f in filenames]
 
 
+async def _sync_doc_count(
+    db: AsyncSession, existdb: ExistDBClient, col: Collection
+) -> None:
+    """Refresh col.doc_count from eXist-db and flush the change (no commit)."""
+    filenames = await existdb.list_collection(col.slug)
+    col.doc_count = len(filenames)
+    await db.flush()
+
+
 async def upload_document(
     db: AsyncSession,
     existdb: ExistDBClient,
@@ -636,6 +645,7 @@ async def upload_document(
         raise DomainValidationError("INVALID_XML", f"Document is not valid XML: {exc}") from exc
 
     await existdb.put_document(col.slug, filename, xml_bytes)
+    await _sync_doc_count(db, existdb, col)
     _audit(
         db,
         "document.uploaded",
@@ -719,6 +729,7 @@ async def delete_document(
     _assert_write_access(col, actor, role)
     _validate_filename(filename)
     await existdb.delete_document(col.slug, filename)
+    await _sync_doc_count(db, existdb, col)
     _audit(db, "document.deleted", actor, col, {"filename": filename})
     logger.info("document_deleted", slug=col.slug, filename=filename, actor=actor.username)
 
@@ -813,6 +824,7 @@ async def upload_zip_batch(
             await existdb.put_document(col.slug, basename, xml_bytes)
             uploaded += 1
 
+    await _sync_doc_count(db, existdb, col)
     _audit(
         db,
         "document.zip_uploaded",

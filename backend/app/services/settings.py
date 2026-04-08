@@ -84,6 +84,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     keys = {
         "platform_name", "platform_logo_url", "navbar_bg_color",
         "public_home_enabled", "home_show_collections", "home_show_search",
+        "evt_enabled",
     }
     rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
     values = {r.key: r.value for r in rows}
@@ -94,6 +95,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         public_home_enabled=values.get("public_home_enabled", "false") == "true",
         home_show_collections=values.get("home_show_collections", "true") == "true",
         home_show_search=values.get("home_show_search", "true") == "true",
+        evt_enabled=values.get("evt_enabled", "false") == "true",
     )
 
 

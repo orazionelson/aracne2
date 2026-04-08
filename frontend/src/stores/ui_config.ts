@@ -9,6 +9,7 @@ export interface UiConfig {
   public_home_enabled: boolean;
   home_show_collections: boolean;
   home_show_search: boolean;
+  evt_enabled: boolean;
 }
 
 const DEFAULTS: UiConfig = {
@@ -18,6 +19,7 @@ const DEFAULTS: UiConfig = {
   public_home_enabled: false,
   home_show_collections: true,
   home_show_search: true,
+  evt_enabled: false,
 };
 
 export const useUiConfigStore = defineStore("uiConfig", () => {

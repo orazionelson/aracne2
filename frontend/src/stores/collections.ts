@@ -40,6 +40,7 @@ export interface Collection {
   objectdesc_form: string | null;
   // Body template applied to new documents
   body_template_id: string | null;
+  doc_count: number;
   created_at: string;
   updated_at: string;
 }

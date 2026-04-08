@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, SmallInteger, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -108,6 +108,12 @@ class Collection(Base):
     )
     # Physical form of the source — maps to <msDesc><physDesc><objectDesc form="...">
     objectdesc_form: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    # Denormalized count of XML documents stored in eXist-db for this collection.
+    # Updated after every document upload, delete, or ZIP batch operation.
+    doc_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
     # Body template applied to new documents created in this collection
     body_template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

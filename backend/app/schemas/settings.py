@@ -20,6 +20,7 @@ class UiConfigResponse(BaseModel):
     public_home_enabled: bool
     home_show_collections: bool
     home_show_search: bool
+    evt_enabled: bool
 
 
 class LogoUploadResponse(BaseModel):

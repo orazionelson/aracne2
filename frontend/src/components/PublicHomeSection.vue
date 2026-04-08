@@ -98,11 +98,7 @@ onMounted(() => {
             :key="col.id"
             class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
           >
-            <router-link :to="{ name: 'public-collection', params: { slug: col.slug } }">
-              <h2 class="text-lg font-semibold text-gray-900 hover:text-indigo-700">
-                {{ col.title }}
-              </h2>
-            </router-link>
+            <h2 class="text-lg font-semibold text-gray-900">{{ col.title }}</h2>
             <p v-if="col.description" class="mt-1 text-sm text-gray-500 line-clamp-2">
               {{ col.description }}
             </p>
@@ -114,6 +110,21 @@ onMounted(() => {
                 {{ t("public.published") }}
                 {{ new Date(col.published_at).toLocaleDateString() }}
               </span>
+            </div>
+            <div class="mt-4 flex gap-2">
+              <router-link
+                :to="{ name: 'public-collection', params: { slug: col.slug } }"
+                class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                {{ t("public.browse") }}
+              </router-link>
+              <router-link
+                v-if="uiConfig.config.evt_enabled && col.doc_count === 1"
+                :to="{ name: 'collection-read', params: { slug: col.slug } }"
+                class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+              >
+                {{ t("public.view_in_evt") }}
+              </router-link>
             </div>
           </li>
         </ul>

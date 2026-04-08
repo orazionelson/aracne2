@@ -355,7 +355,9 @@
   "public": {
     "search_placeholder": "Search collections...",
     "no_collections": "No public collections available.",
-    "published": "Published"
+    "published": "Published",
+    "browse": "Browse",
+    "view_in_evt": "View in EVT"
   },
   "errors": {
     "not_found": "404 — Page not found"

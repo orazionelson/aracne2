@@ -108,6 +108,7 @@ class CollectionResponse(BaseModel):
     msidentifier_idno: str | None
     objectdesc_form: str | None
     body_template_id: uuid.UUID | None
+    doc_count: int
     created_at: datetime
     updated_at: datetime
 
