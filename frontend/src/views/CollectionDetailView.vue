@@ -597,52 +597,34 @@ function statusClass(s: string): string {
     <template v-else-if="store.current">
       <!-- Collection header -->
       <div class="mb-6">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="flex items-center gap-3">
-              <h1 class="text-2xl font-bold text-gray-900">{{ store.current.title }}</h1>
-              <span
-                class="rounded px-2 py-0.5 text-xs font-semibold"
-                :class="statusClass(store.current.status)"
-              >
-                {{ t(`collections.status_${store.current.status}`) }}
-              </span>
-              <span v-if="store.current.is_public" class="text-xs text-gray-400">
-                {{ t("collections.public_badge") }}
-              </span>
-            </div>
-            <p class="mt-1 font-mono text-sm text-gray-500">{{ store.current.slug }}</p>
-            <p v-if="store.current.description" class="mt-2 text-sm text-gray-700">
-              {{ store.current.description }}
-            </p>
-            <p class="mt-1 text-xs text-gray-400">
-              {{ t("collections.editor_label") }}:
-              {{
-                (() => {
-                  const ed = store.editors.find((e) => e.id === store.current!.editor_id);
-                  return ed
-                    ? (ed.display_name ?? ed.username)
-                    : (store.current.editor_id ? store.current.editor_id : t("collections.unassigned"));
-                })()
-              }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <RouterLink
-              v-if="evtEnabled"
-              :to="{ name: 'collection-read', params: { slug } }"
-              class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+        <div>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-gray-900">{{ store.current.title }}</h1>
+            <span
+              class="rounded px-2 py-0.5 text-xs font-semibold"
+              :class="statusClass(store.current.status)"
             >
-              {{ t("evt.read_button") }}
-            </RouterLink>
-            <button
-              v-if="isEiC && !editing"
-              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
-              @click="startEdit"
-            >
-              {{ t("collections.edit") }}
-            </button>
+              {{ t(`collections.status_${store.current.status}`) }}
+            </span>
+            <span v-if="store.current.is_public" class="text-xs text-gray-400">
+              {{ t("collections.public_badge") }}
+            </span>
           </div>
+          <p class="mt-1 font-mono text-sm text-gray-500">{{ store.current.slug }}</p>
+          <p v-if="store.current.description" class="mt-2 text-sm text-gray-700">
+            {{ store.current.description }}
+          </p>
+          <p class="mt-1 text-xs text-gray-400">
+            {{ t("collections.editor_label") }}:
+            {{
+              (() => {
+                const ed = store.editors.find((e) => e.id === store.current!.editor_id);
+                return ed
+                  ? (ed.display_name ?? ed.username)
+                  : (store.current.editor_id ? store.current.editor_id : t("collections.unassigned"));
+              })()
+            }}
+          </p>
         </div>
       </div>
 
@@ -1002,6 +984,24 @@ function statusClass(s: string): string {
           </div>
         </form>
       </section>
+
+      <!-- Action buttons (EVT viewer + Edit) -->
+      <div v-if="evtEnabled || (isEiC && !editing)" class="mb-4 flex gap-2">
+        <RouterLink
+          v-if="evtEnabled"
+          :to="{ name: 'collection-read', params: { slug } }"
+          class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+        >
+          {{ t("evt.read_button") }}
+        </RouterLink>
+        <button
+          v-if="isEiC && !editing"
+          class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          @click="startEdit"
+        >
+          {{ t("collections.edit") }}
+        </button>
+      </div>
 
       <!-- Workflow section -->
       <section class="mb-6 rounded border border-gray-200 p-5">
