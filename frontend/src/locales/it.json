@@ -274,6 +274,14 @@
     "appearance_logo_save_url": "Salva URL",
     "appearance_color_title": "Colore barra di navigazione",
     "appearance_color_preview": "Anteprima",
+    "tab_homepage": "Homepage",
+    "homepage_title": "Homepage pubblica",
+    "homepage_public_home_enabled": "Abilita homepage pubblica",
+    "homepage_public_home_enabled_hint": "I visitatori non autenticati possono accedere alla homepage pubblica",
+    "homepage_show_collections": "Mostra lista collezioni",
+    "homepage_show_collections_hint": "Mostra le collezioni pubblicate nella homepage pubblica",
+    "homepage_show_search": "Mostra barra di ricerca",
+    "homepage_show_search_hint": "Permetti ai visitatori di cercare le collezioni per titolo",
     "key": "Chiave",
     "value": "Valore",
     "type": "Tipo",
@@ -311,6 +319,11 @@
     "save": "Salva",
     "cancel": "Annulla",
     "delete": "Elimina"
+  },
+  "public": {
+    "search_placeholder": "Cerca collezioni...",
+    "no_collections": "Nessuna collezione pubblica disponibile.",
+    "published": "Pubblicata"
   },
   "errors": {
     "not_found": "404 — Pagina non trovata"

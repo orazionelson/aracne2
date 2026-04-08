@@ -16,7 +16,7 @@ const bodyTemplateStore = useBodyTemplateStore();
 const uiConfigStore = useUiConfigStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance" | "homepage">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -402,6 +402,29 @@ async function selectNavbarColor(color: string): Promise<void> {
   }
 }
 
+// ── Homepage ──────────────────────────────────────────────────────────────────
+
+const publicHomeEnabled = computed(
+  () => settingStore.getSetting("public_home_enabled") === "true",
+);
+const homeShowCollections = computed(
+  () => settingStore.getSetting("home_show_collections") === "true",
+);
+const homeShowSearch = computed(
+  () => settingStore.getSetting("home_show_search") === "true",
+);
+const togglingHomeSetting = ref<Record<string, boolean>>({});
+
+async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
+  togglingHomeSetting.value[key] = true;
+  try {
+    await settingStore.updateSetting(key, current ? "false" : "true");
+    await uiConfigStore.fetchConfig();
+  } finally {
+    togglingHomeSetting.value[key] = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates()]);
   initAppearanceDraft();
@@ -466,6 +489,17 @@ onMounted(async () => {
         @click="activeTab = 'appearance'; initAppearanceDraft()"
       >
         {{ t("settings.tab_appearance") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'homepage'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'homepage'"
+      >
+        {{ t("settings.tab_homepage") }}
       </button>
     </div>
 
@@ -932,6 +966,82 @@ onMounted(async () => {
               </button>
             </div>
           </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Homepage tab ── -->
+    <template v-if="activeTab === 'homepage'">
+      <h1 class="mb-6 text-2xl font-bold">{{ t("settings.homepage_title") }}</h1>
+
+      <div class="space-y-4">
+        <!-- public_home_enabled -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_public_home_enabled") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_public_home_enabled_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['public_home_enabled']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="publicHomeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('public_home_enabled', publicHomeEnabled)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="publicHomeEnabled ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <!-- home_show_collections -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_show_collections") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_show_collections_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['home_show_collections']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="homeShowCollections ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('home_show_collections', homeShowCollections)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="homeShowCollections ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <!-- home_show_search -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_show_search") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_show_search_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['home_show_search']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="homeShowSearch ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('home_show_search', homeShowSearch)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="homeShowSearch ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
         </div>
       </div>
     </template>

@@ -58,13 +58,19 @@ def get_logo_path() -> Path | None:
 
 async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     """Return the UI configuration settings that the frontend needs at boot (no auth)."""
-    keys = {"platform_name", "platform_logo_url", "navbar_bg_color"}
+    keys = {
+        "platform_name", "platform_logo_url", "navbar_bg_color",
+        "public_home_enabled", "home_show_collections", "home_show_search",
+    }
     rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
     values = {r.key: r.value for r in rows}
     return UiConfigResponse(
         platform_name=values.get("platform_name", "Aracne2"),
         platform_logo_url=values.get("platform_logo_url", "/aracne-logo.png"),
         navbar_bg_color=values.get("navbar_bg_color", "#1e40af"),
+        public_home_enabled=values.get("public_home_enabled", "false") == "true",
+        home_show_collections=values.get("home_show_collections", "true") == "true",
+        home_show_search=values.get("home_show_search", "true") == "true",
     )
 
 

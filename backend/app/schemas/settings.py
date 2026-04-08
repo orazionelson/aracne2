@@ -17,6 +17,9 @@ class UiConfigResponse(BaseModel):
     platform_name: str
     platform_logo_url: str
     navbar_bg_color: str
+    public_home_enabled: bool
+    home_show_collections: bool
+    home_show_search: bool
 
 
 class LogoUploadResponse(BaseModel):

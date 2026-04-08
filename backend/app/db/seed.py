@@ -40,6 +40,9 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("document_editor_mode", "single", "string"),
     ("platform_logo_url", "/aracne-logo.png", "string"),
     ("navbar_bg_color", "#1e40af", "string"),
+    ("public_home_enabled", "false", "bool"),
+    ("home_show_collections", "true", "bool"),
+    ("home_show_search", "true", "bool"),
 ]
 
 # Default Creative Commons licenses (name, target).
