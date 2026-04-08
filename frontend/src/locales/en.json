@@ -194,7 +194,9 @@
     "single_source_question": "Does the transcribed collection come from a single primary source (manuscript or print)?",
     "main_source_label": "Primary source (listBibl)",
     "single_ms_question": "Does the collection refer to a specific manuscript?",
-    "ms_identifier_label": "Manuscript identifier (msIdentifier/idno)"
+    "ms_identifier_label": "Manuscript identifier (msIdentifier/idno)",
+    "objectdesc_form_question": "Do you want to specify the physical form of the original source?",
+    "objectdesc_form_label": "Form (objectDesc)"
   },
   "documents": {
     "action_view": "view",

@@ -106,6 +106,8 @@ class Collection(Base):
     msidentifier_idno: Mapped[str | None] = mapped_column(
         String(1024), nullable=True, default=None
     )
+    # Physical form of the source — maps to <msDesc><physDesc><objectDesc form="...">
+    objectdesc_form: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]

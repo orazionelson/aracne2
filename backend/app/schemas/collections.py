@@ -1,6 +1,7 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -60,6 +61,10 @@ class CollectionUpdate(BaseModel):
     listbibl_bibl_main: str | None = None
     # Manuscript identifier; None means "leave unchanged"
     msidentifier_idno: str | None = None
+    # Physical form of the source; None means "leave unchanged"
+    objectdesc_form: Literal[
+        "codex", "leaf", "roll", "tablet", "sheet", "fascicle", "fragment", "other"
+    ] | None = None
 
     @field_validator("title")
     @classmethod
@@ -99,6 +104,7 @@ class CollectionResponse(BaseModel):
     author: str | None
     listbibl_bibl_main: str | None
     msidentifier_idno: str | None
+    objectdesc_form: str | None
     created_at: datetime
     updated_at: datetime
 

@@ -35,6 +35,12 @@ const editHasSingleSource = ref(false);
 const editMainSource = ref("");
 const editHasMsIdentifier = ref(false);
 const editMsIdentifier = ref("");
+const editHasObjectDescForm = ref(false);
+const editObjectDescForm = ref("");
+
+const OBJECTDESC_FORMS = [
+  "codex", "leaf", "roll", "tablet", "sheet", "fascicle", "fragment", "other",
+] as const;
 const editRespStmts = ref<{ resp: string; name: string }[]>([]);
 // per-row autocomplete open state
 const respNameOpen = ref<boolean[]>([]);
@@ -86,6 +92,8 @@ function startEdit(): void {
   editMainSource.value = store.current.listbibl_bibl_main ?? "";
   editHasMsIdentifier.value = !!store.current.msidentifier_idno;
   editMsIdentifier.value = store.current.msidentifier_idno ?? "";
+  editHasObjectDescForm.value = !!store.current.objectdesc_form;
+  editObjectDescForm.value = store.current.objectdesc_form ?? "";
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -112,6 +120,7 @@ async function submitEdit(): Promise<void> {
       author: editHasSingleAuthor.value ? (editAuthor.value.trim() || null) : null,
       listbibl_bibl_main: editHasSingleSource.value ? (editMainSource.value.trim() || null) : null,
       msidentifier_idno: editHasMsIdentifier.value ? (editMsIdentifier.value.trim() || null) : null,
+      objectdesc_form: editHasObjectDescForm.value ? (editObjectDescForm.value || null) : null,
     });
     editing.value = false;
   } catch (err) {
@@ -271,6 +280,7 @@ async function handleCreateDocument(): Promise<void> {
       author: col?.author,
       listbibl_bibl_main: col?.listbibl_bibl_main,
       msidentifier_idno: col?.msidentifier_idno,
+      objectdesc_form: col?.objectdesc_form,
     };
     const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
@@ -664,6 +674,37 @@ function statusClass(s: string): string {
                 type="text"
                 class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
               />
+            </div>
+          </div>
+          <!-- Physical form (objectDesc) -->
+          <div class="border-t border-gray-200 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">
+                {{ t("collections.objectdesc_form_question") }}
+              </span>
+              <button
+                type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                :class="editHasObjectDescForm ? 'bg-indigo-600' : 'bg-gray-200'"
+                @click="editHasObjectDescForm = !editHasObjectDescForm; if (!editHasObjectDescForm) editObjectDescForm = ''"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                  :class="editHasObjectDescForm ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <div v-if="editHasObjectDescForm" class="mt-2">
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("collections.objectdesc_form_label") }}
+              </label>
+              <select
+                v-model="editObjectDescForm"
+                class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">—</option>
+                <option v-for="f in OBJECTDESC_FORMS" :key="f" :value="f">{{ f }}</option>
+              </select>
             </div>
           </div>
           <!-- Publication metadata -->

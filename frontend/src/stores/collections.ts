@@ -36,6 +36,8 @@ export interface Collection {
   listbibl_bibl_main: string | null;
   // Manuscript identifier — maps to <msDesc><msIdentifier><idno>
   msidentifier_idno: string | null;
+  // Physical form — maps to <msDesc><physDesc><objectDesc form="...">
+  objectdesc_form: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -70,6 +72,7 @@ export interface DocumentMeta {
   author?: string | null;
   listbibl_bibl_main?: string | null;
   msidentifier_idno?: string | null;
+  objectdesc_form?: string | null;
 }
 
 // ── TEI skeleton helpers ──────────────────────────────────────────────────────
@@ -131,8 +134,15 @@ function _buildSkeleton(meta?: DocumentMeta): string {
   const parts: string[] = [];
   if (meta?.listbibl_bibl_main)
     parts.push(`<listBibl>\n               <bibl type="main_source">${_esc(meta.listbibl_bibl_main)}</bibl>\n            </listBibl>`);
-  if (meta?.msidentifier_idno)
-    parts.push(`<msDesc>\n               <msIdentifier>\n                  <idno>${_esc(meta.msidentifier_idno)}</idno>\n               </msIdentifier>\n            </msDesc>`);
+  if (meta?.msidentifier_idno || meta?.objectdesc_form) {
+    const idno = meta?.msidentifier_idno
+      ? `\n               <msIdentifier>\n                  <idno>${_esc(meta.msidentifier_idno)}</idno>\n               </msIdentifier>`
+      : "\n               <msIdentifier/>";
+    const physDesc = meta?.objectdesc_form
+      ? `\n               <physDesc><objectDesc form="${_esc(meta.objectdesc_form)}"/></physDesc>`
+      : "";
+    parts.push(`<msDesc>${idno}${physDesc}\n            </msDesc>`);
+  }
   return parts.length ? parts.join("\n            ") : "<p>Source info</p>";
 })()}
          </sourceDesc>
@@ -224,6 +234,7 @@ export const useCollectionStore = defineStore("collections", () => {
       author?: string | null;
       listbibl_bibl_main?: string | null;
       msidentifier_idno?: string | null;
+      objectdesc_form?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

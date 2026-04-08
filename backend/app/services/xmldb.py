@@ -351,6 +351,9 @@ async def update_collection(
     if "msidentifier_idno" in body.model_fields_set:
         col.msidentifier_idno = body.msidentifier_idno
         changed["msidentifier_idno"] = body.msidentifier_idno
+    if "objectdesc_form" in body.model_fields_set:
+        col.objectdesc_form = body.objectdesc_form
+        changed["objectdesc_form"] = body.objectdesc_form
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

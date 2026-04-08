@@ -194,7 +194,9 @@
     "single_source_question": "La collezione trascritta proviene da un'unica fonte primaria (sia essa manoscritta o a stampa)?",
     "main_source_label": "Fonte principale (listBibl)",
     "single_ms_question": "La collezione fa riferimento a uno specifico manoscritto?",
-    "ms_identifier_label": "Segnatura del manoscritto (msIdentifier/idno)"
+    "ms_identifier_label": "Segnatura del manoscritto (msIdentifier/idno)",
+    "objectdesc_form_question": "Vuoi specificare la forma della fonte originale della collezione?",
+    "objectdesc_form_label": "Forma (objectDesc)"
   },
   "documents": {
     "action_view": "visualizza",
