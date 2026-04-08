@@ -219,7 +219,8 @@ const evtEnabled = computed(
   () =>
     settingStore.getSetting("evt_enabled") === "true" &&
     store.current?.is_public === true &&
-    store.current?.status === "published",
+    store.current?.status === "published" &&
+    store.documents.length === 1,
 );
 const isAssignedEditor = computed(
   () => !!auth.user && auth.user.id === store.current?.editor_id,
