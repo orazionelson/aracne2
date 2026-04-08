@@ -96,6 +96,8 @@ class Collection(Base):
     resp_stmts: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSONB, nullable=True, default=None
     )
+    # Single author shared by all documents in the collection (optional)
+    author: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]

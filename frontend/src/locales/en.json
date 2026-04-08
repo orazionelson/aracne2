@@ -188,7 +188,9 @@
     "resp_label": "Responsibility (resp)",
     "resp_name_label": "Name (respStmt)",
     "resp_stmts_add": "Add responsible party",
-    "resp_stmts_remove": "Remove"
+    "resp_stmts_remove": "Remove",
+    "single_author_question": "Are all documents in this collection by a single author?",
+    "author_label": "Author"
   },
   "documents": {
     "action_view": "view",

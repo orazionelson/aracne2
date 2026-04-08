@@ -188,7 +188,9 @@
     "resp_label": "Responsabilità (resp)",
     "resp_name_label": "Nome (respStmt)",
     "resp_stmts_add": "Aggiungi responsabile",
-    "resp_stmts_remove": "Rimuovi"
+    "resp_stmts_remove": "Rimuovi",
+    "single_author_question": "I documenti della collezione sono tutti relativi a un singolo autore?",
+    "author_label": "Autore"
   },
   "documents": {
     "action_view": "visualizza",

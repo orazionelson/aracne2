@@ -30,6 +30,8 @@ export interface Collection {
   license_id: string | null;
   // TEI respStmt — array of responsibility statements
   resp_stmts: { resp: string; name: string }[] | null;
+  // Single author shared by all documents in the collection
+  author: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +63,7 @@ export interface DocumentMeta {
   license_name?: string | null;
   license_url?: string | null;
   resp_stmts?: { resp: string; name: string }[] | null;
+  author?: string | null;
 }
 
 // ── TEI skeleton helpers ──────────────────────────────────────────────────────
@@ -105,13 +108,16 @@ function _buildSkeleton(meta?: DocumentMeta): string {
           .join("\n")
       : "";
 
+  const authorLine = meta?.author
+    ? `\n            <author>${_esc(meta.author)}</author>`
+    : "\n            <author>Document Author</author>";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
    <teiHeader>
       <fileDesc>
          <titleStmt>
-            <title>Document title</title>
-            <author>Document Author</author>${respBlock}
+            <title>Document title</title>${authorLine}${respBlock}
          </titleStmt>
          ${pubStmt}
          <sourceDesc>
@@ -202,6 +208,7 @@ export const useCollectionStore = defineStore("collections", () => {
       pub_year?: number | null;
       license_id?: string | null;
       resp_stmts?: { resp: string; name: string }[] | null;
+      author?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

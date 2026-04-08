@@ -342,6 +342,9 @@ async def update_collection(
             else None
         )
         changed["resp_stmts"] = col.resp_stmts
+    if "author" in body.model_fields_set:
+        col.author = body.author
+        changed["author"] = body.author
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

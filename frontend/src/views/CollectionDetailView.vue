@@ -29,6 +29,8 @@ const editPublisher = ref("");
 const editPubPlace = ref("");
 const editPubYear = ref<number | null>(null);
 const editLicenseId = ref<string | null>(null);
+const editHasSingleAuthor = ref(false);
+const editAuthor = ref("");
 const editRespStmts = ref<{ resp: string; name: string }[]>([]);
 // per-row autocomplete open state
 const respNameOpen = ref<boolean[]>([]);
@@ -74,6 +76,8 @@ function startEdit(): void {
   editPubPlace.value = store.current.pub_place ?? "";
   editPubYear.value = store.current.pub_year ?? null;
   editLicenseId.value = store.current.license_id ?? null;
+  editHasSingleAuthor.value = !!store.current.author;
+  editAuthor.value = store.current.author ?? "";
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -97,6 +101,7 @@ async function submitEdit(): Promise<void> {
       resp_stmts: editRespStmts.value.length > 0
         ? editRespStmts.value.filter((r) => r.resp.trim() || r.name.trim())
         : null,
+      author: editHasSingleAuthor.value ? (editAuthor.value.trim() || null) : null,
     });
     editing.value = false;
   } catch (err) {
@@ -253,6 +258,7 @@ async function handleCreateDocument(): Promise<void> {
       license_name: lic?.name ?? null,
       license_url: lic?.target ?? null,
       resp_stmts: col?.resp_stmts,
+      author: col?.author,
     };
     const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
@@ -560,6 +566,35 @@ function statusClass(s: string): string {
                 <template v-if="s.validation_format"> ({{ s.validation_format.toUpperCase() }})</template>
               </option>
             </select>
+          </div>
+          <!-- Single author -->
+          <div class="border-t border-gray-200 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">
+                {{ t("collections.single_author_question") }}
+              </span>
+              <button
+                type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                :class="editHasSingleAuthor ? 'bg-indigo-600' : 'bg-gray-200'"
+                @click="editHasSingleAuthor = !editHasSingleAuthor; if (!editHasSingleAuthor) editAuthor = ''"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                  :class="editHasSingleAuthor ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <div v-if="editHasSingleAuthor" class="mt-2">
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("collections.author_label") }}
+              </label>
+              <input
+                v-model="editAuthor"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
           </div>
           <!-- Publication metadata -->
           <div class="border-t border-gray-200 pt-3">

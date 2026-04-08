@@ -54,6 +54,8 @@ class CollectionUpdate(BaseModel):
     license_id: uuid.UUID | None = None
     # TEI respStmt — array of responsibility statements; None means "leave unchanged"
     resp_stmts: list[RespStmtItem] | None = None
+    # Single author shared by all documents; None means "leave unchanged"
+    author: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -90,6 +92,7 @@ class CollectionResponse(BaseModel):
     license_id: uuid.UUID | None
     # TEI respStmt
     resp_stmts: list[RespStmtItem] | None
+    author: str | None
     created_at: datetime
     updated_at: datetime
 
