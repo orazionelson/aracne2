@@ -21,7 +21,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("label", sa.String(256), nullable=False),
         sa.Column("url", sa.String(2048), nullable=False),
-        sa.Column("events", JSONB, nullable=False, server_default="'[]'::jsonb"),
+        sa.Column("events", JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")),
         sa.Column("secret", sa.String(256), nullable=True),
         sa.Column("active", sa.Boolean, nullable=False, server_default="TRUE"),
         sa.Column("last_triggered_at", sa.DateTime(timezone=True), nullable=True),
