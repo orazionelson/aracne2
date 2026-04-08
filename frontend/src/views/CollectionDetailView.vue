@@ -374,6 +374,7 @@ onMounted(async () => {
       store.fetchCollection(slug),
       store.fetchDocuments(slug),
       schemaStore.fetchSchemas(),
+      store.fetchEditors(),
     ]);
   } catch {
     error.value = t("common.error");
@@ -430,8 +431,12 @@ function statusClass(s: string): string {
             <p class="mt-1 text-xs text-gray-400">
               {{ t("collections.editor_label") }}:
               {{
-                store.editors.find((e) => e.id === store.current!.editor_id)?.username
-                ?? (store.current.editor_id ? store.current.editor_id : t("collections.unassigned"))
+                (() => {
+                  const ed = store.editors.find((e) => e.id === store.current!.editor_id);
+                  return ed
+                    ? (ed.display_name ?? ed.username)
+                    : (store.current.editor_id ? store.current.editor_id : t("collections.unassigned"));
+                })()
               }}
             </p>
           </div>
