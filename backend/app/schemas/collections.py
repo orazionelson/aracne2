@@ -58,6 +58,8 @@ class CollectionUpdate(BaseModel):
     author: str | None = None
     # Primary source for all documents; None means "leave unchanged"
     listbibl_bibl_main: str | None = None
+    # Manuscript identifier; None means "leave unchanged"
+    msidentifier_idno: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -96,6 +98,7 @@ class CollectionResponse(BaseModel):
     resp_stmts: list[RespStmtItem] | None
     author: str | None
     listbibl_bibl_main: str | None
+    msidentifier_idno: str | None
     created_at: datetime
     updated_at: datetime
 

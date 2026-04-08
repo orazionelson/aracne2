@@ -192,7 +192,9 @@
     "single_author_question": "Are all documents in this collection by a single author?",
     "author_label": "Author",
     "single_source_question": "Does the transcribed collection come from a single primary source (manuscript or print)?",
-    "main_source_label": "Primary source (listBibl)"
+    "main_source_label": "Primary source (listBibl)",
+    "single_ms_question": "Does the collection refer to a specific manuscript?",
+    "ms_identifier_label": "Manuscript identifier (msIdentifier/idno)"
   },
   "documents": {
     "action_view": "view",

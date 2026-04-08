@@ -34,6 +34,8 @@ export interface Collection {
   author: string | null;
   // Primary source — maps to <listBibl><bibl type="main_source">
   listbibl_bibl_main: string | null;
+  // Manuscript identifier — maps to <msDesc><msIdentifier><idno>
+  msidentifier_idno: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +69,7 @@ export interface DocumentMeta {
   resp_stmts?: { resp: string; name: string }[] | null;
   author?: string | null;
   listbibl_bibl_main?: string | null;
+  msidentifier_idno?: string | null;
 }
 
 // ── TEI skeleton helpers ──────────────────────────────────────────────────────
@@ -124,11 +127,14 @@ function _buildSkeleton(meta?: DocumentMeta): string {
          </titleStmt>
          ${pubStmt}
          <sourceDesc>
-            ${
-  meta?.listbibl_bibl_main
-    ? `<listBibl>\n               <bibl type="main_source">${_esc(meta.listbibl_bibl_main)}</bibl>\n            </listBibl>`
-    : "<p>Source info</p>"
-}
+            ${(() => {
+  const parts: string[] = [];
+  if (meta?.listbibl_bibl_main)
+    parts.push(`<listBibl>\n               <bibl type="main_source">${_esc(meta.listbibl_bibl_main)}</bibl>\n            </listBibl>`);
+  if (meta?.msidentifier_idno)
+    parts.push(`<msDesc>\n               <msIdentifier>\n                  <idno>${_esc(meta.msidentifier_idno)}</idno>\n               </msIdentifier>\n            </msDesc>`);
+  return parts.length ? parts.join("\n            ") : "<p>Source info</p>";
+})()}
          </sourceDesc>
       </fileDesc>
    </teiHeader>
@@ -217,6 +223,7 @@ export const useCollectionStore = defineStore("collections", () => {
       resp_stmts?: { resp: string; name: string }[] | null;
       author?: string | null;
       listbibl_bibl_main?: string | null;
+      msidentifier_idno?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

@@ -33,6 +33,8 @@ const editHasSingleAuthor = ref(false);
 const editAuthor = ref("");
 const editHasSingleSource = ref(false);
 const editMainSource = ref("");
+const editHasMsIdentifier = ref(false);
+const editMsIdentifier = ref("");
 const editRespStmts = ref<{ resp: string; name: string }[]>([]);
 // per-row autocomplete open state
 const respNameOpen = ref<boolean[]>([]);
@@ -82,6 +84,8 @@ function startEdit(): void {
   editAuthor.value = store.current.author ?? "";
   editHasSingleSource.value = !!store.current.listbibl_bibl_main;
   editMainSource.value = store.current.listbibl_bibl_main ?? "";
+  editHasMsIdentifier.value = !!store.current.msidentifier_idno;
+  editMsIdentifier.value = store.current.msidentifier_idno ?? "";
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -107,6 +111,7 @@ async function submitEdit(): Promise<void> {
         : null,
       author: editHasSingleAuthor.value ? (editAuthor.value.trim() || null) : null,
       listbibl_bibl_main: editHasSingleSource.value ? (editMainSource.value.trim() || null) : null,
+      msidentifier_idno: editHasMsIdentifier.value ? (editMsIdentifier.value.trim() || null) : null,
     });
     editing.value = false;
   } catch (err) {
@@ -265,6 +270,7 @@ async function handleCreateDocument(): Promise<void> {
       resp_stmts: col?.resp_stmts,
       author: col?.author,
       listbibl_bibl_main: col?.listbibl_bibl_main,
+      msidentifier_idno: col?.msidentifier_idno,
     };
     const doc = await store.createDocument(slug, filename, meta);
     showNewDocForm.value = false;
@@ -626,6 +632,35 @@ function statusClass(s: string): string {
               </label>
               <input
                 v-model="editMainSource"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <!-- Manuscript identifier -->
+          <div class="border-t border-gray-200 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">
+                {{ t("collections.single_ms_question") }}
+              </span>
+              <button
+                type="button"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                :class="editHasMsIdentifier ? 'bg-indigo-600' : 'bg-gray-200'"
+                @click="editHasMsIdentifier = !editHasMsIdentifier; if (!editHasMsIdentifier) editMsIdentifier = ''"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                  :class="editHasMsIdentifier ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <div v-if="editHasMsIdentifier" class="mt-2">
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("collections.ms_identifier_label") }}
+              </label>
+              <input
+                v-model="editMsIdentifier"
                 type="text"
                 class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
               />

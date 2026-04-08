@@ -102,6 +102,10 @@ class Collection(Base):
     listbibl_bibl_main: Mapped[str | None] = mapped_column(
         String(1024), nullable=True, default=None
     )
+    # Manuscript identifier — maps to <msDesc><msIdentifier><idno>
+    msidentifier_idno: Mapped[str | None] = mapped_column(
+        String(1024), nullable=True, default=None
+    )
 
     # Relationships (lazy by default — loaded only when accessed)
     owner: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
