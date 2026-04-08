@@ -179,6 +179,47 @@ When editing a document (`/collections/{slug}/document/{filename}/edit`):
 - If no collection-specific CM5 file is found, the editor falls back to the global `/cmschemas/tei-p5.xml` static file (place it in `frontend/public/cmschemas/`).
 - If the collection has a schema with a validation file, a **Validate** button appears in the toolbar. Validation also runs automatically after each save. Results appear in a panel below the editor (line · column · message). Validation failure is non-blocking: the document is always saved regardless.
 
+## EVT viewer
+
+Aracne2 integrates [EVT 2](https://github.com/evt-project/evt-viewer) as an optional public viewer for published collections. When active, a **Leggi in EVT** button appears on the collection detail page and opens a full-viewport iframe at `/collections/{slug}/read`.
+
+### Prerequisites
+
+- The collection must be **published** and **public** (`is_public = true`).
+- The `evt_enabled` setting must be set to `true` in **Settings → General**.
+
+### Activating the viewer
+
+**Step 1 — Build the EVT Docker image** (one-time, downloads and compiles EVT from source):
+
+```bash
+docker compose --profile evt build evt
+```
+
+**Step 2 — Start the EVT container:**
+
+```bash
+docker compose --profile evt up -d evt
+```
+
+The EVT nginx container runs on port **8181** and proxies config and XML requests to the Aracne2 backend.
+
+**Step 3 — Enable the setting:**
+
+In **Settings → General**, set `evt_enabled` to `true`. The button will appear automatically on any collection that is published and public.
+
+### How it works
+
+```
+Browser (iframe)
+  └── EVT nginx :8181
+        ├── /evt/{slug}/config/config.json  → proxy → backend /public/collections/{slug}/evt-config
+        ├── /evt/{slug}/data/{file}.xml     → proxy → backend /public/collections/{slug}/documents/{file}/raw
+        └── /evt/{slug}/*                   → EVT static assets (JS/CSS built from source)
+```
+
+The backend endpoints are public (no authentication required). They verify that the collection is published and public before serving any data.
+
 ## API conventions
 
 All responses use a consistent envelope:
