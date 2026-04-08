@@ -89,11 +89,14 @@ export interface UseCodeMirrorOptions {
   /** Called whenever the editor content changes. */
   onChange?: (value: string) => void;
   /**
-   * When true, the first and last lines of the document are made read-only.
+   * Number of lines to lock at the top and bottom of the document.
    * Changes that touch those lines are cancelled via beforeChange.
    * A visual class `cm-locked-line` is applied for styling.
+   *
+   * 1 → locks first + last line (e.g. <teiHeader> / </teiHeader>)
+   * 2 → locks first 2 + last 2 lines (e.g. <text><body> / </body></text>)
    */
-  lockBoundaryLines?: boolean;
+  lockBoundaryLines?: number;
 }
 
 export function useCodeMirror(
@@ -217,21 +220,27 @@ export function useCodeMirror(
     }
 
     if (options.lockBoundaryLines) {
-      // Block any user change that touches line 0 or the last line.
+      const n = options.lockBoundaryLines;
+
+      // Cancel any user change that touches the top-n or bottom-n lines.
       // origin 'setValue' is allowed so programmatic content replacement works.
       instance.on('beforeChange', (cm, change) => {
         if (change.origin === 'setValue') return;
         const last = cm.lastLine();
-        if (change.from.line === 0 || change.to.line >= last) {
+        if (change.from.line < n || change.to.line > last - n) {
           change.cancel();
         }
       });
 
-      // Apply the visual lock class to line 0 and last line.
-      // Called once after initial content is set (or immediately if no content).
+      // Apply the visual lock class to the top-n and bottom-n lines.
       const markLockedLines = (cm: typeof instance) => {
-        cm.addLineClass(0, 'wrap', 'cm-locked-line');
-        cm.addLineClass(cm.lastLine(), 'wrap', 'cm-locked-line');
+        const last = cm.lastLine();
+        for (let i = 0; i < n; i++) {
+          cm.addLineClass(i, 'wrap', 'cm-locked-line');
+        }
+        for (let i = last - (n - 1); i <= last; i++) {
+          cm.addLineClass(i, 'wrap', 'cm-locked-line');
+        }
       };
       markLockedLines(instance);
     }

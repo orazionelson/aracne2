@@ -70,13 +70,14 @@ const headerCm = useCodeMirror(headerEditorContainer, {
   get initialValue() { return headerInitialXml.value; },
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
-  lockBoundaryLines: true,
+  lockBoundaryLines: 1, // locks <teiHeader> and </teiHeader>
 });
 
 const bodyCm = useCodeMirror(bodyEditorContainer, {
   get initialValue() { return bodyInitialXml.value; },
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
+  lockBoundaryLines: 2, // locks <text><body> and </body></text>
 });
 
 // ── Delegate toolbar actions to the active editor ──────────────────────────────
