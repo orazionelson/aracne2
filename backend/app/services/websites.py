@@ -1548,8 +1548,9 @@ async def create_website(
     )
     db.add(website)
     await db.commit()
-    await db.refresh(website)
-    return website
+    # Reload with selectinload(pages) so WebsiteResponse can serialize the
+    # relationship without triggering a lazy load (unsupported in async mode).
+    return await _get_website(db, website.slug)
 
 
 async def update_website(
