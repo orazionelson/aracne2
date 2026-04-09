@@ -191,6 +191,8 @@
     "pub_place_label": "Luogo di pubblicazione",
     "pub_year_label": "Anno",
     "availability_label": "Disponibilità (licenza)",
+    "identifier_url_label": "Identificatore persistente (DOI / Handle / URN)",
+    "identifier_url_hint": "URL completo dell'identificatore, es. https://doi.org/10.xxxx/yyy",
     "no_license": "Nessuna licenza",
     "resp_label": "Responsabilità (resp)",
     "resp_name_label": "Nome (respStmt)",

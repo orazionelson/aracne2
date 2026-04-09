@@ -109,6 +109,7 @@ const editHasMsIdentifier = ref(false);
 const editMsIdentifier = ref("");
 const editHasObjectDescForm = ref(false);
 const editObjectDescForm = ref("");
+const editIdentifierUrl = ref("");
 const editBodyTemplateId = ref<string | null>(null);
 
 const OBJECTDESC_FORMS = [
@@ -167,6 +168,7 @@ function startEdit(): void {
   editMsIdentifier.value = store.current.msidentifier_idno ?? "";
   editHasObjectDescForm.value = !!store.current.objectdesc_form;
   editObjectDescForm.value = store.current.objectdesc_form ?? "";
+  editIdentifierUrl.value = store.current.identifier_url ?? "";
   editBodyTemplateId.value = store.current.body_template_id ?? null;
   editEvtEnabled.value = store.current.evt_enabled;
   editRespStmts.value = store.current.resp_stmts
@@ -196,6 +198,7 @@ async function submitEdit(): Promise<void> {
       listbibl_bibl_main: editHasSingleSource.value ? (editMainSource.value.trim() || null) : null,
       msidentifier_idno: editHasMsIdentifier.value ? (editMsIdentifier.value.trim() || null) : null,
       objectdesc_form: editHasObjectDescForm.value ? (editObjectDescForm.value || null) : null,
+      identifier_url: editIdentifierUrl.value.trim() || null,
       body_template_id: editBodyTemplateId.value,
       evt_enabled: editEvtEnabled.value,
     });
@@ -902,6 +905,18 @@ function statusClass(s: string): string {
                   </option>
                 </select>
               </div>
+            </div>
+            <div class="col-span-2 mt-1">
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("collections.identifier_url_label") }}
+              </label>
+              <input
+                v-model="editIdentifierUrl"
+                type="url"
+                placeholder="https://doi.org/… or https://hdl.handle.net/…"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              <p class="mt-0.5 text-xs text-gray-400">{{ t("collections.identifier_url_hint") }}</p>
             </div>
           </div>
           <!-- respStmt — one row per responsible party -->

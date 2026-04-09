@@ -65,6 +65,8 @@ class CollectionUpdate(BaseModel):
     objectdesc_form: Literal[
         "codex", "leaf", "roll", "tablet", "sheet", "fascicle", "fragment", "other"
     ] | None = None
+    # Persistent identifier URL (DOI, Handle, URN, …); None means "leave unchanged"
+    identifier_url: str | None = None
     # Body template for new documents; present in payload means "set/clear"
     body_template_id: uuid.UUID | None = None
     # Per-collection EVT viewer opt-in
@@ -109,6 +111,7 @@ class CollectionResponse(BaseModel):
     listbibl_bibl_main: str | None
     msidentifier_idno: str | None
     objectdesc_form: str | None
+    identifier_url: str | None
     body_template_id: uuid.UUID | None
     doc_count: int
     evt_enabled: bool

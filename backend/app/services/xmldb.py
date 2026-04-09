@@ -401,6 +401,9 @@ async def update_collection(
     if "objectdesc_form" in body.model_fields_set:
         col.objectdesc_form = body.objectdesc_form
         changed["objectdesc_form"] = body.objectdesc_form
+    if "identifier_url" in body.model_fields_set:
+        col.identifier_url = body.identifier_url
+        changed["identifier_url"] = body.identifier_url
     if "body_template_id" in body.model_fields_set:
         if body.body_template_id is not None:
             from app.models.body_template import BodyTemplate as _BodyTemplate

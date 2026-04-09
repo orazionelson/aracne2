@@ -38,6 +38,8 @@ export interface Collection {
   msidentifier_idno: string | null;
   // Physical form — maps to <msDesc><physDesc><objectDesc form="...">
   objectdesc_form: string | null;
+  // Persistent identifier URL (DOI, Handle, URN, …)
+  identifier_url: string | null;
   // Body template applied to new documents
   body_template_id: string | null;
   doc_count: number;
@@ -242,6 +244,7 @@ export const useCollectionStore = defineStore("collections", () => {
       listbibl_bibl_main?: string | null;
       msidentifier_idno?: string | null;
       objectdesc_form?: string | null;
+      identifier_url?: string | null;
       body_template_id?: string | null;
     },
   ): Promise<void> {

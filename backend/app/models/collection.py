@@ -108,6 +108,8 @@ class Collection(Base):
     )
     # Physical form of the source — maps to <msDesc><physDesc><objectDesc form="...">
     objectdesc_form: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    # Persistent identifier URL (DOI, Handle, URN, …)
+    identifier_url: Mapped[str | None] = mapped_column(String(2048), nullable=True, default=None)
     # Denormalized count of XML documents stored in eXist-db for this collection.
     # Updated after every document upload, delete, or ZIP batch operation.
     doc_count: Mapped[int] = mapped_column(
