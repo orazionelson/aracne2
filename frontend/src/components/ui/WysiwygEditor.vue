@@ -4,9 +4,17 @@ import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
+
+// Fullscreen state
+const isFullscreen = ref(false);
+
+function toggleFullscreen(): void {
+  isFullscreen.value = !isFullscreen.value;
+}
 
 // Link dialog state
 const showLinkDialog = ref(false);
@@ -24,6 +32,7 @@ const editor = useEditor({
     StarterKit,
     Image.configure({ inline: false }),
     Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener" } }),
+    TextAlign.configure({ types: ["heading", "paragraph"] }),
   ],
   onUpdate({ editor: ed }) {
     emit("update:modelValue", ed.getHTML());
@@ -77,13 +86,16 @@ function applyImage(): void {
   imageAlt.value = "";
 }
 
-function isActive(name: string, attrs?: Record<string, unknown>): boolean {
-  return editor.value?.isActive(name, attrs) ?? false;
+function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<string, unknown>): boolean {
+  if (typeof nameOrAttrs === "string") {
+    return editor.value?.isActive(nameOrAttrs, attrs) ?? false;
+  }
+  return editor.value?.isActive(nameOrAttrs) ?? false;
 }
 </script>
 
 <template>
-  <div class="wysiwyg-editor rounded border border-gray-300 bg-white">
+  <div class="wysiwyg-editor rounded border border-gray-300 bg-white" :class="{ 'wysiwyg-fullscreen': isFullscreen }">
     <!-- Toolbar -->
     <div class="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-2 py-1">
       <!-- Text format -->
@@ -214,6 +226,46 @@ function isActive(name: string, attrs?: Record<string, unknown>): boolean {
 
       <span class="toolbar-sep" />
 
+      <!-- Text alignment -->
+      <button
+        type="button"
+        title="Align left"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isActive({ textAlign: 'left' }) }"
+        @click="editor?.chain().focus().setTextAlign('left').run()"
+      >
+        &#8676;
+      </button>
+      <button
+        type="button"
+        title="Align center"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isActive({ textAlign: 'center' }) }"
+        @click="editor?.chain().focus().setTextAlign('center').run()"
+      >
+        &#8633;
+      </button>
+      <button
+        type="button"
+        title="Align right"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isActive({ textAlign: 'right' }) }"
+        @click="editor?.chain().focus().setTextAlign('right').run()"
+      >
+        &#8677;
+      </button>
+      <button
+        type="button"
+        title="Justify"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isActive({ textAlign: 'justify' }) }"
+        @click="editor?.chain().focus().setTextAlign('justify').run()"
+      >
+        &#8660;
+      </button>
+
+      <span class="toolbar-sep" />
+
       <!-- Undo / Redo -->
       <button
         type="button"
@@ -232,6 +284,19 @@ function isActive(name: string, attrs?: Record<string, unknown>): boolean {
         @click="editor?.chain().focus().redo().run()"
       >
         ↪
+      </button>
+
+      <span class="toolbar-sep" />
+
+      <!-- Fullscreen -->
+      <button
+        type="button"
+        :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isFullscreen }"
+        @click="toggleFullscreen"
+      >
+        {{ isFullscreen ? '⤡' : '⤢' }}
       </button>
     </div>
 
@@ -398,4 +463,20 @@ function isActive(name: string, attrs?: Record<string, unknown>): boolean {
   color: #374151;
 }
 .btn-cancel:hover { background: #f9fafb; }
+
+/* ── Fullscreen ── */
+.wysiwyg-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wysiwyg-fullscreen .prose-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
 </style>
