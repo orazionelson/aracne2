@@ -177,6 +177,13 @@ footer {
 }
 footer a { color: inherit; text-decoration: underline; }
 footer a:hover { opacity: 0.75; }
+/* ── Breadcrumb ── */
+.breadcrumb { max-width: 960px; margin: 0.75rem auto 0; padding: 0 1.5rem; }
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 0.25rem; font-size: 0.8rem; color: #6b7280; }
+.breadcrumb li + li::before { content: "›"; margin-right: 0.25rem; }
+.breadcrumb a { color: #6b7280; text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb [aria-current="page"] { color: #374151; font-weight: 500; }
 /* ── Column page-menu widget ── */
 .col-page-menu { margin: 0.75rem 0; }
 .col-page-menu ul { list-style: none; margin: 0; padding: 0; }
@@ -559,6 +566,24 @@ def _identifier_label(url: str) -> str:
     return "Identifier"
 
 
+def _render_breadcrumb(crumbs: list[tuple[str | None, str]]) -> str:
+    """Build a semantic breadcrumb nav element.
+
+    Args:
+        crumbs: Sequence of (url, label) pairs. url=None for the current (last) crumb,
+                which receives aria-current="page" and no anchor element.
+    """
+    items: list[str] = []
+    for url, label in crumbs:
+        esc_label = _html.escape(label)
+        if url is None:
+            items.append(f'<li aria-current="page">{esc_label}</li>')
+        else:
+            esc_url = _html.escape(url)
+            items.append(f'<li><a href="{esc_url}">{esc_label}</a></li>')
+    return f'<nav class="breadcrumb" aria-label="Breadcrumb"><ol>{"".join(items)}</ol></nav>'
+
+
 def _render_page(
     *,
     site_title: str,
@@ -566,6 +591,7 @@ def _render_page(
     content: str,
     style: str,
     navbar: str,
+    breadcrumb: str = "",
     footer_note: str = "",
     identifier_url: str = "",
     meta_tags: str = "",
@@ -578,6 +604,7 @@ def _render_page(
         esc_url = _html.escape(identifier_url)
         footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
     meta_block = f"\n{meta_tags}" if meta_tags else ""
+    breadcrumb_block = f"\n  {breadcrumb}" if breadcrumb else ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -587,7 +614,7 @@ def _render_page(
   {style}
 </head>
 <body>
-  {navbar}
+  {navbar}{breadcrumb_block}
   <main>
     {content}
   </main>
@@ -1182,6 +1209,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             content=_build_browse_content(doc_infos),
             style=style,
             navbar=navbar(),
+            breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Browse")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
@@ -1202,12 +1230,24 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 doc_body = f"<p>Could not render document: {_html.escape(str(exc))}</p>"
 
             label = doc_info.get("title") or filename
+            if browse_hidden:
+                doc_crumbs: list[tuple[str | None, str]] = [
+                    ("../index.html", "Home"),
+                    (None, label),
+                ]
+            else:
+                doc_crumbs = [
+                    ("../index.html", "Home"),
+                    ("../browse.html", "Browse"),
+                    (None, label),
+                ]
             doc_html = _render_page(
                 site_title=website.title,
                 page_title=label,
                 content=f'<div class="tei-body">{doc_body}</div>',
                 style=style,
                 navbar=navbar("../"),
+                breadcrumb=_render_breadcrumb(doc_crumbs),
                 footer_note=footer_note,
                 identifier_url=identifier_url,
             )
@@ -1222,6 +1262,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
             style=style,
             navbar=navbar("../"),
+            breadcrumb=_render_breadcrumb([("../index.html", "Home"), (None, page.title)]),
             footer_note=footer_note,
             identifier_url=identifier_url,
         )
@@ -1235,6 +1276,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             content=_build_search_content(),
             style=style,
             navbar=navbar(),
+            breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Search")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
