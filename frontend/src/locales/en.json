@@ -471,6 +471,8 @@
     "theme_primary": "Primary",
     "theme_text": "Text",
     "theme_bg": "Background",
+    "theme_logo": "Navbar logo URL",
+    "theme_logo_hint": "Absolute URL or relative path (e.g. /logo.png) — leave blank for no logo",
     "field_is_published": "Published (publicly accessible)",
     "pages_title": "Free pages",
     "pages_empty": "No free pages yet.",

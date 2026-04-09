@@ -48,8 +48,8 @@ def _get_transform() -> etree.XSLT:
 
 # ── HTML generation helpers ───────────────────────────────────────────────────
 
-# Static CSS injected into every generated page; theme colours are set via
-# :root custom properties in the per-page <style> block.
+# Static CSS injected into every generated page.
+# Theme colours are injected as :root custom properties in the <style> block.
 _STATIC_CSS = """
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -59,50 +59,70 @@ body {
   line-height: 1.7;
   font-size: 1rem;
 }
-header {
-  background: var(--primary);
-  padding: 0 1.5rem;
-}
+/* ── Navbar ── */
+header { background: var(--primary); padding: 0 1.5rem; }
 nav {
   display: flex;
-  gap: 1.5rem;
   align-items: center;
+  justify-content: space-between;
   max-width: 960px;
   margin: 0 auto;
-  height: 3rem;
-  flex-wrap: wrap;
+  height: 3.5rem;
 }
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   color: #fff;
   text-decoration: none;
   font-weight: bold;
   font-size: 1.05rem;
-  margin-right: auto;
 }
-nav a {
-  color: rgba(255,255,255,0.85);
+.nav-logo {
+  height: 2rem;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+.nav-links { display: flex; gap: 1.5rem; align-items: center; }
+.nav-links a { color: rgba(255,255,255,0.82); text-decoration: none; font-size: 0.875rem; }
+.nav-links a:hover { color: #fff; }
+/* ── Hero (cover/index page) ── */
+.hero { padding: 4.5rem 0 3.5rem; text-align: center; }
+.hero h1 { font-size: 2.5rem; line-height: 1.15; margin-bottom: 1rem; }
+.hero .lead {
+  font-size: 1.1rem;
+  color: #4b5563;
+  max-width: 640px;
+  margin: 0 auto 1rem;
+}
+.hero .meta-block { font-size: 0.875rem; color: #6b7280; margin-bottom: 2rem; }
+.btn-primary {
+  display: inline-block;
+  background: var(--primary);
+  color: #fff !important;
+  padding: 0.7rem 1.75rem;
+  border-radius: 0.375rem;
   text-decoration: none;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  font-family: system-ui, sans-serif;
+  letter-spacing: 0.01em;
 }
-nav a:hover { color: #fff; }
-main {
-  max-width: 960px;
-  margin: 2.5rem auto;
-  padding: 0 1.5rem;
-}
+.btn-primary:hover { opacity: 0.88; }
+/* ── Content pages ── */
+main { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
 h1 { font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.2; }
 h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
+h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
 p { margin-bottom: 1rem; }
 a { color: var(--primary); }
 ul { margin: 0.5rem 0 1rem 1.5rem; }
 li { margin-bottom: 0.3rem; }
+.doc-count { font-size: 0.85rem; color: #6b7280; margin-bottom: 1.5rem; }
 .doc-list { list-style: none; margin-left: 0; }
-.doc-list li {
-  border-bottom: 1px solid #e5e7eb;
-  padding: 0.6rem 0;
-}
+.doc-list li { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0; }
 .doc-list a { font-weight: 500; }
-.doc-meta { font-size: 0.85rem; color: #6b7280; margin-top: 0.1rem; }
+.doc-meta { font-size: 0.85rem; color: #6b7280; margin-top: 0.2rem; }
 .tei-body { border-top: 1px solid #e5e7eb; padding-top: 1.5rem; margin-top: 1.5rem; }
 footer {
   margin-top: 4rem;
@@ -123,12 +143,41 @@ def _style_block(theme: dict) -> str:
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
 
 
-def _nav_links(pages: list[WebsitePage], path_prefix: str = "") -> str:
-    links = ""
+def _render_navbar(
+    *,
+    site_title: str,
+    logo_url: str | None,
+    pages: list[WebsitePage],
+    path_prefix: str = "",
+) -> str:
+    """Build the <header><nav> block.
+
+    path_prefix must be "" for root-level pages (index.html, browse.html)
+    and "../" for pages in subdirectories (docs/, pages/).
+    """
+    logo_html = ""
+    if logo_url:
+        esc_logo = _html.escape(logo_url)
+        logo_html = f'<img src="{esc_logo}" alt="" class="nav-logo">'
+
+    home_href = f"{path_prefix}index.html"
+    browse_href = f"{path_prefix}browse.html"
+
+    extra_links = ""
     for page in pages:
         href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
-        links += f'<a href="{href}">{_html.escape(page.title)}</a>\n'
-    return links
+        extra_links += f'<a href="{href}">{_html.escape(page.title)}</a>'
+
+    return f"""<header>
+    <nav>
+      <a class="brand" href="{home_href}">{logo_html}<span>{_html.escape(site_title)}</span></a>
+      <div class="nav-links">
+        <a href="{home_href}">Home</a>
+        <a href="{browse_href}">Browse</a>
+        {extra_links}
+      </div>
+    </nav>
+  </header>"""
 
 
 def _render_page(
@@ -137,12 +186,10 @@ def _render_page(
     page_title: str,
     content: str,
     style: str,
-    nav: str,
-    path_prefix: str = "",
+    navbar: str,
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
-    docs_href = f"{path_prefix}index.html"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -152,12 +199,7 @@ def _render_page(
   {style}
 </head>
 <body>
-  <header>
-    <nav>
-      <a class="brand" href="{docs_href}">{esc_site}</a>
-      {nav}
-    </nav>
-  </header>
+  {navbar}
   <main>
     {content}
   </main>
@@ -203,24 +245,48 @@ def _render_xml_to_html(xml_bytes: bytes) -> str:
     xml_doc = etree.fromstring(xml_bytes)  # noqa: S320 — from our own eXist-db
     result = transform(xml_doc)
     result_str = str(result)
-    # Extract the content inside <body>...</body> if present; else use all.
     body_match = re.search(r"<body[^>]*>(.*?)</body>", result_str, re.DOTALL | re.IGNORECASE)
     return body_match.group(1) if body_match else result_str
 
 
-def _build_index_content(col: Collection, docs: list[dict]) -> str:
-    title = _html.escape(col.title or "")
-    description = f"<p>{_html.escape(col.description)}</p>" if col.description else ""
-    author = f"<p><em>{_html.escape(col.author)}</em></p>" if col.author else ""
-    meta = ""
-    if col.publisher or col.pub_year:
-        parts = []
-        if col.publisher:
-            parts.append(_html.escape(col.publisher))
-        if col.pub_year:
-            parts.append(str(col.pub_year))
-        meta = f"<p class='doc-meta'>{', '.join(parts)}</p>"
+def _build_cover_content(
+    *,
+    website_title: str,
+    col: Collection | None,
+    doc_count: int,
+) -> str:
+    """Return the hero/cover HTML for index.html."""
+    title = _html.escape(col.title if col else website_title)
+    lead = ""
+    if col and col.description:
+        lead = f'<p class="lead">{_html.escape(col.description)}</p>'
 
+    meta_parts: list[str] = []
+    if col:
+        if col.author:
+            meta_parts.append(_html.escape(col.author))
+        if col.publisher:
+            meta_parts.append(_html.escape(col.publisher))
+        if col.pub_year:
+            meta_parts.append(str(col.pub_year))
+    meta_block = (
+        f'<p class="meta-block">{" · ".join(meta_parts)}</p>' if meta_parts else ""
+    )
+
+    browse_label = f"Browse {doc_count} document{'s' if doc_count != 1 else ''} →"
+    cta = f'<a href="browse.html" class="btn-primary">{browse_label}</a>'
+
+    return f"""<div class="hero">
+  <h1>{title}</h1>
+  {lead}
+  {meta_block}
+  {cta}
+</div>"""
+
+
+def _build_browse_content(docs: list[dict]) -> str:
+    """Return the document list HTML for browse.html."""
+    count = len(docs)
     items = ""
     for doc in docs:
         filename = _html.escape(doc["filename"])
@@ -230,20 +296,13 @@ def _build_index_content(col: Collection, docs: list[dict]) -> str:
             if doc.get("author")
             else ""
         )
-        items += (
-            f'<li><a href="docs/{filename}.html">{label}</a>{author_line}</li>\n'
-        )
+        items += f'<li><a href="docs/{filename}.html">{label}</a>{author_line}</li>\n'
 
-    return f"""
-<h1>{title}</h1>
-{author}
-{description}
-{meta}
-<h2>Documents</h2>
+    return f"""<h1>Documents</h1>
+<p class="doc-count">{count} document{'s' if count != 1 else ''}</p>
 <ul class="doc-list">
 {items}
-</ul>
-"""
+</ul>"""
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -439,18 +498,36 @@ async def run_build(slug: str) -> None:
 
 
 async def _build_static_site(db: AsyncSession, website: Website) -> None:
-    """Generate all HTML files for *website* into settings.websites_root / slug /."""
+    """Generate all HTML files for *website* into settings.websites_root / slug /.
+
+    Output structure:
+      index.html      — cover/hero page with CTA → browse.html
+      browse.html     — document list
+      docs/{f}.html   — per-document rendered HTML (via XSLT)
+      pages/{s}.html  — free Markdown pages
+      search.json     — pre-built search index for future client-side search
+    """
     import defusedxml.ElementTree as ET
 
     slug = website.slug
+    theme = website.theme_config or {}
+    logo_url: str | None = theme.get("logo_url") or None
+
     site_dir = settings.websites_root / slug
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "docs").mkdir(exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
-    style = _style_block(website.theme_config or {})
-    pages_nav = _nav_links(website.pages, path_prefix="../")
-    root_pages_nav = _nav_links(website.pages)
+    style = _style_block(theme)
+
+    # Navbars for root-level pages and subdirectory pages differ only in prefix.
+    def navbar(path_prefix: str = "") -> str:
+        return _render_navbar(
+            site_title=website.title,
+            logo_url=logo_url,
+            pages=website.pages,
+            path_prefix=path_prefix,
+        )
 
     # ── Fetch collection metadata and document list ────────────────────────
     doc_infos: list[dict] = []
@@ -486,24 +563,31 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             except Exception:
                 doc_infos = []
 
-    # ── Index page ─────────────────────────────────────────────────────────
-    if col is not None:
-        index_content = _build_index_content(col, doc_infos)
-    else:
-        index_content = f"<h1>{_html.escape(website.title)}</h1>"
-        if website.description:
-            index_content += f"<p>{_html.escape(website.description)}</p>"
-
+    # ── index.html — cover / hero page ────────────────────────────────────
     index_html = _render_page(
         site_title=website.title,
         page_title=website.title,
-        content=index_content,
+        content=_build_cover_content(
+            website_title=website.title,
+            col=col,
+            doc_count=len(doc_infos),
+        ),
         style=style,
-        nav=root_pages_nav,
+        navbar=navbar(),
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
-    # ── Document pages ─────────────────────────────────────────────────────
+    # ── browse.html — document list ────────────────────────────────────────
+    browse_html = _render_page(
+        site_title=website.title,
+        page_title="Browse",
+        content=_build_browse_content(doc_infos),
+        style=style,
+        navbar=navbar(),
+    )
+    (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
+
+    # ── docs/{filename}.html — individual documents ────────────────────────
     if col is not None:
         for doc_info in doc_infos:
             filename = doc_info["filename"]
@@ -522,13 +606,11 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 page_title=label,
                 content=f'<div class="tei-body">{doc_body}</div>',
                 style=style,
-                nav=pages_nav,
-                path_prefix="../",
+                navbar=navbar("../"),
             )
-            out_path = site_dir / "docs" / f"{filename}.html"
-            out_path.write_text(doc_html, encoding="utf-8")
+            (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
-    # ── Free pages ─────────────────────────────────────────────────────────
+    # ── pages/{slug}.html — free Markdown pages ────────────────────────────
     for page in website.pages:
         content_html = _md_to_html(page.content_md or "")
         page_html = _render_page(
@@ -536,12 +618,11 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             page_title=page.title,
             content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
             style=style,
-            nav=pages_nav,
-            path_prefix="../",
+            navbar=navbar("../"),
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
-    # ── Search index (JSON for client-side use in future phases) ──────────
+    # ── search.json — pre-built index for future client-side search ────────
     search_index = [
         {
             "filename": d["filename"],

@@ -27,7 +27,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
-  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff" },
+  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "" },
 });
 
 // Edit website form
@@ -112,7 +112,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
-      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff" },
+      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "" },
     };
   } catch (err: unknown) {
     createError.value = err instanceof Error ? err.message : t("common.error");
@@ -296,6 +296,10 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               <input v-model="newWebsite.theme_config!.bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
             </label>
           </div>
+          <div class="mt-2">
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_logo") }}</label>
+            <input v-model="newWebsite.theme_config!.logo_url" type="text" class="mt-1 block w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <input id="create-published" v-model="newWebsite.is_published" type="checkbox" class="rounded border-gray-300" />
@@ -448,6 +452,10 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   {{ t("websites.theme_bg") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
+              </div>
+              <div class="mt-2">
+                <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
+                <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.theme_logo_hint')" />
               </div>
             </div>
             <div class="flex items-center gap-2">

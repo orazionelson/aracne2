@@ -471,6 +471,8 @@
     "theme_primary": "Principale",
     "theme_text": "Testo",
     "theme_bg": "Sfondo",
+    "theme_logo": "URL logo nella navbar",
+    "theme_logo_hint": "URL assoluto o percorso relativo (es. /logo.png) — lascia vuoto per nessun logo",
     "field_is_published": "Pubblicato (accessibile al pubblico)",
     "pages_title": "Pagine libere",
     "pages_empty": "Nessuna pagina libera.",
