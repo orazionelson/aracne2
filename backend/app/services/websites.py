@@ -152,6 +152,8 @@ footer {
   font-size: 0.78rem;
   color: #9ca3af;
 }
+footer a { color: inherit; text-decoration: underline; }
+footer a:hover { color: #6b7280; }
 """
 
 
@@ -268,6 +270,18 @@ def _render_navbar(
   </header>"""
 
 
+def _identifier_label(url: str) -> str:
+    """Return a short human-readable label for a persistent identifier URL."""
+    lower = url.lower()
+    if "doi.org" in lower:
+        return "DOI"
+    if "hdl.handle.net" in lower or "handle.net" in lower:
+        return "Handle"
+    if "urn:" in lower:
+        return "URN"
+    return "Identifier"
+
+
 def _render_page(
     *,
     site_title: str,
@@ -276,10 +290,15 @@ def _render_page(
     style: str,
     navbar: str,
     footer_note: str = "",
+    identifier_url: str = "",
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
     footer_extra = f'<span class="footer-publisher">{footer_note}</span> · ' if footer_note else ""
+    if identifier_url:
+        label = _identifier_label(identifier_url)
+        esc_url = _html.escape(identifier_url)
+        footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -696,13 +715,16 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             except Exception:
                 doc_infos = []
 
-    # Build publisher / year string that appears in every page footer.
+    # Build publisher / year string and identifier URL for every page footer.
     publisher_parts: list[str] = []
+    identifier_url: str = ""
     if col:
         if col.publisher:
             publisher_parts.append(_html.escape(col.publisher))
         if col.pub_year:
             publisher_parts.append(str(col.pub_year))
+        if col.identifier_url:
+            identifier_url = col.identifier_url
     footer_note = ", ".join(publisher_parts)
 
     # ── index.html — cover / hero page ────────────────────────────────────
@@ -718,6 +740,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         style=style,
         navbar=navbar(),
         footer_note=footer_note,
+        identifier_url=identifier_url,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -729,6 +752,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         style=style,
         navbar=navbar(),
         footer_note=footer_note,
+        identifier_url=identifier_url,
     )
     (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -753,6 +777,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 style=style,
                 navbar=navbar("../"),
                 footer_note=footer_note,
+                identifier_url=identifier_url,
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -766,6 +791,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             style=style,
             navbar=navbar("../"),
             footer_note=footer_note,
+            identifier_url=identifier_url,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
