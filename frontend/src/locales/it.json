@@ -510,6 +510,7 @@
     "meta_dc_type": "Tipo (DC)",
     "meta_dc_format": "Formato (DC)",
     "meta_dc_identifier": "Identificatore (DC)",
+    "meta_add_item": "Aggiungi",
     "pages_title": "Pagine libere",
     "pages_empty": "Nessuna pagina libera.",
     "page_add": "+ Aggiungi pagina",

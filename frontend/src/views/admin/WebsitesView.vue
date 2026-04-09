@@ -15,11 +15,13 @@ const editingSlug = ref<string | null>(null);
 const editTab = ref<"general" | "theme" | "pages">("general");
 const showMetaPanel = ref(false);
 
-const DEFAULT_META_CONFIG: Record<string, string> = {
-  keywords: "", description: "", subject: "", copyright: "",
-  author: "", designer: "", url: "",
-  dc_title: "", dc_creator: "", dc_subject: "", dc_description: "",
-  dc_publisher: "", dc_contributor: "", dc_date: "", dc_type: "",
+const REPEATABLE_META_FIELDS = new Set(["subject", "author", "designer", "dc_creator", "dc_publisher", "dc_contributor", "dc_subject"]);
+
+const DEFAULT_META_CONFIG: Record<string, string | string[]> = {
+  keywords: "", description: "", subject: [] as string[], copyright: "",
+  author: [] as string[], designer: [] as string[], url: "",
+  dc_title: "", dc_creator: [] as string[], dc_subject: [] as string[], dc_description: "",
+  dc_publisher: [] as string[], dc_contributor: [] as string[], dc_date: "", dc_type: "",
   dc_format: "", dc_identifier: "",
 };
 const confirmDeleteSlug = ref<string | null>(null);
@@ -67,6 +69,44 @@ onMounted(async () => {
 
 // ── Website CRUD ──────────────────────────────────────────────────────────────
 
+/** Ensure repeatable fields are always arrays after loading from the API. */
+function normaliseMeta(cfg: Record<string, string | string[]>): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = { ...cfg };
+  for (const key of REPEATABLE_META_FIELDS) {
+    const val = out[key];
+    if (val === undefined || val === null) {
+      out[key] = [];
+    } else if (typeof val === "string") {
+      out[key] = val === "" ? [] : [val];
+    }
+  }
+  return out;
+}
+
+function getMetaArray(field: string): string[] {
+  const cfg = editForm.value.meta_config as Record<string, string | string[]>;
+  const val = cfg[field];
+  if (Array.isArray(val)) return val;
+  return val ? [val as string] : [];
+}
+
+function addMetaArrayItem(field: string): void {
+  const cfg = editForm.value.meta_config as Record<string, string | string[]>;
+  cfg[field] = [...getMetaArray(field), ""];
+}
+
+function removeMetaArrayItem(field: string, idx: number): void {
+  const cfg = editForm.value.meta_config as Record<string, string | string[]>;
+  cfg[field] = getMetaArray(field).filter((_, i) => i !== idx);
+}
+
+function updateMetaArrayItem(field: string, idx: number, value: string): void {
+  const cfg = editForm.value.meta_config as Record<string, string | string[]>;
+  const arr = [...getMetaArray(field)];
+  arr[idx] = value;
+  cfg[field] = arr;
+}
+
 function startEdit(website: Website): void {
   editingSlug.value = website.slug;
   editTab.value = "general";
@@ -78,7 +118,7 @@ function startEdit(website: Website): void {
     rendering_mode: website.rendering_mode,
     is_published: website.is_published,
     theme_config: { ...website.theme_config },
-    meta_config: { ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) },
+    meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
   };
   editError.value = null;
 }
@@ -99,7 +139,7 @@ async function saveEdit(slug: string): Promise<void> {
       rendering_mode: editForm.value.rendering_mode,
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
-      meta_config: editForm.value.meta_config as Record<string, string>,
+      meta_config: editForm.value.meta_config as Record<string, string | string[]>,
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -528,11 +568,19 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_subject") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).subject" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('subject')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('subject', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('subject', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('subject')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_author") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).author" type="text" placeholder="Name, email@example.com" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('author')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('author')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('author', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('author', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('author')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_copyright") }}</label>
@@ -540,7 +588,11 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_designer") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).designer" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('designer')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('designer')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('designer', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('designer', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('designer')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_url") }}</label>
@@ -559,19 +611,35 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_creator") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_creator" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('dc_creator')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('dc_creator')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_creator', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_creator', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_creator')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_publisher") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_publisher" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('dc_publisher')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('dc_publisher')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_publisher', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_publisher', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_publisher')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_contributor") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_contributor" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('dc_contributor')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('dc_contributor')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_contributor', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_contributor', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_contributor')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_subject") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_subject" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        <div v-for="(_, idx) in getMetaArray('dc_subject')" :key="idx" class="mt-0.5 flex gap-1">
+                          <input :value="getMetaArray('dc_subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_subject', idx, ($event.target as HTMLInputElement).value)" />
+                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_subject', idx)">✕</button>
+                        </div>
+                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_subject')">+ {{ t("websites.meta_add_item") }}</button>
                       </div>
                       <div>
                         <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_date") }}</label>

@@ -24,7 +24,7 @@ export interface Website {
   collection_id: string | null;
   rendering_mode: RenderingMode;
   theme_config: Record<string, string>;
-  meta_config: Record<string, string>;
+  meta_config: Record<string, string | string[]>;
   nav_config: unknown[];
   xslt_schema_id: string | null;
   build_status: BuildStatus;
@@ -44,7 +44,7 @@ export interface WebsiteCreate {
   collection_id?: string | null;
   rendering_mode?: RenderingMode;
   theme_config?: Record<string, string>;
-  meta_config?: Record<string, string>;
+  meta_config?: Record<string, string | string[]>;
   is_published?: boolean;
 }
 
@@ -54,7 +54,7 @@ export interface WebsiteUpdate {
   collection_id?: string | null;
   rendering_mode?: RenderingMode;
   theme_config?: Record<string, string>;
-  meta_config?: Record<string, string>;
+  meta_config?: Record<string, string | string[]>;
   is_published?: boolean;
 }
 

@@ -320,12 +320,27 @@ def _render_navbar(
   </header>"""
 
 
+def _emit_meta(lines: list[str], name: str, raw: str | list | None) -> None:
+    """Append one ``<meta>`` tag per non-empty value.
+
+    ``raw`` may be a plain string or a list of strings (repeatable fields).
+    """
+    if raw is None:
+        return
+    values: list[str] = raw if isinstance(raw, list) else [raw]
+    for item in values:
+        v = str(item).strip()
+        if v:
+            lines.append(f'  <meta name="{name}" content="{_html.escape(v)}">')
+
+
 def _build_meta_tags(meta: dict) -> str:
     """Build HTML <meta> tag strings from a meta_config dict.
 
     Standard HTML meta tags and Dublin Core (DC.*) are emitted only for
     non-empty values.  The DC namespace <link> is prepended automatically
-    when at least one DC field has a value.
+    when at least one DC field has a value.  Repeatable fields may be stored
+    as either a plain string or a list of strings.
     """
     if not meta:
         return ""
@@ -342,9 +357,7 @@ def _build_meta_tags(meta: dict) -> str:
         ("url",         "url"),
     ]
     for key, name in _html_fields:
-        val = (meta.get(key) or "").strip()
-        if val:
-            lines.append(f'  <meta name="{name}" content="{_html.escape(val)}">')
+        _emit_meta(lines, name, meta.get(key))
 
     _dc_fields = [
         ("dc_title",       "DC.Title"),
@@ -360,9 +373,7 @@ def _build_meta_tags(meta: dict) -> str:
     ]
     dc_lines: list[str] = []
     for key, name in _dc_fields:
-        val = (meta.get(key) or "").strip()
-        if val:
-            dc_lines.append(f'  <meta name="{name}" content="{_html.escape(val)}">')
+        _emit_meta(dc_lines, name, meta.get(key))
     if dc_lines:
         lines.append('  <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" />')
         lines.extend(dc_lines)
