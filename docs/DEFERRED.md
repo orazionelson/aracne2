@@ -217,3 +217,172 @@ First complaint about API unresponsiveness during a collection validation run in
 non-development environment.
 
 *Last updated: 2026-04-08*
+
+---
+
+## 13. XSLT Designer — Phase D: AI sidebar nel CodeMirror
+
+### Contesto e stato attuale
+
+Il tab Document in `WebsitesView.vue` dispone ora (Phase C) di:
+
+- Un editor CodeMirror 5 XML per la sorgente `custom` (modifica inline dell'XSLT).
+- Un endpoint `POST /api/v1/websites/{slug}/preview-doc/{filename}` che applica
+  l'XSLT salvato (o un override non salvato) a un singolo documento e restituisce
+  il frammento HTML risultante.
+- Un pannello iframe che mostra l'anteprima in tempo reale.
+
+Phase D aggiunge una **sidebar AI** affiancata all'editor CodeMirror che consente
+al Designer di descrivere in linguaggio naturale una trasformazione desiderata e
+ricevere XSLT generato o modificato dall'IA.
+
+---
+
+### Funzionalità attese (Phase D)
+
+1. **Prompt field + "Generate" button**
+   Un campo testo nella sidebar accetta una descrizione in linguaggio naturale,
+   ad esempio: *"Rendi il titolo un `<h1>` con classe `tei-title`, mostra autore in
+   corsivo sotto, ometti tutto ciò che non è teiHeader o text/body"*.
+
+2. **Modalità Generate vs. Refine**
+   - *Generate*: la sidebar invia il prompt al backend; il backend chiama il modello
+     AI e restituisce un XSLT completo da zero. L'output sostituisce il contenuto
+     dell'editor CodeMirror.
+   - *Refine*: il backend riceve sia il prompt sia l'XSLT attualmente nell'editor;
+     il modello suggerisce modifiche mirate. L'output sostituisce o affianca
+     (con diff highlight) il contenuto corrente.
+
+3. **"Insert into editor"**
+   L'utente può accettare la risposta (insert) o scartarla (keep current).
+   L'editor CodeMirror riceve il nuovo valore via `xsltCm.setValue(newContent)`.
+
+4. **Preview immediata**
+   Dopo l'insert, il pulsante Preview nel pannello sottostante viene attivato
+   automaticamente per verificare il risultato.
+
+---
+
+### Decisione aperta: integrazione AI
+
+La questione centrale è **quale infrastruttura AI usare** e **come integrarla
+nel backend**. Le opzioni sono due:
+
+#### Opzione A — Stesso sistema dei Preset Prompts (endpoint `/ai/generate-xslt`)
+
+Il backend espone un endpoint dedicato `POST /api/v1/ai/generate-xslt` con schema:
+
+```json
+{
+  "description": "Descrizione in linguaggio naturale",
+  "current_xslt": "... testo XSLT corrente, omettibile in modalità generate ...",
+  "mode": "generate | refine"
+}
+```
+
+Il backend:
+1. Recupera la chiave API AI e il modello da `system_settings`
+   (stessa voce usata dai Preset Prompts, es. `ai_model`, `ai_api_key`).
+2. Costruisce il system prompt specializzato per XSLT
+   (es. *"Sei un esperto di XSLT 1.0/2.0 e TEI P5. Restituisci solo il codice
+   XSLT senza spiegazioni, completo e valido."*).
+3. Chiama il provider AI (Anthropic o OpenAI a seconda della config) via `httpx`.
+4. Restituisce `{ "data": { "xslt": "..." } }`.
+
+**Pro:**
+- Riuso dell'infrastruttura già pianificata per i Preset Prompts (stessa tabella
+  `system_settings`, stesso pattern di chiamata, stessa ACL `[D+]`).
+- Il backend è il solo a conoscere la chiave API — nessuna chiave esposta al frontend.
+- Facilmente testabile (mock dell'endpoint AI nel test suite).
+
+**Contro:**
+- Richiede che il sistema dei Preset Prompts sia già implementato e che la
+  configurazione AI (`ai_model`, `ai_api_key`, `ai_base_url`) sia disponibile in
+  `system_settings`. Se non lo è, bisogna aggiungere quelle voci.
+
+#### Opzione B — Nuovo endpoint specifico con propria configurazione
+
+Un endpoint separato `POST /api/v1/websites/{slug}/xslt-ai-assist` che accetta
+gli stessi parametri ma legge la propria config AI da un set dedicato di
+`system_settings` (`xslt_ai_model`, `xslt_ai_api_key`, ecc.).
+
+**Pro:**
+- Disaccoppiato dal sistema dei Preset Prompts; può usare un modello diverso
+  (es. un modello con context window più grande, adatto a documenti XML lunghi).
+- Può essere abilitato/disabilitato indipendentemente.
+
+**Contro:**
+- Duplica la logica di chiamata AI.
+- Introduce una seconda configurazione AI nella Settings UI.
+
+#### Raccomandazione
+
+**Preferire Opzione A**, con una piccola estensione: aggiungere un `system_settings`
+specifico `xslt_ai_system_prompt` (tipo `text`) che il Designer può personalizzare
+dalla Settings → Design tab, ma riusare il provider/modello/chiave già configurati.
+L'endpoint `/ai/generate-xslt` è generico e parametrico: il system prompt viene
+iniettato dal backend, non hardcoded.
+
+Se al momento dell'implementazione i Preset Prompts non sono ancora operativi,
+implementare la configurazione AI minima (`ai_provider`, `ai_api_key`, `ai_model`)
+come `system_settings` e condividerla tra i due sistemi.
+
+---
+
+### Architettura frontend (Phase D)
+
+**Nuovo componente**: `XsltAiSidebar.vue` (o integrazione diretta nel Document tab).
+
+Struttura UI consigliata (pannello laterale a destra del CodeMirror, larghezza ~30%):
+
+```
+┌──────────────────────────────────────────────┐
+│  AI XSLT Assistant                           │
+│  ─────────────────────────────────────────   │
+│  Mode: [● Generate] [○ Refine]               │
+│                                              │
+│  Describe the transformation:                │
+│  ┌──────────────────────────────────────┐   │
+│  │ <textarea rows=4>                    │   │
+│  └──────────────────────────────────────┘   │
+│  [Generate XSLT]                            │
+│                                              │
+│  ─── Result ────────────────────────────    │
+│  <pre class="xslt-preview">...</pre>        │
+│  [Insert into editor]  [Discard]            │
+└──────────────────────────────────────────────┘
+```
+
+**Store change**: aggiungere `generateXslt(slug, description, currentXslt?, mode)` in
+`stores/websites.ts`, oppure creare `stores/xslt_ai.ts` se la logica diventa ampia.
+
+**Layout change in WebsitesView.vue**: quando source = `custom` e l'AI è disponibile,
+il Document tab si divide in due colonne: editor CodeMirror a sinistra (70%),
+sidebar AI a destra (30%). Su viewport stretto, la sidebar collassa sotto l'editor.
+
+---
+
+### Prerequisiti tecnici
+
+| Prerequisito | Stato | Note |
+|---|---|---|
+| CodeMirror editor nel Document tab | ✅ Phase C | `xsltCm.setValue()` disponibile |
+| Preview endpoint | ✅ Phase C | `POST /websites/{slug}/preview-doc/{filename}` |
+| Sistema Preset Prompts / config AI | ❓ Da verificare | Necessario per Opzione A |
+| `system_settings`: `ai_provider`, `ai_api_key`, `ai_model` | ❓ Da verificare | Verificare se già implementati |
+| `system_settings`: `xslt_ai_system_prompt` | ❌ Non implementato | Aggiungere seed in `db/seed.py` |
+| `XsltAiSidebar.vue` | ❌ Non implementato | Nuovo componente |
+| `POST /api/v1/ai/generate-xslt` | ❌ Non implementato | Nuovo endpoint |
+
+---
+
+### Trigger per l'implementazione
+
+Quando il Designer richiede attivamente la funzionalità AI, oppure quando il
+sistema dei Preset Prompts è operativo e la configurazione AI è già in
+`system_settings` — in quel caso l'effort di Phase D si riduce a:
+1. Aggiungere un endpoint (≈ 60 righe Python).
+2. Creare il componente `XsltAiSidebar.vue` (≈ 120 righe Vue).
+3. Integrarlo nel layout del Document tab.
+
+*Aggiunto: 2026-04-09*
