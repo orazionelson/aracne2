@@ -13,7 +13,7 @@
  *   display/autorefresh, scroll/annotatescrollbar, comment/comment
  */
 
-import { ref, watch, onBeforeUnmount, type Ref } from 'vue';
+import { ref, watch, toRaw, onBeforeUnmount, type Ref } from 'vue';
 import CodeMirror, { type Editor } from 'codemirror';
 import type { CM5Schema } from '@/utils/teiSchema';
 
@@ -287,20 +287,20 @@ export function useCodeMirror(
   watch(
     containerRef,
     (el) => {
-      if (el instanceof HTMLElement && !editorInstance.value) {
+      if (el && !editorInstance.value) {
+        // toRaw() unwraps any Vue reactive Proxy so CodeMirror receives the
+        // actual HTMLElement.  Browsers validate DOM types internally: a Proxy
+        // wrapping an HTMLElement fails "instanceof HTMLElement" checks and
+        // causes CM5 to throw "place is not a function".
+        const rawEl = toRaw(el) as HTMLElement;
         // Defer to the next animation frame so the browser completes layout
-        // before CodeMirror measures the container.  This is necessary when
-        // nested v-ifs (e.g. editTab + xslt source) both become true in the
-        // same update cycle: flush:'post' fires after Vue's patch but before
-        // the browser has laid out the new subtree, causing CM5 to receive an
-        // element whose appendChild is not yet reachable.
-        // Using rAF (callback-based) instead of await nextTick (Promise-based)
-        // avoids the race condition where the element is removed while the
-        // async callback is suspended.
+        // before CodeMirror measures the container (needed when nested v-ifs
+        // become true in the same update cycle).
         requestAnimationFrame(() => {
-          const currentEl = containerRef.value;
-          if (currentEl instanceof HTMLElement && !editorInstance.value) {
-            initializeEditor(currentEl);
+          // isConnected verifies the element is still in the live DOM;
+          // it may have been removed between the watch trigger and the rAF.
+          if (rawEl.isConnected && !editorInstance.value) {
+            initializeEditor(rawEl);
           }
         });
       } else if (!el) {
