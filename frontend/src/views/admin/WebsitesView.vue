@@ -11,8 +11,8 @@ const collectionStore = useCollectionStore();
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-const expandedSlug = ref<string | null>(null);
 const editingSlug = ref<string | null>(null);
+const editTab = ref<"general" | "theme" | "pages">("general");
 const confirmDeleteSlug = ref<string | null>(null);
 const buildingSlug = ref<string | null>(null);
 const buildPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
@@ -58,12 +58,9 @@ onMounted(async () => {
 
 // ── Website CRUD ──────────────────────────────────────────────────────────────
 
-function toggleExpand(slug: string): void {
-  expandedSlug.value = expandedSlug.value === slug ? null : slug;
-}
-
 function startEdit(website: Website): void {
   editingSlug.value = website.slug;
+  editTab.value = "general";
   editForm.value = {
     title: website.title,
     description: website.description,
@@ -126,7 +123,6 @@ async function deleteWebsite(slug: string): Promise<void> {
   try {
     await store.deleteWebsite(slug);
     confirmDeleteSlug.value = null;
-    if (expandedSlug.value === slug) expandedSlug.value = null;
   } catch {
     // handled by store
   }
@@ -378,10 +374,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
         class="rounded-lg border border-gray-200 bg-white"
       >
         <!-- Website row header -->
-        <div
-          class="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-gray-50"
-          @click="toggleExpand(website.slug)"
-        >
+        <div class="flex items-center gap-3 px-4 py-3">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <span class="font-medium text-gray-900">{{ website.title }}</span>
@@ -448,76 +441,109 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           {{ website.build_error }}
         </div>
 
-        <!-- Edit form (inline, below header) -->
-        <div v-if="editingSlug === website.slug" class="border-t border-indigo-100 bg-indigo-50 p-4">
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_title") }}</label>
-              <input v-model="editForm.title" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+        <!-- Edit form with tabs -->
+        <div v-if="editingSlug === website.slug" class="border-t border-indigo-100">
+          <!-- Tab bar -->
+          <div class="flex border-b border-gray-200 bg-white px-4">
+            <button
+              v-for="tab in (['general', 'theme', 'pages'] as const)"
+              :key="tab"
+              class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
+              :class="editTab === tab
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'"
+              @click="editTab = tab"
+            >
+              {{ t(`websites.tab_${tab}`) }}
+            </button>
+          </div>
+
+          <!-- Tab: General -->
+          <div v-if="editTab === 'general'" class="bg-indigo-50 p-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_title") }}</label>
+                <input v-model="editForm.title" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_collection") }}</label>
+                <select v-model="editForm.collection_id" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                  <option :value="null">{{ t("websites.no_collection") }}</option>
+                  <option v-for="col in publishedCollections" :key="col.id" :value="col.id">{{ col.title }}</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_description") }}</label>
+                <input v-model="editForm.description" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_rendering_mode") }}</label>
+                <select v-model="editForm.rendering_mode" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                  <option value="STATIC">{{ t("websites.mode_static") }}</option>
+                  <option value="DYNAMIC">{{ t("websites.mode_dynamic") }}</option>
+                  <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2 pt-5">
+                <input :id="`edit-pub-${website.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
+                <label :for="`edit-pub-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+              </div>
             </div>
+          </div>
+
+          <!-- Tab: Theme -->
+          <div v-if="editTab === 'theme'" class="bg-indigo-50 p-4 space-y-5">
+            <!-- Colours -->
             <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_collection") }}</label>
-              <select v-model="editForm.collection_id" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option :value="null">{{ t("websites.no_collection") }}</option>
-                <option v-for="col in publishedCollections" :key="col.id" :value="col.id">{{ col.title }}</option>
-              </select>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_description") }}</label>
-              <input v-model="editForm.description" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_rendering_mode") }}</label>
-              <select v-model="editForm.rendering_mode" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option value="STATIC">{{ t("websites.mode_static") }}</option>
-                <option value="DYNAMIC">{{ t("websites.mode_dynamic") }}</option>
-                <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
-              </select>
-            </div>
-            <!-- Theme colours -->
-            <div>
-              <p class="mb-1 text-xs font-medium text-gray-700">{{ t("websites.field_theme") }}</p>
-              <div class="flex flex-wrap gap-3">
-                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.field_theme") }}</p>
+              <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_primary") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).primary_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_text") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).text_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_bg") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_doc_banner_bg") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_doc_banner_text") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
               </div>
-              <div class="mt-2">
-                <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
-                <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.theme_logo_hint')" />
-              </div>
             </div>
-
-            <!-- Home page layout + column content -->
-            <div class="sm:col-span-2 border-t border-indigo-100 pt-3">
+            <!-- Logo -->
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_logo") }}</label>
+              <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+            </div>
+            <!-- Home layout -->
+            <div>
               <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
-              <div class="mb-2">
+              <div class="mb-3">
                 <label class="block text-xs text-gray-700">{{ t("websites.home_layout") }}</label>
-                <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-1 w-64 rounded border border-gray-300 px-3 py-1.5 text-sm">
                   <option value="single">{{ t("websites.layout_single") }}</option>
                   <option value="two_left">{{ t("websites.layout_two_left") }}</option>
                   <option value="two_right">{{ t("websites.layout_two_right") }}</option>
                   <option value="three">{{ t("websites.layout_three") }}</option>
                 </select>
               </div>
-              <div class="grid gap-2" :class="(editForm.theme_config as Record<string,string>).home_layout === 'single' ? 'grid-cols-1' : (editForm.theme_config as Record<string,string>).home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
+              <div
+                class="grid gap-3"
+                :class="(editForm.theme_config as Record<string,string>).home_layout === 'single'
+                  ? 'grid-cols-1'
+                  : (editForm.theme_config as Record<string,string>).home_layout === 'three'
+                    ? 'grid-cols-3'
+                    : 'grid-cols-2'"
+              >
                 <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
                   <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
                   <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" />
@@ -532,117 +558,110 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <input :id="`edit-pub-${website.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
-              <label :for="`edit-pub-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+          <!-- Tab: Pages -->
+          <div v-if="editTab === 'pages'" class="bg-gray-50 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
+              <button
+                class="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100"
+                @click="openPageForm(website.slug)"
+              >
+                {{ t("websites.page_add") }}
+              </button>
             </div>
-          </div>
-          <p v-if="editError" class="mt-2 text-xs text-red-600">{{ editError }}</p>
-          <div class="mt-3 flex gap-2">
-            <button
-              :disabled="isEditing"
-              class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-              @click="saveEdit(website.slug)"
-            >
-              {{ t("common.save") }}
-            </button>
-            <button class="rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEdit">
-              {{ t("common.cancel") }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Expanded: pages panel -->
-        <div v-if="expandedSlug === website.slug && editingSlug !== website.slug" class="border-t border-gray-100 bg-gray-50 px-4 py-3">
-          <div class="mb-2 flex items-center justify-between">
-            <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
-            <button
-              class="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-50"
-              @click="openPageForm(website.slug)"
-            >
-              {{ t("websites.page_add") }}
-            </button>
-          </div>
-
-          <!-- Page list -->
-          <div v-if="website.pages.length === 0" class="py-2 text-xs text-gray-400">
-            {{ t("websites.pages_empty") }}
-          </div>
-          <ul v-else class="mb-2 space-y-1">
-            <li
-              v-for="page in website.pages"
-              :key="page.slug"
-              class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm"
-            >
-              <div>
-                <span class="font-medium text-gray-800">{{ page.title }}</span>
-                <span class="ml-2 font-mono text-xs text-gray-400">{{ page.slug }}</span>
-              </div>
-              <div class="flex gap-1">
-                <button
-                  class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
-                  @click="startEditPage(website.slug, page)"
-                >
-                  {{ t("common.edit") }}
-                </button>
-                <button
-                  class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
-                  @click="deletePage(website.slug, page.slug)"
-                >
-                  {{ t("common.delete") }}
-                </button>
-              </div>
-            </li>
-          </ul>
-
-          <!-- Page create / edit form -->
-          <div
-            v-if="showPageForm === website.slug"
-            class="mt-2 rounded border border-indigo-200 bg-indigo-50 p-3"
-          >
-            <p class="mb-2 text-xs font-semibold text-indigo-800">
-              {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
-            </p>
-            <div v-if="!editingPage" class="mb-2 space-y-2">
-              <div class="grid grid-cols-2 gap-2">
+            <div v-if="website.pages.length === 0 && showPageForm !== website.slug" class="py-2 text-xs text-gray-400">
+              {{ t("websites.pages_empty") }}
+            </div>
+            <ul v-else-if="website.pages.length > 0" class="mb-3 space-y-1">
+              <li
+                v-for="page in website.pages"
+                :key="page.slug"
+                class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm"
+              >
                 <div>
-                  <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
-                  <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
+                  <span class="font-medium text-gray-800">{{ page.title }}</span>
+                  <span class="ml-2 font-mono text-xs text-gray-400">{{ page.slug }}</span>
                 </div>
+                <div class="flex gap-1">
+                  <button
+                    class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+                    @click="startEditPage(website.slug, page)"
+                  >
+                    {{ t("common.edit") }}
+                  </button>
+                  <button
+                    class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
+                    @click="deletePage(website.slug, page.slug)"
+                  >
+                    {{ t("common.delete") }}
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <!-- Page create / edit form -->
+            <div v-if="showPageForm === website.slug" class="rounded border border-indigo-200 bg-white p-3">
+              <p class="mb-2 text-xs font-semibold text-indigo-800">
+                {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
+              </p>
+              <div v-if="!editingPage" class="mb-2 space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
+                    <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
+                    <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+                  <WysiwygEditor v-model="newPage.content_md" />
+                </div>
+              </div>
+              <div v-else class="mb-2 space-y-2">
                 <div>
                   <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
-                  <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+                  <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
                 </div>
               </div>
-              <div>
-                <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                <WysiwygEditor v-model="newPage.content_md" />
+              <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>
+              <div class="flex gap-2">
+                <button
+                  :disabled="isSubmittingPage"
+                  class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
+                  @click="submitPage(website.slug)"
+                >
+                  {{ isSubmittingPage ? t("common.loading") : t("common.save") }}
+                </button>
+                <button class="rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100" @click="cancelPageForm">
+                  {{ t("common.cancel") }}
+                </button>
               </div>
             </div>
-            <div v-else class="mb-2 space-y-2">
-              <div>
-                <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
-                <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-              </div>
-              <div>
-                <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
-              </div>
-            </div>
-            <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>
-            <div class="flex gap-2">
+          </div>
+
+          <!-- Action bar -->
+          <div class="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
+            <template v-if="editTab !== 'pages'">
+              <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
               <button
-                :disabled="isSubmittingPage"
-                class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
-                @click="submitPage(website.slug)"
+                :disabled="isEditing"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                @click="saveEdit(website.slug)"
               >
-                {{ isSubmittingPage ? t("common.loading") : t("common.save") }}
+                {{ t("common.save") }}
               </button>
-              <button class="rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100" @click="cancelPageForm">
-                {{ t("common.cancel") }}
-              </button>
-            </div>
+            </template>
+            <button class="ml-auto rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEdit">
+              {{ t("common.cancel") }}
+            </button>
           </div>
         </div>
 
