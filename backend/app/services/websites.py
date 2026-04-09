@@ -143,7 +143,20 @@ li { margin-bottom: 0.3rem; }
 .doc-list li { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0; }
 .doc-list a { font-weight: 500; }
 .doc-meta { font-size: 0.85rem; color: #6b7280; margin-top: 0.2rem; }
-.tei-body { border-top: 1px solid #e5e7eb; padding-top: 1.5rem; margin-top: 1.5rem; }
+/* ── Document page — TEI header banner ── */
+.tei-header {
+  background: var(--doc-banner-bg);
+  color: var(--doc-banner-text);
+  padding: 1.5rem 1.5rem 1.25rem;
+  margin-bottom: 2rem;
+  border-radius: 0.375rem;
+}
+.tei-header .tei-title,
+.tei-header .tei-author,
+.tei-header .tei-pub { color: var(--doc-banner-text); }
+.tei-header .tei-author { opacity: 0.85; font-style: italic; font-size: 0.95rem; margin-top: 0.3rem; }
+.tei-header .tei-pub { opacity: 0.7; font-size: 0.8rem; margin-top: 0.2rem; }
+.tei-body { padding-top: 0.5rem; }
 footer {
   margin-top: 4rem;
   border-top: 1px solid #e5e7eb;
@@ -190,7 +203,13 @@ def _style_block(theme: dict) -> str:
     primary = _html.escape(theme.get("primary_color", "#1e293b"))
     text = _html.escape(theme.get("text_color", "#1e293b"))
     bg = _html.escape(theme.get("bg_color", "#ffffff"))
-    root_vars = f":root{{--primary:{primary};--text:{text};--bg:{bg};}}"
+    # Banner defaults: same primary as navbar background, white text for contrast
+    doc_banner_bg = _html.escape(theme.get("doc_banner_bg", primary))
+    doc_banner_text = _html.escape(theme.get("doc_banner_text", "#ffffff"))
+    root_vars = (
+        f":root{{--primary:{primary};--text:{text};--bg:{bg};"
+        f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};}}"
+    )
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
 
 

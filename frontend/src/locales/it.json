@@ -473,6 +473,8 @@
     "theme_primary": "Principale",
     "theme_text": "Testo",
     "theme_bg": "Sfondo",
+    "theme_doc_banner_bg": "Sfondo banner documento",
+    "theme_doc_banner_text": "Testo banner documento",
     "theme_logo": "URL logo nella navbar",
     "theme_logo_hint": "URL assoluto o percorso relativo (es. /logo.png) — lascia vuoto per nessun logo",
     "home_content_title": "Corpo della home page",

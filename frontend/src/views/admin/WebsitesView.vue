@@ -28,7 +28,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
-  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
+  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
 });
 
 // Edit website form
@@ -113,7 +113,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
-      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
+      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
     };
   } catch (err: unknown) {
     createError.value = err instanceof Error ? err.message : t("common.error");
@@ -295,6 +295,14 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <label class="flex items-center gap-2 text-xs text-gray-600">
               {{ t("websites.theme_bg") }}
               <input v-model="newWebsite.theme_config!.bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_doc_banner_bg") }}
+              <input v-model="(newWebsite.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_doc_banner_text") }}
+              <input v-model="(newWebsite.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
             </label>
           </div>
           <div class="mt-2">
@@ -481,6 +489,14 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 <label class="flex items-center gap-1.5 text-xs text-gray-600">
                   {{ t("websites.theme_bg") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                  {{ t("websites.theme_doc_banner_bg") }}
+                  <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                  {{ t("websites.theme_doc_banner_text") }}
+                  <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
               </div>
               <div class="mt-2">

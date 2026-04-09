@@ -473,6 +473,8 @@
     "theme_primary": "Primary",
     "theme_text": "Text",
     "theme_bg": "Background",
+    "theme_doc_banner_bg": "Doc banner background",
+    "theme_doc_banner_text": "Doc banner text",
     "theme_logo": "Navbar logo URL",
     "theme_logo_hint": "Absolute URL or relative path (e.g. /logo.png) — leave blank for no logo",
     "home_content_title": "Home page body",
