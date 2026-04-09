@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
+import { useCodeMirror } from "@/composables/useCodeMirror";
 
 const { t } = useI18n();
 const store = useWebsiteStore();
@@ -74,6 +75,25 @@ const pagesError = ref<string | null>(null);
 const xsltFileName = ref<string>("");
 const xsltFileInput = ref<HTMLInputElement | null>(null);
 
+// Document tab — CodeMirror editor for custom XSLT source
+const xsltEditorContainer = ref<HTMLElement | null>(null);
+const xsltEditorInitialContent = ref<string>("");
+
+const xsltCm = useCodeMirror(xsltEditorContainer, {
+  get initialValue() { return xsltEditorInitialContent.value; },
+  onChange: (value: string) => {
+    if (editForm.value.xslt_config) {
+      (editForm.value.xslt_config as XsltConfig).content = value || null;
+    }
+  },
+});
+
+// Document tab — preview state
+const previewDocFilename = ref<string>("");
+const isPreviewing = ref<boolean>(false);
+const previewError = ref<string | null>(null);
+const previewBlobUrl = ref<string | null>(null);
+
 function onXsltFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -84,6 +104,7 @@ function onXsltFileChange(event: Event): void {
     const content = e.target?.result as string;
     if (editForm.value.xslt_config) {
       (editForm.value.xslt_config as XsltConfig).content = content;
+      xsltCm.setValue(content);
     }
   };
   reader.readAsText(file);
@@ -94,6 +115,23 @@ function clearXsltFile(): void {
   if (xsltFileInput.value) xsltFileInput.value.value = "";
   if (editForm.value.xslt_config) {
     (editForm.value.xslt_config as XsltConfig).content = null;
+    xsltCm.setValue("");
+  }
+}
+
+async function previewDocument(websiteSlug: string): Promise<void> {
+  if (!previewDocFilename.value) return;
+  isPreviewing.value = true;
+  previewError.value = null;
+  try {
+    const xsltConfig = editForm.value.xslt_config as XsltConfig | undefined;
+    const html = await store.previewDocument(websiteSlug, previewDocFilename.value, xsltConfig);
+    if (previewBlobUrl.value) URL.revokeObjectURL(previewBlobUrl.value);
+    previewBlobUrl.value = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  } catch (err: unknown) {
+    previewError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    isPreviewing.value = false;
   }
 }
 
@@ -111,6 +149,16 @@ onMounted(async () => {
     collectionStore.fetchCollections(),
     xsltStore.fetchTemplates().catch(() => { /* non-blocking for non-Designer roles */ }),
   ]);
+});
+
+// When the user opens the Document tab, fetch the linked collection's document
+// list so the preview selector is populated.
+watch(editTab, async (tab) => {
+  if (tab !== "document") return;
+  const site = store.websites.find((w) => w.slug === editingSlug.value);
+  if (site?.collection_id) {
+    collectionStore.fetchDocuments(site.collection_id).catch(() => {});
+  }
 });
 
 // ── Website CRUD ──────────────────────────────────────────────────────────────
@@ -267,6 +315,11 @@ async function startEdit(website: Website): Promise<void> {
   editError.value = null;
   xsltFileName.value = "";
   if (xsltFileInput.value) xsltFileInput.value.value = "";
+  xsltEditorInitialContent.value = (website.xslt_config as XsltConfig)?.content ?? "";
+  // Reset preview state for the new website being edited.
+  previewDocFilename.value = "";
+  previewError.value = null;
+  if (previewBlobUrl.value) { URL.revokeObjectURL(previewBlobUrl.value); previewBlobUrl.value = null; }
 
   // Asynchronously apply server-side suggestions to any fields still empty.
   // Fires after the form is already open so the user is not blocked.
@@ -289,6 +342,9 @@ function cancelEdit(): void {
   editingSlug.value = null;
   editError.value = null;
   unifiedPages.value = [];
+  if (previewBlobUrl.value) { URL.revokeObjectURL(previewBlobUrl.value); previewBlobUrl.value = null; }
+  previewDocFilename.value = "";
+  previewError.value = null;
 }
 
 async function saveEdit(slug: string): Promise<void> {
@@ -1115,8 +1171,8 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </label>
               </div>
 
-              <!-- Upload -->
-              <div v-if="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3">
+              <!-- Upload + inline CodeMirror editor -->
+              <div v-if="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
                 <input
                   ref="xsltFileInput"
                   type="file"
@@ -1130,7 +1186,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                     @click="xsltFileInput?.click()"
                   >
-                    {{ t("websites.doc_xslt_source_custom") }}…
+                    {{ t("websites.doc_xslt_filename") }}…
                   </button>
                   <span class="text-xs text-gray-500">
                     {{ xsltFileName || t("websites.doc_xslt_no_file") }}
@@ -1144,9 +1200,12 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     {{ t("websites.doc_xslt_clear") }}
                   </button>
                 </div>
-                <p v-if="(editForm.xslt_config as XsltConfig).content" class="mt-1 text-xs text-green-600">
-                  {{ ((editForm.xslt_config as XsltConfig).content?.length ?? 0).toLocaleString() }} chars loaded
-                </p>
+                <!-- CodeMirror XML editor — edits xslt_config.content directly -->
+                <div
+                  ref="xsltEditorContainer"
+                  class="overflow-hidden rounded border border-gray-300"
+                  style="height: 260px;"
+                />
               </div>
 
               <!-- Catalog -->
@@ -1187,6 +1246,47 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 <option value="lxml">{{ t("websites.doc_xslt_processor_lxml") }}</option>
                 <option value="saxon" disabled>{{ t("websites.doc_xslt_processor_saxon") }}</option>
               </select>
+            </div>
+
+            <!-- Preview -->
+            <div class="border-t border-indigo-100 pt-4">
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_preview_section") }}</p>
+              <div v-if="!website.collection_id" class="text-xs text-gray-400">
+                {{ t("websites.doc_preview_no_collection") }}
+              </div>
+              <div v-else class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <select
+                    v-model="previewDocFilename"
+                    class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  >
+                    <option value="">{{ t("websites.doc_preview_select_doc") }}</option>
+                    <option
+                      v-for="doc in collectionStore.documents"
+                      :key="doc.filename"
+                      :value="doc.filename"
+                    >
+                      {{ doc.filename }}
+                    </option>
+                  </select>
+                  <button
+                    :disabled="!previewDocFilename || isPreviewing"
+                    class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                    @click="previewDocument(website.slug)"
+                  >
+                    {{ isPreviewing ? t("common.loading") : t("websites.doc_preview_button") }}
+                  </button>
+                </div>
+                <p v-if="previewError" class="text-xs text-red-600">{{ previewError }}</p>
+                <iframe
+                  v-if="previewBlobUrl"
+                  :src="previewBlobUrl"
+                  class="w-full rounded border border-gray-200 bg-white"
+                  style="height: 420px;"
+                  sandbox="allow-same-origin"
+                  title="Document preview"
+                />
+              </div>
             </div>
           </div>
 

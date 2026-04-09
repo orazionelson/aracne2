@@ -36,6 +36,7 @@ from app.schemas.websites import (
     WebsitePageCreate,
     WebsitePageResponse,
     WebsitePageUpdate,
+    WebsitePreviewDocRequest,
     WebsiteResponse,
     WebsiteUpdate,
 )
@@ -148,6 +149,25 @@ async def trigger_build(
             message="Build queued.",
         )
     }
+
+
+# ── XSLT preview ─────────────────────────────────────────────────────────────
+
+@router.post("/websites/{slug}/preview-doc/{filename}", response_model=dict)
+async def preview_doc(
+    slug: str,
+    filename: str,
+    body: WebsitePreviewDocRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    """Apply the configured XSLT to a single document and return body HTML.
+
+    Pass xslt_config in the request body to preview unsaved stylesheet changes.
+    Omit it (or set to null) to use the website's currently saved xslt_config.
+    """
+    html = await svc.preview_document(db, slug, filename, body.xslt_config)
+    return {"data": {"html": html}}
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────

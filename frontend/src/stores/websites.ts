@@ -192,6 +192,24 @@ export const useWebsiteStore = defineStore("websites", () => {
     return res.data.data as MetaSuggestions;
   }
 
+  /**
+   * Apply the given XSLT config to a single document and return the body HTML.
+   *
+   * Pass xsltConfig to preview unsaved stylesheet changes; omit it (or pass
+   * null) to use the website's currently saved xslt_config.
+   */
+  async function previewDocument(
+    slug: string,
+    filename: string,
+    xsltConfig?: XsltConfig | null,
+  ): Promise<string> {
+    const res = await api.post<{ html: string }>(
+      `/websites/${slug}/preview-doc/${encodeURIComponent(filename)}`,
+      { xslt_config: xsltConfig ?? null },
+    );
+    return (res.data.data as { html: string }).html;
+  }
+
   return {
     websites,
     isLoading,
@@ -206,5 +224,6 @@ export const useWebsiteStore = defineStore("websites", () => {
     updatePage,
     deletePage,
     fetchMetaSuggestions,
+    previewDocument,
   };
 });

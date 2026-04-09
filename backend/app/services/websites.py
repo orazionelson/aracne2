@@ -928,6 +928,40 @@ def _build_search_content() -> str:
 </script>"""
 
 
+# ── XSLT preview ──────────────────────────────────────────────────────────────
+
+async def preview_document(
+    db: AsyncSession,
+    slug: str,
+    filename: str,
+    xslt_config_override: dict | None = None,
+) -> str:
+    """Apply XSLT to a single document and return the body HTML fragment.
+
+    Used by the admin Document tab to preview rendering before a full build.
+    If *xslt_config_override* is provided, it takes precedence over the
+    website's saved xslt_config (allows previewing unsaved stylesheet changes).
+    """
+    website = await _get_website(db, slug)
+    if website.collection_id is None:
+        raise NotFoundError("Website has no linked collection.")
+
+    col: Collection | None = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise NotFoundError("Linked collection not found.")
+
+    xml_bytes = await existdb_client.get_document(col.slug, filename)
+
+    config: dict = (
+        xslt_config_override
+        if xslt_config_override is not None
+        else (website.xslt_config or {})
+    )
+    xslt_transform = await _resolve_transform(config)
+    doc_body: str = await asyncio.to_thread(xslt_transform, xml_bytes)
+    return doc_body
+
+
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 async def _get_website(db: AsyncSession, slug: str) -> Website:

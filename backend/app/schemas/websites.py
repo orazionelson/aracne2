@@ -108,3 +108,14 @@ class MetaSuggestionsResponse(BaseModel):
     dc_publisher: list[str] = []
     dc_format: str = ""
     dc_identifier: str = ""
+
+
+# ── XSLT preview ──────────────────────────────────────────────────────────────
+
+class WebsitePreviewDocRequest(BaseModel):
+    """Optional XSLT config override for the preview-doc endpoint.
+
+    If xslt_config is omitted or null, the endpoint uses the website's saved
+    xslt_config.  Pass a full XsltConfig dict to preview unsaved changes.
+    """
+    xslt_config: dict | None = None

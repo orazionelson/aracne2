@@ -279,11 +279,18 @@ export function useCodeMirror(
   // Watch the container ref with flush:'post' so CM5 initialises the moment
   // the element is actually inserted into the DOM (handles both the always-visible
   // case and the v-if case where the element appears later).
+  // When the container is removed from the DOM (v-if becomes false), null out the
+  // instance so that the next appearance of the element triggers re-initialisation
+  // with the current initialValue getter.  This is essential for components that
+  // reuse the same composable across multiple v-if toggling cycles (e.g. a form
+  // that opens/closes for different records without unmounting the parent view).
   watch(
     containerRef,
     (el) => {
       if (el && !editorInstance.value) {
         initializeEditor(el);
+      } else if (!el) {
+        editorInstance.value = null;
       }
     },
     { flush: 'post' },
