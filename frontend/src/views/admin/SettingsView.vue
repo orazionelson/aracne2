@@ -7,6 +7,7 @@ import { useLicenseStore } from "@/stores/licenses";
 import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { useAiStore } from "@/stores/ai";
+import { useXsltTemplateStore, type XsltTemplateSummary } from "@/stores/xslt_templates";
 import type { TeiSchema } from "@/stores/schemas";
 import type { AiPrompt } from "@/stores/ai";
 
@@ -17,9 +18,10 @@ const licenseStore = useLicenseStore();
 const bodyTemplateStore = useBodyTemplateStore();
 const uiConfigStore = useUiConfigStore();
 const aiStore = useAiStore();
+const xsltStore = useXsltTemplateStore();
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
-const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance" | "homepage" | "ai">("settings");
+const activeTab = ref<"settings" | "schemas" | "licenses" | "body_templates" | "appearance" | "homepage" | "ai" | "design">("settings");
 
 // ── System settings ──────────────────────────────────────────────────────────
 const error = ref<string | null>(null);
@@ -512,8 +514,112 @@ async function createAiPrompt(): Promise<void> {
   }
 }
 
+// ── Design tab (XSLT catalog) ──────────────────────────────────────────────────
+const xsltError = ref<string | null>(null);
+
+// New template form
+const newXsltName = ref("");
+const newXsltDescription = ref("");
+const newXsltContent = ref("");
+const newXsltProcessor = ref("lxml");
+const newXsltTags = ref("");
+const isCreatingXslt = ref(false);
+const createXsltError = ref<string | null>(null);
+
+// Edit template state (inline)
+const editingXsltId = ref<string | null>(null);
+const xsltEditDraft = ref<{ name: string; description: string; content: string; processor: string; tags: string }>({ name: "", description: "", content: "", processor: "lxml", tags: "" });
+const isSavingXslt = ref(false);
+const saveXsltError = ref<string | null>(null);
+
+async function loadXsltTemplates(): Promise<void> {
+  xsltError.value = null;
+  try {
+    await xsltStore.fetchTemplates();
+  } catch {
+    xsltError.value = t("common.error");
+  }
+}
+
+function tagsFromString(s: string): string[] {
+  return s.split(",").map((t) => t.trim()).filter(Boolean);
+}
+
+async function createXsltTemplate(): Promise<void> {
+  if (!newXsltName.value.trim() || !newXsltContent.value.trim()) return;
+  isCreatingXslt.value = true;
+  createXsltError.value = null;
+  try {
+    await xsltStore.createTemplate({
+      name: newXsltName.value.trim(),
+      description: newXsltDescription.value.trim() || null,
+      content: newXsltContent.value.trim(),
+      processor: newXsltProcessor.value,
+      tags: tagsFromString(newXsltTags.value),
+    });
+    newXsltName.value = "";
+    newXsltDescription.value = "";
+    newXsltContent.value = "";
+    newXsltProcessor.value = "lxml";
+    newXsltTags.value = "";
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+    createXsltError.value = msg ?? t("common.error");
+  } finally {
+    isCreatingXslt.value = false;
+  }
+}
+
+function startEditXslt(tpl: XsltTemplateSummary & { content?: string }): void {
+  editingXsltId.value = tpl.id;
+  xsltEditDraft.value = {
+    name: tpl.name,
+    description: tpl.description ?? "",
+    content: tpl.content ?? "",
+    processor: tpl.processor,
+    tags: tpl.tags.join(", "),
+  };
+  saveXsltError.value = null;
+  // Load full content if not yet available
+  if (!tpl.content) {
+    xsltStore.getTemplate(tpl.id).then((full) => {
+      xsltEditDraft.value.content = full.content;
+    });
+  }
+}
+
+function cancelEditXslt(): void {
+  editingXsltId.value = null;
+  saveXsltError.value = null;
+}
+
+async function saveXsltTemplate(id: string): Promise<void> {
+  isSavingXslt.value = true;
+  saveXsltError.value = null;
+  try {
+    await xsltStore.patchTemplate(id, {
+      name: xsltEditDraft.value.name.trim(),
+      description: xsltEditDraft.value.description.trim() || null,
+      content: xsltEditDraft.value.content.trim(),
+      processor: xsltEditDraft.value.processor,
+      tags: tagsFromString(xsltEditDraft.value.tags),
+    });
+    editingXsltId.value = null;
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+    saveXsltError.value = msg ?? t("common.error");
+  } finally {
+    isSavingXslt.value = false;
+  }
+}
+
+async function deleteXsltTemplate(id: string): Promise<void> {
+  if (!confirm(t("settings.xslt_templates_confirm_delete"))) return;
+  await xsltStore.deleteTemplate(id);
+}
+
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates(), loadAiPrompts()]);
+  await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates(), loadAiPrompts(), loadXsltTemplates()]);
   initAppearanceDraft();
 });
 </script>
@@ -598,6 +704,17 @@ onMounted(async () => {
         @click="activeTab = 'ai'"
       >
         {{ t("settings.tab_ai") }}
+      </button>
+      <button
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === 'design'
+            ? 'border-b-2 border-indigo-600 text-indigo-600'
+            : 'text-gray-500 hover:text-gray-800',
+        ]"
+        @click="activeTab = 'design'"
+      >
+        {{ t("settings.tab_design") }}
       </button>
     </div>
 
@@ -1458,6 +1575,126 @@ onMounted(async () => {
           </div>
         </div>
       </section>
+    </template>
+
+    <!-- ── Design tab — XSLT Stylesheets ── -->
+    <template v-if="activeTab === 'design'">
+      <h1 class="mb-1 text-2xl font-bold">{{ t("settings.xslt_templates_title") }}</h1>
+      <p class="mb-6 text-sm text-gray-500">{{ t("settings.xslt_templates_subtitle") }}</p>
+
+      <p v-if="xsltError" class="mb-4 text-sm text-red-600">{{ xsltError }}</p>
+
+      <!-- Add form -->
+      <div class="mb-8 rounded border border-gray-200 bg-white p-4 space-y-3">
+        <p class="text-sm font-medium text-gray-700">{{ t("settings.xslt_templates_add") }}</p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_name") }} *</label>
+            <input v-model="newXsltName" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" :placeholder="t('settings.xslt_templates_name_placeholder')" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_processor") }}</label>
+            <select v-model="newXsltProcessor" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm">
+              <option value="lxml">lxml (XSLT 1.0)</option>
+              <option value="saxon" disabled>Saxon (XSLT 2.0/3.0) — not yet available</option>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_description") }}</label>
+            <input v-model="newXsltDescription" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" :placeholder="t('settings.xslt_templates_description_placeholder')" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_tags") }}</label>
+            <input v-model="newXsltTags" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" :placeholder="t('settings.xslt_templates_tags_placeholder')" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_content") }} *</label>
+            <textarea v-model="newXsltContent" rows="8" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" placeholder="<?xml version=&quot;1.0&quot;?>&#10;<xsl:stylesheet ...>" />
+            <p class="mt-0.5 text-right text-xs text-gray-400">{{ newXsltContent.length.toLocaleString() }} {{ t("settings.xslt_templates_chars") }}</p>
+          </div>
+        </div>
+        <p v-if="createXsltError" class="text-xs text-red-600">{{ createXsltError }}</p>
+        <button
+          :disabled="isCreatingXslt || !newXsltName.trim() || !newXsltContent.trim()"
+          class="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+          @click="createXsltTemplate"
+        >
+          {{ isCreatingXslt ? t("common.loading") : t("common.save") }}
+        </button>
+      </div>
+
+      <!-- Catalog list -->
+      <p v-if="xsltStore.templates.length === 0" class="text-sm text-gray-400 italic">{{ t("settings.xslt_templates_empty") }}</p>
+      <div v-else class="space-y-3">
+        <div
+          v-for="tpl in xsltStore.templates"
+          :key="tpl.id"
+          class="rounded border border-gray-200 bg-white p-4"
+        >
+          <!-- View mode -->
+          <template v-if="editingXsltId !== tpl.id">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="truncate font-medium text-sm text-gray-800">{{ tpl.name }}</p>
+                <p v-if="tpl.description" class="text-xs text-gray-500 mt-0.5">{{ tpl.description }}</p>
+                <div class="mt-1 flex flex-wrap gap-1">
+                  <span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{{ tpl.processor }}</span>
+                  <span v-for="tag in tpl.tags" :key="tag" class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600">{{ tag }}</span>
+                </div>
+              </div>
+              <div class="flex shrink-0 gap-3">
+                <button class="text-xs text-indigo-600 hover:text-indigo-800" @click="startEditXslt(tpl)">{{ t("common.edit") }}</button>
+                <button class="text-xs text-red-500 hover:text-red-700" @click="deleteXsltTemplate(tpl.id)">{{ t("common.delete") }}</button>
+              </div>
+            </div>
+          </template>
+
+          <!-- Edit mode -->
+          <template v-else>
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_name") }}</label>
+                  <input v-model="xsltEditDraft.name" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_processor") }}</label>
+                  <select v-model="xsltEditDraft.processor" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm">
+                    <option value="lxml">lxml (XSLT 1.0)</option>
+                    <option value="saxon" disabled>Saxon (XSLT 2.0/3.0) — not yet available</option>
+                  </select>
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_description") }}</label>
+                  <input v-model="xsltEditDraft.description" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_tags") }}</label>
+                  <input v-model="xsltEditDraft.tags" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs text-gray-600">{{ t("settings.xslt_templates_content") }}</label>
+                  <textarea v-model="xsltEditDraft.content" rows="10" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" />
+                  <p class="mt-0.5 text-right text-xs text-gray-400">{{ xsltEditDraft.content.length.toLocaleString() }} {{ t("settings.xslt_templates_chars") }}</p>
+                </div>
+              </div>
+              <p v-if="saveXsltError" class="text-xs text-red-600">{{ saveXsltError }}</p>
+              <div class="flex gap-2">
+                <button
+                  :disabled="isSavingXslt"
+                  class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                  @click="saveXsltTemplate(tpl.id)"
+                >
+                  {{ isSavingXslt ? t("common.loading") : t("common.save") }}
+                </button>
+                <button class="rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEditXslt">
+                  {{ t("common.cancel") }}
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
     </template>
   </div>
 </template>

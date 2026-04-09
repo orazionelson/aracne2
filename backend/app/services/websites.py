@@ -713,8 +713,11 @@ async def _resolve_transform(
       "default"  — built-in generic TEI transform (``tei_generic.xsl``).
       "custom"   — inline XSLT text stored in ``xslt_config["content"]``.
       "url"      — XSLT fetched from ``xslt_config["url"]`` at build time.
+      "catalog"  — XSLT loaded from the xslt_templates catalog by
+                   ``xslt_config["catalog_id"]`` (UUID string).
     """
     from typing import Callable  # local import avoids circular at module level
+    from app.models.xslt_template import XsltTemplate
 
     source = xslt_config.get("source", "default")
     processor = str(xslt_config.get("processor", "lxml"))
@@ -736,6 +739,26 @@ async def _resolve_transform(
             def _from_url(xml_bytes: bytes, _c: str = content, _p: str = processor) -> str:
                 return apply_xslt(_c, xml_bytes, _p)
             return _from_url
+
+    elif source == "catalog":
+        raw_id = (xslt_config.get("catalog_id") or "").strip()
+        if raw_id:
+            import uuid as _uuid
+            try:
+                catalog_id = _uuid.UUID(raw_id)
+            except ValueError:
+                logger.warning("xslt_resolve_invalid_catalog_id", catalog_id=raw_id)
+            else:
+                from app.db.postgres import AsyncSessionLocal
+                async with AsyncSessionLocal() as db:
+                    tpl: XsltTemplate | None = await db.get(XsltTemplate, catalog_id)
+                if tpl is not None:
+                    content = tpl.content
+                    proc = tpl.processor
+                    def _from_catalog(xml_bytes: bytes, _c: str = content, _p: str = proc) -> str:
+                        return apply_xslt(_c, xml_bytes, _p)
+                    return _from_catalog
+                logger.warning("xslt_resolve_catalog_not_found", catalog_id=raw_id)
 
     return _render_xml_to_html
 

@@ -23,6 +23,7 @@ from app.routers import public_view as public_view_router
 from app.routers import schemas as schemas_router, settings as settings_router, users
 from app.routers import viaf as viaf_router
 from app.routers import websites as websites_router
+from app.routers import xslt_templates as xslt_templates_router
 
 configure_logging()
 
@@ -198,3 +199,4 @@ app.include_router(body_templates_router.router, prefix="/api/v1")
 app.include_router(viaf_router.router, prefix="/api/v1")
 app.include_router(public_view_router.router, prefix="/api/v1")
 app.include_router(websites_router.router, prefix="/api/v1")
+app.include_router(xslt_templates_router.router, prefix="/api/v1")

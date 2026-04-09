@@ -2,12 +2,14 @@
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
+import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
 const { t } = useI18n();
 const store = useWebsiteStore();
 const collectionStore = useCollectionStore();
+const xsltStore = useXsltTemplateStore();
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +106,11 @@ const publishedCollections = computed(() =>
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
-  await Promise.all([store.fetchWebsites(), collectionStore.fetchCollections()]);
+  await Promise.all([
+    store.fetchWebsites(),
+    collectionStore.fetchCollections(),
+    xsltStore.fetchTemplates().catch(() => { /* non-blocking for non-Designer roles */ }),
+  ]);
 });
 
 // ── Website CRUD ──────────────────────────────────────────────────────────────
@@ -250,6 +256,7 @@ async function startEdit(website: Website): Promise<void> {
       source: "default",
       content: null,
       url: null,
+      catalog_id: null,
       processor: "lxml",
       ...(website.xslt_config ?? {}),
     } as XsltConfig,
@@ -1102,6 +1109,10 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="url" class="text-indigo-600" />
                   {{ t("websites.doc_xslt_source_url") }}
                 </label>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="catalog" class="text-indigo-600" />
+                  {{ t("websites.doc_xslt_source_catalog") }}
+                </label>
               </div>
 
               <!-- Upload -->
@@ -1135,6 +1146,23 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </div>
                 <p v-if="(editForm.xslt_config as XsltConfig).content" class="mt-1 text-xs text-green-600">
                   {{ ((editForm.xslt_config as XsltConfig).content?.length ?? 0).toLocaleString() }} chars loaded
+                </p>
+              </div>
+
+              <!-- Catalog -->
+              <div v-if="(editForm.xslt_config as XsltConfig).source === 'catalog'" class="mt-3">
+                <select
+                  v-model="(editForm.xslt_config as XsltConfig).catalog_id"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                >
+                  <option :value="null">{{ t("websites.doc_xslt_catalog_placeholder") }}</option>
+                  <option v-for="tpl in xsltStore.templates" :key="tpl.id" :value="tpl.id">
+                    {{ tpl.name }}
+                    <template v-if="tpl.processor !== 'lxml'"> ({{ tpl.processor }})</template>
+                  </option>
+                </select>
+                <p v-if="xsltStore.templates.length === 0" class="mt-1 text-xs text-gray-400">
+                  {{ t("settings.xslt_templates_empty") }}
                 </p>
               </div>
 

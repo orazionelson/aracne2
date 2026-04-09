@@ -4,13 +4,14 @@ import api from "@/services/api";
 
 export type RenderingMode = "STATIC" | "DYNAMIC" | "HYBRID";
 export type BuildStatus = "idle" | "pending" | "building" | "done" | "failed";
-export type XsltSource = "default" | "custom" | "url";
+export type XsltSource = "default" | "custom" | "url" | "catalog";
 export type XsltProcessor = "lxml" | "saxon";
 
 export interface XsltConfig {
   source: XsltSource;
   content: string | null;
   url: string | null;
+  catalog_id: string | null;
   processor: XsltProcessor;
 }
 
