@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     # Defaults to /app/media. Override via MEDIA_DIR env variable in production.
     media_dir: Path = Path("/app/media")
 
+    # Websites static root — generated static sites are written here.
+    # Each site occupies a subdirectory named after its slug.
+    # Serve via nginx in production: location /sites/ { alias /app/sites/; }
+    websites_root: Path = Path("/app/sites")
+
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"
     admin_email: str = "admin@example.com"

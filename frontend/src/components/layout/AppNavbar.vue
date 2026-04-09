@@ -11,6 +11,7 @@ import {
   PuzzlePieceIcon,
   BoltIcon,
   TagIcon,
+  GlobeAltIcon,
   BellIcon,
   Cog6ToothIcon,
   UserCircleIcon,
@@ -164,6 +165,16 @@ function closeTools(): void {
               <TagIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.entities") }}
             </router-link>
+            <router-link
+              v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
+              to="/admin/websites"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
+              @click="closeTools"
+            >
+              <GlobeAltIcon class="h-4 w-4 shrink-0" />
+              {{ t("nav.websites") }}
+            </router-link>
           </div>
         </div>
       </div>
@@ -303,6 +314,16 @@ function closeTools(): void {
         >
           <TagIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.entities") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
+          to="/admin/websites"
+          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
+          @click="closeMenu"
+        >
+          <GlobeAltIcon class="h-4 w-4 shrink-0" />
+          {{ t("nav.websites") }}
         </router-link>
         <router-link
           to="/notifications"

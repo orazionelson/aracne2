@@ -22,6 +22,7 @@ from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import public_view as public_view_router
 from app.routers import schemas as schemas_router, settings as settings_router, users
 from app.routers import viaf as viaf_router
+from app.routers import websites as websites_router
 
 configure_logging()
 
@@ -65,6 +66,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await plugin_loader.load_active(app, db)
     except Exception as exc:
         structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
+
+    # Ensure the generated-sites directory exists before the router mounts it.
+    settings.websites_root.mkdir(parents=True, exist_ok=True)
 
     # Start periodic background jobs (audit log + session cleanup)
     register_jobs()
@@ -193,3 +197,4 @@ app.include_router(licenses_router.router, prefix="/api/v1")
 app.include_router(body_templates_router.router, prefix="/api/v1")
 app.include_router(viaf_router.router, prefix="/api/v1")
 app.include_router(public_view_router.router, prefix="/api/v1")
+app.include_router(websites_router.router, prefix="/api/v1")

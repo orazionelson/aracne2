@@ -118,6 +118,14 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/admin/websites",
+      name: "admin-websites",
+      component: () => import("@/views/admin/WebsitesView.vue"),
+      // [D+]: Designer, EditorInChief, Admin.
+      // The router uses requiresAuth only; role enforcement is in the view and backend.
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/entities",
       name: "entities",
       component: () => import("@/views/EntitiesView.vue"),
