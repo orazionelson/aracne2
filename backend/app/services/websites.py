@@ -380,17 +380,43 @@ def _md_col_to_html(text: str) -> str:
     return "\n".join(blocks)
 
 
+def _parse_aracne_nav(nav_config: list) -> list[dict]:
+    """Return the ordered Aracne system-page descriptors from *nav_config*.
+
+    Fills in defaults for any missing entry so the caller always receives
+    exactly three records: home (always first), then browse and search sorted
+    by their stored ``sort_order``.
+    """
+    _defaults: dict[str, dict] = {
+        "home":   {"id": "home",   "sort_order": 0, "is_hidden": False},
+        "browse": {"id": "browse", "sort_order": 1, "is_hidden": False},
+        "search": {"id": "search", "sort_order": 2, "is_hidden": False},
+    }
+    merged: dict[str, dict] = {}
+    for page_id, default in _defaults.items():
+        saved = next((p for p in nav_config if isinstance(p, dict) and p.get("id") == page_id), None)
+        merged[page_id] = {**default, **(saved or {})}
+
+    rest = sorted(
+        [merged["browse"], merged["search"]],
+        key=lambda p: p["sort_order"],
+    )
+    return [merged["home"], *rest]
+
+
 def _render_navbar(
     *,
     site_title: str,
     logo_url: str | None,
     pages: list[WebsitePage],
     path_prefix: str = "",
+    nav_config: list | None = None,
 ) -> str:
     """Build the <header><nav> block.
 
     path_prefix must be "" for root-level pages (index.html, browse.html)
     and "../" for pages in subdirectories (docs/, pages/).
+    nav_config controls visibility and order of Browse / Search links.
     """
     logo_html = ""
     if logo_url:
@@ -401,6 +427,18 @@ def _render_navbar(
     browse_href = f"{path_prefix}browse.html"
     search_href = f"{path_prefix}search.html"
 
+    aracne_pages = _parse_aracne_nav(nav_config or [])
+    system_links = ""
+    for ap in aracne_pages:
+        pid = ap["id"]
+        hidden = ap.get("is_hidden", False)
+        if pid == "home":
+            system_links += f'<a href="{home_href}">Home</a>'
+        elif pid == "browse" and not hidden:
+            system_links += f'<a href="{browse_href}">Browse</a>'
+        elif pid == "search" and not hidden:
+            system_links += f'<a href="{search_href}">Search</a>'
+
     extra_links = ""
     for page in pages:
         href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
@@ -410,9 +448,7 @@ def _render_navbar(
     <nav>
       <a class="brand" href="{home_href}">{logo_html}<span>{_html.escape(site_title)}</span></a>
       <div class="nav-links">
-        <a href="{home_href}">Home</a>
-        <a href="{browse_href}">Browse</a>
-        <a href="{search_href}">Search</a>
+        {system_links}
         {extra_links}
       </div>
     </nav>
@@ -1019,8 +1055,14 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
 
     style = _style_block(theme)
 
-    # Only visible pages appear in the navigation.
+    # Only visible free pages appear in the navigation.
     visible_pages = [p for p in website.pages if not p.is_hidden]
+
+    # Resolve Aracne system-page visibility from nav_config.
+    aracne_nav = _parse_aracne_nav(website.nav_config or [])
+    _nav_map = {ap["id"]: ap for ap in aracne_nav}
+    browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
+    search_hidden: bool = bool(_nav_map.get("search", {}).get("is_hidden", False))
 
     # Navbars for root-level pages and subdirectory pages differ only in prefix.
     def navbar(path_prefix: str = "") -> str:
@@ -1029,6 +1071,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             logo_url=logo_url,
             pages=visible_pages,
             path_prefix=path_prefix,
+            nav_config=website.nav_config or [],
         )
 
     # ── Fetch collection metadata and document list ────────────────────────
@@ -1098,18 +1141,19 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
-    # ── browse.html — document list ────────────────────────────────────────
-    browse_html = _render_page(
-        site_title=website.title,
-        page_title="Browse",
-        content=_build_browse_content(doc_infos),
-        style=style,
-        navbar=navbar(),
-        footer_note=footer_note,
-        identifier_url=identifier_url,
-        meta_tags=meta_tags,
-    )
-    (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
+    # ── browse.html — document list (skipped when hidden) ─────────────────
+    if not browse_hidden:
+        browse_html = _render_page(
+            site_title=website.title,
+            page_title="Browse",
+            content=_build_browse_content(doc_infos),
+            style=style,
+            navbar=navbar(),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+            meta_tags=meta_tags,
+        )
+        (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
     # ── docs/{filename}.html — individual documents ────────────────────────
     if col is not None:
@@ -1150,18 +1194,19 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
-    # ── search.html — client-side search page ─────────────────────────────
-    search_html = _render_page(
-        site_title=website.title,
-        page_title="Search",
-        content=_build_search_content(),
-        style=style,
-        navbar=navbar(),
-        footer_note=footer_note,
-        identifier_url=identifier_url,
-        meta_tags=meta_tags,
-    )
-    (site_dir / "search.html").write_text(search_html, encoding="utf-8")
+    # ── search.html — client-side search page (skipped when hidden) ──────
+    if not search_hidden:
+        search_html = _render_page(
+            site_title=website.title,
+            page_title="Search",
+            content=_build_search_content(),
+            style=style,
+            navbar=navbar(),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+            meta_tags=meta_tags,
+        )
+        (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
     # ── search.json — pre-built index for client-side search ──────────────
     search_index = [

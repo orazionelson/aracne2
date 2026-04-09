@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig } from "@/stores/websites";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
@@ -107,6 +107,47 @@ function updateMetaArrayItem(field: string, idx: number, value: string): void {
   cfg[field] = arr;
 }
 
+// ── Aracne Pages (system pages nav_config) ────────────────────────────────────
+
+const DEFAULT_ARACNE_PAGES: AracnePageConfig[] = [
+  { id: "home",   sort_order: 0, is_hidden: false },
+  { id: "browse", sort_order: 1, is_hidden: false },
+  { id: "search", sort_order: 2, is_hidden: false },
+];
+
+/** Ensure all three system pages are present, merging saved values over defaults. */
+function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
+  return DEFAULT_ARACNE_PAGES.map((def) => {
+    const saved = raw.find((p) => p.id === def.id);
+    return saved ? { ...def, ...saved } : { ...def };
+  });
+}
+
+/** Returns browse + search sorted by sort_order (home excluded). */
+function editableAracnePages(): AracnePageConfig[] {
+  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
+  return nav.filter((p) => p.id !== "home").sort((a, b) => a.sort_order - b.sort_order);
+}
+
+/** Swap sort_order of the two reorderable Aracne pages (browse ↔ search). */
+function moveAracnePage(fromIdx: number, toIdx: number): void {
+  const orderable = editableAracnePages();
+  if (toIdx < 0 || toIdx >= orderable.length) return;
+  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
+  const a = nav.find((p) => p.id === orderable[fromIdx].id)!;
+  const b = nav.find((p) => p.id === orderable[toIdx].id)!;
+  const tmp = a.sort_order;
+  a.sort_order = b.sort_order;
+  b.sort_order = tmp;
+}
+
+/** Toggle the is_hidden flag for a given system page id. */
+function toggleAracnePageHidden(id: string): void {
+  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
+  const page = nav.find((p) => p.id === id);
+  if (page) page.is_hidden = !page.is_hidden;
+}
+
 async function startEdit(website: Website): Promise<void> {
   editingSlug.value = website.slug;
   editTab.value = "general";
@@ -124,6 +165,7 @@ async function startEdit(website: Website): Promise<void> {
       ...website.theme_config,
     },
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
+    nav_config: normaliseNavConfig((website.nav_config ?? []) as AracnePageConfig[]),
   };
   editError.value = null;
 
@@ -161,6 +203,7 @@ async function saveEdit(slug: string): Promise<void> {
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
+      nav_config: editForm.value.nav_config as AracnePageConfig[],
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -825,6 +868,59 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
 
           <!-- Tab: Pages -->
           <div v-if="editTab === 'pages'" class="bg-gray-50 p-4">
+
+            <!-- Aracne Pages — system pages -->
+            <div class="mb-5 rounded border border-indigo-100 bg-indigo-50 p-3">
+              <p class="mb-2 text-xs font-semibold text-indigo-700">{{ t("websites.aracne_pages_title") }}</p>
+              <ul class="space-y-1">
+                <!-- Home — always first, no controls -->
+                <li class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm">
+                  <div class="flex items-center gap-2">
+                    <span class="w-5" /><!-- spacer to align with ▲▼ column -->
+                    <span class="font-medium text-gray-600">Home</span>
+                  </div>
+                  <span class="text-xs italic text-gray-400">{{ t("websites.aracne_pages_home_fixed") }}</span>
+                </li>
+                <!-- Browse and Search — orderable and hideable -->
+                <li
+                  v-for="(ap, idx) in editableAracnePages()"
+                  :key="ap.id"
+                  class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm"
+                  :class="ap.is_hidden ? 'opacity-60' : ''"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="flex flex-col">
+                      <button
+                        class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                        :disabled="idx === 0"
+                        @click="moveAracnePage(idx, idx - 1)"
+                      >▲</button>
+                      <button
+                        class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                        :disabled="idx === editableAracnePages().length - 1"
+                        @click="moveAracnePage(idx, idx + 1)"
+                      >▼</button>
+                    </span>
+                    <span :class="ap.is_hidden ? 'text-gray-400 line-through' : 'font-medium text-gray-800'">
+                      {{ ap.id === 'browse' ? t("websites.aracne_pages_browse") : t("websites.aracne_pages_search") }}
+                    </span>
+                    <span v-if="ap.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">
+                      {{ t("websites.page_hidden") }}
+                    </span>
+                  </div>
+                  <button
+                    class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                    :class="ap.is_hidden ? 'text-amber-600' : 'text-gray-500'"
+                    :title="ap.is_hidden ? t('websites.page_show') : t('websites.page_hide')"
+                    @click="toggleAracnePageHidden(ap.id)"
+                  >
+                    {{ ap.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Free Pages -->
             <div class="mb-3 flex items-center justify-between">
               <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
               <button

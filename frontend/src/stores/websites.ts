@@ -5,6 +5,12 @@ import api from "@/services/api";
 export type RenderingMode = "STATIC" | "DYNAMIC" | "HYBRID";
 export type BuildStatus = "idle" | "pending" | "building" | "done" | "failed";
 
+export interface AracnePageConfig {
+  id: "home" | "browse" | "search";
+  sort_order: number;
+  is_hidden: boolean;
+}
+
 export interface WebsitePage {
   id: string;
   website_id: string;
@@ -26,7 +32,7 @@ export interface Website {
   rendering_mode: RenderingMode;
   theme_config: Record<string, string>;
   meta_config: Record<string, string | string[]>;
-  nav_config: unknown[];
+  nav_config: AracnePageConfig[];
   xslt_schema_id: string | null;
   build_status: BuildStatus;
   last_build_at: string | null;
@@ -56,6 +62,7 @@ export interface WebsiteUpdate {
   rendering_mode?: RenderingMode;
   theme_config?: Record<string, string>;
   meta_config?: Record<string, string | string[]>;
+  nav_config?: AracnePageConfig[];
   is_published?: boolean;
 }
 
