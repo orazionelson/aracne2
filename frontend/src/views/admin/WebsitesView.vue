@@ -27,7 +27,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
-  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "" },
+  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
 });
 
 // Edit website form
@@ -112,7 +112,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
-      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "" },
+      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
     };
   } catch (err: unknown) {
     createError.value = err instanceof Error ? err.message : t("common.error");
@@ -301,6 +301,35 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <input v-model="newWebsite.theme_config!.logo_url" type="text" class="mt-1 block w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
           </div>
         </div>
+
+        <!-- Home page layout + column content -->
+        <div class="sm:col-span-2 border-t border-indigo-100 pt-4">
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
+          <div class="mb-3">
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.home_layout") }}</label>
+            <select v-model="newWebsite.theme_config!.home_layout" class="mt-1 block w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+              <option value="single">{{ t("websites.layout_single") }}</option>
+              <option value="two_left">{{ t("websites.layout_two_left") }}</option>
+              <option value="two_right">{{ t("websites.layout_two_right") }}</option>
+              <option value="three">{{ t("websites.layout_three") }}</option>
+            </select>
+          </div>
+          <div class="grid gap-3" :class="newWebsite.theme_config!.home_layout === 'single' ? 'grid-cols-1' : newWebsite.theme_config!.home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
+            <div v-if="newWebsite.theme_config!.home_layout === 'two_left' || newWebsite.theme_config!.home_layout === 'three'">
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_left") }}</label>
+              <textarea v-model="newWebsite.theme_config!.col_left" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_center") }}</label>
+              <textarea v-model="newWebsite.theme_config!.col_center" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+            </div>
+            <div v-if="newWebsite.theme_config!.home_layout === 'two_right' || newWebsite.theme_config!.home_layout === 'three'">
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_right") }}</label>
+              <textarea v-model="newWebsite.theme_config!.col_right" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+            </div>
+          </div>
+        </div>
+
         <div class="flex items-center gap-2">
           <input id="create-published" v-model="newWebsite.is_published" type="checkbox" class="rounded border-gray-300" />
           <label for="create-published" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
@@ -458,6 +487,35 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.theme_logo_hint')" />
               </div>
             </div>
+
+            <!-- Home page layout + column content -->
+            <div class="sm:col-span-2 border-t border-indigo-100 pt-3">
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
+              <div class="mb-2">
+                <label class="block text-xs text-gray-700">{{ t("websites.home_layout") }}</label>
+                <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                  <option value="single">{{ t("websites.layout_single") }}</option>
+                  <option value="two_left">{{ t("websites.layout_two_left") }}</option>
+                  <option value="two_right">{{ t("websites.layout_two_right") }}</option>
+                  <option value="three">{{ t("websites.layout_three") }}</option>
+                </select>
+              </div>
+              <div class="grid gap-2" :class="(editForm.theme_config as Record<string,string>).home_layout === 'single' ? 'grid-cols-1' : (editForm.theme_config as Record<string,string>).home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
+                <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+                  <label class="block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
+                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_left" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
+                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_center" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                </div>
+                <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+                  <label class="block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
+                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_right" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                </div>
+              </div>
+            </div>
+
             <div class="flex items-center gap-2">
               <input :id="`edit-pub-${website.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
               <label :for="`edit-pub-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>

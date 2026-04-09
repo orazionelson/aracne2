@@ -109,6 +109,26 @@ nav {
   letter-spacing: 0.01em;
 }
 .btn-primary:hover { opacity: 0.88; }
+/* ── Home body grid ── */
+.home-body { margin-top: 2.5rem; }
+.home-grid { display: grid; gap: 2rem; }
+.home-grid.layout-single  { grid-template-columns: 1fr; }
+.home-grid.layout-two-left  { grid-template-columns: 30fr 70fr; }
+.home-grid.layout-two-right { grid-template-columns: 70fr 30fr; }
+.home-grid.layout-three  { grid-template-columns: 20fr 60fr 20fr; }
+@media (max-width: 640px) { .home-grid { grid-template-columns: 1fr !important; } }
+.home-col { min-width: 0; }
+.home-col img { max-width: 100%; height: auto; display: block; margin: 1rem 0; border-radius: 0.25rem; }
+.home-col a { color: var(--primary); }
+.home-col h2 { font-size: 1.25rem; margin: 1.5rem 0 0.5rem; line-height: 1.2; }
+.home-col h3 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; }
+.home-col h4 { font-size: 0.95rem; margin: 1rem 0 0.3rem; }
+.home-col p  { margin-bottom: 0.9rem; }
+.home-col ul { margin: 0.5rem 0 0.9rem 1.25rem; }
+.home-col ol { margin: 0.5rem 0 0.9rem 1.25rem; }
+.home-col li { margin-bottom: 0.2rem; }
+.home-col figure { margin: 1.25rem 0; }
+.home-col figcaption { font-size: 0.8rem; color: #6b7280; margin-top: 0.35rem; text-align: center; }
 /* ── Content pages ── */
 main { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
 h1 { font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.2; }
@@ -141,6 +161,71 @@ def _style_block(theme: dict) -> str:
     bg = _html.escape(theme.get("bg_color", "#ffffff"))
     root_vars = f":root{{--primary:{primary};--text:{text};--bg:{bg};}}"
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
+
+
+def _render_col_content(text: str) -> str:
+    """Convert column body text (trusted Designer input) to HTML.
+
+    Supports a lightweight Markdown subset — no html.escape because the
+    content is written by a Designer+ user for their own static site.
+
+    Supported syntax:
+      # / ## / ### headings
+      **bold**  *italic*
+      ![alt](url)  images
+      [text](url)  links
+      Empty line → paragraph break
+      Lines starting with < are passed through as raw HTML
+    """
+    import re as _re
+
+    def inline(s: str) -> str:
+        # Images before links to avoid mis-parsing ![...](...)
+        s = _re.sub(
+            r'!\[([^\]]*)\]\(([^)]+)\)',
+            lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}">',
+            s,
+        )
+        s = _re.sub(
+            r'\[([^\]]+)\]\(([^)]+)\)',
+            lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>',
+            s,
+        )
+        s = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
+        s = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', s)
+        return s
+
+    lines = text.splitlines()
+    blocks: list[str] = []
+    para_lines: list[str] = []
+
+    def flush() -> None:
+        if para_lines:
+            blocks.append(f"<p>{' '.join(inline(l) for l in para_lines)}</p>")
+            para_lines.clear()
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            flush()
+        elif stripped.startswith("### "):
+            flush()
+            blocks.append(f"<h4>{inline(stripped[4:])}</h4>")
+        elif stripped.startswith("## "):
+            flush()
+            blocks.append(f"<h3>{inline(stripped[3:])}</h3>")
+        elif stripped.startswith("# "):
+            flush()
+            blocks.append(f"<h2>{inline(stripped[2:])}</h2>")
+        elif stripped.startswith("<"):
+            # Raw HTML passthrough (images, figures, custom elements…)
+            flush()
+            blocks.append(stripped)
+        else:
+            para_lines.append(stripped)
+
+    flush()
+    return "\n".join(blocks)
 
 
 def _render_navbar(
@@ -256,10 +341,16 @@ def _build_cover_content(
     website_title: str,
     col: Collection | None,
     doc_count: int,
+    theme: dict,
 ) -> str:
     """Return the hero/cover HTML for index.html.
 
     Publisher / year are intentionally omitted here — they appear in the footer.
+    Below the hero, an optional column grid is rendered from theme_config keys:
+      home_layout : "single" | "two_left" | "two_right" | "three"
+      col_left    : body text for left sidebar column
+      col_center  : body text for central column (shown in all layouts)
+      col_right   : body text for right sidebar column
     """
     title = _html.escape(col.title if col else website_title)
     lead = ""
@@ -273,12 +364,47 @@ def _build_cover_content(
     browse_label = f"Browse {doc_count} document{'s' if doc_count != 1 else ''} →"
     cta = f'<a href="browse.html" class="btn-primary">{browse_label}</a>'
 
-    return f"""<div class="hero">
+    hero = f"""<div class="hero">
   <h1>{title}</h1>
   {lead}
   {author_block}
   {cta}
 </div>"""
+
+    # ── Column body grid ──────────────────────────────────────────────────
+    layout = theme.get("home_layout", "single")
+    center = _render_col_content(theme.get("col_center", "") or "")
+    left   = _render_col_content(theme.get("col_left", "") or "")
+    right  = _render_col_content(theme.get("col_right", "") or "")
+
+    if layout == "two_left":
+        cols = (
+            f'<div class="home-col">{left}</div>'
+            f'<div class="home-col">{center}</div>'
+        )
+        css_class = "layout-two-left"
+    elif layout == "two_right":
+        cols = (
+            f'<div class="home-col">{center}</div>'
+            f'<div class="home-col">{right}</div>'
+        )
+        css_class = "layout-two-right"
+    elif layout == "three":
+        cols = (
+            f'<div class="home-col">{left}</div>'
+            f'<div class="home-col">{center}</div>'
+            f'<div class="home-col">{right}</div>'
+        )
+        css_class = "layout-three"
+    else:
+        cols = f'<div class="home-col">{center}</div>'
+        css_class = "layout-single"
+
+    grid = ""
+    if center or left or right:
+        grid = f'<div class="home-body"><div class="home-grid {css_class}">{cols}</div></div>'
+
+    return hero + grid
 
 
 def _build_browse_content(docs: list[dict]) -> str:
@@ -577,6 +703,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             website_title=website.title,
             col=col,
             doc_count=len(doc_infos),
+            theme=theme,
         ),
         style=style,
         navbar=navbar(),
