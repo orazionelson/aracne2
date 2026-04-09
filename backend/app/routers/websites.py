@@ -240,9 +240,10 @@ async def delete_page(
 #
 # STATIC  → FileResponse from pre-built files on disk.
 # DYNAMIC → Rendered on every request from eXist-db data; HTML cached in memory.
-# HYBRID  → Structural pages (index, browse, search, pages) served from disk
-#            like STATIC.  Document pages (/docs/{filename}) always rendered
-#            dynamically, even if a static file exists at that path.
+# HYBRID  → index, browse, pages served from disk (built by _build_hybrid_site).
+#            search and docs always rendered dynamically:
+#            • search is not built statically — all links point to the dynamic endpoint
+#            • docs are always rendered live from eXist-db (never on disk)
 #
 # ETag headers are added to all dynamic responses so CDN / browser caches can
 # skip the body on subsequent requests.  The ETag changes whenever the website
@@ -322,11 +323,14 @@ async def serve_site_search(
     q: str = "",
 ) -> Response:
     website = await svc.get_website(db, slug)
-    if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
+    if website.rendering_mode == RenderingMode.STATIC:
+        # Static path: client-side JS search page built at build time.
         path = _resolve_site_file(slug, "search.html")
         if not path.exists():
             raise HTTPException(status_code=404, detail="Page not found.")
         return FileResponse(path, media_type="text/html")
+    # DYNAMIC or HYBRID: server-side eXist-db full-text search.
+    # HYBRID does not build search.html — all navbar links point here directly.
     html = await svc.render_dynamic_search(db, website, q)
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 

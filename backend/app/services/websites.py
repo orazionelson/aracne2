@@ -1718,18 +1718,19 @@ async def trigger_build(db: AsyncSession, slug: str) -> None:
 
 
 async def run_build(slug: str) -> None:
-    """Background task: generate the complete static site for *slug*.
+    """Background task: generate the site for *slug*.
 
     Creates its own AsyncSession so it can run after the HTTP response is sent.
-    Rendering mode DYNAMIC and HYBRID are no-ops (their "build" is handled
-    at request time); this function only executes the STATIC path.
+
+    - STATIC  → full build: index, browse, docs, pages, search + search.json
+    - HYBRID  → structural build: index, browse, pages only (docs always dynamic)
+    - DYNAMIC → no-op: nothing to build, mark done immediately
     """
     async with AsyncSessionLocal() as db:
         try:
             website = await _get_website(db, slug)
 
-            if website.rendering_mode != RenderingMode.STATIC:
-                # Nothing to build for dynamic/hybrid modes.
+            if website.rendering_mode == RenderingMode.DYNAMIC:
                 website.build_status = BuildStatus.done
                 website.last_build_at = datetime.now(UTC)
                 await db.commit()
@@ -1739,14 +1740,17 @@ async def run_build(slug: str) -> None:
             website.updated_at = datetime.now(UTC)
             await db.commit()
 
-            await _build_static_site(db, website)
+            if website.rendering_mode == RenderingMode.HYBRID:
+                await _build_hybrid_site(db, website)
+            else:  # STATIC
+                await _build_static_site(db, website)
 
             website.build_status = BuildStatus.done
             website.build_error = None
             website.last_build_at = datetime.now(UTC)
             website.updated_at = datetime.now(UTC)
             await db.commit()
-            logger.info("website_build_done", slug=slug)
+            logger.info("website_build_done", slug=slug, mode=website.rendering_mode.value)
 
         except Exception as exc:
             logger.error("website_build_failed", slug=slug, error=str(exc))
@@ -1976,3 +1980,117 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     (site_dir / "search.json").write_text(
         json.dumps(search_index, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
+    """Build the structural pages for a HYBRID website.
+
+    Structural pages written to disk (served via FileResponse):
+      index.html     — cover / hero page
+      browse.html    — document list (links to dynamic doc endpoint)
+      pages/{s}.html — free Markdown pages
+
+    Not built (served dynamically at request time):
+      docs/{filename}  — always rendered live from eXist-db
+      search           — server-side FT search via render_dynamic_search()
+
+    All hrefs inside the built pages use absolute paths rooted at
+    ``/api/v1/sites/{slug}/`` so that navbar and content links resolve
+    correctly regardless of which static file is being served.
+    """
+    slug = website.slug
+    theme = website.theme_config or {}
+    logo_url: str | None = theme.get("logo_url") or None
+    base = f"/api/v1/sites/{slug}"
+
+    site_dir = settings.websites_root / slug
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "pages").mkdir(exist_ok=True)
+
+    style = _style_block(theme)
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+
+    aracne_nav = _parse_aracne_nav(website.nav_config or [])
+    _nav_map = {ap["id"]: ap for ap in aracne_nav}
+    browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    def _navbar() -> str:
+        if hide_header:
+            return ""
+        return _render_navbar(
+            site_title=website.title,
+            logo_url=logo_url,
+            pages=visible_pages,
+            nav_config=website.nav_config or [],
+            site_base_url=base,
+        )
+
+    # Fetch doc list for cover doc-count and browse page.
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id is not None else None
+    )
+    doc_infos: list[dict] = await _fetch_doc_infos(col) if col is not None else []
+
+    meta_tags: str = _build_meta_tags(website.meta_config or {})
+    footer_note, identifier_url = _footer_parts(col)
+
+    # ── index.html ────────────────────────────────────────────────────────
+    index_html = _render_page(
+        site_title=website.title,
+        page_title=website.title,
+        content=_build_cover_content(
+            website_title=website.title,
+            col=col,
+            doc_count=len(doc_infos),
+            theme=theme,
+            pages=visible_pages,
+            nav_config=website.nav_config or [],
+            site_base_url=base,
+        ),
+        style=style,
+        navbar=_navbar(),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+        meta_tags=meta_tags,
+    )
+    (site_dir / "index.html").write_text(index_html, encoding="utf-8")
+
+    # ── browse.html — document list (skipped when hidden) ─────────────────
+    if not browse_hidden:
+        browse_html = _render_page(
+            site_title=website.title,
+            page_title="Browse",
+            content=_build_browse_content(doc_infos, site_base_url=base),
+            style=style,
+            navbar=_navbar(),
+            breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+            meta_tags=meta_tags,
+        )
+        (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
+
+    # ── pages/{slug}.html — free Markdown pages ───────────────────────────
+    for page in visible_pages:
+        content_html = _md_to_html(page.content_md or "")
+        page_html = _render_page(
+            site_title=website.title,
+            page_title=page.title,
+            content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
+            style=style,
+            navbar=_navbar(),
+            breadcrumb=_render_breadcrumb(
+                [(f"{base}/", "Home"), (None, page.title)]
+            ),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+        )
+        (site_dir / "pages" / f"{page.slug}.html").write_text(
+            page_html, encoding="utf-8"
+        )
+
+    # After build, invalidate the dynamic render cache so any cached doc pages
+    # are refreshed from eXist-db on the next request.
+    invalidate_cache(slug)
