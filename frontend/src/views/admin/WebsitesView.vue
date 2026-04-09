@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useWebsiteStore, type Website, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions } from "@/stores/websites";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
@@ -249,6 +249,19 @@ function startEditPage(websiteSlug: string, page: { slug: string; title: string;
 
 async function togglePageHidden(websiteSlug: string, page: { slug: string; is_hidden: boolean }): Promise<void> {
   await store.updatePage(websiteSlug, page.slug, { is_hidden: !page.is_hidden });
+}
+
+async function movePage(websiteSlug: string, pages: WebsitePage[], fromIdx: number, toIdx: number): Promise<void> {
+  if (toIdx < 0 || toIdx >= pages.length) return;
+  // Assign array-position as new sort_order for both swapped pages so the
+  // ordering is always normalized regardless of existing sort_order values.
+  await Promise.all([
+    store.updatePage(websiteSlug, pages[fromIdx].slug, { sort_order: toIdx }),
+    store.updatePage(websiteSlug, pages[toIdx].slug, { sort_order: fromIdx }),
+  ]);
+  // Re-sort the local array to reflect the new order immediately.
+  const site = store.websites.find((w) => w.slug === websiteSlug);
+  if (site) site.pages.sort((a, b) => a.sort_order - b.sort_order);
 }
 
 function cancelPageForm(): void {
@@ -774,12 +787,25 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </div>
             <ul v-else-if="website.pages.length > 0" class="mb-3 space-y-1">
               <li
-                v-for="page in website.pages"
+                v-for="(page, idx) in website.pages"
                 :key="page.slug"
                 class="flex items-center justify-between rounded px-3 py-1.5 text-sm shadow-sm"
                 :class="page.is_hidden ? 'bg-gray-100' : 'bg-white'"
               >
                 <div class="flex items-center gap-2">
+                  <!-- Reorder arrows -->
+                  <span class="flex flex-col">
+                    <button
+                      class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                      :disabled="idx === 0"
+                      @click="movePage(website.slug, website.pages, idx, idx - 1)"
+                    >▲</button>
+                    <button
+                      class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                      :disabled="idx === website.pages.length - 1"
+                      @click="movePage(website.slug, website.pages, idx, idx + 1)"
+                    >▼</button>
+                  </span>
                   <span :class="page.is_hidden ? 'font-medium text-gray-400 line-through' : 'font-medium text-gray-800'">{{ page.title }}</span>
                   <span class="font-mono text-xs text-gray-400">{{ page.slug }}</span>
                   <span v-if="page.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">{{ t("websites.page_hidden") }}</span>
