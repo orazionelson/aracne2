@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useWebsiteStore, type Website, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions } from "@/stores/websites";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
@@ -107,7 +107,7 @@ function updateMetaArrayItem(field: string, idx: number, value: string): void {
   cfg[field] = arr;
 }
 
-function startEdit(website: Website): void {
+async function startEdit(website: Website): Promise<void> {
   editingSlug.value = website.slug;
   editTab.value = "general";
   showMetaPanel.value = false;
@@ -121,6 +121,22 @@ function startEdit(website: Website): void {
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
   };
   editError.value = null;
+
+  // Asynchronously apply server-side suggestions to any fields still empty.
+  // Fires after the form is already open so the user is not blocked.
+  try {
+    const s: MetaSuggestions = await store.fetchMetaSuggestions(website.slug);
+    const m = editForm.value.meta_config as Record<string, string | string[]>;
+    if ((m.author as string[]).length === 0 && s.author.length > 0) m.author = s.author;
+    if ((m.dc_creator as string[]).length === 0 && s.dc_creator.length > 0) m.dc_creator = s.dc_creator;
+    if ((m.designer as string[]).length === 0 && s.designer.length > 0) m.designer = s.designer;
+    if (!(m.copyright as string) && s.copyright) m.copyright = s.copyright;
+    if ((m.dc_publisher as string[]).length === 0 && s.dc_publisher.length > 0) m.dc_publisher = s.dc_publisher;
+    if (!(m.dc_format as string) && s.dc_format) m.dc_format = s.dc_format;
+    if (!(m.dc_identifier as string) && s.dc_identifier) m.dc_identifier = s.dc_identifier;
+  } catch {
+    // suggestions are best-effort — proceed without them if the request fails
+  }
 }
 
 function cancelEdit(): void {

@@ -91,3 +91,14 @@ class WebsiteBuildResponse(BaseModel):
     slug: str
     build_status: BuildStatus
     message: str
+
+
+class MetaSuggestionsResponse(BaseModel):
+    """Pre-computed meta field suggestions for the edit form."""
+    author: list[str] = []
+    dc_creator: list[str] = []
+    designer: list[str] = []
+    copyright: str = ""
+    dc_publisher: list[str] = []
+    dc_format: str = ""
+    dc_identifier: str = ""

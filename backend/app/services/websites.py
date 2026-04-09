@@ -26,8 +26,17 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
+from app.models.collection_permission import CollectionPermission
+from app.models.role import Role, RoleName, UserRole
+from app.models.user import User
 from app.models.website import BuildStatus, RenderingMode, Website, WebsitePage
-from app.schemas.websites import WebsiteCreate, WebsitePageCreate, WebsitePageUpdate, WebsiteUpdate
+from app.schemas.websites import (
+    MetaSuggestionsResponse,
+    WebsiteCreate,
+    WebsitePageCreate,
+    WebsitePageUpdate,
+    WebsiteUpdate,
+)
 
 logger = structlog.get_logger()
 
@@ -712,6 +721,68 @@ async def delete_website(db: AsyncSession, slug: str) -> None:
         shutil.rmtree(site_dir, ignore_errors=True)
     await db.delete(website)
     await db.commit()
+
+
+async def get_meta_suggestions(
+    db: AsyncSession, slug: str, current_user: User
+) -> MetaSuggestionsResponse:
+    """Return pre-computed meta field suggestions for the edit form.
+
+    Suggestions are derived from the linked collection's metadata and from
+    the users who hold Editor / EditorInChief roles on that collection.
+    Intended to pre-populate empty meta_config fields on first edit.
+    """
+    website = await _get_website(db, slug)
+
+    col: Collection | None = None
+    if website.collection_id:
+        col = await db.get(Collection, website.collection_id)
+
+    # ── Contributor names (Editor + EiC assigned to the collection) ───────
+    contributor_names: list[str] = []
+    if col is not None:
+        # The directly assigned editor
+        if col.editor_id:
+            editor = await db.get(User, col.editor_id)
+            if editor:
+                contributor_names.append(editor.display_name or editor.username)
+
+        # Users with explicit permission grants who carry Editor/EiC role
+        result = await db.execute(
+            select(User)
+            .join(CollectionPermission, CollectionPermission.user_id == User.id)
+            .join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(
+                CollectionPermission.collection_id == col.id,
+                Role.name.in_([RoleName.Editor, RoleName.EditorInChief]),
+                UserRole.revoked_at.is_(None),
+            )
+            .distinct()
+        )
+        for u in result.scalars().all():
+            name = u.display_name or u.username
+            if name not in contributor_names:
+                contributor_names.append(name)
+
+    # ── Designer is the currently logged-in user ──────────────────────────
+    designer_name = current_user.display_name or current_user.username
+
+    # ── Publisher / copyright come from the collection's TEI metadata ─────
+    publisher: str = col.publisher if col and col.publisher else ""
+
+    # ── Identifier: use the collection's persistent identifier URL ────────
+    identifier: str = col.identifier_url if col and col.identifier_url else ""
+
+    return MetaSuggestionsResponse(
+        author=contributor_names,
+        dc_creator=contributor_names,
+        designer=[designer_name],
+        copyright=publisher,
+        dc_publisher=[publisher] if publisher else [],
+        dc_format="text/html",
+        dc_identifier=identifier,
+    )
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────

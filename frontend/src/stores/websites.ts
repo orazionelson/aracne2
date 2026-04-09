@@ -71,6 +71,16 @@ export interface WebsitePageUpdate {
   sort_order?: number;
 }
 
+export interface MetaSuggestions {
+  author: string[];
+  dc_creator: string[];
+  designer: string[];
+  copyright: string;
+  dc_publisher: string[];
+  dc_format: string;
+  dc_identifier: string;
+}
+
 export const useWebsiteStore = defineStore("websites", () => {
   const websites = ref<Website[]>([]);
   const isLoading = ref(false);
@@ -155,6 +165,11 @@ export const useWebsiteStore = defineStore("websites", () => {
     if (site) site.pages = site.pages.filter((p) => p.slug !== pageSlug);
   }
 
+  async function fetchMetaSuggestions(slug: string): Promise<MetaSuggestions> {
+    const res = await api.get<MetaSuggestions>(`/websites/${slug}/meta-suggestions`);
+    return res.data.data as MetaSuggestions;
+  }
+
   return {
     websites,
     isLoading,
@@ -168,5 +183,6 @@ export const useWebsiteStore = defineStore("websites", () => {
     createPage,
     updatePage,
     deletePage,
+    fetchMetaSuggestions,
   };
 });

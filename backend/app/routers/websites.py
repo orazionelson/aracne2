@@ -30,6 +30,7 @@ from app.db.postgres import get_async_session
 from app.middleware.acl import ROLE_LEVEL, get_current_user
 from app.models.user import User
 from app.schemas.websites import (
+    MetaSuggestionsResponse,
     WebsiteBuildResponse,
     WebsiteCreate,
     WebsitePageCreate,
@@ -96,6 +97,16 @@ async def get_website(
 ) -> dict:
     website = await svc.get_website(db, slug)
     return {"data": WebsiteResponse.model_validate(website)}
+
+
+@router.get("/websites/{slug}/meta-suggestions", response_model=dict)
+async def get_meta_suggestions(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    suggestions = await svc.get_meta_suggestions(db, slug, user)
+    return {"data": MetaSuggestionsResponse.model_validate(suggestions)}
 
 
 @router.put("/websites/{slug}", response_model=dict)
