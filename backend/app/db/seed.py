@@ -55,6 +55,8 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("ai_gemini_model", "gemini-1.5-pro", "string"),
     ("ai_max_requests_per_hour", "20", "int"),
     ("ai_privacy_warning_enabled", "false", "bool"),
+    # Dynamic/Hybrid website caching
+    ("dynamic_cache_ttl", "300", "int"),
 ]
 
 # Default Creative Commons licenses (name, target).

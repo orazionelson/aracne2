@@ -1,17 +1,20 @@
-"""Website service — CRUD operations and Option A static site builder.
+"""Website service — CRUD operations, static builder, and dynamic rendering.
 
-The static builder generates a self-contained folder of HTML/CSS files at
-``settings.websites_root / slug /``.  Build and Dynamic/Hybrid render paths
-diverge here; the data model (Website, WebsitePage) is shared by all three.
+STATIC mode generates a self-contained folder of HTML/CSS files at
+``settings.websites_root / slug /``.  DYNAMIC and HYBRID modes render pages
+at request time from eXist-db data.  All three modes share the same data model
+(Website, WebsitePage) and the same HTML generation helpers.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html as _html
 import json
 import re
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -41,6 +44,92 @@ from app.schemas.websites import (
 )
 
 logger = structlog.get_logger()
+
+
+# ── In-process caches (DYNAMIC / HYBRID rendering) ───────────────────────────
+
+# Default TTL for rendered HTML pages when no per-site override is configured.
+_DEFAULT_CACHE_TTL_SECONDS: int = 300  # 5 minutes
+
+# Rendered-page cache.  Key: (slug, path_key).  Value: (html, computed_at).
+# path_key examples: "index", "browse", "doc:file.xml", "page:about",
+# "search:term".
+_page_cache: dict[tuple[str, str], tuple[str, datetime]] = {}
+
+# Per-site XSLT transform cache.  Key: slug.  Value: (transform_callable, cached_at).
+# Populated on first dynamic request; invalidated by PUT /websites/{slug} or clear-cache.
+_site_xslt_cache: dict[str, tuple[Callable[[bytes], str], datetime]] = {}
+
+
+def _get_cache_ttl(website: Website) -> int:
+    """Return the effective cache TTL in seconds for *website*.
+
+    Precedence (highest first):
+      1. Per-site override: ``website.theme_config["cache_ttl_seconds"]``
+      2. Global hard-coded default (300 s — configurable via system_settings in the future)
+    """
+    theme_ttl = (website.theme_config or {}).get("cache_ttl_seconds")
+    if isinstance(theme_ttl, int) and theme_ttl > 0:
+        return theme_ttl
+    return _DEFAULT_CACHE_TTL_SECONDS
+
+
+def _get_cached_page(slug: str, path_key: str, ttl_seconds: int) -> str | None:
+    """Return cached HTML for *(slug, path_key)*, or ``None`` if absent / expired."""
+    key = (slug, path_key)
+    entry = _page_cache.get(key)
+    if entry is None:
+        return None
+    html, computed_at = entry
+    if (datetime.now(UTC) - computed_at).total_seconds() > ttl_seconds:
+        del _page_cache[key]
+        return None
+    return html
+
+
+def _set_cached_page(slug: str, path_key: str, html: str) -> None:
+    """Store *html* in the page cache for *(slug, path_key)*."""
+    _page_cache[(slug, path_key)] = (html, datetime.now(UTC))
+
+
+def invalidate_cache(slug: str) -> None:
+    """Drop all cached pages and the XSLT transform for *slug*.
+
+    Called automatically by ``update_website()`` and by the
+    ``POST /websites/{slug}/clear-cache`` endpoint.
+    """
+    stale_keys = [k for k in _page_cache if k[0] == slug]
+    for k in stale_keys:
+        del _page_cache[k]
+    _site_xslt_cache.pop(slug, None)
+    logger.info("website_cache_invalidated", slug=slug)
+
+
+async def _resolve_transform_cached(
+    slug: str, xslt_config: dict
+) -> Callable[[bytes], str]:
+    """Return the XSLT transform callable for *slug*, using the per-site cache.
+
+    The transform is cached until ``invalidate_cache(slug)`` is called.
+    On first call (or after invalidation), delegates to ``_resolve_transform()``.
+    """
+    entry = _site_xslt_cache.get(slug)
+    if entry is not None:
+        transform, _ = entry
+        return transform
+    transform = await _resolve_transform(xslt_config)
+    _site_xslt_cache[slug] = (transform, datetime.now(UTC))
+    return transform
+
+
+def compute_etag(website: Website) -> str:
+    """Compute a short ETag for *website* based on slug + last update time.
+
+    Changes whenever ``PUT /websites/{slug}`` is called (which updates
+    ``updated_at``).  Suitable for CDN / browser conditional-GET caching.
+    """
+    raw = f"{website.slug}|{website.updated_at.isoformat()}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 # ── XSLT cache (same pattern as public_view.py) ───────────────────────────────
@@ -287,13 +376,28 @@ _WIDGET_TAG_SEARCH_BAR = '<div data-widget="search-bar"></div>'
 _WIDGET_TAG_PAGE_MENU  = '<div data-widget="page-menu"></div>'
 
 
-def _build_search_widget_html() -> str:
-    """Return HTML+JS for the inline search-bar column widget.
+def _build_search_widget_html(site_base_url: str = "") -> str:
+    """Return HTML for the inline search-bar column widget.
 
-    The widget fetches search.json (expected at the root of the static site,
-    i.e. next to index.html) and filters results in real time.  Intended for
-    home-page columns only — paths are relative to index.html.
+    Static mode (site_base_url=""): JS widget that fetches search.json
+    (pre-built at the site root) and filters results client-side.
+
+    Dynamic/Hybrid mode (site_base_url set): plain HTML form that submits
+    to the server-side search endpoint — no client-side JS or search.json needed.
     """
+    if site_base_url:
+        esc_action = _html.escape(f"{site_base_url}/search")
+        return (
+            '<div class="col-search-widget">'
+            f'<form action="{esc_action}" method="get">'
+            '<input type="search" name="q" class="col-search-input"'
+            ' placeholder="Search documents\u2026"'
+            ' aria-label="Search documents" />'
+            "</form>"
+            "</div>"
+        )
+
+    # Static path: client-side JS widget
     js = (
         "(function(){"
         "var idx=null;"
@@ -332,13 +436,16 @@ def _build_search_widget_html() -> str:
 def _build_page_menu_html(
     pages: list[WebsitePage],
     nav_config: list | None = None,
+    site_base_url: str = "",
 ) -> str:
     """Return HTML for the page-menu column widget.
 
     Renders a nav list of all visible pages (system + free) sorted by global
     sort_order, excluding Home (the widget lives on the home page itself).
-    Paths are relative to the site root (index.html lives there).
-    Returns an empty string when there are no visible pages.
+
+    When *site_base_url* is empty (static mode) paths are relative to the site
+    root (index.html lives there).  When set (dynamic/hybrid mode), absolute
+    URLs rooted at *site_base_url* are used instead.
     """
     menu_items: list[tuple[int, str]] = []
 
@@ -349,13 +456,18 @@ def _build_page_menu_html(
         so = int(ap["sort_order"])
         pid = ap["id"]
         if pid == "browse":
-            menu_items.append((so, f'<li><a href="browse.html">Browse</a></li>'))
+            href = f"{site_base_url}/browse" if site_base_url else "browse.html"
+            menu_items.append((so, f'<li><a href="{href}">Browse</a></li>'))
         elif pid == "search":
-            menu_items.append((so, f'<li><a href="search.html">Search</a></li>'))
+            href = f"{site_base_url}/search" if site_base_url else "search.html"
+            menu_items.append((so, f'<li><a href="{href}">Search</a></li>'))
 
     # Free pages (already filtered for visibility)
     for p in pages:
-        href = f"pages/{_html.escape(p.slug)}.html"
+        if site_base_url:
+            href = f"{site_base_url}/pages/{_html.escape(p.slug)}"
+        else:
+            href = f"pages/{_html.escape(p.slug)}.html"
         menu_items.append(
             (p.sort_order, f'<li><a href="{href}">{_html.escape(p.title)}</a></li>')
         )
@@ -372,8 +484,9 @@ def _render_col_content(
     text: str,
     pages: list[WebsitePage] | None = None,
     nav_config: list | None = None,
+    site_base_url: str = "",
 ) -> str:
-    """Return column body HTML for embedding in the static page.
+    """Return column body HTML for embedding in the page.
 
     If *text* looks like HTML (starts with a tag — Tiptap output) it is
     returned as-is after expanding any widget placeholders.  Otherwise it is
@@ -382,14 +495,23 @@ def _render_col_content(
 
     Both paths are trusted Designer+ input written for their own static site;
     no html.escape is applied.
+
+    *site_base_url*: when set, widget links use absolute dynamic URLs instead
+    of relative static paths.
     """
     stripped = text.strip()
     if not stripped:
         return ""
     # HTML passthrough: Tiptap always produces output starting with a tag.
     if stripped.startswith("<"):
-        result = stripped.replace(_WIDGET_TAG_SEARCH_BAR, _build_search_widget_html())
-        result = result.replace(_WIDGET_TAG_PAGE_MENU, _build_page_menu_html(pages or [], nav_config))
+        result = stripped.replace(
+            _WIDGET_TAG_SEARCH_BAR,
+            _build_search_widget_html(site_base_url),
+        )
+        result = result.replace(
+            _WIDGET_TAG_PAGE_MENU,
+            _build_page_menu_html(pages or [], nav_config, site_base_url),
+        )
         return result
     # Markdown fallback (legacy / plain-text content)
     return _md_col_to_html(stripped)
@@ -473,11 +595,16 @@ def _render_navbar(
     pages: list[WebsitePage],
     path_prefix: str = "",
     nav_config: list | None = None,
+    site_base_url: str = "",
 ) -> str:
     """Build the <header><nav> block.
 
-    path_prefix must be "" for root-level pages (index.html, browse.html)
-    and "../" for pages in subdirectories (docs/, pages/).
+    Static mode (site_base_url=""): path_prefix must be "" for root-level pages
+    (index.html, browse.html) and "../" for pages in subdirectories (docs/, pages/).
+
+    Dynamic/Hybrid mode (site_base_url set): all hrefs are absolute paths rooted
+    at site_base_url; path_prefix is ignored.
+
     nav_config controls visibility and order of Browse / Search links.
     """
     logo_html = ""
@@ -485,9 +612,14 @@ def _render_navbar(
         esc_logo = _html.escape(logo_url)
         logo_html = f'<img src="{esc_logo}" alt="" class="nav-logo">'
 
-    home_href = f"{path_prefix}index.html"
-    browse_href = f"{path_prefix}browse.html"
-    search_href = f"{path_prefix}search.html"
+    if site_base_url:
+        home_href = f"{site_base_url}/"
+        browse_href = f"{site_base_url}/browse"
+        search_href = f"{site_base_url}/search"
+    else:
+        home_href = f"{path_prefix}index.html"
+        browse_href = f"{path_prefix}browse.html"
+        search_href = f"{path_prefix}search.html"
 
     # Merge system links and free-page links into a single list sorted by the
     # global sort_order (system pages from nav_config, free pages from sort_order).
@@ -499,14 +631,17 @@ def _render_navbar(
         so = int(ap["sort_order"])
         pid = ap["id"]
         if pid == "home":
-            nav_items.append((so, f'<a href="{path_prefix}index.html">Home</a>'))
+            nav_items.append((so, f'<a href="{home_href}">Home</a>'))
         elif pid == "browse":
-            nav_items.append((so, f'<a href="{path_prefix}browse.html">Browse</a>'))
+            nav_items.append((so, f'<a href="{browse_href}">Browse</a>'))
         elif pid == "search":
-            nav_items.append((so, f'<a href="{path_prefix}search.html">Search</a>'))
+            nav_items.append((so, f'<a href="{search_href}">Search</a>'))
 
     for page in pages:  # already filtered for visibility
-        href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
+        if site_base_url:
+            href = f"{site_base_url}/pages/{_html.escape(page.slug)}"
+        else:
+            href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
         nav_items.append((page.sort_order, f'<a href="{href}">{_html.escape(page.title)}</a>'))
 
     nav_items.sort(key=lambda x: x[0])
@@ -702,7 +837,7 @@ def _render_xml_to_html(xml_bytes: bytes) -> str:
 
 async def _resolve_transform(
     xslt_config: dict,
-) -> "Callable[[bytes], str]":
+) -> Callable[[bytes], str]:
     """Return a synchronous transform callable from *xslt_config*.
 
     The callable is suitable for use inside ``asyncio.to_thread()``.
@@ -716,7 +851,6 @@ async def _resolve_transform(
       "catalog"  — XSLT loaded from the xslt_templates catalog by
                    ``xslt_config["catalog_id"]`` (UUID string).
     """
-    from typing import Callable  # local import avoids circular at module level
     from app.models.xslt_template import XsltTemplate
 
     source = xslt_config.get("source", "default")
@@ -771,6 +905,7 @@ def _build_cover_content(
     theme: dict,
     pages: list[WebsitePage] | None = None,
     nav_config: list | None = None,
+    site_base_url: str = "",
 ) -> str:
     """Return the hero/cover HTML for index.html.
 
@@ -780,6 +915,9 @@ def _build_cover_content(
       col_left    : body text for left sidebar column
       col_center  : body text for central column (shown in all layouts)
       col_right   : body text for right sidebar column
+
+    *site_base_url*: when set (dynamic/hybrid mode), the CTA "Browse" link and
+    column-widget hrefs use absolute paths; otherwise relative static paths.
     """
     title = _html.escape(col.title if col else website_title)
     lead = ""
@@ -791,7 +929,8 @@ def _build_cover_content(
         author_block = f'<p class="meta-block">{_html.escape(col.author)}</p>'
 
     browse_label = f"Browse {doc_count} document{'s' if doc_count != 1 else ''} →"
-    cta = f'<a href="browse.html" class="btn-primary">{browse_label}</a>'
+    browse_href = f"{site_base_url}/browse" if site_base_url else "browse.html"
+    cta = f'<a href="{browse_href}" class="btn-primary">{browse_label}</a>'
 
     hero = f"""<div class="hero">
   <h1>{title}</h1>
@@ -802,9 +941,15 @@ def _build_cover_content(
 
     # ── Column body grid ──────────────────────────────────────────────────
     layout = theme.get("home_layout", "single")
-    center = _render_col_content(theme.get("col_center", "") or "", pages, nav_config)
-    left   = _render_col_content(theme.get("col_left", "") or "", pages, nav_config)
-    right  = _render_col_content(theme.get("col_right", "") or "", pages, nav_config)
+    center = _render_col_content(
+        theme.get("col_center", "") or "", pages, nav_config, site_base_url
+    )
+    left = _render_col_content(
+        theme.get("col_left", "") or "", pages, nav_config, site_base_url
+    )
+    right = _render_col_content(
+        theme.get("col_right", "") or "", pages, nav_config, site_base_url
+    )
 
     if layout == "two_left":
         cols = (
@@ -836,8 +981,12 @@ def _build_cover_content(
     return hero + grid
 
 
-def _build_browse_content(docs: list[dict]) -> str:
-    """Return the document list HTML for browse.html."""
+def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
+    """Return the document list HTML for browse.html / dynamic browse page.
+
+    *site_base_url*: when set (dynamic/hybrid mode) doc links use absolute paths;
+    otherwise relative static paths with .html extension.
+    """
     count = len(docs)
     items = ""
     for doc in docs:
@@ -848,7 +997,11 @@ def _build_browse_content(docs: list[dict]) -> str:
             if doc.get("author")
             else ""
         )
-        items += f'<li><a href="docs/{filename}.html">{label}</a>{author_line}</li>\n'
+        if site_base_url:
+            href = f"{site_base_url}/docs/{filename}"
+        else:
+            href = f"docs/{filename}.html"
+        items += f'<li><a href="{href}">{label}</a>{author_line}</li>\n'
 
     return f"""<h1>Documents</h1>
 <p class="doc-count">{count} document{'s' if count != 1 else ''}</p>
@@ -962,6 +1115,393 @@ async def preview_document(
     return doc_body
 
 
+# ── Dynamic / Hybrid rendering ────────────────────────────────────────────────
+
+def _build_dynamic_search_content(
+    hits: list[dict],
+    q: str,
+    site_base_url: str,
+) -> str:
+    """Build the server-rendered search results page content.
+
+    *hits* is a list of dicts with keys: filename, score, kwic.
+    When *q* is empty the page shows the search form with no results section.
+    """
+    esc_q = _html.escape(q)
+    esc_action = _html.escape(f"{site_base_url}/search")
+    search_form = (
+        '<div class="search-wrap">'
+        "<h1>Search</h1>"
+        '<div class="search-box">'
+        f'<form action="{esc_action}" method="get">'
+        f'<input type="search" name="q" value="{esc_q}"'
+        ' placeholder="Search documents\u2026" autocomplete="off" autofocus>'
+        "</form>"
+        "</div>"
+    )
+
+    if not q:
+        return search_form + "</div>"
+
+    if not hits:
+        count_line = '<p class="search-count">No results found.</p>'
+        return search_form + count_line + "</div>"
+
+    count_line = (
+        f'<p class="search-count">{len(hits)} result'
+        f'{"s" if len(hits) != 1 else ""} for <em>{esc_q}</em></p>'
+    )
+    items = ""
+    for hit in hits:
+        filename = _html.escape(hit["filename"])
+        kwic = _html.escape(hit.get("kwic") or "")
+        doc_href = _html.escape(f"{site_base_url}/docs/{hit['filename']}")
+        items += (
+            '<div class="search-hit">'
+            f'<a href="{doc_href}">{filename}</a>'
+            + (f'<div class="hit-kwic">{kwic}</div>' if kwic else "")
+            + "</div>\n"
+        )
+    return search_form + count_line + items + "</div>"
+
+
+async def _fetch_doc_infos(col: Collection) -> list[dict]:
+    """Return a list of {filename, title, author} dicts for *col*.
+
+    Tries the title-aware XQuery first; falls back to a plain listing on error.
+    """
+    import defusedxml.ElementTree as ET
+
+    col_path = existdb_client.col_path(col.slug)
+    try:
+        raw = await existdb_client.xquery(
+            "collections/list_with_titles.xq",
+            variables={"collection_path": col_path},
+        )
+        root_el = ET.fromstring(raw)
+        return [
+            {
+                "filename": (el.findtext("filename") or "").strip(),
+                "title": (el.findtext("title") or "").strip() or None,
+                "author": (el.findtext("author") or "").strip() or None,
+            }
+            for el in root_el.findall("doc")
+            if (el.findtext("filename") or "").strip()
+        ]
+    except Exception as exc:
+        logger.warning("dynamic_list_docs_failed", col=col.slug, error=str(exc))
+        try:
+            filenames = await existdb_client.list_collection(col.slug)
+            return [{"filename": f, "title": None, "author": None} for f in filenames]
+        except Exception:
+            return []
+
+
+async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
+    """Render the index/cover page for a DYNAMIC website.
+
+    Results are cached with the website's effective TTL.
+    """
+    ttl = _get_cache_ttl(website)
+    cached = _get_cached_page(website.slug, "index", ttl)
+    if cached is not None:
+        return cached
+
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id else None
+    )
+    doc_infos = await _fetch_doc_infos(col) if col else []
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    content = _build_cover_content(
+        website_title=website.title,
+        col=col,
+        doc_count=len(doc_infos),
+        theme=theme,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    footer_note, identifier_url = _footer_parts(col)
+    html = _render_page(
+        site_title=website.title,
+        page_title=website.title,
+        content=content,
+        style=_style_block(theme),
+        navbar=navbar,
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+        meta_tags=_build_meta_tags(website.meta_config or {}),
+    )
+    _set_cached_page(website.slug, "index", html)
+    return html
+
+
+async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
+    """Render the document-list page for a DYNAMIC website."""
+    ttl = _get_cache_ttl(website)
+    cached = _get_cached_page(website.slug, "browse", ttl)
+    if cached is not None:
+        return cached
+
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id else None
+    )
+    doc_infos = await _fetch_doc_infos(col) if col else []
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    footer_note, identifier_url = _footer_parts(col)
+    html = _render_page(
+        site_title=website.title,
+        page_title="Browse",
+        content=_build_browse_content(doc_infos, site_base_url=base),
+        style=_style_block(theme),
+        navbar=navbar,
+        breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+        meta_tags=_build_meta_tags(website.meta_config or {}),
+    )
+    _set_cached_page(website.slug, "browse", html)
+    return html
+
+
+async def render_dynamic_search(
+    db: AsyncSession, website: Website, q: str
+) -> str:
+    """Render the server-side full-text search results page for a DYNAMIC website.
+
+    Uses eXist-db Lucene ft:query() with a contains() fallback.
+    An empty *q* returns a bare search form (no results run).
+    """
+    import defusedxml.ElementTree as ET
+
+    path_key = f"search:{q}"
+    if q:  # cache search results; never cache empty form
+        ttl = _get_cache_ttl(website)
+        cached = _get_cached_page(website.slug, path_key, ttl)
+        if cached is not None:
+            return cached
+
+    hits: list[dict] = []
+    if q and website.collection_id is not None:
+        col: Collection | None = await db.get(Collection, website.collection_id)
+        if col is not None:
+            try:
+                raw = await existdb_client.xquery(
+                    "search/fulltext_search.xq",
+                    variables={
+                        "collection_path": existdb_client.col_path(col.slug),
+                        "query": q,
+                        "max_results": "50",
+                    },
+                )
+                root_el = ET.fromstring(raw)
+                for hit_el in root_el.findall("hit"):
+                    filename = hit_el.get("filename", "")
+                    if not filename:
+                        continue
+                    kwic_el = hit_el.find("kwic")
+                    hits.append({
+                        "filename": filename,
+                        "score": hit_el.get("score", "0"),
+                        "kwic": (kwic_el.text or "").strip() if kwic_el is not None else "",
+                    })
+            except Exception as exc:
+                logger.warning(
+                    "dynamic_search_failed", slug=website.slug, q=q, error=str(exc)
+                )
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    footer_note, identifier_url = _footer_parts(
+        await db.get(Collection, website.collection_id)
+        if website.collection_id else None
+    )
+    html = _render_page(
+        site_title=website.title,
+        page_title="Search",
+        content=_build_dynamic_search_content(hits, q, base),
+        style=_style_block(theme),
+        navbar=navbar,
+        breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Search")]),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+        meta_tags=_build_meta_tags(website.meta_config or {}),
+    )
+    if q:
+        _set_cached_page(website.slug, path_key, html)
+    return html
+
+
+async def render_dynamic_doc(
+    db: AsyncSession, website: Website, filename: str
+) -> str:
+    """Render a single XML document via XSLT for a DYNAMIC or HYBRID website.
+
+    Results are cached with the website's effective TTL.  The XSLT transform
+    is cached separately (invalidated only by metadata changes or clear-cache).
+    """
+    path_key = f"doc:{filename}"
+    ttl = _get_cache_ttl(website)
+    cached = _get_cached_page(website.slug, path_key, ttl)
+    if cached is not None:
+        return cached
+
+    if website.collection_id is None:
+        raise NotFoundError("Website has no linked collection.")
+    col: Collection | None = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise NotFoundError("Linked collection not found.")
+
+    xml_bytes = await existdb_client.get_document(col.slug, filename)
+    xslt_transform = await _resolve_transform_cached(
+        website.slug, website.xslt_config or {}
+    )
+    doc_body: str = await asyncio.to_thread(xslt_transform, xml_bytes)
+
+    # Try to extract a human-readable label from the doc info list.
+    # For dynamic mode we do a quick title-only xquery for the single file; fall back to filename.
+    label = filename
+    try:
+        doc_infos = await _fetch_doc_infos(col)
+        for d in doc_infos:
+            if d["filename"] == filename:
+                label = d.get("title") or filename
+                break
+    except Exception:
+        pass
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    aracne_nav = _parse_aracne_nav(website.nav_config or [])
+    browse_hidden = bool(
+        next((ap for ap in aracne_nav if ap["id"] == "browse"), {}).get("is_hidden", False)
+    )
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    if browse_hidden:
+        crumbs: list[tuple[str | None, str]] = [(f"{base}/", "Home"), (None, label)]
+    else:
+        crumbs = [(f"{base}/", "Home"), (f"{base}/browse", "Browse"), (None, label)]
+    footer_note, identifier_url = _footer_parts(col)
+    html = _render_page(
+        site_title=website.title,
+        page_title=label,
+        content=f'<div class="tei-body">{doc_body}</div>',
+        style=_style_block(theme),
+        navbar=navbar,
+        breadcrumb=_render_breadcrumb(crumbs),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+    )
+    _set_cached_page(website.slug, path_key, html)
+    return html
+
+
+async def render_dynamic_page(
+    db: AsyncSession, website: Website, page_slug: str
+) -> str:
+    """Render a free Markdown page for a DYNAMIC website."""
+    path_key = f"page:{page_slug}"
+    ttl = _get_cache_ttl(website)
+    cached = _get_cached_page(website.slug, path_key, ttl)
+    if cached is not None:
+        return cached
+
+    page = next((p for p in website.pages if p.slug == page_slug), None)
+    if page is None or page.is_hidden:
+        raise NotFoundError(f"Page '{page_slug}' not found.")
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+    )
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id else None
+    )
+    footer_note, identifier_url = _footer_parts(col)
+    content_html = _md_to_html(page.content_md or "")
+    html = _render_page(
+        site_title=website.title,
+        page_title=page.title,
+        content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
+        style=_style_block(theme),
+        navbar=navbar,
+        breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, page.title)]),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+    )
+    _set_cached_page(website.slug, path_key, html)
+    return html
+
+
+def _footer_parts(col: Collection | None) -> tuple[str, str]:
+    """Return (footer_note, identifier_url) extracted from *col* metadata."""
+    publisher_parts: list[str] = []
+    identifier_url = ""
+    if col:
+        if col.publisher:
+            publisher_parts.append(_html.escape(col.publisher))
+        if col.pub_year:
+            publisher_parts.append(str(col.pub_year))
+        if col.identifier_url:
+            identifier_url = col.identifier_url
+    return ", ".join(publisher_parts), identifier_url
+
+
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 async def _get_website(db: AsyncSession, slug: str) -> Website:
@@ -1021,6 +1561,9 @@ async def update_website(
     website.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(website)
+    # Any metadata or XSLT change must invalidate the rendered-page and XSLT caches
+    # immediately so dynamic/hybrid sites do not serve stale HTML.
+    invalidate_cache(slug)
     return website
 
 

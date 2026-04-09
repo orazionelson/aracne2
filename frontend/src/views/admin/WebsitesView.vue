@@ -30,6 +30,7 @@ const DEFAULT_META_CONFIG: Record<string, string | string[]> = {
 const confirmDeleteSlug = ref<string | null>(null);
 const buildingSlug = ref<string | null>(null);
 const buildPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
+const clearingCacheSlug = ref<string | null>(null);
 
 // Create website form
 const showCreate = ref(false);
@@ -399,7 +400,16 @@ async function deleteWebsite(slug: string): Promise<void> {
   }
 }
 
-// ── Build ─────────────────────────────────────────────────────────────────────
+// ── Build / Cache ──────────────────────────────────────────────────────────────
+
+async function clearSiteCache(slug: string): Promise<void> {
+  clearingCacheSlug.value = slug;
+  try {
+    await store.clearCache(slug);
+  } finally {
+    clearingCacheSlug.value = null;
+  }
+}
 
 async function triggerBuild(slug: string): Promise<void> {
   buildingSlug.value = slug;
@@ -679,18 +689,27 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </div>
           </div>
           <div class="flex shrink-0 items-center gap-1" @click.stop>
-            <!-- Build button (STATIC only) -->
+            <!-- Build button (STATIC and HYBRID only) -->
             <button
-              v-if="website.rendering_mode === 'STATIC'"
+              v-if="website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'"
               :disabled="buildingSlug === website.slug || website.build_status === 'building' || website.build_status === 'pending'"
               class="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-40"
               @click="triggerBuild(website.slug)"
             >
               {{ buildingSlug === website.slug ? t("websites.building") : t("websites.build") }}
             </button>
-            <!-- Open site link -->
+            <!-- Clear cache button (DYNAMIC and HYBRID) -->
+            <button
+              v-if="website.rendering_mode === 'DYNAMIC' || website.rendering_mode === 'HYBRID'"
+              :disabled="clearingCacheSlug === website.slug"
+              class="rounded px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 disabled:opacity-40"
+              @click="clearSiteCache(website.slug)"
+            >
+              {{ clearingCacheSlug === website.slug ? t("websites.clearing_cache") : t("websites.clear_cache") }}
+            </button>
+            <!-- Open site link (STATIC/HYBRID: only when built; DYNAMIC: always) -->
             <a
-              v-if="website.build_status === 'done' && website.rendering_mode === 'STATIC'"
+              v-if="(website.rendering_mode === 'DYNAMIC') || (website.build_status === 'done' && (website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'))"
               :href="siteUrl(website.slug)"
               target="_blank"
               rel="noopener"

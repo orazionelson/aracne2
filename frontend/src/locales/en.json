@@ -466,6 +466,8 @@
     "published": "Published",
     "build": "Build",
     "building": "Building...",
+    "clear_cache": "Clear cache",
+    "clearing_cache": "Clearing...",
     "open": "Open site",
     "build_idle": "Not built",
     "build_pending": "Pending...",

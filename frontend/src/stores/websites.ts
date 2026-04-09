@@ -210,6 +210,11 @@ export const useWebsiteStore = defineStore("websites", () => {
     return (res.data.data as { html: string }).html;
   }
 
+  /** Invalidate the in-memory rendered-page and XSLT caches for *slug*. */
+  async function clearCache(slug: string): Promise<void> {
+    await api.post(`/websites/${slug}/clear-cache`, {});
+  }
+
   return {
     websites,
     isLoading,
@@ -225,5 +230,6 @@ export const useWebsiteStore = defineStore("websites", () => {
     deletePage,
     fetchMetaSuggestions,
     previewDocument,
+    clearCache,
   };
 });

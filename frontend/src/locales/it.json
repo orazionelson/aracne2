@@ -466,6 +466,8 @@
     "published": "Pubblicato",
     "build": "Genera",
     "building": "Generazione...",
+    "clear_cache": "Svuota cache",
+    "clearing_cache": "Pulizia...",
     "open": "Apri sito",
     "build_idle": "Non generato",
     "build_pending": "In attesa...",
