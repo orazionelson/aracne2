@@ -13,6 +13,15 @@ const collectionStore = useCollectionStore();
 
 const editingSlug = ref<string | null>(null);
 const editTab = ref<"general" | "theme" | "pages">("general");
+const showMetaPanel = ref(false);
+
+const DEFAULT_META_CONFIG: Record<string, string> = {
+  keywords: "", description: "", subject: "", copyright: "",
+  author: "", designer: "", url: "",
+  dc_title: "", dc_creator: "", dc_subject: "", dc_description: "",
+  dc_publisher: "", dc_contributor: "", dc_date: "", dc_type: "",
+  dc_format: "", dc_identifier: "",
+};
 const confirmDeleteSlug = ref<string | null>(null);
 const buildingSlug = ref<string | null>(null);
 const buildPollInterval = ref<ReturnType<typeof setInterval> | null>(null);
@@ -61,6 +70,7 @@ onMounted(async () => {
 function startEdit(website: Website): void {
   editingSlug.value = website.slug;
   editTab.value = "general";
+  showMetaPanel.value = false;
   editForm.value = {
     title: website.title,
     description: website.description,
@@ -68,6 +78,7 @@ function startEdit(website: Website): void {
     rendering_mode: website.rendering_mode,
     is_published: website.is_published,
     theme_config: { ...website.theme_config },
+    meta_config: { ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) },
   };
   editError.value = null;
 }
@@ -88,6 +99,7 @@ async function saveEdit(slug: string): Promise<void> {
       rendering_mode: editForm.value.rendering_mode,
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
+      meta_config: editForm.value.meta_config as Record<string, string>,
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -487,6 +499,104 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               <div class="flex items-center gap-2 pt-5">
                 <input :id="`edit-pub-${website.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
                 <label :for="`edit-pub-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+              </div>
+
+              <!-- Metadata foldable panel -->
+              <div class="sm:col-span-2">
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between rounded border border-gray-300 bg-white px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  :class="showMetaPanel ? 'rounded-b-none' : ''"
+                  @click="showMetaPanel = !showMetaPanel"
+                >
+                  <span>{{ t("websites.meta_section") }}</span>
+                  <span class="text-gray-400">{{ showMetaPanel ? '▲' : '▼' }}</span>
+                </button>
+                <div v-show="showMetaPanel" class="rounded-b border border-t-0 border-gray-300 bg-white p-3 space-y-5">
+
+                  <!-- Standard HTML meta -->
+                  <div>
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ t("websites.meta_html_section") }}</p>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div class="sm:col-span-2">
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_description") }}</label>
+                        <textarea v-model="(editForm.meta_config as Record<string,string>).description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_keywords") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).keywords" type="text" placeholder="keyword1, keyword2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_subject") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).subject" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_author") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).author" type="text" placeholder="Name, email@example.com" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_copyright") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).copyright" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_designer") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).designer" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_url") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).url" type="url" placeholder="https://www.example.com" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Dublin Core meta -->
+                  <div>
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Dublin Core</p>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_title") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_creator") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_creator" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_publisher") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_publisher" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_contributor") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_contributor" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_subject") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_subject" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_date") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_date" type="text" placeholder="YYYY-MM-DD" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div class="sm:col-span-2">
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_description") }}</label>
+                        <textarea v-model="(editForm.meta_config as Record<string,string>).dc_description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_type") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_type" type="text" placeholder="e.g. Text, Dataset" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_format") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_format" type="text" placeholder="e.g. text/html" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_identifier") }}</label>
+                        <input v-model="(editForm.meta_config as Record<string,string>).dc_identifier" type="text" placeholder="URI or URL" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             </div>
           </div>

@@ -45,6 +45,7 @@ class WebsiteCreate(BaseModel):
     collection_id: uuid.UUID | None = None
     rendering_mode: RenderingMode = RenderingMode.STATIC
     theme_config: dict = Field(default_factory=dict)
+    meta_config: dict = Field(default_factory=dict)
     nav_config: list = Field(default_factory=list)
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool = False
@@ -56,6 +57,7 @@ class WebsiteUpdate(BaseModel):
     collection_id: uuid.UUID | None = None
     rendering_mode: RenderingMode | None = None
     theme_config: dict | None = None
+    meta_config: dict | None = None
     nav_config: list | None = None
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool | None = None
@@ -69,6 +71,7 @@ class WebsiteResponse(BaseModel):
     collection_id: uuid.UUID | None
     rendering_mode: RenderingMode
     theme_config: dict
+    meta_config: dict
     nav_config: list
     xslt_schema_id: uuid.UUID | None
     build_status: BuildStatus

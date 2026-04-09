@@ -49,6 +49,10 @@ class Website(Base):
     theme_config: Mapped[dict] = mapped_column(
         JSONB(), nullable=False, default=dict
     )
+    # HTML and Dublin Core <meta> tags for every generated page
+    meta_config: Mapped[dict] = mapped_column(
+        JSONB(), nullable=False, default=dict
+    )
     nav_config: Mapped[list] = mapped_column(
         JSONB(), nullable=False, default=list
     )

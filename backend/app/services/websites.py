@@ -320,6 +320,56 @@ def _render_navbar(
   </header>"""
 
 
+def _build_meta_tags(meta: dict) -> str:
+    """Build HTML <meta> tag strings from a meta_config dict.
+
+    Standard HTML meta tags and Dublin Core (DC.*) are emitted only for
+    non-empty values.  The DC namespace <link> is prepended automatically
+    when at least one DC field has a value.
+    """
+    if not meta:
+        return ""
+
+    lines: list[str] = []
+
+    _html_fields = [
+        ("keywords",    "keywords"),
+        ("description", "description"),
+        ("subject",     "subject"),
+        ("copyright",   "copyright"),
+        ("author",      "author"),
+        ("designer",    "designer"),
+        ("url",         "url"),
+    ]
+    for key, name in _html_fields:
+        val = (meta.get(key) or "").strip()
+        if val:
+            lines.append(f'  <meta name="{name}" content="{_html.escape(val)}">')
+
+    _dc_fields = [
+        ("dc_title",       "DC.Title"),
+        ("dc_creator",     "DC.Creator"),
+        ("dc_subject",     "DC.Subject"),
+        ("dc_description", "DC.Description"),
+        ("dc_publisher",   "DC.Publisher"),
+        ("dc_contributor", "DC.Contributor"),
+        ("dc_date",        "DC.Date"),
+        ("dc_type",        "DC.Type"),
+        ("dc_format",      "DC.Format"),
+        ("dc_identifier",  "DC.Identifier"),
+    ]
+    dc_lines: list[str] = []
+    for key, name in _dc_fields:
+        val = (meta.get(key) or "").strip()
+        if val:
+            dc_lines.append(f'  <meta name="{name}" content="{_html.escape(val)}">')
+    if dc_lines:
+        lines.append('  <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" />')
+        lines.extend(dc_lines)
+
+    return "\n".join(lines)
+
+
 def _identifier_label(url: str) -> str:
     """Return a short human-readable label for a persistent identifier URL."""
     lower = url.lower()
@@ -341,6 +391,7 @@ def _render_page(
     navbar: str,
     footer_note: str = "",
     identifier_url: str = "",
+    meta_tags: str = "",
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
@@ -349,12 +400,13 @@ def _render_page(
         label = _identifier_label(identifier_url)
         esc_url = _html.escape(identifier_url)
         footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
+    meta_block = f"\n{meta_tags}" if meta_tags else ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{esc_page} — {esc_site}</title>
+  <title>{esc_page} — {esc_site}</title>{meta_block}
   {style}
 </head>
 <body>
@@ -616,6 +668,7 @@ async def create_website(
         collection_id=data.collection_id,
         rendering_mode=data.rendering_mode,
         theme_config=data.theme_config,
+        meta_config=data.meta_config,
         nav_config=data.nav_config,
         xslt_schema_id=data.xslt_schema_id,
         is_published=data.is_published,
@@ -836,6 +889,9 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             except Exception:
                 doc_infos = []
 
+    # Build meta tags string (same on every page of this site).
+    meta_tags: str = _build_meta_tags(website.meta_config or {})
+
     # Build publisher / year string and identifier URL for every page footer.
     publisher_parts: list[str] = []
     identifier_url: str = ""
@@ -862,6 +918,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         navbar=navbar(),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        meta_tags=meta_tags,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -874,6 +931,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         navbar=navbar(),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        meta_tags=meta_tags,
     )
     (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -925,6 +983,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         navbar=navbar(),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        meta_tags=meta_tags,
     )
     (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
