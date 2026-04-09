@@ -164,23 +164,31 @@ def _style_block(theme: dict) -> str:
 
 
 def _render_col_content(text: str) -> str:
-    """Convert column body text (trusted Designer input) to HTML.
+    """Return column body HTML for embedding in the static page.
 
-    Supports a lightweight Markdown subset — no html.escape because the
-    content is written by a Designer+ user for their own static site.
+    If *text* looks like HTML (starts with a tag — Tiptap output) it is
+    returned as-is.  Otherwise it is treated as lightweight Markdown so that
+    content written before the WYSIWYG editor was introduced still renders
+    correctly.
 
-    Supported syntax:
-      # / ## / ### headings
-      **bold**  *italic*
-      ![alt](url)  images
-      [text](url)  links
-      Empty line → paragraph break
-      Lines starting with < are passed through as raw HTML
+    Both paths are trusted Designer+ input written for their own static site;
+    no html.escape is applied.
     """
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    # HTML passthrough: Tiptap always produces output starting with a tag.
+    if stripped.startswith("<"):
+        return stripped
+    # Markdown fallback (legacy / plain-text content)
+    return _md_col_to_html(stripped)
+
+
+def _md_col_to_html(text: str) -> str:
+    """Lightweight Markdown → HTML for column content (legacy/fallback path)."""
     import re as _re
 
     def inline(s: str) -> str:
-        # Images before links to avoid mis-parsing ![...](...)
         s = _re.sub(
             r'!\[([^\]]*)\]\(([^)]+)\)',
             lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}">',
@@ -205,24 +213,19 @@ def _render_col_content(text: str) -> str:
             para_lines.clear()
 
     for line in lines:
-        stripped = line.strip()
-        if not stripped:
+        s = line.strip()
+        if not s:
             flush()
-        elif stripped.startswith("### "):
-            flush()
-            blocks.append(f"<h4>{inline(stripped[4:])}</h4>")
-        elif stripped.startswith("## "):
-            flush()
-            blocks.append(f"<h3>{inline(stripped[3:])}</h3>")
-        elif stripped.startswith("# "):
-            flush()
-            blocks.append(f"<h2>{inline(stripped[2:])}</h2>")
-        elif stripped.startswith("<"):
-            # Raw HTML passthrough (images, figures, custom elements…)
-            flush()
-            blocks.append(stripped)
+        elif s.startswith("### "):
+            flush(); blocks.append(f"<h4>{inline(s[4:])}</h4>")
+        elif s.startswith("## "):
+            flush(); blocks.append(f"<h3>{inline(s[3:])}</h3>")
+        elif s.startswith("# "):
+            flush(); blocks.append(f"<h2>{inline(s[2:])}</h2>")
+        elif s.startswith("<"):
+            flush(); blocks.append(s)
         else:
-            para_lines.append(stripped)
+            para_lines.append(s)
 
     flush()
     return "\n".join(blocks)
@@ -296,8 +299,18 @@ def _render_page(
 
 
 def _md_to_html(content_md: str) -> str:
-    """Minimal Markdown→HTML converter: headings, paragraphs, line breaks."""
-    lines = content_md.splitlines()
+    """Convert page body to HTML.
+
+    If the content starts with an HTML tag (Tiptap WYSIWYG output) it is
+    returned as-is.  Otherwise the legacy Markdown path applies.
+    """
+    stripped = content_md.strip()
+    if not stripped:
+        return ""
+    if stripped.startswith("<"):
+        return stripped
+    # Legacy Markdown
+    lines = stripped.splitlines()
     blocks: list[str] = []
     para_lines: list[str] = []
 
@@ -307,20 +320,17 @@ def _md_to_html(content_md: str) -> str:
             para_lines.clear()
 
     for line in lines:
-        stripped = line.strip()
-        if not stripped:
+        s = line.strip()
+        if not s:
             flush_para()
-        elif stripped.startswith("### "):
-            flush_para()
-            blocks.append(f"<h3>{_html.escape(stripped[4:])}</h3>")
-        elif stripped.startswith("## "):
-            flush_para()
-            blocks.append(f"<h2>{_html.escape(stripped[3:])}</h2>")
-        elif stripped.startswith("# "):
-            flush_para()
-            blocks.append(f"<h2>{_html.escape(stripped[2:])}</h2>")
+        elif s.startswith("### "):
+            flush_para(); blocks.append(f"<h3>{_html.escape(s[4:])}</h3>")
+        elif s.startswith("## "):
+            flush_para(); blocks.append(f"<h2>{_html.escape(s[3:])}</h2>")
+        elif s.startswith("# "):
+            flush_para(); blocks.append(f"<h2>{_html.escape(s[2:])}</h2>")
         else:
-            para_lines.append(stripped)
+            para_lines.append(s)
 
     flush_para()
     return "\n".join(blocks)

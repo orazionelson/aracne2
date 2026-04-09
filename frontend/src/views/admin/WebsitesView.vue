@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useWebsiteStore, type Website, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate } from "@/stores/websites";
 import { useCollectionStore } from "@/stores/collections";
+import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
 const { t } = useI18n();
 const store = useWebsiteStore();
@@ -38,7 +39,7 @@ const editError = ref<string | null>(null);
 // Page form
 const showPageForm = ref<string | null>(null); // website slug for which page form is open
 const editingPage = ref<string | null>(null); // page slug being edited
-const newPage = ref<WebsitePageCreate>({ slug: "", title: "", content_md: null, sort_order: 0 });
+const newPage = ref<WebsitePageCreate>({ slug: "", title: "", content_md: "", sort_order: 0 });
 const pageEditForm = ref<WebsitePageUpdate>({});
 const isSubmittingPage = ref(false);
 const pageError = ref<string | null>(null);
@@ -171,14 +172,14 @@ function siteUrl(slug: string): string {
 
 function openPageForm(websiteSlug: string): void {
   showPageForm.value = websiteSlug;
-  newPage.value = { slug: "", title: "", content_md: null, sort_order: 0 };
+  newPage.value = { slug: "", title: "", content_md: "", sort_order: 0 };
   pageError.value = null;
 }
 
 function startEditPage(websiteSlug: string, page: { slug: string; title: string; content_md: string | null; sort_order: number }): void {
   editingPage.value = page.slug;
   showPageForm.value = websiteSlug;
-  pageEditForm.value = { title: page.title, content_md: page.content_md, sort_order: page.sort_order };
+  pageEditForm.value = { title: page.title, content_md: page.content_md ?? "", sort_order: page.sort_order };
   pageError.value = null;
 }
 
@@ -316,16 +317,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           </div>
           <div class="grid gap-3" :class="newWebsite.theme_config!.home_layout === 'single' ? 'grid-cols-1' : newWebsite.theme_config!.home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
             <div v-if="newWebsite.theme_config!.home_layout === 'two_left' || newWebsite.theme_config!.home_layout === 'three'">
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_left") }}</label>
-              <textarea v-model="newWebsite.theme_config!.col_left" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+              <label class="mb-1 block text-xs font-medium text-gray-700">{{ t("websites.col_left") }}</label>
+              <WysiwygEditor v-model="newWebsite.theme_config!.col_left" />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_center") }}</label>
-              <textarea v-model="newWebsite.theme_config!.col_center" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+              <label class="mb-1 block text-xs font-medium text-gray-700">{{ t("websites.col_center") }}</label>
+              <WysiwygEditor v-model="newWebsite.theme_config!.col_center" />
             </div>
             <div v-if="newWebsite.theme_config!.home_layout === 'two_right' || newWebsite.theme_config!.home_layout === 'three'">
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.col_right") }}</label>
-              <textarea v-model="newWebsite.theme_config!.col_right" rows="6" class="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+              <label class="mb-1 block text-xs font-medium text-gray-700">{{ t("websites.col_right") }}</label>
+              <WysiwygEditor v-model="newWebsite.theme_config!.col_right" />
             </div>
           </div>
         </div>
@@ -502,16 +503,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               </div>
               <div class="grid gap-2" :class="(editForm.theme_config as Record<string,string>).home_layout === 'single' ? 'grid-cols-1' : (editForm.theme_config as Record<string,string>).home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
                 <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
-                  <label class="block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
-                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_left" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
+                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" />
                 </div>
                 <div>
-                  <label class="block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
-                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_center" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
+                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" />
                 </div>
                 <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
-                  <label class="block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
-                  <textarea v-model="(editForm.theme_config as Record<string, string>).col_right" rows="6" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :placeholder="t('websites.col_content_hint')" />
+                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
+                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" />
                 </div>
               </div>
             </div>
@@ -587,23 +588,20 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <p class="mb-2 text-xs font-semibold text-indigo-800">
               {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
             </p>
-            <div v-if="!editingPage" class="mb-2 grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
-                <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
+            <div v-if="!editingPage" class="mb-2 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
+                  <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
+                  <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                </div>
               </div>
               <div>
-                <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
-                <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-              </div>
-              <div class="col-span-2">
-                <label class="block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                <textarea
-                  v-model="newPage.content_md"
-                  rows="4"
-                  class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
-                  :placeholder="t('websites.page_content_hint')"
-                />
+                <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+                <WysiwygEditor v-model="newPage.content_md" />
               </div>
             </div>
             <div v-else class="mb-2 space-y-2">
@@ -612,12 +610,8 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
               </div>
               <div>
-                <label class="block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                <textarea
-                  v-model="pageEditForm.content_md"
-                  rows="4"
-                  class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
-                />
+                <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+                <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
               </div>
             </div>
             <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>

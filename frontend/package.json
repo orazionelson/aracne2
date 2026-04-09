@@ -13,6 +13,10 @@
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
+    "@tiptap/extension-image": "^3.22.3",
+    "@tiptap/extension-link": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
+    "@tiptap/vue-3": "^3.22.3",
     "@types/codemirror": "^5.60.17",
     "@vueuse/core": "^11.3.0",
     "axios": "^1.7.9",
