@@ -154,6 +154,35 @@ footer {
 }
 footer a { color: inherit; text-decoration: underline; }
 footer a:hover { color: #6b7280; }
+/* ── Search page ── */
+.search-wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+.search-wrap h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 1.25rem; }
+.search-box input[type=search] {
+  width: 100%;
+  padding: 0.625rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  outline: none;
+  background: #fff;
+  color: #1e293b;
+}
+.search-box input[type=search]:focus { border-color: var(--primary); }
+.search-count { font-size: 0.8rem; color: #9ca3af; margin: 0.75rem 0 0.25rem; }
+.search-hit {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.search-hit a {
+  font-size: 1rem;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.search-hit a:hover { text-decoration: underline; }
+.search-hit .hit-author { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
+.search-empty { color: #9ca3af; font-style: italic; margin-top: 1rem; }
 """
 
 
@@ -252,6 +281,7 @@ def _render_navbar(
 
     home_href = f"{path_prefix}index.html"
     browse_href = f"{path_prefix}browse.html"
+    search_href = f"{path_prefix}search.html"
 
     extra_links = ""
     for page in pages:
@@ -264,6 +294,7 @@ def _render_navbar(
       <div class="nav-links">
         <a href="{home_href}">Home</a>
         <a href="{browse_href}">Browse</a>
+        <a href="{search_href}">Search</a>
         {extra_links}
       </div>
     </nav>
@@ -455,6 +486,77 @@ def _build_browse_content(docs: list[dict]) -> str:
 <ul class="doc-list">
 {items}
 </ul>"""
+
+
+def _build_search_content() -> str:
+    """Return the search page HTML with inline client-side search logic.
+
+    The page fetches search.json (pre-built at site root) and filters results
+    in real-time as the user types.  No external dependencies.
+    """
+    return """<div class="search-wrap">
+  <h1>Search</h1>
+  <div class="search-box">
+    <input type="search" id="q" placeholder="Search documents…" autocomplete="off" autofocus>
+  </div>
+  <p class="search-count" id="count"></p>
+  <div id="results"></div>
+  <noscript>
+    <p>JavaScript is required for search. <a href="browse.html">Browse all documents</a>.</p>
+  </noscript>
+</div>
+<script>
+(function () {
+  var input   = document.getElementById('q');
+  var results = document.getElementById('results');
+  var countEl = document.getElementById('count');
+  var index   = [];
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function render(q) {
+    var term = q.trim().toLowerCase();
+    var hits = term
+      ? index.filter(function (d) {
+          return d.title.toLowerCase().indexOf(term) !== -1 ||
+                 d.author.toLowerCase().indexOf(term) !== -1;
+        })
+      : index;
+
+    countEl.textContent = hits.length + ' result' + (hits.length !== 1 ? 's' : '');
+
+    if (!hits.length) {
+      results.innerHTML = '<p class="search-empty">No results found.</p>';
+      return;
+    }
+    results.innerHTML = hits.map(function (d) {
+      var authorLine = d.author
+        ? '<div class="hit-author">' + esc(d.author) + '</div>'
+        : '';
+      return '<div class="search-hit"><a href="' + esc(d.url) + '">' +
+             esc(d.title) + '</a>' + authorLine + '</div>';
+    }).join('');
+  }
+
+  fetch('search.json')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      index = data;
+      render(input.value);
+    })
+    .catch(function () {
+      results.innerHTML = '<p class="search-empty">Search index not available.</p>';
+    });
+
+  input.addEventListener('input', function () { render(input.value); });
+})();
+</script>"""
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -795,7 +897,19 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
-    # ── search.json — pre-built index for future client-side search ────────
+    # ── search.html — client-side search page ─────────────────────────────
+    search_html = _render_page(
+        site_title=website.title,
+        page_title="Search",
+        content=_build_search_content(),
+        style=style,
+        navbar=navbar(),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+    )
+    (site_dir / "search.html").write_text(search_html, encoding="utf-8")
+
+    # ── search.json — pre-built index for client-side search ──────────────
     search_index = [
         {
             "filename": d["filename"],
