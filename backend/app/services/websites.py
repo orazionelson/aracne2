@@ -327,23 +327,50 @@ def _build_search_widget_html() -> str:
     )
 
 
-def _build_page_menu_html(pages: list[WebsitePage]) -> str:
+def _build_page_menu_html(
+    pages: list[WebsitePage],
+    nav_config: list | None = None,
+) -> str:
     """Return HTML for the page-menu column widget.
 
-    Renders a simple nav list of links to all visible free pages.
+    Renders a nav list of all visible pages (system + free) sorted by global
+    sort_order, excluding Home (the widget lives on the home page itself).
     Paths are relative to the site root (index.html lives there).
     Returns an empty string when there are no visible pages.
     """
-    if not pages:
+    menu_items: list[tuple[int, str]] = []
+
+    # System pages — Browse and Search (Home is excluded: this widget is on index.html)
+    for ap in _parse_aracne_nav(nav_config or []):
+        if ap.get("is_hidden") or ap["id"] == "home":
+            continue
+        so = int(ap["sort_order"])
+        pid = ap["id"]
+        if pid == "browse":
+            menu_items.append((so, f'<li><a href="browse.html">Browse</a></li>'))
+        elif pid == "search":
+            menu_items.append((so, f'<li><a href="search.html">Search</a></li>'))
+
+    # Free pages (already filtered for visibility)
+    for p in pages:
+        href = f"pages/{_html.escape(p.slug)}.html"
+        menu_items.append(
+            (p.sort_order, f'<li><a href="{href}">{_html.escape(p.title)}</a></li>')
+        )
+
+    if not menu_items:
         return ""
-    items = "".join(
-        f'<li><a href="pages/{_html.escape(p.slug)}.html">{_html.escape(p.title)}</a></li>'
-        for p in pages
-    )
+
+    menu_items.sort(key=lambda x: x[0])
+    items = "".join(html for _, html in menu_items)
     return f'<nav class="col-page-menu"><ul>{items}</ul></nav>'
 
 
-def _render_col_content(text: str, pages: list[WebsitePage] | None = None) -> str:
+def _render_col_content(
+    text: str,
+    pages: list[WebsitePage] | None = None,
+    nav_config: list | None = None,
+) -> str:
     """Return column body HTML for embedding in the static page.
 
     If *text* looks like HTML (starts with a tag — Tiptap output) it is
@@ -360,7 +387,7 @@ def _render_col_content(text: str, pages: list[WebsitePage] | None = None) -> st
     # HTML passthrough: Tiptap always produces output starting with a tag.
     if stripped.startswith("<"):
         result = stripped.replace(_WIDGET_TAG_SEARCH_BAR, _build_search_widget_html())
-        result = result.replace(_WIDGET_TAG_PAGE_MENU, _build_page_menu_html(pages or []))
+        result = result.replace(_WIDGET_TAG_PAGE_MENU, _build_page_menu_html(pages or [], nav_config))
         return result
     # Markdown fallback (legacy / plain-text content)
     return _md_col_to_html(stripped)
@@ -678,6 +705,7 @@ def _build_cover_content(
     doc_count: int,
     theme: dict,
     pages: list[WebsitePage] | None = None,
+    nav_config: list | None = None,
 ) -> str:
     """Return the hero/cover HTML for index.html.
 
@@ -709,9 +737,9 @@ def _build_cover_content(
 
     # ── Column body grid ──────────────────────────────────────────────────
     layout = theme.get("home_layout", "single")
-    center = _render_col_content(theme.get("col_center", "") or "", pages)
-    left   = _render_col_content(theme.get("col_left", "") or "", pages)
-    right  = _render_col_content(theme.get("col_right", "") or "", pages)
+    center = _render_col_content(theme.get("col_center", "") or "", pages, nav_config)
+    left   = _render_col_content(theme.get("col_left", "") or "", pages, nav_config)
+    right  = _render_col_content(theme.get("col_right", "") or "", pages, nav_config)
 
     if layout == "two_left":
         cols = (
@@ -1192,6 +1220,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             doc_count=len(doc_infos),
             theme=theme,
             pages=visible_pages,
+            nav_config=website.nav_config or [],
         ),
         style=style,
         navbar=navbar(),
