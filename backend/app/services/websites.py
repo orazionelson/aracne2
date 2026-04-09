@@ -344,6 +344,9 @@ footer a:hover { opacity: 0.75; }
 }
 .search-hit a:hover { text-decoration: underline; }
 .search-hit .hit-author { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
+.search-hit .hit-snippet { font-size: 0.82rem; color: #4b5563; margin-top: 0.25rem; line-height: 1.5; }
+mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; }
+.search-info { font-size: 0.8rem; color: #9ca3af; margin: 0.75rem 0 0.25rem; }
 .search-empty { color: #9ca3af; font-style: italic; margin-top: 1rem; }
 """
 
@@ -377,59 +380,24 @@ _WIDGET_TAG_PAGE_MENU  = '<div data-widget="page-menu"></div>'
 
 
 def _build_search_widget_html(site_base_url: str = "") -> str:
-    """Return HTML for the inline search-bar column widget.
+    """Return HTML for the search-bar column widget.
 
-    Static mode (site_base_url=""): JS widget that fetches search.json
-    (pre-built at the site root) and filters results client-side.
-
-    Dynamic/Hybrid mode (site_base_url set): plain HTML form that submits
-    to the server-side search endpoint — no client-side JS or search.json needed.
+    Both STATIC and DYNAMIC/HYBRID render a plain form.  The action URL differs:
+    - STATIC: ``search.html`` (relative, root-level page)
+    - DYNAMIC/HYBRID: absolute server-side endpoint (site_base_url set)
     """
     if site_base_url:
-        esc_action = _html.escape(f"{site_base_url}/search")
-        return (
-            '<div class="col-search-widget">'
-            f'<form action="{esc_action}" method="get">'
-            '<input type="search" name="q" class="col-search-input"'
-            ' placeholder="Search documents\u2026"'
-            ' aria-label="Search documents" />'
-            "</form>"
-            "</div>"
-        )
-
-    # Static path: client-side JS widget
-    js = (
-        "(function(){"
-        "var idx=null;"
-        "function f(inp){"
-        "var q=inp.value,lst=inp.nextElementSibling;"
-        "if(!q.trim()){lst.hidden=true;return;}"
-        "if(idx===null){"
-        "fetch('search.json')"
-        ".then(function(r){return r.json();})"
-        ".then(function(d){idx=d;f(inp);})"
-        ".catch(function(){idx=[];});"
-        "return;}"
-        "var hits=idx.filter(function(i){"
-        "return(i.title+' '+(i.author||'')).toLowerCase()"
-        ".indexOf(q.toLowerCase())>=0;"
-        "}).slice(0,8);"
-        "lst.innerHTML=hits.map(function(h){"
-        "return'<li><a href=\"docs/'+h.filename+'.html\">'+(h.title||h.filename)+'</a></li>';"
-        "}).join('');"
-        "lst.hidden=hits.length===0;}"
-        "window.colSearchFilter=window.colSearchFilter||f;"
-        "})();"
-    )
+        action = _html.escape(f"{site_base_url}/search")
+    else:
+        action = "search.html"
     return (
         '<div class="col-search-widget">'
-        '<input type="search" class="col-search-input"'
+        f'<form action="{action}" method="get">'
+        '<input type="search" name="q" class="col-search-input"'
         ' placeholder="Search documents\u2026"'
-        ' oninput="colSearchFilter(this)"'
         ' aria-label="Search documents" />'
-        '<ul class="col-search-results" hidden></ul>'
+        "</form>"
         "</div>"
-        f"<script>{js}</script>"
     )
 
 
@@ -1010,18 +978,35 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
 </ul>"""
 
 
-def _build_search_content() -> str:
-    """Return the search page HTML with inline client-side search logic.
+def _extract_plain_text(xml_bytes: bytes) -> str:
+    """Return all text node content from *xml_bytes* as a single normalised string.
 
-    The page fetches search.json (pre-built at site root) and filters results
-    in real-time as the user types.  No external dependencies.
+    Used to populate the ``body`` field in the full-text search index.
+    Returns an empty string on any parse error.
+    """
+    import defusedxml.ElementTree as ET  # noqa: PLC0415
+
+    try:
+        root = ET.fromstring(xml_bytes)
+        return " ".join(" ".join(root.itertext()).split())
+    except Exception:
+        return ""
+
+
+def _build_search_content() -> str:
+    """Return the search page HTML with inline full-text client-side search.
+
+    The page fetches search.json (pre-built at the site root), which includes
+    the plain-text ``body`` of each document.  Search runs entirely in the
+    browser — AND-matching across title, author, and full body text, with
+    highlighted context snippets.  No external libraries required.
     """
     return """<div class="search-wrap">
   <h1>Search</h1>
   <div class="search-box">
-    <input type="search" id="q" placeholder="Search documents…" autocomplete="off" autofocus>
+    <input type="search" id="q" placeholder="Search documents\u2026" autocomplete="off" autofocus>
   </div>
-  <p class="search-count" id="count"></p>
+  <p class="search-info" id="info"></p>
   <div id="results"></div>
   <noscript>
     <p>JavaScript is required for search. <a href="browse.html">Browse all documents</a>.</p>
@@ -1029,54 +1014,83 @@ def _build_search_content() -> str:
 </div>
 <script>
 (function () {
+  'use strict';
   var input   = document.getElementById('q');
   var results = document.getElementById('results');
-  var countEl = document.getElementById('count');
-  var index   = [];
+  var infoEl  = document.getElementById('info');
+  var corpus  = null;
 
   function esc(s) {
     return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function render(q) {
-    var term = q.trim().toLowerCase();
-    var hits = term
-      ? index.filter(function (d) {
-          return d.title.toLowerCase().indexOf(term) !== -1 ||
-                 d.author.toLowerCase().indexOf(term) !== -1;
-        })
-      : index;
+  function tokenize(s) {
+    return s.toLowerCase().replace(/[^\\w\\s]/g,' ').split(/\\s+/).filter(Boolean);
+  }
 
-    countEl.textContent = hits.length + ' result' + (hits.length !== 1 ? 's' : '');
+  /* Return a ~200-char snippet from text with the first matched term highlighted. */
+  function snippet(text, terms) {
+    var lower = text.toLowerCase();
+    var best = -1, bestLen = 0;
+    terms.forEach(function(t) {
+      var p = lower.indexOf(t);
+      if (p !== -1 && (best === -1 || p < best)) { best = p; bestLen = t.length; }
+    });
+    var CTX = 100;
+    if (best === -1) {
+      var head = text.slice(0, CTX * 2).replace(/\\s+/g,' ').trim();
+      return esc(head) + (text.length > CTX * 2 ? '\u2026' : '');
+    }
+    var s0 = Math.max(0, best - CTX);
+    var s1 = Math.min(text.length, best + bestLen + CTX);
+    return (s0 > 0 ? '\u2026' : '') +
+           esc(text.slice(s0, best).replace(/\\s+/g,' ')) +
+           '<mark>' + esc(text.slice(best, best + bestLen)) + '</mark>' +
+           esc(text.slice(best + bestLen, s1).replace(/\\s+/g,' ')) +
+           (s1 < text.length ? '\u2026' : '');
+  }
 
+  function doSearch(query) {
+    var terms = tokenize(query);
+    if (!terms.length || corpus === null) {
+      infoEl.textContent = '';
+      results.innerHTML = '';
+      return;
+    }
+    var hits = corpus.filter(function(d) {
+      var hay = ((d.title||'') + ' ' + (d.author||'') + ' ' + (d.body||'')).toLowerCase();
+      return terms.every(function(t) { return hay.indexOf(t) !== -1; });
+    });
+    infoEl.textContent = hits.length + ' result' + (hits.length !== 1 ? 's' : '');
     if (!hits.length) {
       results.innerHTML = '<p class="search-empty">No results found.</p>';
       return;
     }
-    results.innerHTML = hits.map(function (d) {
-      var authorLine = d.author
-        ? '<div class="hit-author">' + esc(d.author) + '</div>'
-        : '';
-      return '<div class="search-hit"><a href="' + esc(d.url) + '">' +
-             esc(d.title) + '</a>' + authorLine + '</div>';
+    results.innerHTML = hits.map(function(d) {
+      var snip = d.body ? snippet(d.body, terms) : '';
+      return '<div class="search-hit">' +
+        '<a href="' + esc(d.url) + '">' + esc(d.title || d.filename) + '</a>' +
+        (d.author ? '<div class="hit-author">' + esc(d.author) + '</div>' : '') +
+        (snip     ? '<div class="hit-snippet">' + snip + '</div>'         : '') +
+        '</div>';
     }).join('');
   }
 
+  /* Load the index, then run any query already present (e.g. from ?q= or sidebar form). */
   fetch('search.json')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      index = data;
-      render(input.value);
-    })
-    .catch(function () {
+    .then(function(r) { return r.json(); })
+    .then(function(data) { corpus = data; doSearch(input.value); })
+    .catch(function() {
       results.innerHTML = '<p class="search-empty">Search index not available.</p>';
     });
 
-  input.addEventListener('input', function () { render(input.value); });
+  input.addEventListener('input', function() { doSearch(this.value); });
+
+  /* Pre-fill input from URL ?q= parameter (sidebar form navigation). */
+  var init = new URLSearchParams(window.location.search).get('q') || '';
+  if (init) { input.value = init; }
 })();
 </script>"""
 
@@ -1774,7 +1788,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
       browse.html     — document list
       docs/{f}.html   — per-document rendered HTML (via XSLT)
       pages/{s}.html  — free Markdown pages
-      search.json     — pre-built search index for future client-side search
+      search.json     — full-text search index (title, author, body) for client-side search
     """
     import defusedxml.ElementTree as ET
 
@@ -1901,12 +1915,16 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
     # ── docs/{filename}.html — individual documents ────────────────────────
+    # doc_bodies accumulates plain text for the full-text search index.
+    doc_bodies: dict[str, str] = {}
+
     if col is not None:
         for doc_info in doc_infos:
             filename = doc_info["filename"]
             try:
                 xml_bytes = await existdb_client.get_document(col.slug, filename)
                 doc_body = await asyncio.to_thread(xslt_transform, xml_bytes)
+                doc_bodies[filename] = _extract_plain_text(xml_bytes)
             except Exception as exc:
                 logger.warning(
                     "website_build_doc_failed", slug=slug, filename=filename, error=str(exc)
@@ -1967,18 +1985,22 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         )
         (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
-    # ── search.json — pre-built index for client-side search ──────────────
+    # ── search.json — pre-built full-text index for client-side search ───────
+    # Each entry includes the plain-text body of the document so that the
+    # browser-side search can match against the full content, not just metadata.
     search_index = [
         {
             "filename": d["filename"],
             "title": d.get("title") or d["filename"],
             "author": d.get("author") or "",
             "url": f"docs/{d['filename']}.html",
+            "body": doc_bodies.get(d["filename"], ""),
         }
         for d in doc_infos
     ]
     (site_dir / "search.json").write_text(
-        json.dumps(search_index, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(search_index, ensure_ascii=False, separators=(",", ":"), indent=None),
+        encoding="utf-8",
     )
 
 
