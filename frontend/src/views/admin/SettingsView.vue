@@ -437,6 +437,12 @@ const savingPrompt = ref<Record<string, boolean>>({});
 const savePromptError = ref<Record<string, string>>({});
 const isDeletingPrompt = ref<Record<string, boolean>>({});
 
+// Create prompt form
+const showCreatePrompt = ref(false);
+const newPrompt = ref({ slug: "", label: "", description: "", template: "" });
+const isCreatingPrompt = ref(false);
+const createPromptError = ref<string | null>(null);
+
 async function loadAiPrompts(): Promise<void> {
   aiError.value = null;
   try {
@@ -480,6 +486,29 @@ async function deleteAiPrompt(slug: string): Promise<void> {
     await aiStore.deletePrompt(slug);
   } finally {
     isDeletingPrompt.value[slug] = false;
+  }
+}
+
+async function createAiPrompt(): Promise<void> {
+  createPromptError.value = null;
+  if (!newPrompt.value.slug.trim() || !newPrompt.value.label.trim() || !newPrompt.value.template.trim()) {
+    createPromptError.value = t("common.error");
+    return;
+  }
+  isCreatingPrompt.value = true;
+  try {
+    await aiStore.createPrompt({
+      slug: newPrompt.value.slug.trim(),
+      label: newPrompt.value.label.trim(),
+      description: newPrompt.value.description.trim() || undefined,
+      template: newPrompt.value.template.trim(),
+    });
+    newPrompt.value = { slug: "", label: "", description: "", template: "" };
+    showCreatePrompt.value = false;
+  } catch (err) {
+    createPromptError.value = (err as Error).message ?? t("common.error");
+  } finally {
+    isCreatingPrompt.value = false;
   }
 }
 
@@ -1075,8 +1104,88 @@ onMounted(async () => {
       </div>
 
       <!-- Prompt library -->
-      <h2 class="mb-4 text-sm font-semibold text-gray-700">{{ t("settings.ai_prompts_title") }}</h2>
-      <p v-if="aiError" class="mb-4 text-red-600 text-sm">{{ aiError }}</p>
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-700">{{ t("settings.ai_prompts_title") }}</h2>
+        <button
+          class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+          @click="showCreatePrompt = !showCreatePrompt"
+        >
+          {{ t("ai.create_prompt") }}
+        </button>
+      </div>
+
+      <!-- Create prompt form -->
+      <div
+        v-if="showCreatePrompt"
+        class="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4"
+      >
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("ai.field_slug") }}
+              </label>
+              <input
+                v-model="newPrompt.slug"
+                type="text"
+                placeholder="my_prompt"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              <p class="mt-0.5 text-xs text-gray-400">{{ t("ai.field_slug_hint") }}</p>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">
+                {{ t("ai.field_label") }}
+              </label>
+              <input
+                v-model="newPrompt.label"
+                type="text"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">
+              {{ t("ai.field_description") }}
+              <span class="font-normal text-gray-400">({{ t("ai.field_description_hint") }})</span>
+            </label>
+            <input
+              v-model="newPrompt.description"
+              type="text"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">
+              {{ t("ai.field_template") }}
+            </label>
+            <textarea
+              v-model="newPrompt.template"
+              rows="6"
+              placeholder="You are an expert... Use {variable} for context variables."
+              class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+        </div>
+        <p v-if="createPromptError" class="mt-2 text-xs text-red-600">{{ createPromptError }}</p>
+        <div class="mt-3 flex gap-2">
+          <button
+            :disabled="isCreatingPrompt"
+            class="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            @click="createAiPrompt"
+          >
+            {{ isCreatingPrompt ? t("common.loading") : t("ai.create_submit") }}
+          </button>
+          <button
+            class="rounded border border-gray-300 px-4 py-1.5 text-xs text-gray-600 hover:bg-white"
+            @click="showCreatePrompt = false; newPrompt = { slug: '', label: '', description: '', template: '' }; createPromptError = null"
+          >
+            {{ t("common.cancel") }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="aiError" class="mb-4 text-sm text-red-600">{{ aiError }}</p>
       <p v-if="aiStore.prompts.length === 0" class="text-sm text-gray-400">
         {{ t("settings.ai_no_prompts") }}
       </p>
