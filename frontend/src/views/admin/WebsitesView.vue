@@ -55,6 +55,19 @@ const pageEditForm = ref<WebsitePageUpdate>({});
 const isSubmittingPage = ref(false);
 const pageError = ref<string | null>(null);
 
+// Unified pages list (system + free, merged and sorted for the Pages tab)
+interface UnifiedPageEntry {
+  kind: "system" | "free";
+  systemId?: "home" | "browse" | "search";
+  page?: WebsitePage;
+  title: string;
+  is_hidden: boolean;
+  sort_order: number;
+}
+const unifiedPages = ref<UnifiedPageEntry[]>([]);
+const isSavingPages = ref(false);
+const pagesError = ref<string | null>(null);
+
 // ── Computed ─────────────────────────────────────────────────────────────────
 
 const publishedCollections = computed(() =>
@@ -107,45 +120,86 @@ function updateMetaArrayItem(field: string, idx: number, value: string): void {
   cfg[field] = arr;
 }
 
-// ── Aracne Pages (system pages nav_config) ────────────────────────────────────
+// ── Unified pages list (system + free) ───────────────────────────────────────
 
-const DEFAULT_ARACNE_PAGES: AracnePageConfig[] = [
+const _DEFAULT_ARACNE_PAGES: AracnePageConfig[] = [
   { id: "home",   sort_order: 0, is_hidden: false },
   { id: "browse", sort_order: 1, is_hidden: false },
   { id: "search", sort_order: 2, is_hidden: false },
 ];
 
-/** Ensure all three system pages are present, merging saved values over defaults. */
 function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
-  return DEFAULT_ARACNE_PAGES.map((def) => {
+  return _DEFAULT_ARACNE_PAGES.map((def) => {
     const saved = raw.find((p) => p.id === def.id);
     return saved ? { ...def, ...saved } : { ...def };
   });
 }
 
-/** Returns browse + search sorted by sort_order (home excluded). */
-function editableAracnePages(): AracnePageConfig[] {
-  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
-  return nav.filter((p) => p.id !== "home").sort((a, b) => a.sort_order - b.sort_order);
+/** Build a single sorted list merging system pages (from nav_config) and free pages. */
+function buildUnifiedList(website: Website): UnifiedPageEntry[] {
+  const navCfg = normaliseNavConfig((website.nav_config ?? []) as AracnePageConfig[]);
+  const _labels: Record<string, string> = { home: "Home", browse: "Browse", search: "Search" };
+  const system: UnifiedPageEntry[] = navCfg.map((ap) => ({
+    kind: "system",
+    systemId: ap.id,
+    title: _labels[ap.id] ?? ap.id,
+    is_hidden: ap.is_hidden,
+    sort_order: ap.sort_order,
+  }));
+  const free: UnifiedPageEntry[] = website.pages.map((page) => ({
+    kind: "free",
+    page,
+    title: page.title,
+    is_hidden: page.is_hidden,
+    sort_order: page.sort_order,
+  }));
+  return [...system, ...free].sort((a, b) => a.sort_order - b.sort_order);
 }
 
-/** Swap sort_order of the two reorderable Aracne pages (browse ↔ search). */
-function moveAracnePage(fromIdx: number, toIdx: number): void {
-  const orderable = editableAracnePages();
-  if (toIdx < 0 || toIdx >= orderable.length) return;
-  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
-  const a = nav.find((p) => p.id === orderable[fromIdx].id)!;
-  const b = nav.find((p) => p.id === orderable[toIdx].id)!;
-  const tmp = a.sort_order;
-  a.sort_order = b.sort_order;
-  b.sort_order = tmp;
+function rebuildUnifiedList(websiteSlug: string): void {
+  const site = store.websites.find((w) => w.slug === websiteSlug);
+  if (site) unifiedPages.value = buildUnifiedList(site);
 }
 
-/** Toggle the is_hidden flag for a given system page id. */
-function toggleAracnePageHidden(id: string): void {
-  const nav = (editForm.value.nav_config ?? []) as AracnePageConfig[];
-  const page = nav.find((p) => p.id === id);
-  if (page) page.is_hidden = !page.is_hidden;
+function moveUnifiedPage(fromIdx: number, toIdx: number): void {
+  if (toIdx < 0 || toIdx >= unifiedPages.value.length) return;
+  const arr = [...unifiedPages.value];
+  [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
+  unifiedPages.value = arr;
+}
+
+function toggleUnifiedPageHidden(idx: number): void {
+  const entry = unifiedPages.value[idx];
+  if (entry) entry.is_hidden = !entry.is_hidden;
+}
+
+async function savePages(websiteSlug: string): Promise<void> {
+  isSavingPages.value = true;
+  pagesError.value = null;
+  try {
+    const newNavConfig: AracnePageConfig[] = [];
+    const pageUpdates: Array<{ slug: string; sort_order: number; is_hidden: boolean }> = [];
+
+    unifiedPages.value.forEach((entry, idx) => {
+      if (entry.kind === "system") {
+        newNavConfig.push({ id: entry.systemId!, sort_order: idx, is_hidden: entry.is_hidden });
+      } else if (entry.kind === "free" && entry.page) {
+        pageUpdates.push({ slug: entry.page.slug, sort_order: idx, is_hidden: entry.is_hidden });
+      }
+    });
+
+    await store.updateWebsite(websiteSlug, { nav_config: newNavConfig });
+    await Promise.all(
+      pageUpdates.map(({ slug, sort_order, is_hidden }) =>
+        store.updatePage(websiteSlug, slug, { sort_order, is_hidden }),
+      ),
+    );
+    rebuildUnifiedList(websiteSlug);
+  } catch (err: unknown) {
+    pagesError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    isSavingPages.value = false;
+  }
 }
 
 async function startEdit(website: Website): Promise<void> {
@@ -165,8 +219,9 @@ async function startEdit(website: Website): Promise<void> {
       ...website.theme_config,
     },
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
-    nav_config: normaliseNavConfig((website.nav_config ?? []) as AracnePageConfig[]),
   };
+  unifiedPages.value = buildUnifiedList(website);
+  pagesError.value = null;
   editError.value = null;
 
   // Asynchronously apply server-side suggestions to any fields still empty.
@@ -189,6 +244,7 @@ async function startEdit(website: Website): Promise<void> {
 function cancelEdit(): void {
   editingSlug.value = null;
   editError.value = null;
+  unifiedPages.value = [];
 }
 
 async function saveEdit(slug: string): Promise<void> {
@@ -203,7 +259,6 @@ async function saveEdit(slug: string): Promise<void> {
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
-      nav_config: editForm.value.nav_config as AracnePageConfig[],
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -284,38 +339,22 @@ function siteUrl(slug: string): string {
 
 function openPageForm(websiteSlug: string): void {
   showPageForm.value = websiteSlug;
-  newPage.value = { slug: "", title: "", content_md: "", sort_order: 0, is_hidden: false };
+  // New page gets a global sort_order at the end of the current unified list.
+  newPage.value = { slug: "", title: "", content_md: "", sort_order: unifiedPages.value.length, is_hidden: false };
   pageError.value = null;
 }
 
-function startEditPage(websiteSlug: string, page: { slug: string; title: string; content_md: string | null; sort_order: number; is_hidden: boolean }): void {
+function startEditPage(websiteSlug: string, page: WebsitePage): void {
   editingPage.value = page.slug;
   showPageForm.value = websiteSlug;
   pageEditForm.value = { title: page.title, content_md: page.content_md ?? "", sort_order: page.sort_order, is_hidden: page.is_hidden };
   pageError.value = null;
 }
 
-async function togglePageHidden(websiteSlug: string, page: { slug: string; is_hidden: boolean }): Promise<void> {
-  await store.updatePage(websiteSlug, page.slug, { is_hidden: !page.is_hidden });
-}
-
 function onWidgetDragStart(event: DragEvent, widgetType: string): void {
   if (!event.dataTransfer) return;
   event.dataTransfer.setData("widget-type", widgetType);
   event.dataTransfer.effectAllowed = "copy";
-}
-
-async function movePage(websiteSlug: string, pages: WebsitePage[], fromIdx: number, toIdx: number): Promise<void> {
-  if (toIdx < 0 || toIdx >= pages.length) return;
-  // Assign array-position as new sort_order for both swapped pages so the
-  // ordering is always normalized regardless of existing sort_order values.
-  await Promise.all([
-    store.updatePage(websiteSlug, pages[fromIdx].slug, { sort_order: toIdx }),
-    store.updatePage(websiteSlug, pages[toIdx].slug, { sort_order: fromIdx }),
-  ]);
-  // Re-sort the local array to reflect the new order immediately.
-  const site = store.websites.find((w) => w.slug === websiteSlug);
-  if (site) site.pages.sort((a, b) => a.sort_order - b.sort_order);
 }
 
 function cancelPageForm(): void {
@@ -334,6 +373,7 @@ async function submitPage(websiteSlug: string): Promise<void> {
       await store.createPage(websiteSlug, { ...newPage.value });
     }
     cancelPageForm();
+    rebuildUnifiedList(websiteSlug);
   } catch (err: unknown) {
     pageError.value = err instanceof Error ? err.message : t("common.error");
   } finally {
@@ -344,6 +384,7 @@ async function submitPage(websiteSlug: string): Promise<void> {
 async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> {
   if (!confirm(t("websites.confirm_delete_page"))) return;
   await store.deletePage(websiteSlug, pageSlug);
+  rebuildUnifiedList(websiteSlug);
 }
 </script>
 
@@ -866,61 +907,8 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </div>
           </div>
 
-          <!-- Tab: Pages -->
+          <!-- Tab: Pages — single unified ordered list -->
           <div v-if="editTab === 'pages'" class="bg-gray-50 p-4">
-
-            <!-- Aracne Pages — system pages -->
-            <div class="mb-5 rounded border border-indigo-100 bg-indigo-50 p-3">
-              <p class="mb-2 text-xs font-semibold text-indigo-700">{{ t("websites.aracne_pages_title") }}</p>
-              <ul class="space-y-1">
-                <!-- Home — always first, no controls -->
-                <li class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm">
-                  <div class="flex items-center gap-2">
-                    <span class="w-5" /><!-- spacer to align with ▲▼ column -->
-                    <span class="font-medium text-gray-600">Home</span>
-                  </div>
-                  <span class="text-xs italic text-gray-400">{{ t("websites.aracne_pages_home_fixed") }}</span>
-                </li>
-                <!-- Browse and Search — orderable and hideable -->
-                <li
-                  v-for="(ap, idx) in editableAracnePages()"
-                  :key="ap.id"
-                  class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm"
-                  :class="ap.is_hidden ? 'opacity-60' : ''"
-                >
-                  <div class="flex items-center gap-2">
-                    <span class="flex flex-col">
-                      <button
-                        class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
-                        :disabled="idx === 0"
-                        @click="moveAracnePage(idx, idx - 1)"
-                      >▲</button>
-                      <button
-                        class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
-                        :disabled="idx === editableAracnePages().length - 1"
-                        @click="moveAracnePage(idx, idx + 1)"
-                      >▼</button>
-                    </span>
-                    <span :class="ap.is_hidden ? 'text-gray-400 line-through' : 'font-medium text-gray-800'">
-                      {{ ap.id === 'browse' ? t("websites.aracne_pages_browse") : t("websites.aracne_pages_search") }}
-                    </span>
-                    <span v-if="ap.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">
-                      {{ t("websites.page_hidden") }}
-                    </span>
-                  </div>
-                  <button
-                    class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
-                    :class="ap.is_hidden ? 'text-amber-600' : 'text-gray-500'"
-                    :title="ap.is_hidden ? t('websites.page_show') : t('websites.page_hide')"
-                    @click="toggleAracnePageHidden(ap.id)"
-                  >
-                    {{ ap.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Free Pages -->
             <div class="mb-3 flex items-center justify-between">
               <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
               <button
@@ -930,59 +918,75 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 {{ t("websites.page_add") }}
               </button>
             </div>
-            <div v-if="website.pages.length === 0 && showPageForm !== website.slug" class="py-2 text-xs text-gray-400">
-              {{ t("websites.pages_empty") }}
-            </div>
-            <ul v-else-if="website.pages.length > 0" class="mb-3 space-y-1">
+
+            <!-- Unified list: system pages + free pages, sorted by global sort_order -->
+            <ul class="mb-3 space-y-1">
               <li
-                v-for="(page, idx) in website.pages"
-                :key="page.slug"
+                v-for="(entry, idx) in unifiedPages"
+                :key="entry.kind + '-' + (entry.systemId ?? entry.page?.slug)"
                 class="flex items-center justify-between rounded px-3 py-1.5 text-sm shadow-sm"
-                :class="page.is_hidden ? 'bg-gray-100' : 'bg-white'"
+                :class="[
+                  entry.is_hidden ? 'opacity-60' : '',
+                  entry.kind === 'system' ? 'bg-indigo-50' : (entry.is_hidden ? 'bg-gray-100' : 'bg-white'),
+                ]"
               >
                 <div class="flex items-center gap-2">
-                  <!-- Reorder arrows -->
+                  <!-- ▲▼ reorder -->
                   <span class="flex flex-col">
                     <button
                       class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
                       :disabled="idx === 0"
-                      @click="movePage(website.slug, website.pages, idx, idx - 1)"
+                      @click="moveUnifiedPage(idx, idx - 1)"
                     >▲</button>
                     <button
                       class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
-                      :disabled="idx === website.pages.length - 1"
-                      @click="movePage(website.slug, website.pages, idx, idx + 1)"
+                      :disabled="idx === unifiedPages.length - 1"
+                      @click="moveUnifiedPage(idx, idx + 1)"
                     >▼</button>
                   </span>
-                  <span :class="page.is_hidden ? 'font-medium text-gray-400 line-through' : 'font-medium text-gray-800'">{{ page.title }}</span>
-                  <span class="font-mono text-xs text-gray-400">{{ page.slug }}</span>
-                  <span v-if="page.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">{{ t("websites.page_hidden") }}</span>
+                  <!-- system badge -->
+                  <span v-if="entry.kind === 'system'" class="rounded bg-indigo-100 px-1 py-0.5 text-xs font-medium text-indigo-500">sys</span>
+                  <!-- title -->
+                  <span :class="entry.is_hidden ? 'text-gray-400 line-through' : 'font-medium text-gray-800'">
+                    {{ entry.title }}
+                  </span>
+                  <!-- slug (free pages only) -->
+                  <span v-if="entry.kind === 'free'" class="font-mono text-xs text-gray-400">{{ entry.page?.slug }}</span>
+                  <!-- hidden badge -->
+                  <span v-if="entry.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">
+                    {{ t("websites.page_hidden") }}
+                  </span>
                 </div>
                 <div class="flex gap-1">
+                  <!-- Hide/Show: Browse, Search, free pages (not Home) -->
                   <button
+                    v-if="entry.systemId !== 'home'"
                     class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
-                    :class="page.is_hidden ? 'text-amber-600' : 'text-gray-500'"
-                    :title="page.is_hidden ? t('websites.page_show') : t('websites.page_hide')"
-                    @click="togglePageHidden(website.slug, page)"
+                    :class="entry.is_hidden ? 'text-amber-600' : 'text-gray-500'"
+                    @click="toggleUnifiedPageHidden(idx)"
                   >
-                    {{ page.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
+                    {{ entry.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
                   </button>
+                  <!-- Edit / Delete: free pages only -->
                   <button
+                    v-if="entry.kind === 'free'"
                     class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
-                    @click="startEditPage(website.slug, page)"
+                    @click="startEditPage(website.slug, entry.page!)"
                   >
                     {{ t("common.edit") }}
                   </button>
                   <button
+                    v-if="entry.kind === 'free'"
                     class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
-                    @click="deletePage(website.slug, page.slug)"
+                    @click="deletePage(website.slug, entry.page!.slug)"
                   >
                     {{ t("common.delete") }}
                   </button>
                 </div>
               </li>
             </ul>
-            <!-- Page create / edit form -->
+
+            <!-- Free page create / edit form -->
             <div v-if="showPageForm === website.slug" class="rounded border border-indigo-200 bg-white p-3">
               <p class="mb-2 text-xs font-semibold text-indigo-800">
                 {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
@@ -998,10 +1002,6 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
                   </div>
                 </div>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input v-model="newPage.is_hidden" type="checkbox" class="rounded border-gray-300" />
-                  {{ t("websites.page_is_hidden") }}
-                </label>
                 <div>
                   <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
                   <WysiwygEditor v-model="newPage.content_md" />
@@ -1012,10 +1012,6 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
                   <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
                 </div>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input v-model="pageEditForm.is_hidden" type="checkbox" class="rounded border-gray-300" />
-                  {{ t("websites.page_is_hidden") }}
-                </label>
                 <div>
                   <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
                   <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
@@ -1047,6 +1043,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 @click="saveEdit(website.slug)"
               >
                 {{ t("common.save") }}
+              </button>
+            </template>
+            <template v-else>
+              <p v-if="pagesError" class="mr-auto text-xs text-red-600">{{ pagesError }}</p>
+              <button
+                :disabled="isSavingPages"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                @click="savePages(website.slug)"
+              >
+                {{ t("websites.pages_save") }}
               </button>
             </template>
             <button class="ml-auto rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEdit">

@@ -427,29 +427,34 @@ def _render_navbar(
     browse_href = f"{path_prefix}browse.html"
     search_href = f"{path_prefix}search.html"
 
-    aracne_pages = _parse_aracne_nav(nav_config or [])
-    system_links = ""
-    for ap in aracne_pages:
-        pid = ap["id"]
-        hidden = ap.get("is_hidden", False)
-        if pid == "home":
-            system_links += f'<a href="{home_href}">Home</a>'
-        elif pid == "browse" and not hidden:
-            system_links += f'<a href="{browse_href}">Browse</a>'
-        elif pid == "search" and not hidden:
-            system_links += f'<a href="{search_href}">Search</a>'
+    # Merge system links and free-page links into a single list sorted by the
+    # global sort_order (system pages from nav_config, free pages from sort_order).
+    nav_items: list[tuple[int, str]] = []
 
-    extra_links = ""
-    for page in pages:
+    for ap in _parse_aracne_nav(nav_config or []):
+        if ap.get("is_hidden"):
+            continue
+        so = int(ap["sort_order"])
+        pid = ap["id"]
+        if pid == "home":
+            nav_items.append((so, f'<a href="{path_prefix}index.html">Home</a>'))
+        elif pid == "browse":
+            nav_items.append((so, f'<a href="{path_prefix}browse.html">Browse</a>'))
+        elif pid == "search":
+            nav_items.append((so, f'<a href="{path_prefix}search.html">Search</a>'))
+
+    for page in pages:  # already filtered for visibility
         href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
-        extra_links += f'<a href="{href}">{_html.escape(page.title)}</a>'
+        nav_items.append((page.sort_order, f'<a href="{href}">{_html.escape(page.title)}</a>'))
+
+    nav_items.sort(key=lambda x: x[0])
+    links_html = "".join(link for _, link in nav_items)
 
     return f"""<header>
     <nav>
       <a class="brand" href="{home_href}">{logo_html}<span>{_html.escape(site_title)}</span></a>
       <div class="nav-links">
-        {system_links}
-        {extra_links}
+        {links_html}
       </div>
     </nav>
   </header>"""
