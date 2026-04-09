@@ -9,6 +9,7 @@ at request time from eXist-db data.  All three modes share the same data model
 from __future__ import annotations
 
 import asyncio
+import gzip
 import hashlib
 import html as _html
 import json
@@ -1078,13 +1079,22 @@ def _build_search_content() -> str:
     }).join('');
   }
 
-  /* Load the index, then run any query already present (e.g. from ?q= or sidebar form). */
-  fetch('search.json')
-    .then(function(r) { return r.json(); })
-    .then(function(data) { corpus = data; doSearch(input.value); })
-    .catch(function() {
-      results.innerHTML = '<p class="search-empty">Search index not available.</p>';
-    });
+  /* Load the gzip-compressed index and decompress natively via DecompressionStream.
+     Falls back to a clear message on browsers that do not support the API
+     (Chrome < 80, Firefox < 113, Safari < 16.4). */
+  if (typeof DecompressionStream === 'undefined') {
+    results.innerHTML = '<p class="search-empty">Search requires a modern browser (Chrome 80+, Firefox 113+, Safari 16.4+).</p>';
+  } else {
+    fetch('search.json.gz')
+      .then(function(res) {
+        var ds = new DecompressionStream('gzip');
+        return new Response(res.body.pipeThrough(ds)).json();
+      })
+      .then(function(data) { corpus = data; doSearch(input.value); })
+      .catch(function() {
+        results.innerHTML = '<p class="search-empty">Search index not available.</p>';
+      });
+  }
 
   input.addEventListener('input', function() { doSearch(this.value); });
 
@@ -1788,7 +1798,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
       browse.html     — document list
       docs/{f}.html   — per-document rendered HTML (via XSLT)
       pages/{s}.html  — free Markdown pages
-      search.json     — full-text search index (title, author, body) for client-side search
+      search.json.gz  — gzip-compressed full-text index (title, author, body) for client-side search
     """
     import defusedxml.ElementTree as ET
 
@@ -1985,9 +1995,11 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         )
         (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
-    # ── search.json — pre-built full-text index for client-side search ───────
+    # ── search.json.gz — gzip-compressed full-text index ─────────────────────
     # Each entry includes the plain-text body of the document so that the
     # browser-side search can match against the full content, not just metadata.
+    # The file is gzip-compressed (typically 70-80 % smaller than plain JSON)
+    # and decompressed natively by the browser via the DecompressionStream API.
     search_index = [
         {
             "filename": d["filename"],
@@ -1998,10 +2010,10 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         }
         for d in doc_infos
     ]
-    (site_dir / "search.json").write_text(
-        json.dumps(search_index, ensure_ascii=False, separators=(",", ":"), indent=None),
-        encoding="utf-8",
-    )
+    json_bytes = json.dumps(
+        search_index, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    (site_dir / "search.json.gz").write_bytes(gzip.compress(json_bytes, compresslevel=9))
 
 
 async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
