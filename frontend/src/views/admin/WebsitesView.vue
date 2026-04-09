@@ -74,7 +74,11 @@ const pagesError = ref<string | null>(null);
 
 // Document tab — XSLT upload state
 const xsltFileName = ref<string>("");
-const xsltFileInput = ref<HTMLInputElement | null>(null);
+/** Reset the hidden file input programmatically (avoids reactive-ref issues with native DOM). */
+function resetXsltFileInput(): void {
+  const el = document.getElementById("xslt-file-input") as HTMLInputElement | null;
+  if (el) el.value = "";
+}
 
 // Document tab — CodeMirror editor for custom XSLT source
 const xsltEditorContainer = ref<HTMLElement | null>(null);
@@ -111,13 +115,9 @@ function onXsltFileChange(event: Event): void {
   reader.readAsText(file);
 }
 
-function triggerXsltFileInput(): void {
-  xsltFileInput.value?.click();
-}
-
 function clearXsltFile(): void {
   xsltFileName.value = "";
-  if (xsltFileInput.value) xsltFileInput.value.value = "";
+  resetXsltFileInput();
   if (editForm.value.xslt_config) {
     (editForm.value.xslt_config as XsltConfig).content = null;
     xsltCm.setValue("");
@@ -319,7 +319,7 @@ async function startEdit(website: Website): Promise<void> {
   pagesError.value = null;
   editError.value = null;
   xsltFileName.value = "";
-  if (xsltFileInput.value) xsltFileInput.value.value = "";
+  resetXsltFileInput();
   xsltEditorInitialContent.value = (website.xslt_config as XsltConfig)?.content ?? "";
   // Reset preview state for the new website being edited.
   previewDocFilename.value = "";
@@ -1209,20 +1209,19 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               <!-- Upload + inline CodeMirror editor -->
               <div v-if="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
                 <input
-                  ref="xsltFileInput"
+                  id="xslt-file-input"
                   type="file"
                   accept=".xsl,.xslt,.xml"
                   class="hidden"
                   @change="onXsltFileChange"
                 />
                 <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                    @click="triggerXsltFileInput"
+                  <label
+                    for="xslt-file-input"
+                    class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                   >
                     {{ t("websites.doc_xslt_filename") }}…
-                  </button>
+                  </label>
                   <span class="text-xs text-gray-500">
                     {{ xsltFileName || t("websites.doc_xslt_no_file") }}
                   </span>
