@@ -13,7 +13,7 @@
  *   display/autorefresh, scroll/annotatescrollbar, comment/comment
  */
 
-import { ref, watch, onBeforeUnmount, type Ref } from 'vue';
+import { ref, watch, nextTick, onBeforeUnmount, type Ref } from 'vue';
 import CodeMirror, { type Editor } from 'codemirror';
 import type { CM5Schema } from '@/utils/teiSchema';
 
@@ -286,10 +286,21 @@ export function useCodeMirror(
   // that opens/closes for different records without unmounting the parent view).
   watch(
     containerRef,
-    (el) => {
-      if (el && !editorInstance.value) {
-        initializeEditor(el);
-      } else if (!el) {
+    async (el) => {
+      if (el) {
+        // Wait for the full DOM reconciliation to complete before handing the
+        // element to CodeMirror.  When nested v-ifs (e.g. editTab + xslt source)
+        // both become true in the same update cycle, flush:'post' may fire before
+        // Vue finishes all sibling patches, leaving the element in a transitional
+        // state where appendChild is not yet reachable.
+        await nextTick();
+        // Re-read the ref after the tick: the element we received may have been
+        // replaced if another reactive update occurred in the same flush cycle.
+        const currentEl = containerRef.value;
+        if (currentEl instanceof HTMLElement && !editorInstance.value) {
+          initializeEditor(currentEl);
+        }
+      } else {
         editorInstance.value = null;
       }
     },
