@@ -39,7 +39,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
-  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
+  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af" },
 });
 
 // Edit website form
@@ -117,7 +117,12 @@ async function startEdit(website: Website): Promise<void> {
     collection_id: website.collection_id,
     rendering_mode: website.rendering_mode,
     is_published: website.is_published,
-    theme_config: { ...website.theme_config },
+    theme_config: {
+      font_family: 'Georgia,"Times New Roman",serif',
+      footer_bg: "#ffffff",
+      footer_text: "#9ca3af",
+      ...website.theme_config,
+    },
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
   };
   editError.value = null;
@@ -178,7 +183,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
-      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "" },
+      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af" },
     };
   } catch (err: unknown) {
     createError.value = err instanceof Error ? err.message : t("common.error");
@@ -733,6 +738,35 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 <label class="flex items-center gap-2 text-xs text-gray-600">
                   {{ t("websites.theme_doc_banner_text") }}
                   <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+                </label>
+              </div>
+            </div>
+            <!-- Font family -->
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_font") }}</label>
+              <select v-model="(editForm.theme_config as Record<string, string>).font_family" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                <option value='Georgia,"Times New Roman",serif'>Georgia (serif)</option>
+                <option value='"Palatino Linotype",Palatino,serif'>Palatino (serif)</option>
+                <option value='"Times New Roman",Times,serif'>Times New Roman (serif)</option>
+                <option value='Arial,Helvetica,sans-serif'>Arial (sans-serif)</option>
+                <option value='"Helvetica Neue",Helvetica,Arial,sans-serif'>Helvetica (sans-serif)</option>
+                <option value='Verdana,Geneva,sans-serif'>Verdana (sans-serif)</option>
+                <option value='"Trebuchet MS",Tahoma,Geneva,sans-serif'>Trebuchet MS (sans-serif)</option>
+                <option value='system-ui,-apple-system,BlinkMacSystemFont,sans-serif'>System UI</option>
+                <option value='"Courier New",Courier,monospace'>Courier New (monospace)</option>
+              </select>
+            </div>
+            <!-- Footer -->
+            <div>
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_footer_section") }}</p>
+              <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  {{ t("websites.theme_footer_bg") }}
+                  <input v-model="(editForm.theme_config as Record<string, string>).footer_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+                </label>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  {{ t("websites.theme_footer_text") }}
+                  <input v-model="(editForm.theme_config as Record<string, string>).footer_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
                 </label>
               </div>
             </div>

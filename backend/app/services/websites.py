@@ -62,7 +62,7 @@ def _get_transform() -> etree.XSLT:
 _STATIC_CSS = """
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font);
   color: var(--text);
   background: var(--bg);
   line-height: 1.7;
@@ -172,10 +172,11 @@ footer {
   padding: 1rem 1.5rem;
   text-align: center;
   font-size: 0.78rem;
-  color: #9ca3af;
+  color: var(--footer-text);
+  background: var(--footer-bg);
 }
 footer a { color: inherit; text-decoration: underline; }
-footer a:hover { color: #6b7280; }
+footer a:hover { opacity: 0.75; }
 /* ── Column search widget ── */
 .col-search-widget { margin: 0.75rem 0; }
 .col-search-input {
@@ -242,6 +243,9 @@ footer a:hover { color: #6b7280; }
 """
 
 
+_DEFAULT_FONT = 'Georgia,"Times New Roman",serif'
+
+
 def _style_block(theme: dict) -> str:
     primary = _html.escape(theme.get("primary_color", "#1e293b"))
     text = _html.escape(theme.get("text_color", "#1e293b"))
@@ -249,9 +253,15 @@ def _style_block(theme: dict) -> str:
     # Banner defaults: same primary as navbar background, white text for contrast
     doc_banner_bg = _html.escape(theme.get("doc_banner_bg", primary))
     doc_banner_text = _html.escape(theme.get("doc_banner_text", "#ffffff"))
+    # Font family — sanitize to strip HTML injection chars but keep CSS syntax intact
+    font = re.sub(r"[<>&]", "", theme.get("font_family", _DEFAULT_FONT) or _DEFAULT_FONT)
+    # Footer colours — fall back to current hard-coded defaults when unset
+    footer_bg = _html.escape(theme.get("footer_bg", "transparent") or "transparent")
+    footer_color = _html.escape(theme.get("footer_text", "#9ca3af") or "#9ca3af")
     root_vars = (
         f":root{{--primary:{primary};--text:{text};--bg:{bg};"
-        f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};}}"
+        f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};"
+        f"--font:{font};--footer-bg:{footer_bg};--footer-text:{footer_color};}}"
     )
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
 
