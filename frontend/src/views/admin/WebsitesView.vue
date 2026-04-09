@@ -109,6 +109,9 @@ function onXsltFileChange(event: Event): void {
     const content = e.target?.result as string;
     if (editForm.value.xslt_config) {
       (editForm.value.xslt_config as XsltConfig).content = content;
+      // Keep initialValue in sync so initializeEditor (deferred via rAF)
+      // picks up the uploaded content even if it runs after this callback.
+      xsltEditorInitialContent.value = content;
       xsltCm.setValue(content);
     }
   };
