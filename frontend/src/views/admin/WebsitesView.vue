@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, computed, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
@@ -92,6 +92,16 @@ const xsltCm = useCodeMirror(xsltEditorContainer, {
     }
   },
 });
+
+// When the user switches to 'custom' source, CM5 transitions from display:none
+// to visible. Call refresh() after the DOM update so CM5 re-measures correctly.
+// (autoRefresh:true would also catch it via 250ms polling, but this is instant.)
+watch(
+  () => (editForm.value.xslt_config as XsltConfig | undefined)?.source,
+  (src) => {
+    if (src === 'custom') nextTick(() => xsltCm.refresh());
+  },
+);
 
 // Document tab — preview state
 const previewDocFilename = ref<string>("");
@@ -1209,8 +1219,11 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </label>
               </div>
 
-              <!-- Upload + inline CodeMirror editor -->
-              <div v-if="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
+              <!-- Upload + inline CodeMirror editor.
+                   v-show (not v-if) keeps the container in the DOM whenever the
+                   Document tab is open, so CM5 can initialise once at tab-open
+                   time. autoRefresh:true re-measures when display:none is lifted. -->
+              <div v-show="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
                 <input
                   id="xslt-file-input"
                   type="file"

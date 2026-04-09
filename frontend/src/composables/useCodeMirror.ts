@@ -304,6 +304,13 @@ export function useCodeMirror(
           }
         });
       } else if (!el) {
+        // Clear the autoRefresh polling timer (set by autorefresh addon when the
+        // editor initialises inside a display:none container) before dropping the
+        // reference, so the timer does not keep the CM5 instance alive indefinitely.
+        const raw = toRaw(editorInstance.value) as (Editor & { state: { autoRefreshTimer?: ReturnType<typeof setTimeout> } }) | null;
+        if (raw?.state?.autoRefreshTimer !== undefined) {
+          clearTimeout(raw.state.autoRefreshTimer);
+        }
         editorInstance.value = null;
       }
     },
