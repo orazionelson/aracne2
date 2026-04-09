@@ -50,7 +50,7 @@ const editError = ref<string | null>(null);
 // Page form
 const showPageForm = ref<string | null>(null); // website slug for which page form is open
 const editingPage = ref<string | null>(null); // page slug being edited
-const newPage = ref<WebsitePageCreate>({ slug: "", title: "", content_md: "", sort_order: 0 });
+const newPage = ref<WebsitePageCreate>({ slug: "", title: "", content_md: "", sort_order: 0, is_hidden: false });
 const pageEditForm = ref<WebsitePageUpdate>({});
 const isSubmittingPage = ref(false);
 const pageError = ref<string | null>(null);
@@ -236,15 +236,19 @@ function siteUrl(slug: string): string {
 
 function openPageForm(websiteSlug: string): void {
   showPageForm.value = websiteSlug;
-  newPage.value = { slug: "", title: "", content_md: "", sort_order: 0 };
+  newPage.value = { slug: "", title: "", content_md: "", sort_order: 0, is_hidden: false };
   pageError.value = null;
 }
 
-function startEditPage(websiteSlug: string, page: { slug: string; title: string; content_md: string | null; sort_order: number }): void {
+function startEditPage(websiteSlug: string, page: { slug: string; title: string; content_md: string | null; sort_order: number; is_hidden: boolean }): void {
   editingPage.value = page.slug;
   showPageForm.value = websiteSlug;
-  pageEditForm.value = { title: page.title, content_md: page.content_md ?? "", sort_order: page.sort_order };
+  pageEditForm.value = { title: page.title, content_md: page.content_md ?? "", sort_order: page.sort_order, is_hidden: page.is_hidden };
   pageError.value = null;
+}
+
+async function togglePageHidden(websiteSlug: string, page: { slug: string; is_hidden: boolean }): Promise<void> {
+  await store.updatePage(websiteSlug, page.slug, { is_hidden: !page.is_hidden });
 }
 
 function cancelPageForm(): void {
@@ -772,13 +776,23 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               <li
                 v-for="page in website.pages"
                 :key="page.slug"
-                class="flex items-center justify-between rounded bg-white px-3 py-1.5 text-sm shadow-sm"
+                class="flex items-center justify-between rounded px-3 py-1.5 text-sm shadow-sm"
+                :class="page.is_hidden ? 'bg-gray-100' : 'bg-white'"
               >
-                <div>
-                  <span class="font-medium text-gray-800">{{ page.title }}</span>
-                  <span class="ml-2 font-mono text-xs text-gray-400">{{ page.slug }}</span>
+                <div class="flex items-center gap-2">
+                  <span :class="page.is_hidden ? 'font-medium text-gray-400 line-through' : 'font-medium text-gray-800'">{{ page.title }}</span>
+                  <span class="font-mono text-xs text-gray-400">{{ page.slug }}</span>
+                  <span v-if="page.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">{{ t("websites.page_hidden") }}</span>
                 </div>
                 <div class="flex gap-1">
+                  <button
+                    class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                    :class="page.is_hidden ? 'text-amber-600' : 'text-gray-500'"
+                    :title="page.is_hidden ? t('websites.page_show') : t('websites.page_hide')"
+                    @click="togglePageHidden(website.slug, page)"
+                  >
+                    {{ page.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
+                  </button>
                   <button
                     class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
                     @click="startEditPage(website.slug, page)"
@@ -810,6 +824,10 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
                   </div>
                 </div>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input v-model="newPage.is_hidden" type="checkbox" class="rounded border-gray-300" />
+                  {{ t("websites.page_is_hidden") }}
+                </label>
                 <div>
                   <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
                   <WysiwygEditor v-model="newPage.content_md" />
@@ -820,6 +838,10 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
                   <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
                 </div>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input v-model="pageEditForm.is_hidden" type="checkbox" class="rounded border-gray-300" />
+                  {{ t("websites.page_is_hidden") }}
+                </label>
                 <div>
                   <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
                   <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />

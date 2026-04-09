@@ -15,12 +15,14 @@ class WebsitePageCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=256)
     content_md: str | None = None
     sort_order: int = 0
+    is_hidden: bool = False
 
 
 class WebsitePageUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=256)
     content_md: str | None = None
     sort_order: int | None = None
+    is_hidden: bool | None = None
 
 
 class WebsitePageResponse(BaseModel):
@@ -30,6 +32,7 @@ class WebsitePageResponse(BaseModel):
     title: str
     content_md: str | None
     sort_order: int
+    is_hidden: bool
     created_at: datetime
     updated_at: datetime
 

@@ -114,6 +114,7 @@ class WebsitePage(Base):
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     content_md: Mapped[str | None] = mapped_column(Text(), nullable=True)
     sort_order: Mapped[int] = mapped_column(sa.Integer(), nullable=False, default=0)
+    is_hidden: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,

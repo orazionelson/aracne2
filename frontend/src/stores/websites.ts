@@ -12,6 +12,7 @@ export interface WebsitePage {
   title: string;
   content_md: string | null;
   sort_order: number;
+  is_hidden: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -63,12 +64,14 @@ export interface WebsitePageCreate {
   title: string;
   content_md?: string | null;
   sort_order?: number;
+  is_hidden?: boolean;
 }
 
 export interface WebsitePageUpdate {
   title?: string;
   content_md?: string | null;
   sort_order?: number;
+  is_hidden?: boolean;
 }
 
 export interface MetaSuggestions {

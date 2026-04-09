@@ -805,6 +805,7 @@ async def create_website_page(
         title=data.title,
         content_md=data.content_md,
         sort_order=data.sort_order,
+        is_hidden=data.is_hidden,
     )
     db.add(page)
     await db.commit()
@@ -928,12 +929,15 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
 
     style = _style_block(theme)
 
+    # Only visible pages appear in the navigation.
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+
     # Navbars for root-level pages and subdirectory pages differ only in prefix.
     def navbar(path_prefix: str = "") -> str:
         return _render_navbar(
             site_title=website.title,
             logo_url=logo_url,
-            pages=website.pages,
+            pages=visible_pages,
             path_prefix=path_prefix,
         )
 
@@ -1042,8 +1046,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
-    # ── pages/{slug}.html — free Markdown pages ────────────────────────────
-    for page in website.pages:
+    # ── pages/{slug}.html — free Markdown pages (hidden pages are skipped) ──
+    for page in visible_pages:
         content_html = _md_to_html(page.content_md or "")
         page_html = _render_page(
             site_title=website.title,
