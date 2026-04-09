@@ -164,7 +164,7 @@ function buildStatusClass(status: string): string {
 }
 
 function siteUrl(slug: string): string {
-  return `/api/v1/sites/${slug}`;
+  return `/api/v1/sites/${slug}/`;
 }
 
 // ── Pages ─────────────────────────────────────────────────────────────────────

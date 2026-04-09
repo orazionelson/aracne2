@@ -21,7 +21,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -193,6 +193,13 @@ def _resolve_site_file(slug: str, path: str = "index.html") -> Path:
 
 
 @router.get("/sites/{slug}", include_in_schema=False)
+async def serve_site_index_redirect(slug: str) -> RedirectResponse:
+    # Redirect to the canonical URL with trailing slash so that relative links
+    # inside the generated HTML (e.g. docs/foo.xml.html) resolve correctly.
+    return RedirectResponse(url=f"/api/v1/sites/{slug}/", status_code=301)
+
+
+@router.get("/sites/{slug}/", include_in_schema=False)
 async def serve_site_index(slug: str) -> FileResponse:
     path = _resolve_site_file(slug, "index.html")
     if not path.exists():
