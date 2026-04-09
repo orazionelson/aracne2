@@ -95,20 +95,45 @@ matching the current ETag, return `304 Not Modified` with empty body.
 
 ---
 
-## Search in DYNAMIC mode
+## Search — by rendering mode
 
-Two approaches evaluated:
+The search strategy differs fundamentally between STATIC and DYNAMIC/HYBRID,
+because the data residency differs.
 
-| Option | Strategy | Pro | Con |
-|---|---|---|---|
-| **A — on-demand `search.json`** | First request generates `search.json` in memory (or temp file), subsequent requests serve it; same client-side JS as STATIC | Reuses existing client-side search JS | Not truly live; stale after collection changes until cache is invalidated |
-| **B — XQuery full-text live** | `GET /sites/{slug}/search?q=...` returns server-side rendered HTML with results | Always fresh; no client JS required | Requires Lucene-indexed eXist-db collection; more complex XQuery |
+### STATIC — client-side search on a metadata snapshot
 
-**Selected for initial implementation: Option A.**
-`search.json` is generated in memory on first access to `/sites/{slug}/search`
-and stored in the page cache with the same TTL as other pages.
-It is regenerated when the cache is invalidated.
-Option B remains available as a future enhancement (see `DEFERRED.md`).
+The build step produces `search.json` (title + author of every document) and
+`search.html` (JavaScript that downloads the JSON and filters locally in the browser).
+The collection data is **copied** into the snapshot for portability: the static site
+works without eXist-db at runtime.
+
+### DYNAMIC / HYBRID — eXist-db native full-text search
+
+The collection stays in eXist-db. There is no `search.json` and no client-side JS.
+
+`GET /sites/{slug}/search?q=term` is handled server-side:
+
+1. The backend runs an XQuery using eXist-db's **Lucene full-text index**
+   (`ft:query()`) against the entire XML content of every document in the collection
+   — not just title and author.
+2. The XQuery returns hits with **KWIC snippets** (Key Word In Context) so the
+   user sees the matching passage highlighted in context.
+3. The backend renders the results as an HTML page via `_render_page()` and returns
+   it directly — no client JavaScript needed.
+
+This delivers true full-text search from the first release of DYNAMIC mode, leveraging
+the index that eXist-db already maintains for the collection.
+
+**XQuery file**: `app/xqueries/search/fulltext_search.xq` (new — to be written).
+The query receives `$collection_path` and `$q` as external variables and returns
+an XML result set with `<hit filename="" score="">...<kwic>...</kwic></hit>` elements.
+
+**Prerequisite**: the eXist-db collection must have a Lucene index configured.
+For collections without a Lucene index, the query falls back to a `contains()`
+scan (slower but always works). The fallback is transparent to the user.
+
+**Empty query (`q` absent or blank)**: render the same document-list page as
+`/browse` (no search box with empty results — redirect or render browse instead).
 
 ---
 
@@ -160,7 +185,7 @@ immediately, otherwise stale HTML is served.
 |---|---|---|---|
 | 1 | **Cache TTL storage** | Per-site in `theme_config["cache_ttl_seconds"]` vs. global `system_settings["dynamic_cache_ttl"]` | ❓ Pending |
 | 2 | **HYBRID doc boundary** | Always dynamic vs. dynamic only if no static file on disk | ✅ Decided: always dynamic |
-| 3 | **Search in DYNAMIC** | Option A (on-demand JSON) vs. Option B (XQuery FT) | ✅ Decided: Option A first |
+| 3 | **Search in DYNAMIC** | Option A (on-demand JSON, metadata only) vs. Option B (eXist-db Lucene FT, full document) | ✅ Decided: Option B — full-text on eXist-db from day one. STATIC retains portable JSON snapshot. |
 | 4 | **Cache invalidation on PUT** | Auto-invalidate on every `PUT /websites/{slug}` vs. manual `clear-cache` only | ✅ Decided: auto on PUT + manual endpoint |
 | 5 | **ETag** | Implement from day one vs. later optimisation | ✅ Decided: day one |
 
@@ -168,13 +193,13 @@ immediately, otherwise stale HTML is served.
 
 ## Implementation order (proposed)
 
-1. `POST /websites/{slug}/clear-cache` endpoint + `_page_cache` / `_xslt_cache`
-   eviction logic in the service.
-2. `render_dynamic_*` functions in `app/services/websites.py`.
-3. Router: update existing `/sites/{slug}/` handlers to branch on `rendering_mode`.
-4. HYBRID doc handler.
-5. Admin UI: hide/show Build button and add Clear Cache button by mode.
-6. ETag response headers.
-7. Search on-demand JSON for DYNAMIC/HYBRID.
+1. `app/xqueries/search/fulltext_search.xq` — XQuery with `ft:query()` + `contains()` fallback.
+2. `_page_cache` / `_xslt_cache` data structures + eviction helpers in `app/services/websites.py`.
+3. `POST /websites/{slug}/clear-cache` endpoint [D+].
+4. `render_dynamic_*` functions in `app/services/websites.py` (index, browse, doc, page, search).
+5. Router: update existing `/sites/{slug}/` handlers to branch on `rendering_mode`.
+6. HYBRID doc handler (always dynamic regardless of file presence on disk).
+7. Admin UI: hide/show Build button, add Clear Cache button, by mode.
+8. ETag response headers.
 
-*Created: 2026-04-09*
+*Created: 2026-04-09 — Search decision revised: full-text eXist-db Lucene for DYNAMIC/HYBRID, portable JSON snapshot for STATIC.*
