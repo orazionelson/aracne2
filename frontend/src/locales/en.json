@@ -479,6 +479,8 @@
     "theme_footer_section": "Footer",
     "theme_footer_bg": "Background",
     "theme_footer_text": "Text color",
+    "theme_header_section": "Header",
+    "theme_hide_header": "Hide header",
     "theme_logo": "Navbar logo URL",
     "theme_logo_hint": "Absolute URL or relative path (e.g. /logo.png) — leave blank for no logo",
     "theme_widgets": "Widgets",

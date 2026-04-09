@@ -1151,8 +1151,13 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
     search_hidden: bool = bool(_nav_map.get("search", {}).get("is_hidden", False))
 
+    # When hide_header is set, every page is rendered without a navbar.
+    hide_header: bool = bool(theme.get("hide_header", False))
+
     # Navbars for root-level pages and subdirectory pages differ only in prefix.
     def navbar(path_prefix: str = "") -> str:
+        if hide_header:
+            return ""
         return _render_navbar(
             site_title=website.title,
             logo_url=logo_url,

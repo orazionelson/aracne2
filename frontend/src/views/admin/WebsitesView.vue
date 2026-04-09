@@ -39,7 +39,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
-  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af" },
+  theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af", hide_header: false },
 });
 
 // Edit website form
@@ -216,6 +216,7 @@ async function startEdit(website: Website): Promise<void> {
       font_family: 'Georgia,"Times New Roman",serif',
       footer_bg: "#ffffff",
       footer_text: "#9ca3af",
+      hide_header: false,
       ...website.theme_config,
     },
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
@@ -281,7 +282,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
-      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af" },
+      theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af", hide_header: false },
     };
   } catch (err: unknown) {
     createError.value = err instanceof Error ? err.message : t("common.error");
@@ -854,10 +855,17 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </label>
               </div>
             </div>
-            <!-- Logo -->
+            <!-- Header -->
             <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_logo") }}</label>
-              <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_section") }}</p>
+              <label class="flex items-center gap-2 text-xs text-gray-600">
+                <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).hide_header" class="rounded border-gray-300 text-indigo-600" />
+                {{ t("websites.theme_hide_header") }}
+              </label>
+              <div class="mt-2">
+                <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
+                <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+              </div>
             </div>
             <!-- Home layout -->
             <div>
