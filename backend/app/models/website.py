@@ -56,6 +56,12 @@ class Website(Base):
     nav_config: Mapped[list] = mapped_column(
         JSONB(), nullable=False, default=list
     )
+    # XSLT configuration for document rendering during static build.
+    # Keys: source ("default"|"custom"|"url"), content (str|null),
+    #       url (str|null), processor ("lxml"|"saxon").
+    xslt_config: Mapped[dict] = mapped_column(
+        JSONB(), nullable=False, default=dict
+    )
     xslt_schema_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("tei_schemas.id", ondelete="SET NULL"),

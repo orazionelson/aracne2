@@ -50,6 +50,7 @@ class WebsiteCreate(BaseModel):
     theme_config: dict = Field(default_factory=dict)
     meta_config: dict = Field(default_factory=dict)
     nav_config: list = Field(default_factory=list)
+    xslt_config: dict = Field(default_factory=dict)
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool = False
 
@@ -62,6 +63,7 @@ class WebsiteUpdate(BaseModel):
     theme_config: dict | None = None
     meta_config: dict | None = None
     nav_config: list | None = None
+    xslt_config: dict | None = None
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool | None = None
 
@@ -76,6 +78,7 @@ class WebsiteResponse(BaseModel):
     theme_config: dict
     meta_config: dict
     nav_config: list
+    xslt_config: dict
     xslt_schema_id: uuid.UUID | None
     build_status: BuildStatus
     last_build_at: datetime | None

@@ -4,6 +4,15 @@ import api from "@/services/api";
 
 export type RenderingMode = "STATIC" | "DYNAMIC" | "HYBRID";
 export type BuildStatus = "idle" | "pending" | "building" | "done" | "failed";
+export type XsltSource = "default" | "custom" | "url";
+export type XsltProcessor = "lxml" | "saxon";
+
+export interface XsltConfig {
+  source: XsltSource;
+  content: string | null;
+  url: string | null;
+  processor: XsltProcessor;
+}
 
 export interface AracnePageConfig {
   id: "home" | "browse" | "search";
@@ -33,6 +42,7 @@ export interface Website {
   theme_config: Record<string, string>;
   meta_config: Record<string, string | string[]>;
   nav_config: AracnePageConfig[];
+  xslt_config: XsltConfig;
   xslt_schema_id: string | null;
   build_status: BuildStatus;
   last_build_at: string | null;
@@ -63,6 +73,7 @@ export interface WebsiteUpdate {
   theme_config?: Record<string, string>;
   meta_config?: Record<string, string | string[]>;
   nav_config?: AracnePageConfig[];
+  xslt_config?: XsltConfig;
   is_published?: boolean;
 }
 

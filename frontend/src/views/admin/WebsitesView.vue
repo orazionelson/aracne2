@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
@@ -12,7 +12,7 @@ const collectionStore = useCollectionStore();
 // ── State ────────────────────────────────────────────────────────────────────
 
 const editingSlug = ref<string | null>(null);
-const editTab = ref<"general" | "theme" | "pages">("general");
+const editTab = ref<"general" | "theme" | "pages" | "document">("general");
 const showMetaPanel = ref(false);
 
 const REPEATABLE_META_FIELDS = new Set(["subject", "author", "designer", "dc_creator", "dc_publisher", "dc_contributor", "dc_subject"]);
@@ -67,6 +67,33 @@ interface UnifiedPageEntry {
 const unifiedPages = ref<UnifiedPageEntry[]>([]);
 const isSavingPages = ref(false);
 const pagesError = ref<string | null>(null);
+
+// Document tab — XSLT upload state
+const xsltFileName = ref<string>("");
+const xsltFileInput = ref<HTMLInputElement | null>(null);
+
+function onXsltFileChange(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  xsltFileName.value = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target?.result as string;
+    if (editForm.value.xslt_config) {
+      (editForm.value.xslt_config as XsltConfig).content = content;
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearXsltFile(): void {
+  xsltFileName.value = "";
+  if (xsltFileInput.value) xsltFileInput.value.value = "";
+  if (editForm.value.xslt_config) {
+    (editForm.value.xslt_config as XsltConfig).content = null;
+  }
+}
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 
@@ -219,11 +246,20 @@ async function startEdit(website: Website): Promise<void> {
       hide_header: false,
       ...website.theme_config,
     },
+    xslt_config: {
+      source: "default",
+      content: null,
+      url: null,
+      processor: "lxml",
+      ...(website.xslt_config ?? {}),
+    } as XsltConfig,
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
   };
   unifiedPages.value = buildUnifiedList(website);
   pagesError.value = null;
   editError.value = null;
+  xsltFileName.value = "";
+  if (xsltFileInput.value) xsltFileInput.value.value = "";
 
   // Asynchronously apply server-side suggestions to any fields still empty.
   // Fires after the form is already open so the user is not blocked.
@@ -627,7 +663,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           <!-- Tab bar -->
           <div class="flex border-b border-gray-200 bg-white px-4">
             <button
-              v-for="tab in (['general', 'theme', 'pages'] as const)"
+              v-for="tab in (['general', 'theme', 'pages', 'document'] as const)"
               :key="tab"
               class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
               :class="editTab === tab
@@ -1045,6 +1081,84 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   {{ t("common.cancel") }}
                 </button>
               </div>
+            </div>
+          </div>
+
+          <!-- Tab: Document -->
+          <div v-if="editTab === 'document'" class="bg-indigo-50 p-4 space-y-5">
+            <!-- XSLT source -->
+            <div>
+              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_xslt_section") }}</p>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="default" class="text-indigo-600" />
+                  {{ t("websites.doc_xslt_source_default") }}
+                </label>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="custom" class="text-indigo-600" />
+                  {{ t("websites.doc_xslt_source_custom") }}
+                </label>
+                <label class="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="url" class="text-indigo-600" />
+                  {{ t("websites.doc_xslt_source_url") }}
+                </label>
+              </div>
+
+              <!-- Upload -->
+              <div v-if="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3">
+                <input
+                  ref="xsltFileInput"
+                  type="file"
+                  accept=".xsl,.xslt,.xml"
+                  class="hidden"
+                  @change="onXsltFileChange"
+                />
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    @click="xsltFileInput?.click()"
+                  >
+                    {{ t("websites.doc_xslt_source_custom") }}…
+                  </button>
+                  <span class="text-xs text-gray-500">
+                    {{ xsltFileName || t("websites.doc_xslt_no_file") }}
+                  </span>
+                  <button
+                    v-if="xsltFileName"
+                    type="button"
+                    class="text-xs text-red-500 hover:text-red-700"
+                    @click="clearXsltFile"
+                  >
+                    {{ t("websites.doc_xslt_clear") }}
+                  </button>
+                </div>
+                <p v-if="(editForm.xslt_config as XsltConfig).content" class="mt-1 text-xs text-green-600">
+                  {{ ((editForm.xslt_config as XsltConfig).content?.length ?? 0).toLocaleString() }} chars loaded
+                </p>
+              </div>
+
+              <!-- URL -->
+              <div v-if="(editForm.xslt_config as XsltConfig).source === 'url'" class="mt-3">
+                <input
+                  v-model="(editForm.xslt_config as XsltConfig).url"
+                  type="url"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  :placeholder="t('websites.doc_xslt_url_placeholder')"
+                />
+              </div>
+            </div>
+
+            <!-- Processor -->
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.doc_xslt_processor") }}</label>
+              <select
+                v-model="(editForm.xslt_config as XsltConfig).processor"
+                class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="lxml">{{ t("websites.doc_xslt_processor_lxml") }}</option>
+                <option value="saxon" disabled>{{ t("websites.doc_xslt_processor_saxon") }}</option>
+              </select>
             </div>
           </div>
 

@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import structlog
 from lxml import etree
 from sqlalchemy import select
@@ -23,6 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import ConflictError, NotFoundError
+from app.services.xslt import apply_xslt
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
@@ -698,6 +700,46 @@ def _render_xml_to_html(xml_bytes: bytes) -> str:
     return body_match.group(1) if body_match else result_str
 
 
+async def _resolve_transform(
+    xslt_config: dict,
+) -> "Callable[[bytes], str]":
+    """Return a synchronous transform callable from *xslt_config*.
+
+    The callable is suitable for use inside ``asyncio.to_thread()``.
+    Falls back to the built-in generic transform when no valid XSLT source
+    is configured.
+
+    Supported sources:
+      "default"  — built-in generic TEI transform (``tei_generic.xsl``).
+      "custom"   — inline XSLT text stored in ``xslt_config["content"]``.
+      "url"      — XSLT fetched from ``xslt_config["url"]`` at build time.
+    """
+    from typing import Callable  # local import avoids circular at module level
+
+    source = xslt_config.get("source", "default")
+    processor = str(xslt_config.get("processor", "lxml"))
+
+    if source == "custom":
+        content = (xslt_config.get("content") or "").strip()
+        if content:
+            def _custom(xml_bytes: bytes, _c: str = content, _p: str = processor) -> str:
+                return apply_xslt(_c, xml_bytes, _p)
+            return _custom
+
+    elif source == "url":
+        url = (xslt_config.get("url") or "").strip()
+        if url:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                content = resp.text
+            def _from_url(xml_bytes: bytes, _c: str = content, _p: str = processor) -> str:
+                return apply_xslt(_c, xml_bytes, _p)
+            return _from_url
+
+    return _render_xml_to_html
+
+
 def _build_cover_content(
     *,
     website_title: str,
@@ -1166,6 +1208,9 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             nav_config=website.nav_config or [],
         )
 
+    # Resolve the XSLT transform once for the whole build.
+    xslt_transform = await _resolve_transform(website.xslt_config or {})
+
     # ── Fetch collection metadata and document list ────────────────────────
     doc_infos: list[dict] = []
     col: Collection | None = None
@@ -1256,7 +1301,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             filename = doc_info["filename"]
             try:
                 xml_bytes = await existdb_client.get_document(col.slug, filename)
-                doc_body = await asyncio.to_thread(_render_xml_to_html, xml_bytes)
+                doc_body = await asyncio.to_thread(xslt_transform, xml_bytes)
             except Exception as exc:
                 logger.warning(
                     "website_build_doc_failed", slug=slug, filename=filename, error=str(exc)
