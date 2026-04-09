@@ -177,6 +177,13 @@ footer {
 }
 footer a { color: inherit; text-decoration: underline; }
 footer a:hover { opacity: 0.75; }
+/* ── Column page-menu widget ── */
+.col-page-menu { margin: 0.75rem 0; }
+.col-page-menu ul { list-style: none; margin: 0; padding: 0; }
+.col-page-menu li { border-bottom: 1px solid #f3f4f6; }
+.col-page-menu li:last-child { border-bottom: none; }
+.col-page-menu a { display: block; padding: 0.4rem 0.5rem; color: var(--primary); text-decoration: none; font-size: 0.9rem; }
+.col-page-menu a:hover { text-decoration: underline; }
 /* ── Column search widget ── */
 .col-search-widget { margin: 0.75rem 0; }
 .col-search-input {
@@ -266,8 +273,9 @@ def _style_block(theme: dict) -> str:
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
 
 
-# Sentinel emitted by the SearchBarWidget Tiptap node (renderHTML output).
+# Sentinels emitted by widget Tiptap nodes (renderHTML output).
 _WIDGET_TAG_SEARCH_BAR = '<div data-widget="search-bar"></div>'
+_WIDGET_TAG_PAGE_MENU  = '<div data-widget="page-menu"></div>'
 
 
 def _build_search_widget_html() -> str:
@@ -312,7 +320,23 @@ def _build_search_widget_html() -> str:
     )
 
 
-def _render_col_content(text: str) -> str:
+def _build_page_menu_html(pages: list[WebsitePage]) -> str:
+    """Return HTML for the page-menu column widget.
+
+    Renders a simple nav list of links to all visible free pages.
+    Paths are relative to the site root (index.html lives there).
+    Returns an empty string when there are no visible pages.
+    """
+    if not pages:
+        return ""
+    items = "".join(
+        f'<li><a href="pages/{_html.escape(p.slug)}.html">{_html.escape(p.title)}</a></li>'
+        for p in pages
+    )
+    return f'<nav class="col-page-menu"><ul>{items}</ul></nav>'
+
+
+def _render_col_content(text: str, pages: list[WebsitePage] | None = None) -> str:
     """Return column body HTML for embedding in the static page.
 
     If *text* looks like HTML (starts with a tag — Tiptap output) it is
@@ -328,7 +352,9 @@ def _render_col_content(text: str) -> str:
         return ""
     # HTML passthrough: Tiptap always produces output starting with a tag.
     if stripped.startswith("<"):
-        return stripped.replace(_WIDGET_TAG_SEARCH_BAR, _build_search_widget_html())
+        result = stripped.replace(_WIDGET_TAG_SEARCH_BAR, _build_search_widget_html())
+        result = result.replace(_WIDGET_TAG_PAGE_MENU, _build_page_menu_html(pages or []))
+        return result
     # Markdown fallback (legacy / plain-text content)
     return _md_col_to_html(stripped)
 
@@ -624,6 +650,7 @@ def _build_cover_content(
     col: Collection | None,
     doc_count: int,
     theme: dict,
+    pages: list[WebsitePage] | None = None,
 ) -> str:
     """Return the hero/cover HTML for index.html.
 
@@ -655,9 +682,9 @@ def _build_cover_content(
 
     # ── Column body grid ──────────────────────────────────────────────────
     layout = theme.get("home_layout", "single")
-    center = _render_col_content(theme.get("col_center", "") or "")
-    left   = _render_col_content(theme.get("col_left", "") or "")
-    right  = _render_col_content(theme.get("col_right", "") or "")
+    center = _render_col_content(theme.get("col_center", "") or "", pages)
+    left   = _render_col_content(theme.get("col_left", "") or "", pages)
+    right  = _render_col_content(theme.get("col_right", "") or "", pages)
 
     if layout == "two_left":
         cols = (
@@ -1137,6 +1164,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             col=col,
             doc_count=len(doc_infos),
             theme=theme,
+            pages=visible_pages,
         ),
         style=style,
         navbar=navbar(),

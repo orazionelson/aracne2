@@ -881,6 +881,13 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 >
                   &#128269; {{ t("websites.widget_search_bar") }}
                 </div>
+                <div
+                  draggable="true"
+                  class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
+                  @dragstart="onWidgetDragStart($event, 'page-menu')"
+                >
+                  &#128196; {{ t("websites.widget_page_menu") }}
+                </div>
               </div>
 
               <div

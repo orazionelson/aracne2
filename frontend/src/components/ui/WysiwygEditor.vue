@@ -38,6 +38,35 @@ const SearchBarWidget = Node.create({
   },
 });
 
+/**
+ * PageMenuWidget — a Tiptap block node that serialises to
+ * <div data-widget="page-menu"></div> in the HTML stored in the DB.
+ * The static builder replaces that tag with the full page-link list.
+ */
+const PageMenuWidget = Node.create({
+  name: "pageMenuWidget",
+  group: "block",
+  atom: true,
+
+  parseHTML() {
+    return [{ tag: 'div[data-widget="page-menu"]' }];
+  },
+
+  renderHTML() {
+    return ["div", { "data-widget": "page-menu" }];
+  },
+
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("div");
+      dom.className = "widget-preview";
+      dom.setAttribute("contenteditable", "false");
+      dom.innerHTML = "&#128196; Page Menu";
+      return { dom };
+    };
+  },
+});
+
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
@@ -66,6 +95,7 @@ const editor = useEditor({
     Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener" } }),
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     SearchBarWidget,
+    PageMenuWidget,
   ],
   editorProps: {
     /**
@@ -75,10 +105,15 @@ const editor = useEditor({
     handleDrop(view, event, _slice, moved) {
       if (moved) return false;
       const widgetType = event.dataTransfer?.getData("widget-type");
-      if (widgetType === "search-bar") {
+      const widgetNodeName: Record<string, string> = {
+        "search-bar": "searchBarWidget",
+        "page-menu":  "pageMenuWidget",
+      };
+      const nodeName = widgetType ? widgetNodeName[widgetType] : undefined;
+      if (nodeName) {
         const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
         if (pos) {
-          const nodeType = view.state.schema.nodes["searchBarWidget"];
+          const nodeType = view.state.schema.nodes[nodeName];
           if (nodeType) {
             view.dispatch(view.state.tr.insert(pos.pos, nodeType.create()));
           }
