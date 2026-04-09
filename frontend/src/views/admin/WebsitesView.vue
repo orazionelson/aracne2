@@ -111,6 +111,10 @@ function onXsltFileChange(event: Event): void {
   reader.readAsText(file);
 }
 
+function triggerXsltFileInput(): void {
+  xsltFileInput.value?.click();
+}
+
 function clearXsltFile(): void {
   xsltFileName.value = "";
   if (xsltFileInput.value) xsltFileInput.value.value = "";
@@ -1215,7 +1219,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   <button
                     type="button"
                     class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                    @click="xsltFileInput?.click()"
+                    @click="triggerXsltFileInput"
                   >
                     {{ t("websites.doc_xslt_filename") }}…
                   </button>
