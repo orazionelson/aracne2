@@ -187,9 +187,11 @@ def _render_page(
     content: str,
     style: str,
     navbar: str,
+    footer_note: str = "",
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
+    footer_extra = f'<span class="footer-publisher">{footer_note}</span> · ' if footer_note else ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,7 +205,7 @@ def _render_page(
   <main>
     {content}
   </main>
-  <footer>Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
+  <footer>{footer_extra}Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
 </body>
 </html>"""
 
@@ -255,23 +257,18 @@ def _build_cover_content(
     col: Collection | None,
     doc_count: int,
 ) -> str:
-    """Return the hero/cover HTML for index.html."""
+    """Return the hero/cover HTML for index.html.
+
+    Publisher / year are intentionally omitted here — they appear in the footer.
+    """
     title = _html.escape(col.title if col else website_title)
     lead = ""
     if col and col.description:
         lead = f'<p class="lead">{_html.escape(col.description)}</p>'
 
-    meta_parts: list[str] = []
-    if col:
-        if col.author:
-            meta_parts.append(_html.escape(col.author))
-        if col.publisher:
-            meta_parts.append(_html.escape(col.publisher))
-        if col.pub_year:
-            meta_parts.append(str(col.pub_year))
-    meta_block = (
-        f'<p class="meta-block">{" · ".join(meta_parts)}</p>' if meta_parts else ""
-    )
+    author_block = ""
+    if col and col.author:
+        author_block = f'<p class="meta-block">{_html.escape(col.author)}</p>'
 
     browse_label = f"Browse {doc_count} document{'s' if doc_count != 1 else ''} →"
     cta = f'<a href="browse.html" class="btn-primary">{browse_label}</a>'
@@ -279,7 +276,7 @@ def _build_cover_content(
     return f"""<div class="hero">
   <h1>{title}</h1>
   {lead}
-  {meta_block}
+  {author_block}
   {cta}
 </div>"""
 
@@ -563,6 +560,15 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             except Exception:
                 doc_infos = []
 
+    # Build publisher / year string that appears in every page footer.
+    publisher_parts: list[str] = []
+    if col:
+        if col.publisher:
+            publisher_parts.append(_html.escape(col.publisher))
+        if col.pub_year:
+            publisher_parts.append(str(col.pub_year))
+    footer_note = ", ".join(publisher_parts)
+
     # ── index.html — cover / hero page ────────────────────────────────────
     index_html = _render_page(
         site_title=website.title,
@@ -574,6 +580,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         ),
         style=style,
         navbar=navbar(),
+        footer_note=footer_note,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -584,6 +591,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         content=_build_browse_content(doc_infos),
         style=style,
         navbar=navbar(),
+        footer_note=footer_note,
     )
     (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -607,6 +615,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 content=f'<div class="tei-body">{doc_body}</div>',
                 style=style,
                 navbar=navbar("../"),
+                footer_note=footer_note,
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -619,6 +628,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
             style=style,
             navbar=navbar("../"),
+            footer_note=footer_note,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
