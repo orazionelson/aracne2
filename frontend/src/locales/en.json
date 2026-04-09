@@ -469,6 +469,7 @@
     "clear_cache": "Clear cache",
     "clearing_cache": "Clearing...",
     "open": "Open site",
+    "download_site": "Download ZIP",
     "build_idle": "Not built",
     "build_pending": "Pending...",
     "build_building": "Building...",

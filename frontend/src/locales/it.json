@@ -469,6 +469,7 @@
     "clear_cache": "Svuota cache",
     "clearing_cache": "Pulizia...",
     "open": "Apri sito",
+    "download_site": "Scarica ZIP",
     "build_idle": "Non generato",
     "build_pending": "In attesa...",
     "build_building": "Generazione...",

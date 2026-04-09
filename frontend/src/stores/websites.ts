@@ -215,6 +215,17 @@ export const useWebsiteStore = defineStore("websites", () => {
     await api.post(`/websites/${slug}/clear-cache`, {});
   }
 
+  /** Download the built STATIC site as a ZIP file. */
+  async function downloadSite(slug: string): Promise<void> {
+    const res = await api.get(`/websites/${slug}/download`, { responseType: "blob" });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return {
     websites,
     isLoading,
@@ -231,5 +242,6 @@ export const useWebsiteStore = defineStore("websites", () => {
     fetchMetaSuggestions,
     previewDocument,
     clearCache,
+    downloadSite,
   };
 });

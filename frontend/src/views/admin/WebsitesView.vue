@@ -411,6 +411,10 @@ async function clearSiteCache(slug: string): Promise<void> {
   }
 }
 
+async function downloadSite(slug: string): Promise<void> {
+  await store.downloadSite(slug);
+}
+
 async function triggerBuild(slug: string): Promise<void> {
   buildingSlug.value = slug;
   try {
@@ -717,6 +721,14 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             >
               {{ t("websites.open") }}
             </a>
+            <!-- Download ZIP (STATIC only, when built) -->
+            <button
+              v-if="website.rendering_mode === 'STATIC' && website.build_status === 'done'"
+              class="rounded px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"
+              @click="downloadSite(website.slug)"
+            >
+              {{ t("websites.download_site") }}
+            </button>
             <button
               class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
               @click="startEdit(website)"

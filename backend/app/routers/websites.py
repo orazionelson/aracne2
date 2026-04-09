@@ -8,6 +8,7 @@ GET    /websites/{slug}                       get a website (with pages)
 PUT    /websites/{slug}                       update website metadata
 DELETE /websites/{slug}                       delete website + static files
 POST   /websites/{slug}/build                 trigger static build (STATIC mode)
+GET    /websites/{slug}/download [D+]         download built STATIC site as ZIP
 POST   /websites/{slug}/clear-cache [D+]      invalidate dynamic render cache
 POST   /websites/{slug}/preview-doc/{file}    admin XSLT preview
 POST   /websites/{slug}/pages                 add a free page
@@ -24,7 +25,10 @@ GET    /sites/{slug}/pages/{page_slug}        free Markdown pages
 GET    /sites/{slug}/{path:path}              static assets (CSS/JS/images)
 """
 
+import asyncio
+import io
 import mimetypes
+import zipfile
 from pathlib import Path
 from typing import Annotated
 
@@ -38,7 +42,7 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.postgres import get_async_session
 from app.middleware.acl import ROLE_LEVEL, get_current_user
 from app.models.user import User
-from app.models.website import RenderingMode
+from app.models.website import BuildStatus, RenderingMode
 from app.schemas.websites import (
     MetaSuggestionsResponse,
     WebsiteBuildResponse,
@@ -159,6 +163,47 @@ async def trigger_build(
             message="Build queued.",
         )
     }
+
+
+# ── ZIP download (STATIC only) ────────────────────────────────────────────────
+
+@router.get("/websites/{slug}/download")
+async def download_site(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> Response:
+    """Return the built STATIC site as a downloadable ZIP archive.
+
+    Only available for STATIC sites whose build_status is *done*.
+    """
+    website = await svc.get_website(db, slug)
+    if website.rendering_mode != RenderingMode.STATIC:
+        raise HTTPException(
+            status_code=400,
+            detail="Only STATIC sites can be downloaded as a ZIP.",
+        )
+    if website.build_status != BuildStatus.done:
+        raise HTTPException(status_code=409, detail="Site has not been built yet.")
+
+    site_dir = settings.websites_root / slug
+    if not site_dir.exists():
+        raise HTTPException(status_code=404, detail="Site directory not found.")
+
+    def _make_zip() -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for file_path in site_dir.rglob("*"):
+                if file_path.is_file():
+                    zf.write(file_path, file_path.relative_to(site_dir))
+        return buf.getvalue()
+
+    zip_bytes = await asyncio.to_thread(_make_zip)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{slug}.zip"'},
+    )
 
 
 # ── Cache management ─────────────────────────────────────────────────────────
