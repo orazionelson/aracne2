@@ -477,6 +477,8 @@
     "theme_doc_banner_text": "Testo banner documento",
     "theme_logo": "URL logo nella navbar",
     "theme_logo_hint": "URL assoluto o percorso relativo (es. /logo.png) — lascia vuoto per nessun logo",
+    "theme_widgets": "Widget",
+    "widget_search_bar": "Barra di ricerca",
     "home_content_title": "Corpo della home page",
     "home_layout": "Layout",
     "layout_single": "1 colonna",

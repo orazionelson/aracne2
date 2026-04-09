@@ -477,6 +477,8 @@
     "theme_doc_banner_text": "Doc banner text",
     "theme_logo": "Navbar logo URL",
     "theme_logo_hint": "Absolute URL or relative path (e.g. /logo.png) — leave blank for no logo",
+    "theme_widgets": "Widgets",
+    "widget_search_bar": "Search Bar",
     "home_content_title": "Home page body",
     "home_layout": "Layout",
     "layout_single": "1 column",

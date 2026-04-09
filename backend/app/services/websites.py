@@ -176,6 +176,40 @@ footer {
 }
 footer a { color: inherit; text-decoration: underline; }
 footer a:hover { color: #6b7280; }
+/* ── Column search widget ── */
+.col-search-widget { margin: 0.75rem 0; }
+.col-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--primary);
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  color: var(--text);
+  background: #fff;
+}
+.col-search-input:focus { box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+.col-search-results {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.col-search-results li { border-bottom: 1px solid #f3f4f6; }
+.col-search-results li:last-child { border-bottom: none; }
+.col-search-results a {
+  display: block;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.col-search-results a:hover { background: #f9fafb; color: var(--primary); }
 /* ── Search page ── */
 .search-wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
 .search-wrap h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 1.25rem; }
@@ -222,13 +256,59 @@ def _style_block(theme: dict) -> str:
     return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
 
 
+# Sentinel emitted by the SearchBarWidget Tiptap node (renderHTML output).
+_WIDGET_TAG_SEARCH_BAR = '<div data-widget="search-bar"></div>'
+
+
+def _build_search_widget_html() -> str:
+    """Return HTML+JS for the inline search-bar column widget.
+
+    The widget fetches search.json (expected at the root of the static site,
+    i.e. next to index.html) and filters results in real time.  Intended for
+    home-page columns only — paths are relative to index.html.
+    """
+    js = (
+        "(function(){"
+        "var idx=null;"
+        "function f(inp){"
+        "var q=inp.value,lst=inp.nextElementSibling;"
+        "if(!q.trim()){lst.hidden=true;return;}"
+        "if(idx===null){"
+        "fetch('search.json')"
+        ".then(function(r){return r.json();})"
+        ".then(function(d){idx=d;f(inp);})"
+        ".catch(function(){idx=[];});"
+        "return;}"
+        "var hits=idx.filter(function(i){"
+        "return(i.title+' '+(i.author||'')).toLowerCase()"
+        ".indexOf(q.toLowerCase())>=0;"
+        "}).slice(0,8);"
+        "lst.innerHTML=hits.map(function(h){"
+        "return'<li><a href=\"docs/'+h.filename+'.html\">'+(h.title||h.filename)+'</a></li>';"
+        "}).join('');"
+        "lst.hidden=hits.length===0;}"
+        "window.colSearchFilter=window.colSearchFilter||f;"
+        "})();"
+    )
+    return (
+        '<div class="col-search-widget">'
+        '<input type="search" class="col-search-input"'
+        ' placeholder="Search documents\u2026"'
+        ' oninput="colSearchFilter(this)"'
+        ' aria-label="Search documents" />'
+        '<ul class="col-search-results" hidden></ul>'
+        "</div>"
+        f"<script>{js}</script>"
+    )
+
+
 def _render_col_content(text: str) -> str:
     """Return column body HTML for embedding in the static page.
 
     If *text* looks like HTML (starts with a tag — Tiptap output) it is
-    returned as-is.  Otherwise it is treated as lightweight Markdown so that
-    content written before the WYSIWYG editor was introduced still renders
-    correctly.
+    returned as-is after expanding any widget placeholders.  Otherwise it is
+    treated as lightweight Markdown so that content written before the WYSIWYG
+    editor was introduced still renders correctly.
 
     Both paths are trusted Designer+ input written for their own static site;
     no html.escape is applied.
@@ -238,7 +318,7 @@ def _render_col_content(text: str) -> str:
         return ""
     # HTML passthrough: Tiptap always produces output starting with a tag.
     if stripped.startswith("<"):
-        return stripped
+        return stripped.replace(_WIDGET_TAG_SEARCH_BAR, _build_search_widget_html())
     # Markdown fallback (legacy / plain-text content)
     return _md_col_to_html(stripped)
 

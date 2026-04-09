@@ -251,6 +251,12 @@ async function togglePageHidden(websiteSlug: string, page: { slug: string; is_hi
   await store.updatePage(websiteSlug, page.slug, { is_hidden: !page.is_hidden });
 }
 
+function onWidgetDragStart(event: DragEvent, widgetType: string): void {
+  if (!event.dataTransfer) return;
+  event.dataTransfer.setData("widget-type", widgetType);
+  event.dataTransfer.effectAllowed = "copy";
+}
+
 async function movePage(websiteSlug: string, pages: WebsitePage[], fromIdx: number, toIdx: number): Promise<void> {
   if (toIdx < 0 || toIdx >= pages.length) return;
   // Assign array-position as new sort_order for both swapped pages so the
@@ -747,6 +753,18 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   <option value="three">{{ t("websites.layout_three") }}</option>
                 </select>
               </div>
+              <!-- Widget palette — drag chips into a column editor below -->
+              <div class="mb-2 flex items-center gap-2">
+                <span class="text-xs text-gray-400">{{ t("websites.theme_widgets") }}:</span>
+                <div
+                  draggable="true"
+                  class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
+                  @dragstart="onWidgetDragStart($event, 'search-bar')"
+                >
+                  &#128269; {{ t("websites.widget_search_bar") }}
+                </div>
+              </div>
+
               <div
                 class="grid gap-3"
                 :class="(editForm.theme_config as Record<string,string>).home_layout === 'single'

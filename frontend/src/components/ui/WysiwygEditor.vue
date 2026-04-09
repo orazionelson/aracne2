@@ -1,10 +1,42 @@
 <script setup lang="ts">
 import { watch, ref } from "vue";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
+import { Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
+
+// ── Widget nodes ──────────────────────────────────────────────────────────────
+
+/**
+ * SearchBarWidget — a Tiptap block node that serialises to
+ * <div data-widget="search-bar"></div> in the HTML stored in the DB.
+ * The static builder replaces that tag with the real search-bar HTML+JS.
+ */
+const SearchBarWidget = Node.create({
+  name: "searchBarWidget",
+  group: "block",
+  atom: true,   // treated as a single indivisible unit (like an image)
+
+  parseHTML() {
+    return [{ tag: 'div[data-widget="search-bar"]' }];
+  },
+
+  renderHTML() {
+    return ["div", { "data-widget": "search-bar" }];
+  },
+
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("div");
+      dom.className = "widget-preview";
+      dom.setAttribute("contenteditable", "false");
+      dom.innerHTML = "&#128269; Search Bar";
+      return { dom };
+    };
+  },
+});
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
@@ -33,7 +65,29 @@ const editor = useEditor({
     Image.configure({ inline: false }),
     Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener" } }),
     TextAlign.configure({ types: ["heading", "paragraph"] }),
+    SearchBarWidget,
   ],
+  editorProps: {
+    /**
+     * Intercept external drag-and-drop of widget chips.
+     * Internal ProseMirror drags (moved === true) are left untouched.
+     */
+    handleDrop(view, event, _slice, moved) {
+      if (moved) return false;
+      const widgetType = event.dataTransfer?.getData("widget-type");
+      if (widgetType === "search-bar") {
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (pos) {
+          const nodeType = view.state.schema.nodes["searchBarWidget"];
+          if (nodeType) {
+            view.dispatch(view.state.tr.insert(pos.pos, nodeType.create()));
+          }
+        }
+        return true;
+      }
+      return false;
+    },
+  },
   onUpdate({ editor: ed }) {
     emit("update:modelValue", ed.getHTML());
   },
@@ -95,7 +149,7 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
 </script>
 
 <template>
-  <div class="wysiwyg-editor rounded border border-gray-300 bg-white" :class="{ 'wysiwyg-fullscreen': isFullscreen }">
+  <div class="wysiwyg-editor rounded border border-gray-300 bg-white" :class="{ 'wysiwyg-fullscreen': isFullscreen }" @dragover.prevent>
     <!-- Toolbar -->
     <div class="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-2 py-1">
       <!-- Text format -->
@@ -463,6 +517,23 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
   color: #374151;
 }
 .btn-cancel:hover { background: #f9fafb; }
+
+/* ── Widget node preview (in-editor rendering) ── */
+:deep(.widget-preview) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.85rem;
+  background: #ede9fe;
+  border: 1px dashed #a78bfa;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+  color: #5b21b6;
+  user-select: none;
+  cursor: default;
+  margin: 0.4rem 0;
+}
 
 /* ── Fullscreen ── */
 .wysiwyg-fullscreen {
