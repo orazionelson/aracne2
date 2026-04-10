@@ -286,6 +286,13 @@ footer a:hover { opacity: 0.75; }
 .col-page-menu li:last-child { border-bottom: none; }
 .col-page-menu a { display: block; padding: 0.4rem 0.5rem; color: var(--primary); text-decoration: none; font-size: 0.9rem; }
 .col-page-menu a:hover { text-decoration: underline; }
+/* ── Column index-list widget ── */
+.col-index-list { margin: 0.75rem 0; }
+.col-index-list ul { list-style: none; margin: 0; padding: 0; }
+.col-index-list li { border-bottom: 1px solid #f3f4f6; }
+.col-index-list li:last-child { border-bottom: none; }
+.col-index-list a { display: block; padding: 0.4rem 0.5rem; color: var(--primary); text-decoration: none; font-size: 0.9rem; }
+.col-index-list a:hover { text-decoration: underline; }
 /* ── Column search widget ── */
 .col-search-widget { margin: 0.75rem 0; }
 .col-search-input {
@@ -408,6 +415,7 @@ def _style_block(theme: dict) -> str:
 # Sentinels emitted by widget Tiptap nodes (renderHTML output).
 _WIDGET_TAG_SEARCH_BAR = '<div data-widget="search-bar"></div>'
 _WIDGET_TAG_PAGE_MENU  = '<div data-widget="page-menu"></div>'
+_WIDGET_TAG_INDEX_LIST = '<div data-widget="index-list"></div>'
 
 
 def _build_search_widget_html(site_base_url: str = "") -> str:
@@ -479,11 +487,51 @@ def _build_page_menu_html(
     return f'<nav class="col-page-menu"><ul>{items}</ul></nav>'
 
 
+def _build_index_list_widget_html(
+    indices: list[WebsiteIndex] | None = None,
+    nav_config: list | None = None,
+    site_base_url: str = "",
+) -> str:
+    """Return HTML for the index-list column widget.
+
+    Renders a nav list of built indices.  Only indices with *cached_data* (i.e.
+    already built) are shown — unbuilt indices would produce dead links.
+
+    Link targets follow the same static/dynamic split as other widgets:
+    - STATIC: ``indices.html`` (all indices on a single tabbed page)
+    - DYNAMIC/HYBRID: ``{site_base_url}/indices/{label}`` (per-index route)
+
+    The widget is hidden (returns ``""``) when the "indices" system page is
+    hidden via *nav_config* or when no index has been built yet.
+    """
+    # Check whether the indices system page is hidden.
+    nav_map = {ap["id"]: ap for ap in _parse_aracne_nav(nav_config or [])}
+    if nav_map.get("indices", {}).get("is_hidden"):
+        return ""
+
+    built = [idx for idx in (indices or []) if idx.cached_data is not None]
+    if not built:
+        return ""
+
+    items_html = ""
+    for idx in built:
+        label_escaped = _html.escape(idx.label)
+        title_escaped = _html.escape(idx.title)
+        if site_base_url:
+            href = f"{site_base_url}/indices/{label_escaped}"
+        else:
+            href = f"indices.html#{label_escaped}"
+        items_html += f'<li><a href="{href}">{title_escaped}</a></li>'
+
+    return f'<nav class="col-index-list"><ul>{items_html}</ul></nav>'
+
+
 def _render_col_content(
     text: str,
     pages: list[WebsitePage] | None = None,
     nav_config: list | None = None,
     site_base_url: str = "",
+    indices: list[WebsiteIndex] | None = None,
 ) -> str:
     """Return column body HTML for embedding in the page.
 
@@ -510,6 +558,10 @@ def _render_col_content(
         result = result.replace(
             _WIDGET_TAG_PAGE_MENU,
             _build_page_menu_html(pages or [], nav_config, site_base_url),
+        )
+        result = result.replace(
+            _WIDGET_TAG_INDEX_LIST,
+            _build_index_list_widget_html(indices, nav_config, site_base_url),
         )
         return result
     # Markdown fallback (legacy / plain-text content)
@@ -979,6 +1031,7 @@ def _build_cover_content(
     pages: list[WebsitePage] | None = None,
     nav_config: list | None = None,
     site_base_url: str = "",
+    indices: list[WebsiteIndex] | None = None,
 ) -> str:
     """Return the hero/cover HTML for index.html.
 
@@ -991,6 +1044,8 @@ def _build_cover_content(
 
     *site_base_url*: when set (dynamic/hybrid mode), the CTA "Browse" link and
     column-widget hrefs use absolute paths; otherwise relative static paths.
+    *indices*: passed through to widget renderers so the index-list widget can
+    enumerate built indices.
     """
     title = _html.escape(col.title if col else website_title)
     lead = ""
@@ -1015,13 +1070,13 @@ def _build_cover_content(
     # ── Column body grid ──────────────────────────────────────────────────
     layout = theme.get("home_layout", "single")
     center = _render_col_content(
-        theme.get("col_center", "") or "", pages, nav_config, site_base_url
+        theme.get("col_center", "") or "", pages, nav_config, site_base_url, indices
     )
     left = _render_col_content(
-        theme.get("col_left", "") or "", pages, nav_config, site_base_url
+        theme.get("col_left", "") or "", pages, nav_config, site_base_url, indices
     )
     right = _render_col_content(
-        theme.get("col_right", "") or "", pages, nav_config, site_base_url
+        theme.get("col_right", "") or "", pages, nav_config, site_base_url, indices
     )
 
     if layout == "two_left":
@@ -1365,6 +1420,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     footer_note, identifier_url = _footer_parts(col)
     html = _render_page(
@@ -2548,6 +2604,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             theme=theme,
             pages=visible_pages,
             nav_config=website.nav_config or [],
+            indices=website.indices,
         ),
         style=style,
         navbar=navbar(),
@@ -2738,6 +2795,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             pages=visible_pages,
             nav_config=website.nav_config or [],
             site_base_url=base,
+            indices=website.indices,
         ),
         style=style,
         navbar=_navbar(),

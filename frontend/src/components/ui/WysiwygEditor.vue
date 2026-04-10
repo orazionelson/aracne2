@@ -67,6 +67,35 @@ const PageMenuWidget = Node.create({
   },
 });
 
+/**
+ * IndexListWidget — a Tiptap block node that serialises to
+ * <div data-widget="index-list"></div> in the HTML stored in the DB.
+ * The static/dynamic builder replaces that tag with a nav list of built indices.
+ */
+const IndexListWidget = Node.create({
+  name: "indexListWidget",
+  group: "block",
+  atom: true,
+
+  parseHTML() {
+    return [{ tag: 'div[data-widget="index-list"]' }];
+  },
+
+  renderHTML() {
+    return ["div", { "data-widget": "index-list" }];
+  },
+
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("div");
+      dom.className = "widget-preview";
+      dom.setAttribute("contenteditable", "false");
+      dom.innerHTML = "&#128203; Index List";
+      return { dom };
+    };
+  },
+});
+
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
@@ -96,6 +125,7 @@ const editor = useEditor({
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     SearchBarWidget,
     PageMenuWidget,
+    IndexListWidget,
   ],
   editorProps: {
     /**
@@ -108,6 +138,7 @@ const editor = useEditor({
       const widgetNodeName: Record<string, string> = {
         "search-bar": "searchBarWidget",
         "page-menu":  "pageMenuWidget",
+        "index-list": "indexListWidget",
       };
       const nodeName = widgetType ? widgetNodeName[widgetType] : undefined;
       if (nodeName) {
