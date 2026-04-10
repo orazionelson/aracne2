@@ -16,7 +16,7 @@ export interface XsltConfig {
 }
 
 export interface AracnePageConfig {
-  id: "home" | "browse" | "search";
+  id: "home" | "browse" | "search" | "indices";
   sort_order: number;
   is_hidden: boolean;
 }

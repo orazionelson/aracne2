@@ -581,6 +581,23 @@ async def serve_site_page(
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 
 
+@router.get("/sites/{slug}/indices/", include_in_schema=False)
+async def serve_site_all_indices(
+    slug: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> Response:
+    """Serve the aggregated indices page (all built indices as tabs)."""
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
+    html = svc.render_all_indices_html(
+        website,
+        site_base_url=f"/api/v1/sites/{slug}",
+    )
+    return _dynamic_html_response(html, svc.compute_etag(website), request)
+
+
 @router.get("/sites/{slug}/index/{label}/", include_in_schema=False)
 async def serve_site_index_page(
     slug: str,

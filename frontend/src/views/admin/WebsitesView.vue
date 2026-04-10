@@ -64,7 +64,7 @@ const pageError = ref<string | null>(null);
 // Unified pages list (system + free, merged and sorted for the Pages tab)
 interface UnifiedPageEntry {
   kind: "system" | "free";
-  systemId?: "home" | "browse" | "search";
+  systemId?: "home" | "browse" | "search" | "indices";
   page?: WebsitePage;
   title: string;
   is_hidden: boolean;
@@ -389,9 +389,10 @@ function updateMetaArrayItem(field: string, idx: number, value: string): void {
 // ── Unified pages list (system + free) ───────────────────────────────────────
 
 const _DEFAULT_ARACNE_PAGES: AracnePageConfig[] = [
-  { id: "home",   sort_order: 0, is_hidden: false },
-  { id: "browse", sort_order: 1, is_hidden: false },
-  { id: "search", sort_order: 2, is_hidden: false },
+  { id: "home",    sort_order: 0, is_hidden: false },
+  { id: "browse",  sort_order: 1, is_hidden: false },
+  { id: "search",  sort_order: 2, is_hidden: false },
+  { id: "indices", sort_order: 3, is_hidden: false },
 ];
 
 function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
@@ -404,7 +405,7 @@ function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
 /** Build a single sorted list merging system pages (from nav_config) and free pages. */
 function buildUnifiedList(website: Website): UnifiedPageEntry[] {
   const navCfg = normaliseNavConfig((website.nav_config ?? []) as AracnePageConfig[]);
-  const _labels: Record<string, string> = { home: "Home", browse: "Browse", search: "Search" };
+  const _labels: Record<string, string> = { home: "Home", browse: "Browse", search: "Search", indices: t("websites.page_indices") };
   const system: UnifiedPageEntry[] = navCfg.map((ap) => ({
     kind: "system",
     systemId: ap.id,

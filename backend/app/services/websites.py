@@ -366,6 +366,14 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 .index__empty { color: #9ca3af; font-style: italic; }
 .search-info { font-size: 0.8rem; color: #9ca3af; margin: 0.75rem 0 0.25rem; }
 .search-empty { color: #9ca3af; font-style: italic; margin-top: 1rem; }
+/* ── Aggregated indices page tabs ── */
+.indices-page-title { font-size: 1.8rem; margin-bottom: 1.25rem; }
+.indices-tabs-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; }
+.indices-tab-btn { background: none; border: 1px solid #e5e7eb; cursor: pointer; padding: 0.4rem 1rem; border-radius: 4px 4px 0 0; font-size: 0.92rem; color: #6b7280; font-family: var(--font); transition: background 0.15s; }
+.indices-tab-btn:hover { background: #f3f4f6; color: #1f2937; }
+.indices-tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.indices-panel { display: none; }
+.indices-panel.active { display: block; }
 """
 
 
@@ -554,13 +562,14 @@ def _parse_aracne_nav(nav_config: list) -> list[dict]:
     """Return the ordered Aracne system-page descriptors from *nav_config*.
 
     Fills in defaults for any missing entry so the caller always receives
-    exactly three records: home (always first), then browse and search sorted
-    by their stored ``sort_order``.
+    exactly four records: home (always first), then browse, search, and
+    indices sorted by their stored ``sort_order``.
     """
     _defaults: dict[str, dict] = {
-        "home":   {"id": "home",   "sort_order": 0, "is_hidden": False},
-        "browse": {"id": "browse", "sort_order": 1, "is_hidden": False},
-        "search": {"id": "search", "sort_order": 2, "is_hidden": False},
+        "home":    {"id": "home",    "sort_order": 0, "is_hidden": False},
+        "browse":  {"id": "browse",  "sort_order": 1, "is_hidden": False},
+        "search":  {"id": "search",  "sort_order": 2, "is_hidden": False},
+        "indices": {"id": "indices", "sort_order": 3, "is_hidden": False},
     }
     merged: dict[str, dict] = {}
     for page_id, default in _defaults.items():
@@ -568,7 +577,7 @@ def _parse_aracne_nav(nav_config: list) -> list[dict]:
         merged[page_id] = {**default, **(saved or {})}
 
     rest = sorted(
-        [merged["browse"], merged["search"]],
+        [merged["browse"], merged["search"], merged["indices"]],
         key=lambda p: p["sort_order"],
     )
     return [merged["home"], *rest]
@@ -583,7 +592,6 @@ def _render_navbar(
     nav_config: list | None = None,
     site_base_url: str = "",
     indices: list | None = None,
-    site_slug: str = "",
 ) -> str:
     """Build the <header><nav> block.
 
@@ -624,6 +632,15 @@ def _render_navbar(
             nav_items.append((so, f'<a href="{browse_href}">Browse</a>'))
         elif pid == "search":
             nav_items.append((so, f'<a href="{search_href}">Search</a>'))
+        elif pid == "indices":
+            # Show a single "Indices" link only when at least one index has been built.
+            has_built = any(idx.last_built_at for idx in (indices or []))
+            if has_built:
+                if site_base_url:
+                    indices_href = f"{site_base_url}/indices/"
+                else:
+                    indices_href = f"{path_prefix}indices.html"
+                nav_items.append((so, f'<a href="{indices_href}">Indices</a>'))
 
     for page in pages:  # already filtered for visibility
         if site_base_url:
@@ -631,18 +648,6 @@ def _render_navbar(
         else:
             href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
         nav_items.append((page.sort_order, f'<a href="{href}">{_html.escape(page.title)}</a>'))
-
-    # Built indices appear at the end of the nav, after all pages.
-    for i, idx in enumerate(indices or []):
-        if not idx.last_built_at:
-            continue  # not yet built — skip
-        if site_base_url:
-            idx_href = f"{site_base_url}/index/{_html.escape(idx.label)}/"
-        elif site_slug:
-            idx_href = f"/api/v1/sites/{site_slug}/index/{_html.escape(idx.label)}/"
-        else:
-            continue
-        nav_items.append((1000 + i, f'<a href="{idx_href}">{_html.escape(idx.title)}</a>'))
 
     nav_items.sort(key=lambda x: x[0])
     links_html = "".join(link for _, link in nav_items)
@@ -1844,11 +1849,11 @@ def _render_index_variant(variant: dict, site_base_url: str) -> str:
     )
 
 
-def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
-    """Generate the HTML page for a website index from its cached_data.
+def _build_index_content_parts(index: WebsiteIndex, site_base_url: str) -> list[str]:
+    """Return the HTML parts list for a single index's content (entries only).
 
-    The cached_data is produced by rebuild_website_index() which runs the
-    index_occurrences XQuery and aggregates results into a JSON structure.
+    Used by both ``render_website_index_html`` (single index page) and
+    ``render_all_indices_html`` (aggregated tabbed page).
     """
     cached = index.cached_data or {}
     key_attr = cached.get("key_attr", "")
@@ -1857,23 +1862,7 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
     has_subkey_attr = bool(subkey_attr)
     entries: list[dict] = cached.get("entries", [])
 
-    theme = website.theme_config or {}
-    style = _style_block(theme)
-    site_base_url = f"/api/v1/sites/{website.slug}"
-
-    navbar = _render_navbar(
-        site_title=website.title,
-        logo_url=theme.get("logo_url") or None,
-        pages=[p for p in website.pages if not p.is_hidden],
-        nav_config=website.nav_config or [],
-        site_base_url=site_base_url,
-        indices=website.indices,
-    )
-    breadcrumb = _render_breadcrumb(
-        [(f"{site_base_url}/", website.title), (None, index.title)]
-    )
-
-    parts: list[str] = [f'<h1 class="index__title">{_html.escape(index.title)}</h1>']
+    parts: list[str] = [f'<h2 class="index__title">{_html.escape(index.title)}</h2>']
     if not entries:
         parts.append('<p class="index__empty">No entries. Rebuild the index to populate it.</p>')
     else:
@@ -1950,11 +1939,136 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
             parts.append("</li>")
         parts.append("</ul>")
 
+    return parts
+
+
+def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
+    """Generate the HTML page for a website index from its cached_data.
+
+    The cached_data is produced by rebuild_website_index() which runs the
+    index_occurrences XQuery and aggregates results into a JSON structure.
+    """
+    theme = website.theme_config or {}
+    style = _style_block(theme)
+    site_base_url = f"/api/v1/sites/{website.slug}"
+
+    navbar = _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=[p for p in website.pages if not p.is_hidden],
+        nav_config=website.nav_config or [],
+        site_base_url=site_base_url,
+        indices=website.indices,
+    )
+    breadcrumb = _render_breadcrumb(
+        [(f"{site_base_url}/", website.title), (None, index.title)]
+    )
+
+    parts = _build_index_content_parts(index, site_base_url)
     content = "<main>" + "".join(parts) + "</main>"
     return _render_page(
         site_title=website.title,
         page_title=index.title,
         content=content,
+        style=style,
+        navbar=navbar,
+        breadcrumb=breadcrumb,
+        meta_tags=_build_meta_tags(website.meta_config or {}),
+    )
+
+
+def render_all_indices_html(
+    website: Website,
+    *,
+    site_base_url: str = "",
+    path_prefix: str = "",
+) -> str:
+    """Generate a tabbed HTML page aggregating all built indices.
+
+    Only indices whose ``cached_data`` is not None are included.
+    ``site_base_url`` is used for dynamic/hybrid rendering (e.g.
+    ``/api/v1/sites/my-site``).  For static builds, leave it empty and set
+    ``path_prefix`` to the relative path from the current page to the site root
+    (empty string for root-level pages, ``../`` for subdirectory pages).
+    """
+    built = [idx for idx in (website.indices or []) if idx.cached_data is not None]
+
+    theme = website.theme_config or {}
+    style = _style_block(theme)
+
+    effective_base = site_base_url or f"/api/v1/sites/{website.slug}"
+
+    navbar = _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=[p for p in website.pages if not p.is_hidden],
+        nav_config=website.nav_config or [],
+        site_base_url=site_base_url,
+        path_prefix=path_prefix,
+        indices=website.indices,
+    )
+    home_link = f"{site_base_url}/" if site_base_url else f"{path_prefix}index.html"
+    breadcrumb = _render_breadcrumb([(home_link, website.title), (None, "Indices")])
+
+    if not built:
+        content = "<main><p>No indices built yet.</p></main>"
+        return _render_page(
+            site_title=website.title,
+            page_title="Indices",
+            content=content,
+            style=style,
+            navbar=navbar,
+            breadcrumb=breadcrumb,
+            meta_tags=_build_meta_tags(website.meta_config or {}),
+        )
+
+    # Tab buttons
+    btn_parts: list[str] = ['<div class="indices-tabs-btns">']
+    for i, idx in enumerate(built):
+        active_cls = " active" if i == 0 else ""
+        btn_parts.append(
+            f'<button class="indices-tab-btn{active_cls}" data-tab="{i}">'
+            f'{_html.escape(idx.title)}</button>'
+        )
+    btn_parts.append("</div>")
+
+    # Tab panels
+    panel_parts: list[str] = ['<div class="indices-tab-panels">']
+    for i, idx in enumerate(built):
+        active_cls = " active" if i == 0 else ""
+        panel_parts.append(f'<div class="indices-panel{active_cls}" data-panel="{i}">')
+        panel_parts.extend(_build_index_content_parts(idx, effective_base))
+        panel_parts.append("</div>")
+    panel_parts.append("</div>")
+
+    tab_script = (
+        "<script>"
+        "var _ibtns=document.querySelectorAll('.indices-tab-btn');"
+        "var _ipanels=document.querySelectorAll('.indices-panel');"
+        "_ibtns.forEach(function(b,i){"
+        "b.addEventListener('click',function(){"
+        "_ibtns.forEach(function(x){x.classList.remove('active');});"
+        "_ipanels.forEach(function(x){x.classList.remove('active');});"
+        "b.classList.add('active');_ipanels[i].classList.add('active');"
+        "});});"
+        "</script>"
+    )
+
+    content_parts = [
+        '<main>',
+        '<h1 class="indices-page-title">Indices</h1>',
+        '<div class="indices-tabs">',
+        *btn_parts,
+        *panel_parts,
+        '</div>',
+        '</main>',
+        tab_script,
+    ]
+
+    return _render_page(
+        site_title=website.title,
+        page_title="Indices",
+        content="".join(content_parts),
         style=style,
         navbar=navbar,
         breadcrumb=breadcrumb,
@@ -2225,6 +2339,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     _nav_map = {ap["id"]: ap for ap in aracne_nav}
     browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
     search_hidden: bool = bool(_nav_map.get("search", {}).get("is_hidden", False))
+    indices_hidden: bool = bool(_nav_map.get("indices", {}).get("is_hidden", False))
 
     # When hide_header is set, every page is rendered without a navbar.
     hide_header: bool = bool(theme.get("hide_header", False))
@@ -2240,7 +2355,6 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             path_prefix=path_prefix,
             nav_config=website.nav_config or [],
             indices=website.indices,
-            site_slug=website.slug,
         )
 
     # Resolve the XSLT transform once for the whole build.
@@ -2421,6 +2535,12 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     ).encode("utf-8")
     (site_dir / "search.json.gz").write_bytes(gzip.compress(json_bytes, compresslevel=9))
 
+    # ── indices.html — aggregated indices page (skipped when hidden or empty) ─
+    built_indices = [idx for idx in (website.indices or []) if idx.cached_data is not None]
+    if not indices_hidden and built_indices:
+        indices_html = render_all_indices_html(website)
+        (site_dir / "indices.html").write_text(indices_html, encoding="utf-8")
+
 
 async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     """Build the structural pages for a HYBRID website.
@@ -2453,6 +2573,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     aracne_nav = _parse_aracne_nav(website.nav_config or [])
     _nav_map = {ap["id"]: ap for ap in aracne_nav}
     browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
+    indices_hidden: bool = bool(_nav_map.get("indices", {}).get("is_hidden", False))
     hide_header: bool = bool(theme.get("hide_header", False))
 
     def _navbar() -> str:
@@ -2531,6 +2652,12 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         (site_dir / "pages" / f"{page.slug}.html").write_text(
             page_html, encoding="utf-8"
         )
+
+    # ── indices.html — aggregated indices page (skipped when hidden or empty) ─
+    built_indices = [idx for idx in (website.indices or []) if idx.cached_data is not None]
+    if not indices_hidden and built_indices:
+        indices_page_html = render_all_indices_html(website, site_base_url=base)
+        (site_dir / "indices.html").write_text(indices_page_html, encoding="utf-8")
 
     # After build, invalidate the dynamic render cache so any cached doc pages
     # are refreshed from eXist-db on the next request.

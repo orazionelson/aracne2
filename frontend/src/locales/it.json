@@ -543,6 +543,7 @@
     "indices_built_at": "Ultima costruzione",
     "indices_not_built": "Non ancora costruito",
     "indices_rebuild": "Ricostruisci",
+    "page_indices": "Indici",
     "doc_xslt_section": "Foglio di stile XSLT",
     "doc_xslt_source_default": "Predefinito (trasformazione TEI integrata)",
     "doc_xslt_source_custom": "Carica foglio di stile",
