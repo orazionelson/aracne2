@@ -590,6 +590,10 @@ def _render_col_content(
             _WIDGET_TAG_INDEX_LIST,
             _build_index_list_widget_html(indices, nav_config, site_base_url),
         )
+        # Tiptap inserts <p></p> between consecutive block atoms. Collapse those
+        # empty paragraphs between adjacent widget navs so the CSS adjacent-
+        # sibling rule (nav + nav) fires correctly and the separator renders.
+        result = re.sub(r"(</nav>)\s*(?:<p>\s*</p>\s*)+(<nav\b)", r"\1\2", result)
         return result
     # Markdown fallback (legacy / plain-text content)
     return _md_col_to_html(stripped)
