@@ -176,6 +176,35 @@ const editingIndexId = ref<string | null>(null);  // non-null = editing existing
 const indexForm = ref<WebsiteIndexCreate>({ label: "", title: "", tag: "", key_attribute: null, subkey_attribute: null });
 const isDeletingIndexId = ref<string | null>(null);
 
+// Combobox state for the tag field in the index form
+const indexTagQuery = ref<string>("");
+const showTagDropdown = ref(false);
+const filteredTags = computed<string[]>(() => {
+  const q = indexTagQuery.value.toLowerCase().replace(/^<|>$/g, "");
+  if (!q) return availableTags.value;
+  return availableTags.value.filter((t) => t.toLowerCase().includes(q));
+});
+
+function selectTag(tag: string): void {
+  indexForm.value.tag = tag;
+  indexTagQuery.value = tag;
+  showTagDropdown.value = false;
+  indexForm.value.key_attribute = null;
+  indexForm.value.subkey_attribute = null;
+}
+
+function onTagInput(): void {
+  indexForm.value.tag = indexTagQuery.value;
+  indexForm.value.key_attribute = null;
+  indexForm.value.subkey_attribute = null;
+  showTagDropdown.value = true;
+}
+
+function onTagBlur(): void {
+  // Delay so a mousedown on a dropdown item fires before the dropdown closes.
+  setTimeout(() => { showTagDropdown.value = false; }, 150);
+}
+
 /** Tags available in the current website's collection (from distinct_tags cache). */
 const availableTags = computed<string[]>(() => {
   const site = store.websites.find((w) => w.slug === editingSlug.value);
@@ -193,6 +222,7 @@ const availableAttrsForTag = computed<string[]>(() => {
 function openAddIndexForm(): void {
   editingIndexId.value = null;
   indexForm.value = { label: "", title: "", tag: "", key_attribute: null, subkey_attribute: null };
+  indexTagQuery.value = "";
   showIndexForm.value = true;
   indexError.value = null;
 }
@@ -206,6 +236,7 @@ function openEditIndexForm(idx: WebsiteIndex): void {
     key_attribute: idx.key_attribute,
     subkey_attribute: idx.subkey_attribute,
   };
+  indexTagQuery.value = idx.tag;
   showIndexForm.value = true;
   indexError.value = null;
 }
@@ -1560,10 +1591,29 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_tag") }}</label>
-                  <select v-model="indexForm.tag" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs" @change="indexForm.key_attribute = null; indexForm.subkey_attribute = null">
-                    <option value="">{{ t("websites.indices_select_tag") }}</option>
-                    <option v-for="tag in availableTags" :key="tag" :value="tag">&lt;{{ tag }}&gt;</option>
-                  </select>
+                  <div class="relative mt-1">
+                    <input
+                      v-model="indexTagQuery"
+                      type="text"
+                      :placeholder="t('websites.indices_select_tag')"
+                      class="w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono"
+                      autocomplete="off"
+                      @input="onTagInput"
+                      @focus="showTagDropdown = filteredTags.length > 0"
+                      @blur="onTagBlur"
+                    />
+                    <ul
+                      v-if="showTagDropdown && filteredTags.length > 0"
+                      class="absolute z-20 mt-0.5 max-h-48 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-md"
+                    >
+                      <li
+                        v-for="tag in filteredTags"
+                        :key="tag"
+                        class="cursor-pointer px-2 py-1 text-xs font-mono hover:bg-indigo-50"
+                        @mousedown.prevent="selectTag(tag)"
+                      >&lt;{{ tag }}&gt;</li>
+                    </ul>
+                  </div>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_key_attr") }}</label>
