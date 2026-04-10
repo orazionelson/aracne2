@@ -570,12 +570,16 @@ async def serve_site_page(
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
-        path = _resolve_site_file(slug, f"pages/{page_slug}.html")
+        # Strip trailing .html if already present (static links include the extension).
+        clean_slug = page_slug[:-5] if page_slug.endswith(".html") else page_slug
+        path = _resolve_site_file(slug, f"pages/{clean_slug}.html")
         if not path.exists():
             raise HTTPException(status_code=404, detail="Page not found.")
         return FileResponse(path, media_type="text/html")
+    # Dynamic lookup uses the slug without extension.
+    lookup_slug = page_slug[:-5] if page_slug.endswith(".html") else page_slug
     try:
-        html = await svc.render_dynamic_page(db, website, page_slug)
+        html = await svc.render_dynamic_page(db, website, lookup_slug)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _dynamic_html_response(html, svc.compute_etag(website), request)
