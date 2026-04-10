@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.postgres import get_async_session
-from app.middleware.acl import ROLE_LEVEL, get_current_user
+from app.middleware.acl import ROLE_LEVEL, get_current_user, get_optional_user
 from app.models.user import User
 from app.models.website import BuildStatus, RenderingMode
 from app.schemas.websites import (
@@ -81,6 +81,27 @@ async def _require_designer_plus(
 
 
 DesignerPlus = Annotated[User, Depends(_require_designer_plus)]
+
+# Optional authenticated user — used by public /sites/ routes so unpublished
+# sites are still accessible to staff (Editor and above, level >= 2).
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
+def _check_site_access(website: "svc.WebsiteModel", user: User | None, request: Request) -> None:
+    """Raise 404 if the site is not published and the caller is not staff.
+
+    Unpublished sites are visible to any authenticated user with level >= 2
+    (Editor, Designer, EditorInChief, Admin).  Anonymous visitors and plain
+    Users (level 1) receive a 404 — indistinguishable from a missing site so
+    as not to leak its existence.
+    """
+    if website.is_published:
+        return
+    if user is None:
+        raise HTTPException(status_code=404, detail="Site not found.")
+    role: str = getattr(request.state, "role", "User")
+    if ROLE_LEVEL.get(role, 0) < 2:
+        raise HTTPException(status_code=404, detail="Site not found.")
 
 
 # ── Website CRUD ──────────────────────────────────────────────────────────────
@@ -326,8 +347,10 @@ async def serve_site_index(
     slug: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
 ) -> Response:
     website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         path = _resolve_site_file(slug, "index.html")
         if not path.exists():
@@ -349,8 +372,10 @@ async def serve_site_browse(
     slug: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
 ) -> Response:
     website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         path = _resolve_site_file(slug, "browse.html")
         if not path.exists():
@@ -365,9 +390,11 @@ async def serve_site_search(
     slug: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
     q: str = "",
 ) -> Response:
     website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     if website.rendering_mode == RenderingMode.STATIC:
         # Static path: client-side JS search page built at build time.
         path = _resolve_site_file(slug, "search.html")
@@ -386,8 +413,10 @@ async def serve_site_doc(
     filename: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
 ) -> Response:
     website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     # HYBRID: document pages are always dynamic, even if a static file exists.
     if website.rendering_mode == RenderingMode.STATIC:
         # Static path: look for docs/{filename}.html on disk.
@@ -411,8 +440,10 @@ async def serve_site_page(
     page_slug: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
 ) -> Response:
     website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         path = _resolve_site_file(slug, f"pages/{page_slug}.html")
         if not path.exists():
@@ -426,12 +457,20 @@ async def serve_site_page(
 
 
 @router.get("/sites/{slug}/{path:path}", include_in_schema=False)
-async def serve_site_file(slug: str, path: str) -> FileResponse:
+async def serve_site_file(
+    slug: str,
+    path: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> FileResponse:
     """Catch-all for static assets (CSS, JS, images).
 
     Dynamic/Hybrid sites may still have static assets (logo, CSS overrides)
     placed in the site directory by the Designer.
     """
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
     resolved = _resolve_site_file(slug, path)
     if not resolved.exists():
         raise HTTPException(status_code=404, detail="File not found.")

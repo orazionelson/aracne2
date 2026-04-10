@@ -87,6 +87,56 @@ async def _get_current_user(
 get_current_user = _get_current_user
 
 
+async def get_optional_user(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> User | None:
+    """Like get_current_user, but returns None instead of raising on missing or
+    invalid credentials.  Also accepts the token via the ``?_preview=`` query
+    parameter so that browser-opened URLs (which cannot carry an Authorization
+    header) can still reach unpublished sites.
+    """
+    # Prefer the Authorization header; fall back to ?_preview= query param.
+    token_str: str | None = None
+    if credentials:
+        token_str = credentials.credentials
+    elif "_preview" in request.query_params:
+        token_str = request.query_params["_preview"]
+
+    if not token_str:
+        return None
+
+    try:
+        raw = decode_raw_token(token_str)
+        if raw.get("type") == "impersonation":
+            user_id = uuid.UUID(str(raw["sub"]))
+            user = await db.get(User, user_id)
+            if not user or not user.is_active or user.deleted_at:
+                return None
+            request.state.user = user
+            request.state.role = str(raw.get("role", "User"))
+            return user
+
+        payload = decode_token(token_str, "access")
+        jti = uuid.UUID(str(payload["jti"]))
+        stmt = select(Session).where(
+            Session.access_jti == jti,
+            Session.revoked_at.is_(None),
+        )
+        session = await db.scalar(stmt)
+        if not session:
+            return None
+        user = await db.get(User, session.user_id)
+        if not user or not user.is_active or user.deleted_at:
+            return None
+        request.state.user = user
+        request.state.role = str(payload.get("role", "User"))
+        return user
+    except Exception:
+        return None
+
+
 def require_role(
     min_role: str | None = None, exact_role: str | None = None
 ) -> Callable[..., Coroutine[Any, Any, User]]:

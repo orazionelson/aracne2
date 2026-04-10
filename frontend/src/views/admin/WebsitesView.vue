@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
+import { useAuthStore } from "@/stores/auth";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
@@ -8,6 +9,7 @@ import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 import { useCodeMirror } from "@/composables/useCodeMirror";
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 const store = useWebsiteStore();
 const collectionStore = useCollectionStore();
 const xsltStore = useXsltTemplateStore();
@@ -472,8 +474,13 @@ function buildStatusClass(status: string): string {
   return map[status] ?? "text-gray-500";
 }
 
-function siteUrl(slug: string): string {
-  return `/api/v1/sites/${slug}/`;
+function siteUrl(slug: string, isPublished: boolean): string {
+  const base = `/api/v1/sites/${slug}/`;
+  if (isPublished) return base;
+  // Unpublished: pass the access token as ?_preview= so the browser tab
+  // (which cannot send an Authorization header) is accepted by the backend.
+  const token = authStore.accessToken;
+  return token ? `${base}?_preview=${encodeURIComponent(token)}` : base;
 }
 
 // ── Pages ─────────────────────────────────────────────────────────────────────
@@ -741,7 +748,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <!-- Open site link (STATIC/HYBRID: only when built; DYNAMIC: always) -->
             <a
               v-if="(website.rendering_mode === 'DYNAMIC') || (website.build_status === 'done' && (website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'))"
-              :href="siteUrl(website.slug)"
+              :href="siteUrl(website.slug, website.is_published)"
               target="_blank"
               rel="noopener"
               class="rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
