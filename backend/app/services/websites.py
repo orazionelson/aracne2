@@ -15,6 +15,7 @@ import html as _html
 import json
 import re
 import uuid
+from urllib.parse import quote as _url_quote
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -780,6 +781,43 @@ _PREVIEW_PROPAGATOR_SCRIPT = (
     '})();</script>'
 )
 
+# Inline script that reads ?highlight=TERM from the URL and highlights all
+# occurrences of that term in the page content using <mark> elements.
+# Uses TreeWalker to operate on text nodes only (never breaks existing markup).
+# Scrolls smoothly to the first match after highlighting.
+_HIGHLIGHT_SCRIPT = (
+    '<script>(function(){'
+    'var m=location.search.match(/[?&]highlight=([^&]+)/);'
+    'if(!m)return;'
+    'var term=decodeURIComponent(m[1].replace(/\\+/g," ")).trim();'
+    'if(!term)return;'
+    'var root=document.querySelector(".tei-body")||document.querySelector("main");'
+    'if(!root)return;'
+    'function esc(s){return s.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\$&");}'
+    'var re=new RegExp("("+esc(term)+")","gi");'
+    'var tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false);'
+    'var nodes=[];'
+    'var n;'
+    'while((n=tw.nextNode())){'
+    'if(/^(script|style|mark)$/i.test(n.parentNode.nodeName))continue;'
+    'if(re.test(n.textContent))nodes.push(n);'
+    're.lastIndex=0;'
+    '}'
+    'nodes.forEach(function(tn){'
+    'var parts=tn.textContent.split(re);'
+    'if(parts.length<2)return;'
+    'var frag=document.createDocumentFragment();'
+    'parts.forEach(function(p,i){'
+    'if(i%2===1){var mk=document.createElement("mark");mk.textContent=p;frag.appendChild(mk);}'
+    'else if(p)frag.appendChild(document.createTextNode(p));'
+    '});'
+    'tn.parentNode.replaceChild(frag,tn);'
+    '});'
+    'var first=root.querySelector("mark");'
+    'if(first)first.scrollIntoView({behavior:"smooth",block:"center"});'
+    '})();</script>'
+)
+
 
 def _render_page(
     *,
@@ -817,6 +855,7 @@ def _render_page(
   </main>
   <footer>{footer_extra}Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
   {_PREVIEW_PROPAGATOR_SCRIPT}
+  {_HIGHLIGHT_SCRIPT}
 </body>
 </html>"""
 
@@ -1865,8 +1904,10 @@ def _render_index_variant(variant: dict, site_base_url: str) -> str:
     text = variant.get("text", "")
     docs: list[str] = variant.get("docs", [])
     esc_text = _html.escape(text)
+    # Append ?highlight=TERM so the target document highlights the term on load.
+    hl_param = f"?highlight={_url_quote(text, safe='')}" if text else ""
     refs = " ".join(
-        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}{hl_param}")}">'
         f'{_html.escape(doc)}</a>'
         for doc in docs
     )
@@ -1940,8 +1981,10 @@ def _build_index_content_parts(index: WebsiteIndex, site_base_url: str) -> list[
                         for v in subentry.get("variants", []):
                             all_docs.extend(v.get("docs", []))
                         all_docs = sorted(set(all_docs))
+                        # key_val is the text that appears in the document.
+                        hl_param = f"?highlight={_url_quote(key_val, safe='')}" if key_val else ""
                         refs = " ".join(
-                            f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+                            f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}{hl_param}")}">'
                             f'{_html.escape(doc)}</a>'
                             for doc in all_docs
                         )
@@ -1958,8 +2001,9 @@ def _build_index_content_parts(index: WebsiteIndex, site_base_url: str) -> list[
                         for v in subentry.get("variants", []):
                             all_docs_flat.extend(v.get("docs", []))
                     all_docs_flat = sorted(set(all_docs_flat))
+                    hl_param = f"?highlight={_url_quote(key_val, safe='')}" if key_val else ""
                     refs = " ".join(
-                        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+                        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}{hl_param}")}">'
                         f'{_html.escape(doc)}</a>'
                         for doc in all_docs_flat
                     )
