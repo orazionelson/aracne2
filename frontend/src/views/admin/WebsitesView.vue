@@ -1250,9 +1250,12 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     {{ t("websites.doc_xslt_clear") }}
                   </button>
                 </div>
-                <!-- CodeMirror XML editor — edits xslt_config.content directly -->
+                <!-- CodeMirror XML editor — edits xslt_config.content directly.
+                     Callback ref (:ref with function) instead of plain string ref
+                     because Vue does not reliably update a Ref<HTMLElement> when
+                     the element lives inside a v-for + nested v-if/v-show chain. -->
                 <div
-                  ref="xsltEditorContainer"
+                  :ref="(el: unknown) => { xsltEditorContainer.value = el instanceof HTMLElement ? el : null; }"
                   class="overflow-hidden rounded border border-gray-300"
                   style="height: 260px;"
                 />
