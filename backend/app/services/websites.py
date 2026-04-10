@@ -374,6 +374,10 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 .indices-tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .indices-panel { display: none; }
 .indices-panel.active { display: block; }
+/* ── Index filter ── */
+.index__filter { width: 100%; padding: 0.4rem 0.75rem; font-size: 0.9rem; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 1rem; font-family: var(--font); }
+.index__filter:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,0,0,0.06); }
+.index__filter-empty { color: #9ca3af; font-style: italic; font-size: 0.875rem; margin-top: 0.5rem; display: none; }
 """
 
 
@@ -1989,8 +1993,33 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
         [(f"{site_base_url}/", website.title), (None, index.title)]
     )
 
+    esc_title = _html.escape(index.title)
+    filter_input = (
+        f'<input class="index__filter" type="search" placeholder="Filter {esc_title}…"'
+        f' aria-label="Filter {esc_title}">'
+        '<p class="index__filter-empty">No results.</p>'
+    )
+    filter_script = (
+        "<script>"
+        "(function(){"
+        "var inp=document.querySelector('.index__filter');"
+        "if(!inp)return;"
+        "inp.addEventListener('input',function(){"
+        "var val=inp.value.trim().toLowerCase();"
+        "var entries=document.querySelectorAll('.index__entry');"
+        "var vis=0;"
+        "entries.forEach(function(e){"
+        "var show=!val||e.textContent.toLowerCase().indexOf(val)!==-1;"
+        "e.style.display=show?'':'none';"
+        "if(show)vis++;"
+        "});"
+        "var em=document.querySelector('.index__filter-empty');"
+        "if(em)em.style.display=(vis===0&&entries.length>0)?'':'none';"
+        "});})();"
+        "</script>"
+    )
     parts = _build_index_content_parts(index, site_base_url)
-    content = "<main>" + "".join(parts) + "</main>"
+    content = "<main>" + filter_input + "".join(parts) + "</main>" + filter_script
     return _render_page(
         site_title=website.title,
         page_title=index.title,
@@ -2057,24 +2086,51 @@ def render_all_indices_html(
         )
     btn_parts.append("</div>")
 
-    # Tab panels
+    # Tab panels — each with a filter input at the top
     panel_parts: list[str] = ['<div class="indices-tab-panels">']
     for i, idx in enumerate(built):
         active_cls = " active" if i == 0 else ""
+        esc_label = _html.escape(idx.title)
         panel_parts.append(f'<div class="indices-panel{active_cls}" data-panel="{i}">')
+        panel_parts.append(
+            f'<input class="index__filter" type="search" placeholder="Filter {esc_label}…"'
+            f' aria-label="Filter {esc_label}">'
+        )
+        panel_parts.append('<p class="index__filter-empty">No results.</p>')
         panel_parts.extend(_build_index_content_parts(idx, effective_base))
         panel_parts.append("</div>")
     panel_parts.append("</div>")
 
     tab_script = (
         "<script>"
+        # Tab switching — also clears the filter and resets entry visibility
         "var _ibtns=document.querySelectorAll('.indices-tab-btn');"
         "var _ipanels=document.querySelectorAll('.indices-panel');"
+        "function _clearFilter(panel){"
+        "var f=panel.querySelector('.index__filter');if(f)f.value='';"
+        "panel.querySelectorAll('.index__entry').forEach(function(e){e.style.display='';});"
+        "var em=panel.querySelector('.index__filter-empty');if(em)em.style.display='none';"
+        "}"
         "_ibtns.forEach(function(b,i){"
         "b.addEventListener('click',function(){"
         "_ibtns.forEach(function(x){x.classList.remove('active');});"
-        "_ipanels.forEach(function(x){x.classList.remove('active');});"
+        "_ipanels.forEach(function(p){p.classList.remove('active');_clearFilter(p);});"
         "b.classList.add('active');_ipanels[i].classList.add('active');"
+        "});});"
+        # Filter logic — scoped to the parent panel
+        "document.querySelectorAll('.index__filter').forEach(function(inp){"
+        "inp.addEventListener('input',function(){"
+        "var val=inp.value.trim().toLowerCase();"
+        "var panel=inp.closest('.indices-panel');"
+        "var entries=panel.querySelectorAll('.index__entry');"
+        "var vis=0;"
+        "entries.forEach(function(e){"
+        "var show=!val||e.textContent.toLowerCase().indexOf(val)!==-1;"
+        "e.style.display=show?'':'none';"
+        "if(show)vis++;"
+        "});"
+        "var em=panel.querySelector('.index__filter-empty');"
+        "if(em)em.style.display=(vis===0&&entries.length>0)?'':'none';"
         "});});"
         "</script>"
     )
