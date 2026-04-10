@@ -1260,6 +1260,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     {{ t("websites.doc_xslt_clear") }}
                   </button>
                 </div>
+                <!-- Toolbar row: fullscreen toggle -->
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                    @click="xsltCm.toggleFullscreen()"
+                  >
+                    {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
+                  </button>
+                </div>
                 <!-- CodeMirror XML editor — edits xslt_config.content directly.
                      Named callback ref instead of plain string ref: Vue does not
                      reliably update a Ref<HTMLElement> when the element lives
