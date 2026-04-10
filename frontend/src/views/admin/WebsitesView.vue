@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from "vue";
+import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
@@ -83,6 +83,16 @@ function resetXsltFileInput(): void {
 // Document tab — CodeMirror editor for custom XSLT source
 const xsltEditorContainer = ref<HTMLElement | null>(null);
 const xsltEditorInitialContent = ref<string>("");
+
+/**
+ * Callback ref for the CM5 container div. Vue does not reliably update a
+ * plain Ref<HTMLElement> when the element lives inside a v-for + nested
+ * v-if/v-show chain. A named callback ref is called directly by Vue at
+ * mount/unmount time, bypassing the v-for ref-collection behaviour.
+ */
+function onXsltEditorRef(el: Element | ComponentPublicInstance | null): void {
+  xsltEditorContainer.value = el instanceof HTMLElement ? el : null;
+}
 
 const xsltCm = useCodeMirror(xsltEditorContainer, {
   get initialValue() { return xsltEditorInitialContent.value; },
@@ -1251,11 +1261,11 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   </button>
                 </div>
                 <!-- CodeMirror XML editor — edits xslt_config.content directly.
-                     Callback ref (:ref with function) instead of plain string ref
-                     because Vue does not reliably update a Ref<HTMLElement> when
-                     the element lives inside a v-for + nested v-if/v-show chain. -->
+                     Named callback ref instead of plain string ref: Vue does not
+                     reliably update a Ref<HTMLElement> when the element lives
+                     inside a v-for + nested v-if/v-show chain. -->
                 <div
-                  :ref="(el: unknown) => { xsltEditorContainer.value = el instanceof HTMLElement ? el : null; }"
+                  :ref="onXsltEditorRef"
                   class="overflow-hidden rounded border border-gray-300"
                   style="height: 260px;"
                 />
