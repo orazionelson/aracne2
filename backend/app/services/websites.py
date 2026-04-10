@@ -165,7 +165,7 @@ body {
 }
 /* ── Navbar ── */
 header { background: var(--primary); padding: 0 1.5rem; }
-nav {
+header nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
