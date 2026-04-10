@@ -330,8 +330,9 @@ footer a:hover { opacity: 0.75; }
 /* ── Search page ── */
 .search-wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
 .search-wrap h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 1.25rem; }
+.search-box { display: flex; gap: 0.5rem; align-items: center; }
 .search-box input[type=search] {
-  width: 100%;
+  flex: 1;
   padding: 0.625rem 1rem;
   font-size: 1rem;
   font-family: inherit;
@@ -342,6 +343,19 @@ footer a:hover { opacity: 0.75; }
   color: #1e293b;
 }
 .search-box input[type=search]:focus { border-color: var(--primary); }
+.search-submit {
+  padding: 0.625rem 1.25rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.search-submit:hover { opacity: 0.88; }
 .search-count { font-size: 0.8rem; color: #9ca3af; margin: 0.75rem 0 0.25rem; }
 .search-hit {
   padding: 0.75rem 0;
@@ -1317,9 +1331,10 @@ def _build_dynamic_search_content(
         '<div class="search-wrap">'
         "<h1>Search</h1>"
         '<div class="search-box">'
-        f'<form action="{esc_action}" method="get">'
+        f'<form action="{esc_action}" method="get" style="display:flex;gap:.5rem;flex:1">'
         f'<input type="search" name="q" value="{esc_q}"'
         ' placeholder="Search documents\u2026" autocomplete="off" autofocus>'
+        '<button type="submit" class="search-submit">Search</button>'
         "</form>"
         "</div>"
     )
