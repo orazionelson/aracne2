@@ -921,6 +921,7 @@ def _render_page(
     identifier_url: str = "",
     meta_tags: str = "",
     custom_js: str | None = None,
+    include_jquery: bool = False,
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
@@ -931,6 +932,11 @@ def _render_page(
         footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
     meta_block = f"\n{meta_tags}" if meta_tags else ""
     breadcrumb_block = f"\n  {breadcrumb}" if breadcrumb else ""
+    jquery_tag = (
+        '<script src="https://code.jquery.com/jquery-3.7.1.min.js"'
+        ' crossorigin="anonymous"></script>'
+        if include_jquery else ""
+    )
     # Custom JS is trusted Designer input; strip </script> to prevent tag break.
     custom_js_tag = (
         f"<script>\n{custom_js.replace('</script>', '')}\n</script>" if custom_js else ""
@@ -951,6 +957,7 @@ def _render_page(
   <footer>{footer_extra}Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
   {_PREVIEW_PROPAGATOR_SCRIPT}
   {_HIGHLIGHT_SCRIPT}
+  {jquery_tag}
   {custom_js_tag}
 </body>
 </html>"""
@@ -1498,6 +1505,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
         custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
     )
     _set_cached_page(website.slug, "index", html)
     return html
@@ -1541,6 +1549,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
         custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
     )
     _set_cached_page(website.slug, "browse", html)
     return html
@@ -1620,6 +1629,7 @@ async def render_dynamic_search(
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
         custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
     )
     if q:
         _set_cached_page(website.slug, path_key, html)
@@ -1697,6 +1707,7 @@ async def render_dynamic_doc(
         footer_note=footer_note,
         identifier_url=identifier_url,
         custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -1745,6 +1756,7 @@ async def render_dynamic_page(
         footer_note=footer_note,
         identifier_url=identifier_url,
         custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -2588,6 +2600,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
 
     style = _style_block(theme, website.custom_css)
     custom_js = website.custom_js
+    include_jquery = website.include_jquery
 
     # Only visible free pages appear in the navigation.
     visible_pages = [p for p in website.pages if not p.is_hidden]
@@ -2686,6 +2699,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         identifier_url=identifier_url,
         meta_tags=meta_tags,
         custom_js=custom_js,
+        include_jquery=include_jquery,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -2702,6 +2716,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             identifier_url=identifier_url,
             meta_tags=meta_tags,
             custom_js=custom_js,
+            include_jquery=include_jquery,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -2744,6 +2759,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 footer_note=footer_note,
                 identifier_url=identifier_url,
                 custom_js=custom_js,
+                include_jquery=include_jquery,
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -2760,6 +2776,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             custom_js=custom_js,
+            include_jquery=include_jquery,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
@@ -2776,6 +2793,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             identifier_url=identifier_url,
             meta_tags=meta_tags,
             custom_js=custom_js,
+            include_jquery=include_jquery,
         )
         (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
@@ -2833,6 +2851,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
 
     style = _style_block(theme, website.custom_css)
     custom_js = website.custom_js
+    include_jquery = website.include_jquery
     visible_pages = [p for p in website.pages if not p.is_hidden]
 
     aracne_nav = _parse_aracne_nav(website.nav_config or [])
@@ -2883,6 +2902,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         identifier_url=identifier_url,
         meta_tags=meta_tags,
         custom_js=custom_js,
+        include_jquery=include_jquery,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -2899,6 +2919,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             identifier_url=identifier_url,
             meta_tags=meta_tags,
             custom_js=custom_js,
+            include_jquery=include_jquery,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -2917,6 +2938,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             custom_js=custom_js,
+            include_jquery=include_jquery,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(
             page_html, encoding="utf-8"

@@ -55,6 +55,7 @@ class WebsiteCreate(BaseModel):
     is_published: bool = False
     custom_css: str | None = None
     custom_js: str | None = None
+    include_jquery: bool = False
 
 
 class WebsiteUpdate(BaseModel):
@@ -70,6 +71,7 @@ class WebsiteUpdate(BaseModel):
     is_published: bool | None = None
     custom_css: str | None = None
     custom_js: str | None = None
+    include_jquery: bool | None = None
 
 
 # ── Website indices ───────────────────────────────────────────────────────────
@@ -125,6 +127,7 @@ class WebsiteResponse(BaseModel):
     is_published: bool
     custom_css: str | None
     custom_js: str | None
+    include_jquery: bool
     distinct_tags: dict | None
     tags_refreshed_at: datetime | None
     created_by: uuid.UUID | None

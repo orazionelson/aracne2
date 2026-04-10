@@ -497,6 +497,7 @@ async function startEdit(website: Website): Promise<void> {
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
     custom_css: website.custom_css ?? "",
     custom_js: website.custom_js ?? "",
+    include_jquery: website.include_jquery ?? false,
   };
   unifiedPages.value = buildUnifiedList(website);
   pagesError.value = null;
@@ -549,6 +550,7 @@ async function saveEdit(slug: string): Promise<void> {
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
       custom_css: (editForm.value.custom_css as string) || null,
       custom_js: (editForm.value.custom_js as string) || null,
+      include_jquery: editForm.value.include_jquery as boolean,
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -1752,6 +1754,14 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <div>
               <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_js") }}</label>
               <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_js_hint") }}</p>
+              <label class="mb-3 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  v-model="(editForm.include_jquery as boolean)"
+                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span class="text-xs text-gray-700">{{ t("websites.cssjs_include_jquery") }}</span>
+              </label>
               <textarea
                 v-model="(editForm.custom_js as string)"
                 rows="12"

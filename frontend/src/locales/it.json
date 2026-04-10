@@ -529,6 +529,7 @@
     "cssjs_css_hint": "Aggiunto dentro il tag <style> su ogni pagina del sito.",
     "cssjs_custom_js": "JavaScript personalizzato",
     "cssjs_js_hint": "Iniettato in un tag <script> prima di </body> su ogni pagina del sito.",
+    "cssjs_include_jquery": "Includi jQuery 3.7 da CDN (caricato prima dello script personalizzato)",
     "indices_tags_title": "Tag disponibili nella collezione",
     "indices_refresh_tags": "Aggiorna lista tag",
     "indices_no_collection": "Nessuna collezione collegata — impossibile scansionare i tag.",

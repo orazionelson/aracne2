@@ -529,6 +529,7 @@
     "cssjs_css_hint": "Appended inside the <style> tag on every page of this site.",
     "cssjs_custom_js": "Custom JavaScript",
     "cssjs_js_hint": "Injected in a <script> tag before </body> on every page of this site.",
+    "cssjs_include_jquery": "Include jQuery 3.7 from CDN (loaded before the custom script)",
     "indices_tags_title": "Available tags in the collection",
     "indices_refresh_tags": "Refresh tag list",
     "indices_no_collection": "No collection linked — cannot scan tags.",

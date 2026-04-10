@@ -99,6 +99,7 @@ class Website(Base):
     # Per-site custom CSS/JS injected into every generated page.
     custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
     custom_js: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    include_jquery: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=False)
 
     # Tag-discovery cache: {"persName": ["key", "role"], "placeName": ["ref"]}
     distinct_tags: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
