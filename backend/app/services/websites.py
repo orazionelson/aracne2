@@ -293,6 +293,17 @@ footer a:hover { opacity: 0.75; }
 .col-index-list li:last-child { border-bottom: none; }
 .col-index-list a { display: block; padding: 0.4rem 0.5rem; color: var(--primary); text-decoration: none; font-size: 0.9rem; }
 .col-index-list a:hover { text-decoration: underline; }
+/* Separator when two column-widget navs are placed consecutively */
+.col-page-menu + .col-index-list,
+.col-index-list + .col-page-menu,
+.col-search-widget + .col-page-menu,
+.col-search-widget + .col-index-list,
+.col-page-menu + .col-search-widget,
+.col-index-list + .col-search-widget {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
 /* ── Column search widget ── */
 .col-search-widget { margin: 0.75rem 0; }
 .col-search-input {
