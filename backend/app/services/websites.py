@@ -1315,6 +1315,26 @@ async def preview_document(
 
 # ── Dynamic / Hybrid rendering ────────────────────────────────────────────────
 
+def _kwic_highlight(text: str, q: str) -> str:
+    """HTML-escape *text* and wrap query-term occurrences in ``<mark>``.
+
+    Each whitespace-separated token in *q* is highlighted independently using
+    a single case-insensitive alternation regex.  The input is escaped before
+    the substitution so no existing markup can interfere.
+    """
+    escaped = _html.escape(text)
+    if not q or not escaped:
+        return escaped
+    terms = [t for t in re.split(r"\s+", q.strip()) if t]
+    if not terms:
+        return escaped
+    pattern = re.compile(
+        "(" + "|".join(re.escape(_html.escape(t)) for t in terms) + ")",
+        re.IGNORECASE,
+    )
+    return pattern.sub(r"<mark>\1</mark>", escaped)
+
+
 def _build_dynamic_search_content(
     hits: list[dict],
     q: str,
@@ -1355,12 +1375,12 @@ def _build_dynamic_search_content(
     items = ""
     for hit in hits:
         filename = _html.escape(hit["filename"])
-        kwic = _html.escape(hit.get("kwic") or "")
+        kwic_html = _kwic_highlight(hit.get("kwic") or "", q)
         doc_href = _html.escape(f"{site_base_url}/docs/{hit['filename']}{hl_param}")
         items += (
             '<div class="search-hit">'
             f'<a href="{doc_href}">{filename}</a>'
-            + (f'<div class="hit-kwic">{kwic}</div>' if kwic else "")
+            + (f'<div class="hit-kwic">{kwic_html}</div>' if kwic_html else "")
             + "</div>\n"
         )
     return search_form + count_line + items + "</div>"
