@@ -17,7 +17,7 @@ const xsltStore = useXsltTemplateStore();
 // ── State ────────────────────────────────────────────────────────────────────
 
 const editingSlug = ref<string | null>(null);
-const editTab = ref<"general" | "theme" | "pages" | "document" | "indices">("general");
+const editTab = ref<"general" | "theme" | "pages" | "document" | "indices" | "cssjs">("general");
 const showMetaPanel = ref(false);
 
 const REPEATABLE_META_FIELDS = new Set(["subject", "author", "designer", "dc_creator", "dc_publisher", "dc_contributor", "dc_subject"]);
@@ -495,6 +495,8 @@ async function startEdit(website: Website): Promise<void> {
       ...(website.xslt_config ?? {}),
     } as XsltConfig,
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
+    custom_css: website.custom_css ?? "",
+    custom_js: website.custom_js ?? "",
   };
   unifiedPages.value = buildUnifiedList(website);
   pagesError.value = null;
@@ -545,6 +547,8 @@ async function saveEdit(slug: string): Promise<void> {
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
+      custom_css: (editForm.value.custom_css as string) || null,
+      custom_js: (editForm.value.custom_js as string) || null,
     });
     editingSlug.value = null;
   } catch (err: unknown) {
@@ -973,7 +977,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           <!-- Tab bar -->
           <div class="flex border-b border-gray-200 bg-white px-4">
             <button
-              v-for="tab in (['general', 'theme', 'pages', 'document', 'indices'] as const)"
+              v-for="tab in (['general', 'theme', 'pages', 'document', 'indices', 'cssjs'] as const)"
               :key="tab"
               class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
               :class="editTab === tab
@@ -1730,6 +1734,30 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Tab: CSS/JS -->
+          <div v-if="editTab === 'cssjs'" class="bg-indigo-50 p-4 space-y-5">
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_css") }}</label>
+              <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_css_hint") }}</p>
+              <textarea
+                v-model="(editForm.custom_css as string)"
+                rows="12"
+                spellcheck="false"
+                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_js") }}</label>
+              <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_js_hint") }}</p>
+              <textarea
+                v-model="(editForm.custom_js as string)"
+                rows="12"
+                spellcheck="false"
+                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+              />
             </div>
           </div>
 

@@ -96,6 +96,10 @@ class Website(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
+    # Per-site custom CSS/JS injected into every generated page.
+    custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    custom_js: Mapped[str | None] = mapped_column(Text(), nullable=True)
+
     # Tag-discovery cache: {"persName": ["key", "role"], "placeName": ["ref"]}
     distinct_tags: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
     tags_refreshed_at: Mapped[datetime | None] = mapped_column(

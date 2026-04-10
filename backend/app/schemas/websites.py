@@ -53,6 +53,8 @@ class WebsiteCreate(BaseModel):
     xslt_config: dict = Field(default_factory=dict)
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool = False
+    custom_css: str | None = None
+    custom_js: str | None = None
 
 
 class WebsiteUpdate(BaseModel):
@@ -66,6 +68,8 @@ class WebsiteUpdate(BaseModel):
     xslt_config: dict | None = None
     xslt_schema_id: uuid.UUID | None = None
     is_published: bool | None = None
+    custom_css: str | None = None
+    custom_js: str | None = None
 
 
 # ── Website indices ───────────────────────────────────────────────────────────
@@ -119,6 +123,8 @@ class WebsiteResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     is_published: bool
+    custom_css: str | None
+    custom_js: str | None
     distinct_tags: dict | None
     tags_refreshed_at: datetime | None
     created_by: uuid.UUID | None

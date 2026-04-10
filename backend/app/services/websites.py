@@ -417,7 +417,7 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 _DEFAULT_FONT = 'Georgia,"Times New Roman",serif'
 
 
-def _style_block(theme: dict) -> str:
+def _style_block(theme: dict, custom_css: str | None = None) -> str:
     primary = _html.escape(theme.get("primary_color", "#1e293b"))
     text = _html.escape(theme.get("text_color", "#1e293b"))
     bg = _html.escape(theme.get("bg_color", "#ffffff"))
@@ -434,7 +434,9 @@ def _style_block(theme: dict) -> str:
         f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};"
         f"--font:{font};--footer-bg:{footer_bg};--footer-text:{footer_color};}}"
     )
-    return f"<style>\n{root_vars}\n{_STATIC_CSS}\n</style>"
+    # Custom CSS is trusted Designer input; strip </style> to prevent tag break.
+    extra = f"\n/* custom */\n{custom_css.replace('</style>', '')}" if custom_css else ""
+    return f"<style>\n{root_vars}\n{_STATIC_CSS}{extra}\n</style>"
 
 
 # Sentinels emitted by widget Tiptap nodes (renderHTML output).
@@ -918,6 +920,7 @@ def _render_page(
     footer_note: str = "",
     identifier_url: str = "",
     meta_tags: str = "",
+    custom_js: str | None = None,
 ) -> str:
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
@@ -928,6 +931,10 @@ def _render_page(
         footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
     meta_block = f"\n{meta_tags}" if meta_tags else ""
     breadcrumb_block = f"\n  {breadcrumb}" if breadcrumb else ""
+    # Custom JS is trusted Designer input; strip </script> to prevent tag break.
+    custom_js_tag = (
+        f"<script>\n{custom_js.replace('</script>', '')}\n</script>" if custom_js else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -944,6 +951,7 @@ def _render_page(
   <footer>{footer_extra}Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
   {_PREVIEW_PROPAGATOR_SCRIPT}
   {_HIGHLIGHT_SCRIPT}
+  {custom_js_tag}
 </body>
 </html>"""
 
@@ -1484,11 +1492,12 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         site_title=website.title,
         page_title=website.title,
         content=content,
-        style=_style_block(theme),
+        style=_style_block(theme, website.custom_css),
         navbar=navbar,
         footer_note=footer_note,
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
+        custom_js=website.custom_js,
     )
     _set_cached_page(website.slug, "index", html)
     return html
@@ -1525,12 +1534,13 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         site_title=website.title,
         page_title="Browse",
         content=_build_browse_content(doc_infos, site_base_url=base),
-        style=_style_block(theme),
+        style=_style_block(theme, website.custom_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
+        custom_js=website.custom_js,
     )
     _set_cached_page(website.slug, "browse", html)
     return html
@@ -1603,12 +1613,13 @@ async def render_dynamic_search(
         site_title=website.title,
         page_title="Search",
         content=_build_dynamic_search_content(hits, q, base),
-        style=_style_block(theme),
+        style=_style_block(theme, website.custom_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Search")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
         meta_tags=_build_meta_tags(website.meta_config or {}),
+        custom_js=website.custom_js,
     )
     if q:
         _set_cached_page(website.slug, path_key, html)
@@ -1680,11 +1691,12 @@ async def render_dynamic_doc(
         site_title=website.title,
         page_title=label,
         content=f'<div class="tei-body">{doc_body}</div>',
-        style=_style_block(theme),
+        style=_style_block(theme, website.custom_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb(crumbs),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        custom_js=website.custom_js,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -1727,11 +1739,12 @@ async def render_dynamic_page(
         site_title=website.title,
         page_title=page.title,
         content=f"<h1>{_html.escape(page.title)}</h1>\n{content_html}",
-        style=_style_block(theme),
+        style=_style_block(theme, website.custom_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, page.title)]),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        custom_js=website.custom_js,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -2138,7 +2151,7 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
     index_occurrences XQuery and aggregates results into a JSON structure.
     """
     theme = website.theme_config or {}
-    style = _style_block(theme)
+    style = _style_block(theme, website.custom_css)
     site_base_url = f"/api/v1/sites/{website.slug}"
 
     navbar = _render_navbar(
@@ -2188,6 +2201,7 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
         navbar=navbar,
         breadcrumb=breadcrumb,
         meta_tags=_build_meta_tags(website.meta_config or {}),
+        custom_js=website.custom_js,
     )
 
 
@@ -2208,7 +2222,7 @@ def render_all_indices_html(
     built = [idx for idx in (website.indices or []) if idx.cached_data is not None]
 
     theme = website.theme_config or {}
-    style = _style_block(theme)
+    style = _style_block(theme, website.custom_css)
 
     effective_base = site_base_url or f"/api/v1/sites/{website.slug}"
 
@@ -2234,6 +2248,7 @@ def render_all_indices_html(
             navbar=navbar,
             breadcrumb=breadcrumb,
             meta_tags=_build_meta_tags(website.meta_config or {}),
+            custom_js=website.custom_js,
         )
 
     # Tab buttons
@@ -2314,6 +2329,7 @@ def render_all_indices_html(
         navbar=navbar,
         breadcrumb=breadcrumb,
         meta_tags=_build_meta_tags(website.meta_config or {}),
+        custom_js=website.custom_js,
     )
 
 
@@ -2570,7 +2586,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     (site_dir / "docs").mkdir(exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
-    style = _style_block(theme)
+    style = _style_block(theme, website.custom_css)
+    custom_js = website.custom_js
 
     # Only visible free pages appear in the navigation.
     visible_pages = [p for p in website.pages if not p.is_hidden]
@@ -2668,6 +2685,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         footer_note=footer_note,
         identifier_url=identifier_url,
         meta_tags=meta_tags,
+        custom_js=custom_js,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -2683,6 +2701,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
+            custom_js=custom_js,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -2724,6 +2743,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 breadcrumb=_render_breadcrumb(doc_crumbs),
                 footer_note=footer_note,
                 identifier_url=identifier_url,
+                custom_js=custom_js,
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -2739,6 +2759,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([("../index.html", "Home"), (None, page.title)]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            custom_js=custom_js,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
@@ -2754,6 +2775,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
+            custom_js=custom_js,
         )
         (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
@@ -2809,7 +2831,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
-    style = _style_block(theme)
+    style = _style_block(theme, website.custom_css)
+    custom_js = website.custom_js
     visible_pages = [p for p in website.pages if not p.is_hidden]
 
     aracne_nav = _parse_aracne_nav(website.nav_config or [])
@@ -2859,6 +2882,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         footer_note=footer_note,
         identifier_url=identifier_url,
         meta_tags=meta_tags,
+        custom_js=custom_js,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -2874,6 +2898,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
+            custom_js=custom_js,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -2891,6 +2916,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             ),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            custom_js=custom_js,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(
             page_html, encoding="utf-8"

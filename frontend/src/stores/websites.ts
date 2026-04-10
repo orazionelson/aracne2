@@ -49,6 +49,8 @@ export interface Website {
   last_build_at: string | null;
   build_error: string | null;
   is_published: boolean;
+  custom_css: string | null;
+  custom_js: string | null;
   distinct_tags: Record<string, string[]> | null;
   tags_refreshed_at: string | null;
   created_by: string | null;
@@ -79,6 +81,8 @@ export interface WebsiteUpdate {
   nav_config?: AracnePageConfig[];
   xslt_config?: XsltConfig;
   is_published?: boolean;
+  custom_css?: string | null;
+  custom_js?: string | null;
 }
 
 export interface WebsitePageCreate {
