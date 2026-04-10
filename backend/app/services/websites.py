@@ -1173,10 +1173,11 @@ def _build_search_content() -> str:
       results.innerHTML = '<p class="search-empty">No results found.</p>';
       return;
     }
+    var hlParam = query.trim() ? '?highlight=' + encodeURIComponent(query.trim()) : '';
     results.innerHTML = hits.map(function(d) {
       var snip = d.body ? snippet(d.body, terms) : '';
       return '<div class="search-hit">' +
-        '<a href="' + esc(d.url) + '">' + esc(d.title || d.filename) + '</a>' +
+        '<a href="' + esc(d.url) + hlParam + '">' + esc(d.title || d.filename) + '</a>' +
         (d.author ? '<div class="hit-author">' + esc(d.author) + '</div>' : '') +
         (snip     ? '<div class="hit-snippet">' + snip + '</div>'         : '') +
         '</div>';
@@ -1279,11 +1280,13 @@ def _build_dynamic_search_content(
         f'<p class="search-count">{len(hits)} result'
         f'{"s" if len(hits) != 1 else ""} for <em>{esc_q}</em></p>'
     )
+    from urllib.parse import quote as _q
+    hl_param = f"?highlight={_q(q, safe='')}"
     items = ""
     for hit in hits:
         filename = _html.escape(hit["filename"])
         kwic = _html.escape(hit.get("kwic") or "")
-        doc_href = _html.escape(f"{site_base_url}/docs/{hit['filename']}")
+        doc_href = _html.escape(f"{site_base_url}/docs/{hit['filename']}{hl_param}")
         items += (
             '<div class="search-hit">'
             f'<a href="{doc_href}">{filename}</a>'
