@@ -834,15 +834,26 @@ _PREVIEW_PROPAGATOR_SCRIPT = (
     'var m=location.search.match(/[?&]_preview=([^&]+)/);'
     'if(!m)return;'
     'var t=m[1];'
+    # Patch <a href> links
     'function patch(a){'
     'var h=a.getAttribute("href");'
     'if(!h||/^(https?:|\\/\\/|mailto:|#)/.test(h)||h.indexOf("_preview=")!==-1)return;'
     'a.setAttribute("href",h+(h.indexOf("?")!==-1?"&":"?")+"_preview="+t);}'
     'document.querySelectorAll("a[href]").forEach(patch);'
+    # Patch <form> elements: inject hidden _preview input so GET submissions carry the token
+    'function patchForm(f){'
+    'if(!f.querySelector("input[name=\\"_preview\\"]")){'
+    'var inp=document.createElement("input");'
+    'inp.type="hidden";inp.name="_preview";inp.value=t;'
+    'f.appendChild(inp);}}'
+    'document.querySelectorAll("form").forEach(patchForm);'
+    # MutationObserver: patch newly inserted links and forms
     'new MutationObserver(function(ms){'
     'ms.forEach(function(m){'
     'm.addedNodes.forEach(function(n){'
-    'if(n.querySelectorAll)n.querySelectorAll("a[href]").forEach(patch);'
+    'if(n.querySelectorAll){'
+    'n.querySelectorAll("a[href]").forEach(patch);'
+    'n.querySelectorAll("form").forEach(patchForm);}'
     '});});}).observe(document.body,{childList:true,subtree:true});'
     '})();</script>'
 )
