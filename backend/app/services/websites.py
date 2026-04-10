@@ -360,7 +360,7 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 .index__subkey { font-size: 0.85rem; font-style: italic; color: #6b7280; display: block; margin-bottom: 0.2rem; }
 .index__variants { list-style: none; margin: 0 0 0 1rem; padding: 0; }
 .index__variant { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin-bottom: 0.15rem; font-size: 0.875rem; }
-.index__refs { color: #9ca3af; font-size: 0.8rem; }
+.index__refs { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; color: #9ca3af; font-size: 0.8rem; }
 .index__ref { color: var(--primary); text-decoration: none; }
 .index__ref:hover { text-decoration: underline; }
 .index__empty { color: #9ca3af; font-style: italic; }
@@ -1861,7 +1861,7 @@ def _render_index_variant(variant: dict, site_base_url: str) -> str:
     text = variant.get("text", "")
     docs: list[str] = variant.get("docs", [])
     esc_text = _html.escape(text)
-    refs = "".join(
+    refs = " ".join(
         f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
         f'{_html.escape(doc)}</a>'
         for doc in docs
@@ -1936,7 +1936,7 @@ def _build_index_content_parts(index: WebsiteIndex, site_base_url: str) -> list[
                         for v in subentry.get("variants", []):
                             all_docs.extend(v.get("docs", []))
                         all_docs = sorted(set(all_docs))
-                        refs = "".join(
+                        refs = " ".join(
                             f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
                             f'{_html.escape(doc)}</a>'
                             for doc in all_docs
@@ -1954,7 +1954,7 @@ def _build_index_content_parts(index: WebsiteIndex, site_base_url: str) -> list[
                         for v in subentry.get("variants", []):
                             all_docs_flat.extend(v.get("docs", []))
                     all_docs_flat = sorted(set(all_docs_flat))
-                    refs = "".join(
+                    refs = " ".join(
                         f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
                         f'{_html.escape(doc)}</a>'
                         for doc in all_docs_flat
