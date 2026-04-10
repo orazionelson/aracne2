@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useWebsiteStore, type Website, type WebsitePage, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
@@ -17,7 +17,7 @@ const xsltStore = useXsltTemplateStore();
 // ── State ────────────────────────────────────────────────────────────────────
 
 const editingSlug = ref<string | null>(null);
-const editTab = ref<"general" | "theme" | "pages" | "document">("general");
+const editTab = ref<"general" | "theme" | "pages" | "document" | "indices">("general");
 const showMetaPanel = ref(false);
 
 const REPEATABLE_META_FIELDS = new Set(["subject", "author", "designer", "dc_creator", "dc_publisher", "dc_contributor", "dc_subject"]);
@@ -162,6 +162,130 @@ async function previewDocument(websiteSlug: string): Promise<void> {
     previewError.value = err instanceof Error ? err.message : t("common.error");
   } finally {
     isPreviewing.value = false;
+  }
+}
+
+// ── Indices tab ───────────────────────────────────────────────────────────────
+
+const isRefreshingTags = ref(false);
+const indexError = ref<string | null>(null);
+const isRebuildingAll = ref(false);
+const rebuildingIndexId = ref<string | null>(null);
+const showIndexForm = ref(false);   // true = "add new index" form open
+const editingIndexId = ref<string | null>(null);  // non-null = editing existing
+const indexForm = ref<WebsiteIndexCreate>({ label: "", title: "", tag: "", key_attribute: null, subkey_attribute: null });
+const isDeletingIndexId = ref<string | null>(null);
+
+/** Tags available in the current website's collection (from distinct_tags cache). */
+const availableTags = computed<string[]>(() => {
+  const site = store.websites.find((w) => w.slug === editingSlug.value);
+  if (!site?.distinct_tags) return [];
+  return Object.keys(site.distinct_tags).sort();
+});
+
+/** Attributes available for the currently selected tag in the index form. */
+const availableAttrsForTag = computed<string[]>(() => {
+  const site = store.websites.find((w) => w.slug === editingSlug.value);
+  if (!site?.distinct_tags || !indexForm.value.tag) return [];
+  return (site.distinct_tags[indexForm.value.tag] ?? []).sort();
+});
+
+function openAddIndexForm(): void {
+  editingIndexId.value = null;
+  indexForm.value = { label: "", title: "", tag: "", key_attribute: null, subkey_attribute: null };
+  showIndexForm.value = true;
+  indexError.value = null;
+}
+
+function openEditIndexForm(idx: WebsiteIndex): void {
+  editingIndexId.value = idx.id;
+  indexForm.value = {
+    label: idx.label,
+    title: idx.title,
+    tag: idx.tag,
+    key_attribute: idx.key_attribute,
+    subkey_attribute: idx.subkey_attribute,
+  };
+  showIndexForm.value = true;
+  indexError.value = null;
+}
+
+function cancelIndexForm(): void {
+  showIndexForm.value = false;
+  editingIndexId.value = null;
+  indexError.value = null;
+}
+
+async function saveIndexForm(websiteSlug: string): Promise<void> {
+  indexError.value = null;
+  try {
+    if (editingIndexId.value) {
+      const upd: WebsiteIndexUpdate = {
+        label: indexForm.value.label,
+        title: indexForm.value.title,
+        tag: indexForm.value.tag,
+        key_attribute: indexForm.value.key_attribute,
+        subkey_attribute: indexForm.value.subkey_attribute,
+      };
+      await store.updateIndex(websiteSlug, editingIndexId.value, upd);
+    } else {
+      await store.createIndex(websiteSlug, indexForm.value);
+    }
+    showIndexForm.value = false;
+    editingIndexId.value = null;
+  } catch (err: unknown) {
+    indexError.value = err instanceof Error ? err.message : t("common.error");
+  }
+}
+
+async function deleteIndex(websiteSlug: string, indexId: string): Promise<void> {
+  if (isDeletingIndexId.value === indexId) {
+    // Second click confirms deletion.
+    try {
+      await store.deleteIndex(websiteSlug, indexId);
+    } catch (err: unknown) {
+      indexError.value = err instanceof Error ? err.message : t("common.error");
+    } finally {
+      isDeletingIndexId.value = null;
+    }
+  } else {
+    isDeletingIndexId.value = indexId;
+  }
+}
+
+async function rebuildIndex(websiteSlug: string, indexId: string): Promise<void> {
+  rebuildingIndexId.value = indexId;
+  indexError.value = null;
+  try {
+    await store.rebuildIndex(websiteSlug, indexId);
+  } catch (err: unknown) {
+    indexError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    rebuildingIndexId.value = null;
+  }
+}
+
+async function rebuildAllIndices(websiteSlug: string): Promise<void> {
+  isRebuildingAll.value = true;
+  indexError.value = null;
+  try {
+    await store.rebuildAllIndices(websiteSlug);
+  } catch (err: unknown) {
+    indexError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    isRebuildingAll.value = false;
+  }
+}
+
+async function refreshTags(websiteSlug: string): Promise<void> {
+  isRefreshingTags.value = true;
+  indexError.value = null;
+  try {
+    await store.refreshTags(websiteSlug);
+  } catch (err: unknown) {
+    indexError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    isRefreshingTags.value = false;
   }
 }
 
@@ -791,7 +915,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           <!-- Tab bar -->
           <div class="flex border-b border-gray-200 bg-white px-4">
             <button
-              v-for="tab in (['general', 'theme', 'pages', 'document'] as const)"
+              v-for="tab in (['general', 'theme', 'pages', 'document', 'indices'] as const)"
               :key="tab"
               class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
               :class="editTab === tab
@@ -1370,9 +1494,164 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </div>
           </div>
 
+          <!-- Tab: Indices -->
+          <div v-if="editTab === 'indices'" class="bg-gray-50 p-4 space-y-4">
+            <!-- Tags section -->
+            <div class="rounded border border-gray-200 bg-white p-3">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_tags_title") }}</p>
+                <button
+                  :disabled="isRefreshingTags || !website.collection_id"
+                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  @click="refreshTags(website.slug)"
+                >
+                  {{ isRefreshingTags ? t("common.loading") : t("websites.indices_refresh_tags") }}
+                </button>
+              </div>
+              <p v-if="!website.collection_id" class="text-xs text-gray-400">{{ t("websites.indices_no_collection") }}</p>
+              <p v-else-if="!website.distinct_tags" class="text-xs text-gray-400">{{ t("websites.indices_tags_empty") }}</p>
+              <div v-else class="flex flex-wrap gap-1">
+                <span
+                  v-for="tag in availableTags"
+                  :key="tag"
+                  class="rounded bg-indigo-50 px-2 py-0.5 text-xs font-mono text-indigo-700"
+                >&lt;{{ tag }}&gt;</span>
+              </div>
+              <p v-if="website.tags_refreshed_at" class="mt-1.5 text-xs text-gray-400">
+                {{ t("websites.indices_tags_updated") }}: {{ new Date(website.tags_refreshed_at).toLocaleString() }}
+              </p>
+            </div>
+
+            <!-- Index list -->
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_list_title") }}</p>
+              <div class="flex gap-2">
+                <button
+                  :disabled="isRebuildingAll || website.indices.length === 0"
+                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  @click="rebuildAllIndices(website.slug)"
+                >
+                  {{ isRebuildingAll ? t("common.loading") : t("websites.indices_rebuild_all") }}
+                </button>
+                <button
+                  class="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
+                  @click="openAddIndexForm"
+                >
+                  {{ t("websites.indices_add") }}
+                </button>
+              </div>
+            </div>
+
+            <p v-if="indexError" class="text-xs text-red-600">{{ indexError }}</p>
+
+            <!-- Add / edit form -->
+            <div v-if="showIndexForm" class="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-3">
+              <p class="text-xs font-semibold text-gray-700">
+                {{ editingIndexId ? t("websites.indices_edit") : t("websites.indices_new") }}
+              </p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_label") }}</label>
+                  <input v-model="indexForm.label" type="text" placeholder="persons" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_title") }}</label>
+                  <input v-model="indexForm.title" type="text" :placeholder="t('websites.indices_field_title_placeholder')" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_tag") }}</label>
+                  <select v-model="indexForm.tag" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs" @change="indexForm.key_attribute = null; indexForm.subkey_attribute = null">
+                    <option value="">{{ t("websites.indices_select_tag") }}</option>
+                    <option v-for="tag in availableTags" :key="tag" :value="tag">&lt;{{ tag }}&gt;</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_key_attr") }}</label>
+                  <select v-model="indexForm.key_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                    <option :value="null">{{ t("websites.indices_none_use_text") }}</option>
+                    <option v-for="attr in availableAttrsForTag" :key="attr" :value="attr">@{{ attr }}</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_subkey_attr") }}</label>
+                  <select v-model="indexForm.subkey_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                    <option :value="null">{{ t("websites.indices_none") }}</option>
+                    <option
+                      v-for="attr in availableAttrsForTag.filter(a => a !== indexForm.key_attribute)"
+                      :key="attr"
+                      :value="attr"
+                    >@{{ attr }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
+                  @click="saveIndexForm(website.slug)"
+                >{{ t("common.save") }}</button>
+                <button
+                  class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                  @click="cancelIndexForm"
+                >{{ t("common.cancel") }}</button>
+              </div>
+            </div>
+
+            <!-- Indices list -->
+            <div v-if="website.indices.length === 0 && !showIndexForm" class="text-xs text-gray-400">
+              {{ t("websites.indices_empty") }}
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                v-for="idx in website.indices"
+                :key="idx.id"
+                class="rounded border border-gray-200 bg-white p-3"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-800">{{ idx.title }}</p>
+                    <p class="text-xs text-gray-500 font-mono">
+                      /index/{{ idx.label }}/ · &lt;{{ idx.tag }}&gt;
+                      <template v-if="idx.key_attribute"> · @{{ idx.key_attribute }}</template>
+                      <template v-if="idx.subkey_attribute"> / @{{ idx.subkey_attribute }}</template>
+                    </p>
+                    <p class="mt-0.5 text-xs text-gray-400">
+                      <template v-if="idx.last_built_at">
+                        {{ t("websites.indices_built_at") }}: {{ new Date(idx.last_built_at).toLocaleString() }}
+                      </template>
+                      <template v-else>
+                        <span class="text-amber-600">{{ t("websites.indices_not_built") }}</span>
+                      </template>
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 gap-1">
+                    <button
+                      :disabled="rebuildingIndexId === idx.id"
+                      class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      @click="rebuildIndex(website.slug, idx.id)"
+                    >
+                      {{ rebuildingIndexId === idx.id ? t("common.loading") : t("websites.indices_rebuild") }}
+                    </button>
+                    <button
+                      class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                      @click="openEditIndexForm(idx)"
+                    >{{ t("common.edit") }}</button>
+                    <button
+                      :class="isDeletingIndexId === idx.id
+                        ? 'rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700'
+                        : 'rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50'"
+                      @click="deleteIndex(website.slug, idx.id)"
+                    >
+                      {{ isDeletingIndexId === idx.id ? t("common.confirm") : t("common.delete") }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Action bar -->
           <div class="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
-            <template v-if="editTab !== 'pages'">
+            <template v-if="editTab !== 'pages' && editTab !== 'indices'">
               <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
               <button
                 :disabled="isEditing"
@@ -1382,7 +1661,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 {{ t("common.save") }}
               </button>
             </template>
-            <template v-else>
+            <template v-else-if="editTab === 'pages'">
               <p v-if="pagesError" class="mr-auto text-xs text-red-600">{{ pagesError }}</p>
               <button
                 :disabled="isSavingPages"

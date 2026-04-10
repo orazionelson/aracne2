@@ -96,11 +96,23 @@ class Website(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
+    # Tag-discovery cache: {"persName": ["key", "role"], "placeName": ["ref"]}
+    distinct_tags: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    tags_refreshed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+
     pages: Mapped[list["WebsitePage"]] = relationship(
         "WebsitePage",
         back_populates="website",
         cascade="all, delete-orphan",
         order_by="WebsitePage.sort_order",
+    )
+    indices: Mapped[list["WebsiteIndex"]] = relationship(
+        "WebsiteIndex",
+        back_populates="website",
+        cascade="all, delete-orphan",
+        order_by="WebsiteIndex.created_at",
     )
 
 
@@ -134,3 +146,46 @@ class WebsitePage(Base):
     )
 
     website: Mapped["Website"] = relationship("Website", back_populates="pages")
+
+
+class WebsiteIndex(Base):
+    """A named index built from a specific XML tag across the website's collection."""
+
+    __tablename__ = "website_indices"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    website_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("websites.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    # XML element local-name to index (e.g. "persName")
+    tag: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Attribute whose value groups multiple text forms under one key.
+    # When null, the element's text content is used as the key directly.
+    key_attribute: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Optional further sub-grouping attribute (e.g. "role").
+    subkey_attribute: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Pre-built index data, populated by rebuild_website_index().
+    cached_data: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    last_built_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    website: Mapped["Website"] = relationship("Website", back_populates="indices")

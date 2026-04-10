@@ -49,10 +49,13 @@ export interface Website {
   last_build_at: string | null;
   build_error: string | null;
   is_published: boolean;
+  distinct_tags: Record<string, string[]> | null;
+  tags_refreshed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   pages: WebsitePage[];
+  indices: WebsiteIndex[];
 }
 
 export interface WebsiteCreate {
@@ -91,6 +94,35 @@ export interface WebsitePageUpdate {
   content_md?: string | null;
   sort_order?: number;
   is_hidden?: boolean;
+}
+
+export interface WebsiteIndex {
+  id: string;
+  website_id: string;
+  label: string;
+  title: string;
+  tag: string;
+  key_attribute: string | null;
+  subkey_attribute: string | null;
+  last_built_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebsiteIndexCreate {
+  label: string;
+  title: string;
+  tag: string;
+  key_attribute?: string | null;
+  subkey_attribute?: string | null;
+}
+
+export interface WebsiteIndexUpdate {
+  label?: string;
+  title?: string;
+  tag?: string;
+  key_attribute?: string | null;
+  subkey_attribute?: string | null;
 }
 
 export interface MetaSuggestions {
@@ -226,6 +258,65 @@ export const useWebsiteStore = defineStore("websites", () => {
     URL.revokeObjectURL(url);
   }
 
+  // ── Tag discovery ────────────────────────────────────────────────────────
+
+  async function refreshTags(slug: string): Promise<{ distinct_tags: Record<string, string[]> | null; tags_refreshed_at: string | null }> {
+    const res = await api.post(`/websites/${slug}/tags/refresh`, {});
+    const data = res.data.data as { distinct_tags: Record<string, string[]> | null; tags_refreshed_at: string | null };
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) {
+      site.distinct_tags = data.distinct_tags;
+      site.tags_refreshed_at = data.tags_refreshed_at;
+    }
+    return data;
+  }
+
+  // ── Website indices ──────────────────────────────────────────────────────
+
+  async function createIndex(slug: string, data: WebsiteIndexCreate): Promise<WebsiteIndex> {
+    const res = await api.post<WebsiteIndex>(`/websites/${slug}/indices`, data);
+    const created = res.data.data as WebsiteIndex;
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) site.indices.push(created);
+    return created;
+  }
+
+  async function updateIndex(slug: string, indexId: string, data: WebsiteIndexUpdate): Promise<WebsiteIndex> {
+    const res = await api.put<WebsiteIndex>(`/websites/${slug}/indices/${indexId}`, data);
+    const updated = res.data.data as WebsiteIndex;
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) {
+      const i = site.indices.findIndex((x) => x.id === indexId);
+      if (i !== -1) site.indices[i] = updated;
+    }
+    return updated;
+  }
+
+  async function deleteIndex(slug: string, indexId: string): Promise<void> {
+    await api.delete(`/websites/${slug}/indices/${indexId}`);
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) site.indices = site.indices.filter((x) => x.id !== indexId);
+  }
+
+  async function rebuildIndex(slug: string, indexId: string): Promise<WebsiteIndex> {
+    const res = await api.post<WebsiteIndex>(`/websites/${slug}/indices/${indexId}/rebuild`, {});
+    const updated = res.data.data as WebsiteIndex;
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) {
+      const i = site.indices.findIndex((x) => x.id === indexId);
+      if (i !== -1) site.indices[i] = updated;
+    }
+    return updated;
+  }
+
+  async function rebuildAllIndices(slug: string): Promise<WebsiteIndex[]> {
+    const res = await api.post<WebsiteIndex[]>(`/websites/${slug}/indices/rebuild-all`, {});
+    const updated = res.data.data as WebsiteIndex[];
+    const site = websites.value.find((w) => w.slug === slug);
+    if (site) site.indices = updated;
+    return updated;
+  }
+
   return {
     websites,
     isLoading,
@@ -243,5 +334,11 @@ export const useWebsiteStore = defineStore("websites", () => {
     previewDocument,
     clearCache,
     downloadSite,
+    refreshTags,
+    createIndex,
+    updateIndex,
+    deleteIndex,
+    rebuildIndex,
+    rebuildAllIndices,
   };
 });

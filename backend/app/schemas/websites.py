@@ -1,4 +1,4 @@
-"""Pydantic v2 schemas for websites and website pages."""
+"""Pydantic v2 schemas for websites, website pages, and website indices."""
 
 import uuid
 from datetime import datetime
@@ -68,6 +68,41 @@ class WebsiteUpdate(BaseModel):
     is_published: bool | None = None
 
 
+# ── Website indices ───────────────────────────────────────────────────────────
+
+class WebsiteIndexCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$")
+    title: str = Field(..., min_length=1, max_length=256)
+    tag: str = Field(..., min_length=1, max_length=128)
+    key_attribute: str | None = Field(None, max_length=128)
+    subkey_attribute: str | None = Field(None, max_length=128)
+
+
+class WebsiteIndexUpdate(BaseModel):
+    label: str | None = Field(None, min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$")
+    title: str | None = Field(None, min_length=1, max_length=256)
+    tag: str | None = Field(None, min_length=1, max_length=128)
+    key_attribute: str | None = None
+    subkey_attribute: str | None = None
+
+
+class WebsiteIndexResponse(BaseModel):
+    id: uuid.UUID
+    website_id: uuid.UUID
+    label: str
+    title: str
+    tag: str
+    key_attribute: str | None
+    subkey_attribute: str | None
+    last_built_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Websites ──────────────────────────────────────────────────────────────────
+
 class WebsiteResponse(BaseModel):
     id: uuid.UUID
     slug: str
@@ -84,10 +119,13 @@ class WebsiteResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     is_published: bool
+    distinct_tags: dict | None
+    tags_refreshed_at: datetime | None
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
     pages: list[WebsitePageResponse] = Field(default_factory=list)
+    indices: list[WebsiteIndexResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

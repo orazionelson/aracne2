@@ -2,18 +2,26 @@
 
 Endpoints
 ---------
-GET    /websites                              list all websites
-POST   /websites                              create a website
-GET    /websites/{slug}                       get a website (with pages)
-PUT    /websites/{slug}                       update website metadata
-DELETE /websites/{slug}                       delete website + static files
-POST   /websites/{slug}/build                 trigger static build (STATIC mode)
-GET    /websites/{slug}/download [D+]         download built STATIC site as ZIP
-POST   /websites/{slug}/clear-cache [D+]      invalidate dynamic render cache
-POST   /websites/{slug}/preview-doc/{file}    admin XSLT preview
-POST   /websites/{slug}/pages                 add a free page
-PUT    /websites/{slug}/pages/{page_slug}     update a page
-DELETE /websites/{slug}/pages/{page_slug}     delete a page
+GET    /websites                                      list all websites
+POST   /websites                                      create a website
+GET    /websites/{slug}                               get a website (with pages + indices)
+PUT    /websites/{slug}                               update website metadata
+DELETE /websites/{slug}                               delete website + static files
+POST   /websites/{slug}/build                         trigger static build (STATIC mode)
+GET    /websites/{slug}/download [D+]                 download built STATIC site as ZIP
+POST   /websites/{slug}/clear-cache [D+]              invalidate dynamic render cache
+POST   /websites/{slug}/preview-doc/{file}            admin XSLT preview
+POST   /websites/{slug}/pages                         add a free page
+PUT    /websites/{slug}/pages/{page_slug}             update a page
+DELETE /websites/{slug}/pages/{page_slug}             delete a page
+GET    /websites/{slug}/tags [D+]                     get cached distinct-tag list
+POST   /websites/{slug}/tags/refresh [D+]             re-run distinct-tag XQuery
+GET    /websites/{slug}/indices [D+]                  list configured indices
+POST   /websites/{slug}/indices [D+]                  create an index
+PUT    /websites/{slug}/indices/{index_id} [D+]       update an index
+DELETE /websites/{slug}/indices/{index_id} [D+]       delete an index
+POST   /websites/{slug}/indices/{index_id}/rebuild    rebuild one index cache
+POST   /websites/{slug}/indices/rebuild-all           rebuild all indices cache
 
 Public site serving (all rendering modes):
 GET    /sites/{slug}/                         cover / index page
@@ -22,6 +30,7 @@ GET    /sites/{slug}/browse.html              alias (backward compat)
 GET    /sites/{slug}/search                   search page / results (?q=term)
 GET    /sites/{slug}/docs/{filename}          single document (XSLT applied)
 GET    /sites/{slug}/pages/{page_slug}        free Markdown pages
+GET    /sites/{slug}/index/{label}/           rendered index page
 GET    /sites/{slug}/{path:path}              static assets (CSS/JS/images)
 """
 
@@ -47,6 +56,9 @@ from app.schemas.websites import (
     MetaSuggestionsResponse,
     WebsiteBuildResponse,
     WebsiteCreate,
+    WebsiteIndexCreate,
+    WebsiteIndexResponse,
+    WebsiteIndexUpdate,
     WebsitePageCreate,
     WebsitePageResponse,
     WebsitePageUpdate,
@@ -302,6 +314,119 @@ async def delete_page(
     await svc.delete_website_page(db, website.id, page_slug)
 
 
+# ── Tag discovery ─────────────────────────────────────────────────────────────
+
+@router.get("/websites/{slug}/tags", response_model=dict)
+async def get_website_tags(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    """Return the cached distinct-tag map for this website's collection.
+
+    The map is populated by POST /tags/refresh.  Returns null when no refresh
+    has been run yet.
+    """
+    website = await svc.get_website(db, slug)
+    return {
+        "data": {
+            "distinct_tags": website.distinct_tags,
+            "tags_refreshed_at": website.tags_refreshed_at,
+        }
+    }
+
+
+@router.post("/websites/{slug}/tags/refresh", response_model=dict)
+async def refresh_website_tags(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    """Re-run the distinct-tag XQuery against the linked collection and cache the result."""
+    website = await svc.refresh_website_tags(db, slug)
+    return {
+        "data": {
+            "distinct_tags": website.distinct_tags,
+            "tags_refreshed_at": website.tags_refreshed_at,
+        }
+    }
+
+
+# ── Website indices ───────────────────────────────────────────────────────────
+
+@router.get("/websites/{slug}/indices", response_model=dict)
+async def list_indices(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    website = await svc.get_website(db, slug)
+    indices = await svc.list_website_indices(db, website.id)
+    return {"data": [WebsiteIndexResponse.model_validate(i) for i in indices]}
+
+
+@router.post("/websites/{slug}/indices", status_code=201, response_model=dict)
+async def create_index(
+    slug: str,
+    body: WebsiteIndexCreate,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    website = await svc.get_website(db, slug)
+    idx = await svc.create_website_index(db, website.id, body)
+    return {"data": WebsiteIndexResponse.model_validate(idx)}
+
+
+@router.put("/websites/{slug}/indices/{index_id}", response_model=dict)
+async def update_index(
+    slug: str,
+    index_id: str,
+    body: WebsiteIndexUpdate,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    import uuid as _uuid
+    website = await svc.get_website(db, slug)
+    idx = await svc.update_website_index(db, website.id, _uuid.UUID(index_id), body)
+    return {"data": WebsiteIndexResponse.model_validate(idx)}
+
+
+@router.delete("/websites/{slug}/indices/{index_id}", status_code=204)
+async def delete_index(
+    slug: str,
+    index_id: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> None:
+    import uuid as _uuid
+    website = await svc.get_website(db, slug)
+    await svc.delete_website_index(db, website.id, _uuid.UUID(index_id))
+
+
+@router.post("/websites/{slug}/indices/rebuild-all", response_model=dict)
+async def rebuild_all_indices(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    """Rebuild all configured indices for this website.  Synchronous."""
+    indices = await svc.rebuild_all_website_indices(db, slug)
+    return {"data": [WebsiteIndexResponse.model_validate(i) for i in indices]}
+
+
+@router.post("/websites/{slug}/indices/{index_id}/rebuild", response_model=dict)
+async def rebuild_index(
+    slug: str,
+    index_id: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> dict:
+    """Rebuild the cached data for a single index.  Synchronous."""
+    import uuid as _uuid
+    idx = await svc.rebuild_website_index(db, slug, _uuid.UUID(index_id))
+    return {"data": WebsiteIndexResponse.model_validate(idx)}
+
+
 # ── Public site serving (all rendering modes) ─────────────────────────────────
 #
 # STATIC  → FileResponse from pre-built files on disk.
@@ -453,6 +578,35 @@ async def serve_site_page(
         html = await svc.render_dynamic_page(db, website, page_slug)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _dynamic_html_response(html, svc.compute_etag(website), request)
+
+
+@router.get("/sites/{slug}/index/{label}/", include_in_schema=False)
+async def serve_site_index_page(
+    slug: str,
+    label: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> Response:
+    """Serve a rendered index page (public; respects published/preview guard)."""
+    import uuid as _uuid
+    from sqlalchemy import select as _select
+    from app.models.website import WebsiteIndex as _WebsiteIndex
+
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
+
+    idx = await db.scalar(
+        _select(_WebsiteIndex).where(
+            _WebsiteIndex.website_id == website.id,
+            _WebsiteIndex.label == label,
+        )
+    )
+    if idx is None or idx.cached_data is None:
+        raise HTTPException(status_code=404, detail="Index not found or not yet built.")
+
+    html = svc.render_website_index_html(website, idx)
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 
 

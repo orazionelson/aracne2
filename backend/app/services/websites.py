@@ -35,10 +35,12 @@ from app.models.collection import Collection, CollectionStatus
 from app.models.collection_permission import CollectionPermission
 from app.models.role import Role, RoleName, UserRole
 from app.models.user import User
-from app.models.website import BuildStatus, RenderingMode, Website, WebsitePage
+from app.models.website import BuildStatus, RenderingMode, Website, WebsiteIndex, WebsitePage
 from app.schemas.websites import (
     MetaSuggestionsResponse,
     WebsiteCreate,
+    WebsiteIndexCreate,
+    WebsiteIndexUpdate,
     WebsitePageCreate,
     WebsitePageUpdate,
     WebsiteUpdate,
@@ -347,6 +349,21 @@ footer a:hover { opacity: 0.75; }
 .search-hit .hit-author { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
 .search-hit .hit-snippet { font-size: 0.82rem; color: #4b5563; margin-top: 0.25rem; line-height: 1.5; }
 mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; }
+/* ── Index page ── */
+.index__title { font-size: 1.8rem; margin-bottom: 1.5rem; }
+.index__entries { list-style: none; margin: 0; padding: 0; }
+.index__entry { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+.index__entry:last-child { border-bottom: none; }
+.index__key { font-size: 1.05rem; font-weight: 600; display: block; margin-bottom: 0.5rem; }
+.index__subentries { list-style: none; margin: 0.25rem 0 0 1rem; padding: 0; }
+.index__subentry { margin-bottom: 0.6rem; }
+.index__subkey { font-size: 0.85rem; font-style: italic; color: #6b7280; display: block; margin-bottom: 0.2rem; }
+.index__variants { list-style: none; margin: 0 0 0 1rem; padding: 0; }
+.index__variant { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin-bottom: 0.15rem; font-size: 0.875rem; }
+.index__refs { color: #9ca3af; font-size: 0.8rem; }
+.index__ref { color: var(--primary); text-decoration: none; }
+.index__ref:hover { text-decoration: underline; }
+.index__empty { color: #9ca3af; font-style: italic; }
 .search-info { font-size: 0.8rem; color: #9ca3af; margin: 0.75rem 0 0.25rem; }
 .search-empty { color: #9ca3af; font-style: italic; margin-top: 1rem; }
 """
@@ -565,6 +582,8 @@ def _render_navbar(
     path_prefix: str = "",
     nav_config: list | None = None,
     site_base_url: str = "",
+    indices: list | None = None,
+    site_slug: str = "",
 ) -> str:
     """Build the <header><nav> block.
 
@@ -612,6 +631,18 @@ def _render_navbar(
         else:
             href = f"{path_prefix}pages/{_html.escape(page.slug)}.html"
         nav_items.append((page.sort_order, f'<a href="{href}">{_html.escape(page.title)}</a>'))
+
+    # Built indices appear at the end of the nav, after all pages.
+    for i, idx in enumerate(indices or []):
+        if not idx.last_built_at:
+            continue  # not yet built — skip
+        if site_base_url:
+            idx_href = f"{site_base_url}/index/{_html.escape(idx.label)}/"
+        elif site_slug:
+            idx_href = f"/api/v1/sites/{site_slug}/index/{_html.escape(idx.label)}/"
+        else:
+            continue
+        nav_items.append((1000 + i, f'<a href="{idx_href}">{_html.escape(idx.title)}</a>'))
 
     nav_items.sort(key=lambda x: x[0])
     links_html = "".join(link for _, link in nav_items)
@@ -1248,6 +1279,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     content = _build_cover_content(
         website_title=website.title,
@@ -1297,6 +1329,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     footer_note, identifier_url = _footer_parts(col)
     html = _render_page(
@@ -1371,6 +1404,7 @@ async def render_dynamic_search(
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     footer_note, identifier_url = _footer_parts(
         await db.get(Collection, website.collection_id)
@@ -1446,6 +1480,7 @@ async def render_dynamic_doc(
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     if browse_hidden:
         crumbs: list[tuple[str | None, str]] = [(f"{base}/", "Home"), (None, label)]
@@ -1491,6 +1526,7 @@ async def render_dynamic_page(
         pages=visible_pages,
         nav_config=website.nav_config or [],
         site_base_url=base,
+        indices=website.indices,
     )
     col: Collection | None = (
         await db.get(Collection, website.collection_id)
@@ -1532,7 +1568,7 @@ async def _get_website(db: AsyncSession, slug: str) -> Website:
     row = await db.scalar(
         select(Website)
         .where(Website.slug == slug)
-        .options(selectinload(Website.pages))
+        .options(selectinload(Website.pages), selectinload(Website.indices))
     )
     if row is None:
         raise NotFoundError(f"Website '{slug}' not found.")
@@ -1541,7 +1577,9 @@ async def _get_website(db: AsyncSession, slug: str) -> Website:
 
 async def list_websites(db: AsyncSession) -> list[Website]:
     result = await db.scalars(
-        select(Website).options(selectinload(Website.pages)).order_by(Website.created_at.desc())
+        select(Website)
+        .options(selectinload(Website.pages), selectinload(Website.indices))
+        .order_by(Website.created_at.desc())
     )
     return list(result.all())
 
@@ -1730,6 +1768,372 @@ async def delete_website_page(
     await db.commit()
 
 
+# ── Website indices ───────────────────────────────────────────────────────────
+
+_INDEX_SEP = "|||"
+
+
+def _parse_index_occurrences(
+    raw: bytes,
+    key_attr: str | None,
+    subkey_attr: str | None,
+) -> dict:
+    """Parse XQuery index_occurrences.xq output into the cached_data structure.
+
+    Input: newline-separated records, each with 4 fields joined by '|||':
+      key ||| subkey ||| text ||| filename
+
+    Output:
+    {
+      "key_attr": "key",
+      "subkey_attr": "role",
+      "entries": [{"key": ..., "subentries": [{"subkey": ..., "variants": [...]}]}]
+    }
+    """
+    # Map: key -> subkey -> text -> set[filename]
+    tree: dict[str, dict[str, dict[str, set[str]]]] = {}
+
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(_INDEX_SEP)
+        if len(parts) != 4:
+            continue
+        key_val, subkey_val, text_val, filename = parts
+        if not key_val:
+            continue
+
+        subkey_map = tree.setdefault(key_val, {})
+        text_map = subkey_map.setdefault(subkey_val, {})
+        text_map.setdefault(text_val, set()).add(filename)
+
+    entries = []
+    for key_val in sorted(tree):
+        subentries = []
+        for subkey_val in sorted(tree[key_val]):
+            variants = []
+            for text_val in sorted(tree[key_val][subkey_val]):
+                docs = sorted(tree[key_val][subkey_val][text_val])
+                variants.append({"text": text_val, "docs": docs})
+            subentries.append({"subkey": subkey_val, "variants": variants})
+        entries.append({"key": key_val, "subentries": subentries})
+
+    return {
+        "key_attr": key_attr or "",
+        "subkey_attr": subkey_attr or "",
+        "entries": entries,
+    }
+
+
+def _render_index_variant(variant: dict, site_base_url: str) -> str:
+    """Render one text variant as an <li> with document reference links."""
+    text = variant.get("text", "")
+    docs: list[str] = variant.get("docs", [])
+    esc_text = _html.escape(text)
+    refs = "".join(
+        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+        f'{_html.escape(doc)}</a>'
+        for doc in docs
+    )
+    return (
+        f'<li class="index__variant">'
+        f'<span class="index__text">{esc_text}</span>'
+        f'<span class="index__refs">{refs}</span>'
+        f"</li>"
+    )
+
+
+def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
+    """Generate the HTML page for a website index from its cached_data.
+
+    The cached_data is produced by rebuild_website_index() which runs the
+    index_occurrences XQuery and aggregates results into a JSON structure.
+    """
+    cached = index.cached_data or {}
+    key_attr = cached.get("key_attr", "")
+    subkey_attr = cached.get("subkey_attr", "")
+    has_key_attr = bool(key_attr)
+    has_subkey_attr = bool(subkey_attr)
+    entries: list[dict] = cached.get("entries", [])
+
+    theme = website.theme_config or {}
+    style = _style_block(theme)
+    site_base_url = f"/api/v1/sites/{website.slug}"
+
+    navbar = _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=[p for p in website.pages if not p.is_hidden],
+        nav_config=website.nav_config or [],
+        site_base_url=site_base_url,
+        indices=website.indices,
+    )
+    breadcrumb = _render_breadcrumb(
+        [(f"{site_base_url}/", website.title), (None, index.title)]
+    )
+
+    parts: list[str] = [f'<h1 class="index__title">{_html.escape(index.title)}</h1>']
+    if not entries:
+        parts.append('<p class="index__empty">No entries. Rebuild the index to populate it.</p>')
+    else:
+        parts.append('<ul class="index__entries">')
+        for entry in entries:
+            key_val = entry.get("key", "")
+            esc_key = _html.escape(key_val)
+            parts.append(
+                f'<li class="index__entry" data-key="{esc_key}">'
+                f'<span class="index__key">{esc_key}</span>'
+            )
+            subentries: list[dict] = entry.get("subentries", [])
+
+            if has_key_attr:
+                # Grouped by key attribute → show subkey and text-variant levels.
+                parts.append('<ul class="index__subentries">')
+                for subentry in subentries:
+                    subkey_val = subentry.get("subkey", "")
+                    variants: list[dict] = subentry.get("variants", [])
+                    if has_subkey_attr and subkey_val:
+                        esc_subkey = _html.escape(subkey_val)
+                        parts.append(
+                            f'<li class="index__subentry" data-subkey="{esc_subkey}">'
+                            f'<span class="index__subkey">{esc_subkey}</span>'
+                            '<ul class="index__variants">'
+                        )
+                        for variant in variants:
+                            parts.append(_render_index_variant(variant, site_base_url))
+                        parts.append("</ul></li>")
+                    else:
+                        # No subkey grouping: render variants directly inside the entry.
+                        parts.append('<ul class="index__variants">')
+                        for variant in variants:
+                            parts.append(_render_index_variant(variant, site_base_url))
+                        parts.append("</ul>")
+                parts.append("</ul>")
+            else:
+                # No key attribute: key = text content, no variant level.
+                # subentries may still have a subkey (e.g. role).
+                if has_subkey_attr and subentries:
+                    parts.append('<ul class="index__subentries">')
+                    for subentry in subentries:
+                        subkey_val = subentry.get("subkey", "")
+                        esc_subkey = _html.escape(subkey_val)
+                        all_docs: list[str] = []
+                        for v in subentry.get("variants", []):
+                            all_docs.extend(v.get("docs", []))
+                        all_docs = sorted(set(all_docs))
+                        refs = "".join(
+                            f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+                            f'{_html.escape(doc)}</a>'
+                            for doc in all_docs
+                        )
+                        parts.append(
+                            f'<li class="index__subentry" data-subkey="{esc_subkey}">'
+                            f'<span class="index__subkey">{esc_subkey}</span>'
+                            f'<span class="index__refs">{refs}</span></li>'
+                        )
+                    parts.append("</ul>")
+                else:
+                    # No key, no subkey: just list the documents.
+                    all_docs_flat: list[str] = []
+                    for subentry in subentries:
+                        for v in subentry.get("variants", []):
+                            all_docs_flat.extend(v.get("docs", []))
+                    all_docs_flat = sorted(set(all_docs_flat))
+                    refs = "".join(
+                        f'<a class="index__ref" href="{_html.escape(f"{site_base_url}/docs/{doc}")}">'
+                        f'{_html.escape(doc)}</a>'
+                        for doc in all_docs_flat
+                    )
+                    parts.append(f'<span class="index__refs">{refs}</span>')
+
+            parts.append("</li>")
+        parts.append("</ul>")
+
+    content = "<main>" + "".join(parts) + "</main>"
+    return _render_page(
+        site_title=website.title,
+        page_title=index.title,
+        content=content,
+        style=style,
+        navbar=navbar,
+        breadcrumb=breadcrumb,
+        meta_tags=_build_meta_tags(website.meta_config or {}),
+    )
+
+
+async def list_website_indices(db: AsyncSession, website_id: uuid.UUID) -> list[WebsiteIndex]:
+    result = await db.scalars(
+        select(WebsiteIndex)
+        .where(WebsiteIndex.website_id == website_id)
+        .order_by(WebsiteIndex.created_at)
+    )
+    return list(result.all())
+
+
+async def get_website_index(
+    db: AsyncSession, website_id: uuid.UUID, index_id: uuid.UUID
+) -> WebsiteIndex:
+    idx = await db.scalar(
+        select(WebsiteIndex).where(
+            WebsiteIndex.id == index_id,
+            WebsiteIndex.website_id == website_id,
+        )
+    )
+    if idx is None:
+        raise NotFoundError(f"Index '{index_id}' not found.")
+    return idx
+
+
+async def create_website_index(
+    db: AsyncSession, website_id: uuid.UUID, data: WebsiteIndexCreate
+) -> WebsiteIndex:
+    existing = await db.scalar(
+        select(WebsiteIndex).where(
+            WebsiteIndex.website_id == website_id,
+            WebsiteIndex.label == data.label,
+        )
+    )
+    if existing is not None:
+        raise ConflictError(f"Index with label '{data.label}' already exists in this website.")
+    idx = WebsiteIndex(
+        website_id=website_id,
+        label=data.label,
+        title=data.title,
+        tag=data.tag,
+        key_attribute=data.key_attribute,
+        subkey_attribute=data.subkey_attribute,
+    )
+    db.add(idx)
+    await db.commit()
+    await db.refresh(idx)
+    return idx
+
+
+async def update_website_index(
+    db: AsyncSession,
+    website_id: uuid.UUID,
+    index_id: uuid.UUID,
+    data: WebsiteIndexUpdate,
+) -> WebsiteIndex:
+    idx = await get_website_index(db, website_id, index_id)
+    # Check label uniqueness when changing it.
+    if data.label is not None and data.label != idx.label:
+        clash = await db.scalar(
+            select(WebsiteIndex).where(
+                WebsiteIndex.website_id == website_id,
+                WebsiteIndex.label == data.label,
+            )
+        )
+        if clash is not None:
+            raise ConflictError(f"Index with label '{data.label}' already exists.")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(idx, field, value)
+    idx.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(idx)
+    return idx
+
+
+async def delete_website_index(
+    db: AsyncSession, website_id: uuid.UUID, index_id: uuid.UUID
+) -> None:
+    idx = await get_website_index(db, website_id, index_id)
+    await db.delete(idx)
+    await db.commit()
+
+
+async def rebuild_website_index(
+    db: AsyncSession, slug: str, index_id: uuid.UUID
+) -> WebsiteIndex:
+    """Run the index_occurrences XQuery and update the index cached_data.
+
+    Raises NotFoundError if the website has no linked collection.
+    """
+    website = await _get_website(db, slug)
+    if website.collection_id is None:
+        raise NotFoundError("Website has no linked collection — cannot build index.")
+    col: Collection | None = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise NotFoundError("Linked collection not found.")
+
+    idx = await get_website_index(db, website.id, index_id)
+    path = existdb_client.col_path(col.slug)
+    raw = await existdb_client.xquery(
+        "collections/index_occurrences.xq",
+        {
+            "path": path,
+            "tag": idx.tag,
+            "key_attr": idx.key_attribute or "",
+            "subkey_attr": idx.subkey_attribute or "",
+        },
+    )
+    idx.cached_data = _parse_index_occurrences(raw, idx.key_attribute, idx.subkey_attribute)
+    idx.last_built_at = datetime.now(UTC)
+    idx.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(idx)
+    # Invalidate page cache so the navbar (which shows built indices) refreshes.
+    invalidate_cache(slug)
+    return idx
+
+
+async def rebuild_all_website_indices(db: AsyncSession, slug: str) -> list[WebsiteIndex]:
+    """Rebuild every index configured on the website.  Returns rebuilt indices."""
+    website = await _get_website(db, slug)
+    if website.collection_id is None:
+        raise NotFoundError("Website has no linked collection — cannot build indices.")
+    col: Collection | None = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise NotFoundError("Linked collection not found.")
+    path = existdb_client.col_path(col.slug)
+
+    rebuilt: list[WebsiteIndex] = []
+    for idx in website.indices:
+        raw = await existdb_client.xquery(
+            "collections/index_occurrences.xq",
+            {
+                "path": path,
+                "tag": idx.tag,
+                "key_attr": idx.key_attribute or "",
+                "subkey_attr": idx.subkey_attribute or "",
+            },
+        )
+        idx.cached_data = _parse_index_occurrences(raw, idx.key_attribute, idx.subkey_attribute)
+        idx.last_built_at = datetime.now(UTC)
+        idx.updated_at = datetime.now(UTC)
+        rebuilt.append(idx)
+
+    if rebuilt:
+        await db.commit()
+        for idx in rebuilt:
+            await db.refresh(idx)
+        invalidate_cache(slug)
+    return rebuilt
+
+
+async def refresh_website_tags(db: AsyncSession, slug: str) -> Website:
+    """Run distinct_tags XQuery against the linked collection and cache the result.
+
+    The cached dict maps element local-names to lists of attribute local-names:
+      {"persName": ["key", "role"], "placeName": ["ref"]}
+    """
+    website = await _get_website(db, slug)
+    if website.collection_id is None:
+        raise NotFoundError("Website has no linked collection — cannot refresh tags.")
+    col: Collection | None = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise NotFoundError("Linked collection not found.")
+
+    path = existdb_client.col_path(col.slug)
+    raw = await existdb_client.xquery("collections/distinct_tags.xq", {"path": path})
+    website.distinct_tags = json.loads(raw.decode("utf-8"))
+    website.tags_refreshed_at = datetime.now(UTC)
+    website.updated_at = datetime.now(UTC)
+    await db.commit()
+    return await _get_website(db, slug)
+
+
 # ── Static build (Option A) ───────────────────────────────────────────────────
 
 async def trigger_build(db: AsyncSession, slug: str) -> None:
@@ -1835,6 +2239,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             pages=visible_pages,
             path_prefix=path_prefix,
             nav_config=website.nav_config or [],
+            indices=website.indices,
+            site_slug=website.slug,
         )
 
     # Resolve the XSLT transform once for the whole build.
@@ -2058,6 +2464,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             pages=visible_pages,
             nav_config=website.nav_config or [],
             site_base_url=base,
+            indices=website.indices,
         )
 
     # Fetch doc list for cover doc-count and browse page.
