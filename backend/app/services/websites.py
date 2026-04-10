@@ -753,6 +753,30 @@ def _render_breadcrumb(crumbs: list[tuple[str | None, str]]) -> str:
     return f'<nav class="breadcrumb" aria-label="Breadcrumb"><ol>{"".join(items)}</ol></nav>'
 
 
+# Inline script injected into every generated page.
+# When the URL carries a ?_preview=TOKEN (used to let staff browse unpublished
+# sites from a browser tab / iframe that cannot send an Authorization header),
+# this snippet propagates the token to every local <a href> on the page and
+# watches the DOM for dynamically inserted links (e.g. search results).
+_PREVIEW_PROPAGATOR_SCRIPT = (
+    '<script>(function(){'
+    'var m=location.search.match(/[?&]_preview=([^&]+)/);'
+    'if(!m)return;'
+    'var t=m[1];'
+    'function patch(a){'
+    'var h=a.getAttribute("href");'
+    'if(!h||/^(https?:|\\/\\/|mailto:|#)/.test(h)||h.indexOf("_preview=")!==-1)return;'
+    'a.setAttribute("href",h+(h.indexOf("?")!==-1?"&":"?")+"_preview="+t);}'
+    'document.querySelectorAll("a[href]").forEach(patch);'
+    'new MutationObserver(function(ms){'
+    'ms.forEach(function(m){'
+    'm.addedNodes.forEach(function(n){'
+    'if(n.querySelectorAll)n.querySelectorAll("a[href]").forEach(patch);'
+    '});});}).observe(document.body,{childList:true,subtree:true});'
+    '})();</script>'
+)
+
+
 def _render_page(
     *,
     site_title: str,
@@ -788,6 +812,7 @@ def _render_page(
     {content}
   </main>
   <footer>{footer_extra}Built with <a href="https://github.com/orazio-nelson/aracne2">Aracne2</a></footer>
+  {_PREVIEW_PROPAGATOR_SCRIPT}
 </body>
 </html>"""
 

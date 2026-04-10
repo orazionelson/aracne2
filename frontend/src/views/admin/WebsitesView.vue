@@ -633,10 +633,30 @@ function buildStatusClass(status: string): string {
 function siteUrl(slug: string, isPublished: boolean): string {
   const base = `/api/v1/sites/${slug}/`;
   if (isPublished) return base;
-  // Unpublished: pass the access token as ?_preview= so the browser tab
+  // Unpublished: pass the access token as ?_preview= so the browser tab / iframe
   // (which cannot send an Authorization header) is accepted by the backend.
   const token = authStore.accessToken;
   return token ? `${base}?_preview=${encodeURIComponent(token)}` : base;
+}
+
+// ── Site preview modal (unpublished sites) ────────────────────────────────────
+
+const showPreviewModal = ref(false);
+const previewModalUrl = ref("");
+
+function openSitePreview(slug: string, isPublished: boolean): void {
+  const url = siteUrl(slug, isPublished);
+  if (isPublished) {
+    window.open(url, "_blank", "noopener");
+    return;
+  }
+  previewModalUrl.value = url;
+  showPreviewModal.value = true;
+}
+
+function closePreviewModal(): void {
+  showPreviewModal.value = false;
+  previewModalUrl.value = "";
 }
 
 // ── Pages ─────────────────────────────────────────────────────────────────────
@@ -901,16 +921,22 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             >
               {{ clearingCacheSlug === website.slug ? t("websites.clearing_cache") : t("websites.clear_cache") }}
             </button>
-            <!-- Open site link (STATIC/HYBRID: only when built; DYNAMIC: always) -->
-            <a
-              v-if="(website.rendering_mode === 'DYNAMIC') || (website.build_status === 'done' && (website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'))"
-              :href="siteUrl(website.slug, website.is_published)"
-              target="_blank"
-              rel="noopener"
-              class="rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
-            >
-              {{ t("websites.open") }}
-            </a>
+            <!-- Open site (STATIC/HYBRID: only when built; DYNAMIC: always) -->
+            <!-- Published → new tab; Unpublished → iframe preview modal -->
+            <template v-if="(website.rendering_mode === 'DYNAMIC') || (website.build_status === 'done' && (website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'))">
+              <a
+                v-if="website.is_published"
+                :href="siteUrl(website.slug, true)"
+                target="_blank"
+                rel="noopener"
+                class="rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+              >{{ t("websites.open") }}</a>
+              <button
+                v-else
+                class="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                @click="openSitePreview(website.slug, false)"
+              >{{ t("websites.preview") }}</button>
+            </template>
             <!-- Download ZIP (STATIC only, when built) -->
             <button
               v-if="website.rendering_mode === 'STATIC' && website.build_status === 'done'"
@@ -1752,4 +1778,29 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
       </div>
     </div>
   </div>
+
+  <!-- ── Site preview modal (unpublished sites only) ──────────────────────── -->
+  <Teleport to="body">
+    <div
+      v-if="showPreviewModal"
+      class="fixed inset-0 z-50 flex flex-col bg-black/80"
+      @keydown.esc="closePreviewModal"
+    >
+      <!-- Toolbar -->
+      <div class="flex items-center justify-between bg-gray-900 px-4 py-2 text-white">
+        <span class="text-sm font-medium">{{ t("websites.preview_title") }}</span>
+        <button
+          class="rounded px-3 py-1 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+          @click="closePreviewModal"
+        >{{ t("websites.preview_close") }} ✕</button>
+      </div>
+      <!-- iframe -->
+      <iframe
+        v-if="previewModalUrl"
+        :src="previewModalUrl"
+        class="flex-1 w-full border-0 bg-white"
+        :title="t('websites.preview_title')"
+      />
+    </div>
+  </Teleport>
 </template>
