@@ -20,6 +20,11 @@ const editingSlug = ref<string | null>(null);
 const editTab = ref<"general" | "theme" | "pages" | "document" | "indices" | "cssjs">("general");
 const showMetaPanel = ref(false);
 
+// ── Filter state ─────────────────────────────────────────────────────────────
+const filterName = ref("");
+const filterType = ref<"" | "STATIC" | "DYNAMIC" | "HYBRID">("");
+const filterStatus = ref<"" | "published" | "unpublished" | "built" | "failed">("");
+
 const REPEATABLE_META_FIELDS = new Set(["subject", "author", "designer", "dc_creator", "dc_publisher", "dc_contributor", "dc_subject"]);
 
 const DEFAULT_META_CONFIG: Record<string, string | string[]> = {
@@ -205,18 +210,39 @@ function onTagBlur(): void {
   setTimeout(() => { showTagDropdown.value = false; }, 150);
 }
 
+/** The website currently open in the edit modal. */
+const editingWebsite = computed<Website | null>(() =>
+  store.websites.find((w) => w.slug === editingSlug.value) ?? null
+);
+
+/** Websites filtered by the toolbar controls. */
+const filteredWebsites = computed(() =>
+  store.websites.filter((w) => {
+    if (filterName.value) {
+      const q = filterName.value.toLowerCase();
+      if (!w.title.toLowerCase().includes(q) && !w.slug.toLowerCase().includes(q)) return false;
+    }
+    if (filterType.value && w.rendering_mode !== filterType.value) return false;
+    if (filterStatus.value) {
+      if (filterStatus.value === "published" && !w.is_published) return false;
+      if (filterStatus.value === "unpublished" && w.is_published) return false;
+      if (filterStatus.value === "built" && w.build_status !== "done") return false;
+      if (filterStatus.value === "failed" && w.build_status !== "failed") return false;
+    }
+    return true;
+  })
+);
+
 /** Tags available in the current website's collection (from distinct_tags cache). */
 const availableTags = computed<string[]>(() => {
-  const site = store.websites.find((w) => w.slug === editingSlug.value);
-  if (!site?.distinct_tags) return [];
-  return Object.keys(site.distinct_tags).sort();
+  if (!editingWebsite.value?.distinct_tags) return [];
+  return Object.keys(editingWebsite.value.distinct_tags).sort();
 });
 
 /** Attributes available for the currently selected tag in the index form. */
 const availableAttrsForTag = computed<string[]>(() => {
-  const site = store.websites.find((w) => w.slug === editingSlug.value);
-  if (!site?.distinct_tags || !indexForm.value.tag) return [];
-  return (site.distinct_tags[indexForm.value.tag] ?? []).sort();
+  if (!editingWebsite.value?.distinct_tags || !indexForm.value.tag) return [];
+  return (editingWebsite.value.distinct_tags[indexForm.value.tag] ?? []).sort();
 });
 
 function openAddIndexForm(): void {
@@ -868,6 +894,30 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
       </div>
     </div>
 
+    <!-- Filter toolbar -->
+    <div v-if="!store.isLoading && store.websites.length > 0" class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+      <input
+        v-model="filterName"
+        type="search"
+        :placeholder="t('websites.filter_placeholder')"
+        class="flex-1 min-w-36 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
+      />
+      <select v-model="filterType" class="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-400 focus:outline-none">
+        <option value="">{{ t("websites.filter_type_all") }}</option>
+        <option value="STATIC">{{ t("websites.mode_static") }}</option>
+        <option value="DYNAMIC">{{ t("websites.mode_dynamic") }}</option>
+        <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
+      </select>
+      <select v-model="filterStatus" class="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-400 focus:outline-none">
+        <option value="">{{ t("websites.filter_status_all") }}</option>
+        <option value="published">{{ t("websites.published") }}</option>
+        <option value="unpublished">{{ t("websites.filter_unpublished") }}</option>
+        <option value="built">{{ t("websites.build_done") }}</option>
+        <option value="failed">{{ t("websites.build_failed") }}</option>
+      </select>
+      <span class="text-xs text-gray-400">{{ filteredWebsites.length }} / {{ store.websites.length }}</span>
+    </div>
+
     <!-- Loading / empty -->
     <div v-if="store.isLoading" class="py-12 text-center text-sm text-gray-500">
       {{ t("common.loading") }}
@@ -875,11 +925,14 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
     <div v-else-if="store.websites.length === 0" class="py-12 text-center text-sm text-gray-500">
       {{ t("websites.empty") }}
     </div>
+    <div v-else-if="filteredWebsites.length === 0" class="py-12 text-center text-sm text-gray-500">
+      {{ t("websites.filter_no_results") }}
+    </div>
 
     <!-- Websites list -->
-    <div v-else class="space-y-3">
+    <div v-else class="space-y-2">
       <div
-        v-for="website in store.websites"
+        v-for="website in filteredWebsites"
         :key="website.slug"
         class="rounded-lg border border-gray-200 bg-white"
       >
@@ -908,57 +961,58 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               </span>
             </div>
           </div>
-          <div class="flex shrink-0 items-center gap-1" @click.stop>
-            <!-- Build button (STATIC and HYBRID only) -->
+          <div class="flex shrink-0 flex-wrap items-center gap-1.5" @click.stop>
+            <!-- Build (STATIC and HYBRID only) -->
             <button
               v-if="website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'"
               :disabled="buildingSlug === website.slug || website.build_status === 'building' || website.build_status === 'pending'"
-              class="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-40"
+              class="rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
               @click="triggerBuild(website.slug)"
             >
               {{ buildingSlug === website.slug ? t("websites.building") : t("websites.build") }}
             </button>
-            <!-- Clear cache button (DYNAMIC and HYBRID) -->
+            <!-- Clear cache (DYNAMIC and HYBRID) -->
             <button
               v-if="website.rendering_mode === 'DYNAMIC' || website.rendering_mode === 'HYBRID'"
               :disabled="clearingCacheSlug === website.slug"
-              class="rounded px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 disabled:opacity-40"
+              class="rounded bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-40"
               @click="clearSiteCache(website.slug)"
             >
               {{ clearingCacheSlug === website.slug ? t("websites.clearing_cache") : t("websites.clear_cache") }}
             </button>
-            <!-- Open site (STATIC/HYBRID: only when built; DYNAMIC: always) -->
-            <!-- Published → new tab; Unpublished → iframe preview modal -->
+            <!-- Open / Preview -->
             <template v-if="(website.rendering_mode === 'DYNAMIC') || (website.build_status === 'done' && (website.rendering_mode === 'STATIC' || website.rendering_mode === 'HYBRID'))">
               <a
                 v-if="website.is_published"
                 :href="siteUrl(website.slug, true)"
                 target="_blank"
                 rel="noopener"
-                class="rounded px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+                class="rounded bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
               >{{ t("websites.open") }}</a>
               <button
                 v-else
-                class="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                class="rounded bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-200"
                 @click="openSitePreview(website.slug, false)"
               >{{ t("websites.preview") }}</button>
             </template>
             <!-- Download ZIP (STATIC only, when built) -->
             <button
               v-if="website.rendering_mode === 'STATIC' && website.build_status === 'done'"
-              class="rounded px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"
+              class="rounded bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-800 hover:bg-sky-200"
               @click="downloadSite(website.slug)"
             >
               {{ t("websites.download_site") }}
             </button>
+            <!-- Edit -->
             <button
-              class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+              class="rounded bg-gray-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-gray-800"
               @click="startEdit(website)"
             >
               {{ t("common.edit") }}
             </button>
+            <!-- Delete -->
             <button
-              class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+              class="rounded bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-200"
               @click="confirmDeleteSlug = website.slug"
             >
               {{ t("common.delete") }}
@@ -974,830 +1028,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           {{ website.build_error }}
         </div>
 
-        <!-- Edit form with tabs -->
-        <div v-if="editingSlug === website.slug" class="border-t border-indigo-100">
-          <!-- Tab bar -->
-          <div class="flex border-b border-gray-200 bg-white px-4">
-            <button
-              v-for="tab in (['general', 'theme', 'pages', 'document', 'indices', 'cssjs'] as const)"
-              :key="tab"
-              class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
-              :class="editTab === tab
-                ? 'border-indigo-600 text-indigo-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'"
-              @click="editTab = tab"
-            >
-              {{ t(`websites.tab_${tab}`) }}
-            </button>
-          </div>
-
-          <!-- Tab: General -->
-          <div v-if="editTab === 'general'" class="bg-indigo-50 p-4">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_title") }}</label>
-                <input v-model="editForm.title" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_collection") }}</label>
-                <select v-model="editForm.collection_id" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                  <option :value="null">{{ t("websites.no_collection") }}</option>
-                  <option v-for="col in publishedCollections" :key="col.id" :value="col.id">{{ col.title }}</option>
-                </select>
-              </div>
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_description") }}</label>
-                <input v-model="editForm.description" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_rendering_mode") }}</label>
-                <select v-model="editForm.rendering_mode" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                  <option value="STATIC">{{ t("websites.mode_static") }}</option>
-                  <option value="DYNAMIC">{{ t("websites.mode_dynamic") }}</option>
-                  <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
-                </select>
-              </div>
-              <div class="flex items-center gap-2 pt-5">
-                <input :id="`edit-pub-${website.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
-                <label :for="`edit-pub-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
-              </div>
-
-              <!-- Metadata foldable panel -->
-              <div class="sm:col-span-2">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between rounded border border-gray-300 bg-white px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                  :class="showMetaPanel ? 'rounded-b-none' : ''"
-                  @click="showMetaPanel = !showMetaPanel"
-                >
-                  <span>{{ t("websites.meta_section") }}</span>
-                  <span class="text-gray-400">{{ showMetaPanel ? '▲' : '▼' }}</span>
-                </button>
-                <div v-show="showMetaPanel" class="rounded-b border border-t-0 border-gray-300 bg-white p-3 space-y-5">
-
-                  <!-- Standard HTML meta -->
-                  <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ t("websites.meta_html_section") }}</p>
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div class="sm:col-span-2">
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_description") }}</label>
-                        <textarea v-model="(editForm.meta_config as Record<string,string>).description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_keywords") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).keywords" type="text" placeholder="keyword1, keyword2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_subject") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('subject')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('subject', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('subject', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('subject')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_author") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('author')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('author')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('author', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('author', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('author')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_copyright") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).copyright" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_designer") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('designer')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('designer')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('designer', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('designer', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('designer')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_url") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).url" type="url" placeholder="https://www.example.com" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Dublin Core meta -->
-                  <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Dublin Core</p>
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_title") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_creator") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('dc_creator')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('dc_creator')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_creator', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_creator', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_creator')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_publisher") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('dc_publisher')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('dc_publisher')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_publisher', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_publisher', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_publisher')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_contributor") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('dc_contributor')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('dc_contributor')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_contributor', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_contributor', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_contributor')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_subject") }}</label>
-                        <div v-for="(_, idx) in getMetaArray('dc_subject')" :key="idx" class="mt-0.5 flex gap-1">
-                          <input :value="getMetaArray('dc_subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_subject', idx, ($event.target as HTMLInputElement).value)" />
-                          <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_subject', idx)">✕</button>
-                        </div>
-                        <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_subject')">+ {{ t("websites.meta_add_item") }}</button>
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_date") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_date" type="text" placeholder="YYYY-MM-DD" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div class="sm:col-span-2">
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_description") }}</label>
-                        <textarea v-model="(editForm.meta_config as Record<string,string>).dc_description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_type") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_type" type="text" placeholder="e.g. Text, Dataset" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_format") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_format" type="text" placeholder="e.g. text/html" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                      <div>
-                        <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_identifier") }}</label>
-                        <input v-model="(editForm.meta_config as Record<string,string>).dc_identifier" type="text" placeholder="URI or URL" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab: Theme -->
-          <div v-if="editTab === 'theme'" class="bg-indigo-50 p-4 space-y-5">
-            <!-- Colours -->
-            <div>
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.field_theme") }}</p>
-              <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_primary") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).primary_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_text") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).text_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_bg") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_doc_banner_bg") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_doc_banner_text") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-              </div>
-            </div>
-            <!-- Font family -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_font") }}</label>
-              <select v-model="(editForm.theme_config as Record<string, string>).font_family" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option value='Georgia,"Times New Roman",serif'>Georgia (serif)</option>
-                <option value='"Palatino Linotype",Palatino,serif'>Palatino (serif)</option>
-                <option value='"Times New Roman",Times,serif'>Times New Roman (serif)</option>
-                <option value='Arial,Helvetica,sans-serif'>Arial (sans-serif)</option>
-                <option value='"Helvetica Neue",Helvetica,Arial,sans-serif'>Helvetica (sans-serif)</option>
-                <option value='Verdana,Geneva,sans-serif'>Verdana (sans-serif)</option>
-                <option value='"Trebuchet MS",Tahoma,Geneva,sans-serif'>Trebuchet MS (sans-serif)</option>
-                <option value='system-ui,-apple-system,BlinkMacSystemFont,sans-serif'>System UI</option>
-                <option value='"Courier New",Courier,monospace'>Courier New (monospace)</option>
-              </select>
-            </div>
-            <!-- Footer -->
-            <div>
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_footer_section") }}</p>
-              <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_footer_bg") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).footer_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  {{ t("websites.theme_footer_text") }}
-                  <input v-model="(editForm.theme_config as Record<string, string>).footer_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
-                </label>
-              </div>
-            </div>
-            <!-- Header -->
-            <div>
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_section") }}</p>
-              <label class="flex items-center gap-2 text-xs text-gray-600">
-                <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).hide_header" class="rounded border-gray-300 text-indigo-600" />
-                {{ t("websites.theme_hide_header") }}
-              </label>
-              <div class="mt-2">
-                <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
-                <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
-              </div>
-            </div>
-            <!-- Home layout -->
-            <div>
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
-              <div class="mb-3">
-                <label class="block text-xs text-gray-700">{{ t("websites.home_layout") }}</label>
-                <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-1 w-64 rounded border border-gray-300 px-3 py-1.5 text-sm">
-                  <option value="single">{{ t("websites.layout_single") }}</option>
-                  <option value="two_left">{{ t("websites.layout_two_left") }}</option>
-                  <option value="two_right">{{ t("websites.layout_two_right") }}</option>
-                  <option value="three">{{ t("websites.layout_three") }}</option>
-                </select>
-              </div>
-              <!-- Widget palette — drag chips into a column editor below -->
-              <div class="mb-2 flex items-center gap-2">
-                <span class="text-xs text-gray-400">{{ t("websites.theme_widgets") }}:</span>
-                <div
-                  draggable="true"
-                  class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
-                  @dragstart="onWidgetDragStart($event, 'search-bar')"
-                >
-                  &#128269; {{ t("websites.widget_search_bar") }}
-                </div>
-                <div
-                  draggable="true"
-                  class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
-                  @dragstart="onWidgetDragStart($event, 'page-menu')"
-                >
-                  &#128196; {{ t("websites.widget_page_menu") }}
-                </div>
-                <div
-                  draggable="true"
-                  class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
-                  @dragstart="onWidgetDragStart($event, 'index-list')"
-                >
-                  &#128203; {{ t("websites.widget_index_list") }}
-                </div>
-              </div>
-
-              <div
-                class="grid gap-3"
-                :class="(editForm.theme_config as Record<string,string>).home_layout === 'single'
-                  ? 'grid-cols-1'
-                  : (editForm.theme_config as Record<string,string>).home_layout === 'three'
-                    ? 'grid-cols-3'
-                    : 'grid-cols-2'"
-              >
-                <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
-                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
-                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" />
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
-                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" />
-                </div>
-                <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
-                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
-                  <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab: Pages — single unified ordered list -->
-          <div v-if="editTab === 'pages'" class="bg-gray-50 p-4">
-            <div class="mb-3 flex items-center justify-between">
-              <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
-              <button
-                class="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100"
-                @click="openPageForm(website.slug)"
-              >
-                {{ t("websites.page_add") }}
-              </button>
-            </div>
-
-            <!-- Unified list: system pages + free pages, sorted by global sort_order -->
-            <ul class="mb-3 space-y-1">
-              <li
-                v-for="(entry, idx) in unifiedPages"
-                :key="entry.kind + '-' + (entry.systemId ?? entry.page?.slug)"
-                class="flex items-center justify-between rounded px-3 py-1.5 text-sm shadow-sm"
-                :class="[
-                  entry.is_hidden ? 'opacity-60' : '',
-                  entry.kind === 'system' ? 'bg-indigo-50' : (entry.is_hidden ? 'bg-gray-100' : 'bg-white'),
-                ]"
-              >
-                <div class="flex items-center gap-2">
-                  <!-- ▲▼ reorder -->
-                  <span class="flex flex-col">
-                    <button
-                      class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
-                      :disabled="idx === 0"
-                      @click="moveUnifiedPage(idx, idx - 1)"
-                    >▲</button>
-                    <button
-                      class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
-                      :disabled="idx === unifiedPages.length - 1"
-                      @click="moveUnifiedPage(idx, idx + 1)"
-                    >▼</button>
-                  </span>
-                  <!-- system badge -->
-                  <span v-if="entry.kind === 'system'" class="rounded bg-indigo-100 px-1 py-0.5 text-xs font-medium text-indigo-500">sys</span>
-                  <!-- title -->
-                  <span :class="entry.is_hidden ? 'text-gray-400 line-through' : 'font-medium text-gray-800'">
-                    {{ entry.title }}
-                  </span>
-                  <!-- slug (free pages only) -->
-                  <span v-if="entry.kind === 'free'" class="font-mono text-xs text-gray-400">{{ entry.page?.slug }}</span>
-                  <!-- hidden badge -->
-                  <span v-if="entry.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">
-                    {{ t("websites.page_hidden") }}
-                  </span>
-                </div>
-                <div class="flex gap-1">
-                  <!-- Hide/Show: Browse, Search, free pages (not Home) -->
-                  <button
-                    v-if="entry.systemId !== 'home'"
-                    class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
-                    :class="entry.is_hidden ? 'text-amber-600' : 'text-gray-500'"
-                    @click="toggleUnifiedPageHidden(idx)"
-                  >
-                    {{ entry.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
-                  </button>
-                  <!-- Edit / Delete: free pages only -->
-                  <button
-                    v-if="entry.kind === 'free'"
-                    class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
-                    @click="startEditPage(website.slug, entry.page!)"
-                  >
-                    {{ t("common.edit") }}
-                  </button>
-                  <button
-                    v-if="entry.kind === 'free'"
-                    class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
-                    @click="deletePage(website.slug, entry.page!.slug)"
-                  >
-                    {{ t("common.delete") }}
-                  </button>
-                </div>
-              </li>
-            </ul>
-
-            <!-- Free page create / edit form -->
-            <div v-if="showPageForm === website.slug" class="rounded border border-indigo-200 bg-white p-3">
-              <p class="mb-2 text-xs font-semibold text-indigo-800">
-                {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
-              </p>
-              <div v-if="!editingPage" class="mb-2 space-y-2">
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
-                    <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
-                  </div>
-                  <div>
-                    <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
-                    <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                  </div>
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                  <WysiwygEditor v-model="newPage.content_md" />
-                </div>
-              </div>
-              <div v-else class="mb-2 space-y-2">
-                <div>
-                  <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
-                  <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-                  <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
-                </div>
-              </div>
-              <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>
-              <div class="flex gap-2">
-                <button
-                  :disabled="isSubmittingPage"
-                  class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
-                  @click="submitPage(website.slug)"
-                >
-                  {{ isSubmittingPage ? t("common.loading") : t("common.save") }}
-                </button>
-                <button class="rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100" @click="cancelPageForm">
-                  {{ t("common.cancel") }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab: Document -->
-          <div v-if="editTab === 'document'" class="bg-indigo-50 p-4 space-y-5">
-            <!-- XSLT source -->
-            <div>
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_xslt_section") }}</p>
-              <div class="space-y-2">
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="default" class="text-indigo-600" />
-                  {{ t("websites.doc_xslt_source_default") }}
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="custom" class="text-indigo-600" />
-                  {{ t("websites.doc_xslt_source_custom") }}
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="url" class="text-indigo-600" />
-                  {{ t("websites.doc_xslt_source_url") }}
-                </label>
-                <label class="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="catalog" class="text-indigo-600" />
-                  {{ t("websites.doc_xslt_source_catalog") }}
-                </label>
-              </div>
-
-              <!-- Upload + inline CodeMirror editor.
-                   v-show (not v-if) keeps the container in the DOM whenever the
-                   Document tab is open, so CM5 can initialise once at tab-open
-                   time. autoRefresh:true re-measures when display:none is lifted. -->
-              <div v-show="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
-                <input
-                  id="xslt-file-input"
-                  type="file"
-                  accept=".xsl,.xslt,.xml"
-                  class="hidden"
-                  @change="onXsltFileChange"
-                />
-                <div class="flex items-center gap-2">
-                  <label
-                    for="xslt-file-input"
-                    class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                  >
-                    {{ t("websites.doc_xslt_filename") }}…
-                  </label>
-                  <span class="text-xs text-gray-500">
-                    {{ xsltFileName || t("websites.doc_xslt_no_file") }}
-                  </span>
-                  <button
-                    v-if="xsltFileName"
-                    type="button"
-                    class="text-xs text-red-500 hover:text-red-700"
-                    @click="clearXsltFile"
-                  >
-                    {{ t("websites.doc_xslt_clear") }}
-                  </button>
-                </div>
-                <!-- Toolbar row: fullscreen toggle -->
-                <div class="flex justify-end">
-                  <button
-                    type="button"
-                    class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                    @click="xsltCm.toggleFullscreen()"
-                  >
-                    {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
-                  </button>
-                </div>
-                <!-- CodeMirror XML editor — edits xslt_config.content directly.
-                     Named callback ref instead of plain string ref: Vue does not
-                     reliably update a Ref<HTMLElement> when the element lives
-                     inside a v-for + nested v-if/v-show chain. -->
-                <div
-                  :ref="onXsltEditorRef"
-                  class="overflow-hidden rounded border border-gray-300"
-                  style="height: 260px;"
-                />
-              </div>
-
-              <!-- Catalog -->
-              <div v-if="(editForm.xslt_config as XsltConfig).source === 'catalog'" class="mt-3">
-                <select
-                  v-model="(editForm.xslt_config as XsltConfig).catalog_id"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
-                >
-                  <option :value="null">{{ t("websites.doc_xslt_catalog_placeholder") }}</option>
-                  <option v-for="tpl in xsltStore.templates" :key="tpl.id" :value="tpl.id">
-                    {{ tpl.name }}
-                    <template v-if="tpl.processor !== 'lxml'"> ({{ tpl.processor }})</template>
-                  </option>
-                </select>
-                <p v-if="xsltStore.templates.length === 0" class="mt-1 text-xs text-gray-400">
-                  {{ t("settings.xslt_templates_empty") }}
-                </p>
-              </div>
-
-              <!-- URL -->
-              <div v-if="(editForm.xslt_config as XsltConfig).source === 'url'" class="mt-3">
-                <input
-                  v-model="(editForm.xslt_config as XsltConfig).url"
-                  type="url"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
-                  :placeholder="t('websites.doc_xslt_url_placeholder')"
-                />
-              </div>
-            </div>
-
-            <!-- Processor -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700">{{ t("websites.doc_xslt_processor") }}</label>
-              <select
-                v-model="(editForm.xslt_config as XsltConfig).processor"
-                class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
-              >
-                <option value="lxml">{{ t("websites.doc_xslt_processor_lxml") }}</option>
-                <option value="saxon" disabled>{{ t("websites.doc_xslt_processor_saxon") }}</option>
-              </select>
-            </div>
-
-            <!-- Preview -->
-            <div class="border-t border-indigo-100 pt-4">
-              <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_preview_section") }}</p>
-              <div v-if="!website.collection_id" class="text-xs text-gray-400">
-                {{ t("websites.doc_preview_no_collection") }}
-              </div>
-              <div v-else class="space-y-2">
-                <div class="flex items-center gap-2">
-                  <select
-                    v-model="previewDocFilename"
-                    class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
-                  >
-                    <option value="">{{ t("websites.doc_preview_select_doc") }}</option>
-                    <option
-                      v-for="doc in collectionStore.documents"
-                      :key="doc.filename"
-                      :value="doc.filename"
-                    >
-                      {{ doc.filename }}
-                    </option>
-                  </select>
-                  <button
-                    :disabled="!previewDocFilename || isPreviewing"
-                    class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-                    @click="previewDocument(website.slug)"
-                  >
-                    {{ isPreviewing ? t("common.loading") : t("websites.doc_preview_button") }}
-                  </button>
-                </div>
-                <p v-if="previewError" class="text-xs text-red-600">{{ previewError }}</p>
-                <iframe
-                  v-if="previewBlobUrl"
-                  :src="previewBlobUrl"
-                  class="w-full rounded border border-gray-200 bg-white"
-                  style="height: 420px;"
-                  sandbox="allow-same-origin"
-                  title="Document preview"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab: Indices -->
-          <div v-if="editTab === 'indices'" class="bg-gray-50 p-4 space-y-4">
-            <!-- Tags section -->
-            <div class="rounded border border-gray-200 bg-white p-3">
-              <div class="flex items-center justify-between mb-2">
-                <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_tags_title") }}</p>
-                <button
-                  :disabled="isRefreshingTags || !website.collection_id"
-                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                  @click="refreshTags(website.slug)"
-                >
-                  {{ isRefreshingTags ? t("common.loading") : t("websites.indices_refresh_tags") }}
-                </button>
-              </div>
-              <p v-if="!website.collection_id" class="text-xs text-gray-400">{{ t("websites.indices_no_collection") }}</p>
-              <p v-else-if="!website.distinct_tags" class="text-xs text-gray-400">{{ t("websites.indices_tags_empty") }}</p>
-              <div v-else class="flex flex-wrap gap-1">
-                <span
-                  v-for="tag in availableTags"
-                  :key="tag"
-                  class="rounded bg-indigo-50 px-2 py-0.5 text-xs font-mono text-indigo-700"
-                >&lt;{{ tag }}&gt;</span>
-              </div>
-              <p v-if="website.tags_refreshed_at" class="mt-1.5 text-xs text-gray-400">
-                {{ t("websites.indices_tags_updated") }}: {{ new Date(website.tags_refreshed_at).toLocaleString() }}
-              </p>
-            </div>
-
-            <!-- Index list -->
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_list_title") }}</p>
-              <div class="flex gap-2">
-                <button
-                  :disabled="isRebuildingAll || website.indices.length === 0"
-                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                  @click="rebuildAllIndices(website.slug)"
-                >
-                  {{ isRebuildingAll ? t("common.loading") : t("websites.indices_rebuild_all") }}
-                </button>
-                <button
-                  class="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
-                  @click="openAddIndexForm"
-                >
-                  {{ t("websites.indices_add") }}
-                </button>
-              </div>
-            </div>
-
-            <p v-if="indexError" class="text-xs text-red-600">{{ indexError }}</p>
-
-            <!-- Add / edit form -->
-            <div v-if="showIndexForm" class="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-3">
-              <p class="text-xs font-semibold text-gray-700">
-                {{ editingIndexId ? t("websites.indices_edit") : t("websites.indices_new") }}
-              </p>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_label") }}</label>
-                  <input v-model="indexForm.label" type="text" placeholder="persons" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_title") }}</label>
-                  <input v-model="indexForm.title" type="text" :placeholder="t('websites.indices_field_title_placeholder')" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_tag") }}</label>
-                  <div class="relative mt-1">
-                    <input
-                      v-model="indexTagQuery"
-                      type="text"
-                      :placeholder="t('websites.indices_select_tag')"
-                      class="w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono"
-                      autocomplete="off"
-                      @input="onTagInput"
-                      @focus="showTagDropdown = filteredTags.length > 0"
-                      @blur="onTagBlur"
-                    />
-                    <ul
-                      v-if="showTagDropdown && filteredTags.length > 0"
-                      class="absolute z-20 mt-0.5 max-h-48 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-md"
-                    >
-                      <li
-                        v-for="tag in filteredTags"
-                        :key="tag"
-                        class="cursor-pointer px-2 py-1 text-xs font-mono hover:bg-indigo-50"
-                        @mousedown.prevent="selectTag(tag)"
-                      >&lt;{{ tag }}&gt;</li>
-                    </ul>
-                  </div>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_key_attr") }}</label>
-                  <select v-model="indexForm.key_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
-                    <option :value="null">{{ t("websites.indices_none_use_text") }}</option>
-                    <option v-for="attr in availableAttrsForTag" :key="attr" :value="attr">@{{ attr }}</option>
-                  </select>
-                </div>
-                <div class="col-span-2">
-                  <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_subkey_attr") }}</label>
-                  <select v-model="indexForm.subkey_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
-                    <option :value="null">{{ t("websites.indices_none") }}</option>
-                    <option
-                      v-for="attr in availableAttrsForTag.filter(a => a !== indexForm.key_attribute)"
-                      :key="attr"
-                      :value="attr"
-                    >@{{ attr }}</option>
-                  </select>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <button
-                  class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
-                  @click="saveIndexForm(website.slug)"
-                >{{ t("common.save") }}</button>
-                <button
-                  class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                  @click="cancelIndexForm"
-                >{{ t("common.cancel") }}</button>
-              </div>
-            </div>
-
-            <!-- Indices list -->
-            <div v-if="website.indices.length === 0 && !showIndexForm" class="text-xs text-gray-400">
-              {{ t("websites.indices_empty") }}
-            </div>
-            <div v-else class="space-y-2">
-              <div
-                v-for="idx in website.indices"
-                :key="idx.id"
-                class="rounded border border-gray-200 bg-white p-3"
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-800">{{ idx.title }}</p>
-                    <p class="text-xs text-gray-500 font-mono">
-                      /index/{{ idx.label }}/ · &lt;{{ idx.tag }}&gt;
-                      <template v-if="idx.key_attribute"> · @{{ idx.key_attribute }}</template>
-                      <template v-if="idx.subkey_attribute"> / @{{ idx.subkey_attribute }}</template>
-                    </p>
-                    <p class="mt-0.5 text-xs text-gray-400">
-                      <template v-if="idx.last_built_at">
-                        {{ t("websites.indices_built_at") }}: {{ new Date(idx.last_built_at).toLocaleString() }}
-                      </template>
-                      <template v-else>
-                        <span class="text-amber-600">{{ t("websites.indices_not_built") }}</span>
-                      </template>
-                    </p>
-                  </div>
-                  <div class="flex shrink-0 gap-1">
-                    <button
-                      :disabled="rebuildingIndexId === idx.id"
-                      class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      @click="rebuildIndex(website.slug, idx.id)"
-                    >
-                      {{ rebuildingIndexId === idx.id ? t("common.loading") : t("websites.indices_rebuild") }}
-                    </button>
-                    <button
-                      class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                      @click="openEditIndexForm(idx)"
-                    >{{ t("common.edit") }}</button>
-                    <button
-                      :class="isDeletingIndexId === idx.id
-                        ? 'rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700'
-                        : 'rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50'"
-                      @click="deleteIndex(website.slug, idx.id)"
-                    >
-                      {{ isDeletingIndexId === idx.id ? t("common.confirm") : t("common.delete") }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab: CSS/JS -->
-          <div v-if="editTab === 'cssjs'" class="bg-indigo-50 p-4 space-y-5">
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_css") }}</label>
-              <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_css_hint") }}</p>
-              <textarea
-                v-model="(editForm.custom_css as string)"
-                rows="12"
-                spellcheck="false"
-                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_js") }}</label>
-              <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_js_hint") }}</p>
-              <label class="mb-3 flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  v-model="(editForm.include_jquery as boolean)"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span class="text-xs text-gray-700">{{ t("websites.cssjs_include_jquery") }}</span>
-              </label>
-              <textarea
-                v-model="(editForm.custom_js as string)"
-                rows="12"
-                spellcheck="false"
-                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <!-- Action bar -->
-          <div class="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
-            <template v-if="editTab !== 'pages' && editTab !== 'indices'">
-              <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
-              <button
-                :disabled="isEditing"
-                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-                @click="saveEdit(website.slug)"
-              >
-                {{ t("common.save") }}
-              </button>
-            </template>
-            <template v-else-if="editTab === 'pages'">
-              <p v-if="pagesError" class="mr-auto text-xs text-red-600">{{ pagesError }}</p>
-              <button
-                :disabled="isSavingPages"
-                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-                @click="savePages(website.slug)"
-              >
-                {{ t("websites.pages_save") }}
-              </button>
-            </template>
-            <button class="ml-auto rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEdit">
-              {{ t("common.cancel") }}
-            </button>
-          </div>
-        </div>
+        <!-- (edit form moved to full-screen modal below) -->
 
         <!-- Delete confirmation -->
         <div
@@ -1848,4 +1079,853 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
       />
     </div>
   </Teleport>
+  <!-- ── Edit modal (full-screen) ─────────────────────────────────────────── -->
+  <Teleport to="body">
+    <div
+      v-if="editingWebsite"
+      class="fixed inset-0 z-40 flex flex-col bg-white"
+      @keydown.esc="cancelEdit"
+    >
+      <!-- Modal header -->
+      <div class="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shadow-sm">
+        <div class="min-w-0">
+          <h2 class="truncate text-base font-semibold text-gray-900">{{ editingWebsite.title }}</h2>
+          <p class="font-mono text-xs text-gray-400">{{ editingWebsite.slug }}</p>
+        </div>
+        <button
+          class="ml-4 shrink-0 rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          @click="cancelEdit"
+          :title="t('common.cancel')"
+        >✕</button>
+      </div>
+      <!-- Tab bar -->
+      <div class="flex shrink-0 overflow-x-auto border-b border-gray-200 bg-white px-4">
+      <!-- Tab bar -->
+      <div class="flex border-b border-gray-200 bg-white px-4">
+        <button
+          v-for="tab in (['general', 'theme', 'pages', 'document', 'indices', 'cssjs'] as const)"
+          :key="tab"
+          class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
+          :class="editTab === tab
+            ? 'border-indigo-600 text-indigo-700'
+            : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="editTab = tab"
+        >
+          {{ t(`websites.tab_${tab}`) }}
+        </button>
+      </div>
+      </div>
+      <!-- Tab panels (scrollable) -->
+      <div class="flex-1 overflow-y-auto">
+
+      <!-- Tab: General -->
+      <div v-if="editTab === 'general'" class="bg-indigo-50 p-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_title") }}</label>
+            <input v-model="editForm.title" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_collection") }}</label>
+            <select v-model="editForm.collection_id" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+              <option :value="null">{{ t("websites.no_collection") }}</option>
+              <option v-for="col in publishedCollections" :key="col.id" :value="col.id">{{ col.title }}</option>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_description") }}</label>
+            <input v-model="editForm.description" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_rendering_mode") }}</label>
+            <select v-model="editForm.rendering_mode" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+              <option value="STATIC">{{ t("websites.mode_static") }}</option>
+              <option value="DYNAMIC">{{ t("websites.mode_dynamic") }}</option>
+              <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 pt-5">
+            <input :id="`edit-pub-${editingWebsite!.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
+            <label :for="`edit-pub-${editingWebsite!.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+          </div>
+
+          <!-- Metadata foldable panel -->
+          <div class="sm:col-span-2">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between rounded border border-gray-300 bg-white px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              :class="showMetaPanel ? 'rounded-b-none' : ''"
+              @click="showMetaPanel = !showMetaPanel"
+            >
+              <span>{{ t("websites.meta_section") }}</span>
+              <span class="text-gray-400">{{ showMetaPanel ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="showMetaPanel" class="rounded-b border border-t-0 border-gray-300 bg-white p-3 space-y-5">
+
+              <!-- Standard HTML meta -->
+              <div>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ t("websites.meta_html_section") }}</p>
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_description") }}</label>
+                    <textarea v-model="(editForm.meta_config as Record<string,string>).description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_keywords") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).keywords" type="text" placeholder="keyword1, keyword2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_subject") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('subject')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('subject', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('subject', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('subject')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_author") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('author')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('author')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('author', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('author', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('author')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_copyright") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).copyright" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_designer") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('designer')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('designer')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('designer', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('designer', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('designer')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_url") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).url" type="url" placeholder="https://www.example.com" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dublin Core meta -->
+              <div>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Dublin Core</p>
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_title") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).dc_title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_creator") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('dc_creator')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('dc_creator')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_creator', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_creator', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_creator')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_publisher") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('dc_publisher')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('dc_publisher')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_publisher', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_publisher', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_publisher')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_contributor") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('dc_contributor')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('dc_contributor')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_contributor', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_contributor', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_contributor')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_subject") }}</label>
+                    <div v-for="(_, idx) in getMetaArray('dc_subject')" :key="idx" class="mt-0.5 flex gap-1">
+                      <input :value="getMetaArray('dc_subject')[idx]" type="text" class="w-full rounded border border-gray-300 px-2 py-1 text-xs" @input="updateMetaArrayItem('dc_subject', idx, ($event.target as HTMLInputElement).value)" />
+                      <button type="button" class="px-1 text-xs text-red-500 hover:text-red-700" @click="removeMetaArrayItem('dc_subject', idx)">✕</button>
+                    </div>
+                    <button type="button" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800" @click="addMetaArrayItem('dc_subject')">+ {{ t("websites.meta_add_item") }}</button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_date") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).dc_date" type="text" placeholder="YYYY-MM-DD" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_description") }}</label>
+                    <textarea v-model="(editForm.meta_config as Record<string,string>).dc_description" rows="2" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs resize-none" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_type") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).dc_type" type="text" placeholder="e.g. Text, Dataset" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_format") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).dc_format" type="text" placeholder="e.g. text/html" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600">{{ t("websites.meta_dc_identifier") }}</label>
+                    <input v-model="(editForm.meta_config as Record<string,string>).dc_identifier" type="text" placeholder="URI or URL" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Theme -->
+      <div v-if="editTab === 'theme'" class="bg-indigo-50 p-4 space-y-5">
+        <!-- Colours -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.field_theme") }}</p>
+          <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_primary") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).primary_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_text") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).text_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_bg") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_doc_banner_bg") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_doc_banner_text") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+          </div>
+        </div>
+        <!-- Font family -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_font") }}</label>
+          <select v-model="(editForm.theme_config as Record<string, string>).font_family" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+            <option value='Georgia,"Times New Roman",serif'>Georgia (serif)</option>
+            <option value='"Palatino Linotype",Palatino,serif'>Palatino (serif)</option>
+            <option value='"Times New Roman",Times,serif'>Times New Roman (serif)</option>
+            <option value='Arial,Helvetica,sans-serif'>Arial (sans-serif)</option>
+            <option value='"Helvetica Neue",Helvetica,Arial,sans-serif'>Helvetica (sans-serif)</option>
+            <option value='Verdana,Geneva,sans-serif'>Verdana (sans-serif)</option>
+            <option value='"Trebuchet MS",Tahoma,Geneva,sans-serif'>Trebuchet MS (sans-serif)</option>
+            <option value='system-ui,-apple-system,BlinkMacSystemFont,sans-serif'>System UI</option>
+            <option value='"Courier New",Courier,monospace'>Courier New (monospace)</option>
+          </select>
+        </div>
+        <!-- Footer -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_footer_section") }}</p>
+          <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_footer_bg") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).footer_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.theme_footer_text") }}
+              <input v-model="(editForm.theme_config as Record<string, string>).footer_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" />
+            </label>
+          </div>
+        </div>
+        <!-- Header -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_section") }}</p>
+          <label class="flex items-center gap-2 text-xs text-gray-600">
+            <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).hide_header" class="rounded border-gray-300 text-indigo-600" />
+            {{ t("websites.theme_hide_header") }}
+          </label>
+          <div class="mt-2">
+            <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
+            <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+          </div>
+        </div>
+        <!-- Home layout -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
+          <div class="mb-3">
+            <label class="block text-xs text-gray-700">{{ t("websites.home_layout") }}</label>
+            <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-1 w-64 rounded border border-gray-300 px-3 py-1.5 text-sm">
+              <option value="single">{{ t("websites.layout_single") }}</option>
+              <option value="two_left">{{ t("websites.layout_two_left") }}</option>
+              <option value="two_right">{{ t("websites.layout_two_right") }}</option>
+              <option value="three">{{ t("websites.layout_three") }}</option>
+            </select>
+          </div>
+          <!-- Widget palette — drag chips into a column editor below -->
+          <div class="mb-2 flex items-center gap-2">
+            <span class="text-xs text-gray-400">{{ t("websites.theme_widgets") }}:</span>
+            <div
+              draggable="true"
+              class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
+              @dragstart="onWidgetDragStart($event, 'search-bar')"
+            >
+              &#128269; {{ t("websites.widget_search_bar") }}
+            </div>
+            <div
+              draggable="true"
+              class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
+              @dragstart="onWidgetDragStart($event, 'page-menu')"
+            >
+              &#128196; {{ t("websites.widget_page_menu") }}
+            </div>
+            <div
+              draggable="true"
+              class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing"
+              @dragstart="onWidgetDragStart($event, 'index-list')"
+            >
+              &#128203; {{ t("websites.widget_index_list") }}
+            </div>
+          </div>
+
+          <div
+            class="grid gap-3"
+            :class="(editForm.theme_config as Record<string,string>).home_layout === 'single'
+              ? 'grid-cols-1'
+              : (editForm.theme_config as Record<string,string>).home_layout === 'three'
+                ? 'grid-cols-3'
+                : 'grid-cols-2'"
+          >
+            <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+              <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" />
+            </div>
+            <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+              <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Pages — single unified ordered list -->
+      <div v-if="editTab === 'pages'" class="bg-gray-50 p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-xs font-semibold text-gray-700">{{ t("websites.pages_title") }}</p>
+          <button
+            class="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-indigo-100"
+            @click="openPageForm(editingWebsite!.slug)"
+          >
+            {{ t("websites.page_add") }}
+          </button>
+        </div>
+
+        <!-- Unified list: system pages + free pages, sorted by global sort_order -->
+        <ul class="mb-3 space-y-1">
+          <li
+            v-for="(entry, idx) in unifiedPages"
+            :key="entry.kind + '-' + (entry.systemId ?? entry.page?.slug)"
+            class="flex items-center justify-between rounded px-3 py-1.5 text-sm shadow-sm"
+            :class="[
+              entry.is_hidden ? 'opacity-60' : '',
+              entry.kind === 'system' ? 'bg-indigo-50' : (entry.is_hidden ? 'bg-gray-100' : 'bg-white'),
+            ]"
+          >
+            <div class="flex items-center gap-2">
+              <!-- ▲▼ reorder -->
+              <span class="flex flex-col">
+                <button
+                  class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                  :disabled="idx === 0"
+                  @click="moveUnifiedPage(idx, idx - 1)"
+                >▲</button>
+                <button
+                  class="leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                  :disabled="idx === unifiedPages.length - 1"
+                  @click="moveUnifiedPage(idx, idx + 1)"
+                >▼</button>
+              </span>
+              <!-- system badge -->
+              <span v-if="entry.kind === 'system'" class="rounded bg-indigo-100 px-1 py-0.5 text-xs font-medium text-indigo-500">sys</span>
+              <!-- title -->
+              <span :class="entry.is_hidden ? 'text-gray-400 line-through' : 'font-medium text-gray-800'">
+                {{ entry.title }}
+              </span>
+              <!-- slug (free pages only) -->
+              <span v-if="entry.kind === 'free'" class="font-mono text-xs text-gray-400">{{ entry.page?.slug }}</span>
+              <!-- hidden badge -->
+              <span v-if="entry.is_hidden" class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-500">
+                {{ t("websites.page_hidden") }}
+              </span>
+            </div>
+            <div class="flex gap-1">
+              <!-- Hide/Show: Browse, Search, free pages (not Home) -->
+              <button
+                v-if="entry.systemId !== 'home'"
+                class="rounded px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                :class="entry.is_hidden ? 'text-amber-600' : 'text-gray-500'"
+                @click="toggleUnifiedPageHidden(idx)"
+              >
+                {{ entry.is_hidden ? t("websites.page_show") : t("websites.page_hide") }}
+              </button>
+              <!-- Edit / Delete: free pages only -->
+              <button
+                v-if="entry.kind === 'free'"
+                class="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+                @click="startEditPage(editingWebsite!.slug, entry.page!)"
+              >
+                {{ t("common.edit") }}
+              </button>
+              <button
+                v-if="entry.kind === 'free'"
+                class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
+                @click="deletePage(editingWebsite!.slug, entry.page!.slug)"
+              >
+                {{ t("common.delete") }}
+              </button>
+            </div>
+          </li>
+        </ul>
+
+        <!-- Free page create / edit form -->
+        <div v-if="showPageForm === editingWebsite!.slug" class="rounded border border-indigo-200 bg-white p-3">
+          <p class="mb-2 text-xs font-semibold text-indigo-800">
+            {{ editingPage ? t("websites.page_edit_title") : t("websites.page_create_title") }}
+          </p>
+          <div v-if="!editingPage" class="mb-2 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
+                <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
+                <input v-model="newPage.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+              </div>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+              <WysiwygEditor v-model="newPage.content_md" />
+            </div>
+          </div>
+          <div v-else class="mb-2 space-y-2">
+            <div>
+              <label class="block text-xs text-gray-700">{{ t("websites.field_title") }}</label>
+              <input v-model="pageEditForm.title" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
+              <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
+            </div>
+          </div>
+          <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>
+          <div class="flex gap-2">
+            <button
+              :disabled="isSubmittingPage"
+              class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
+              @click="submitPage(editingWebsite!.slug)"
+            >
+              {{ isSubmittingPage ? t("common.loading") : t("common.save") }}
+            </button>
+            <button class="rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100" @click="cancelPageForm">
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Document -->
+      <div v-if="editTab === 'document'" class="bg-indigo-50 p-4 space-y-5">
+        <!-- XSLT source -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_xslt_section") }}</p>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="default" class="text-indigo-600" />
+              {{ t("websites.doc_xslt_source_default") }}
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="custom" class="text-indigo-600" />
+              {{ t("websites.doc_xslt_source_custom") }}
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="url" class="text-indigo-600" />
+              {{ t("websites.doc_xslt_source_url") }}
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="catalog" class="text-indigo-600" />
+              {{ t("websites.doc_xslt_source_catalog") }}
+            </label>
+          </div>
+
+          <!-- Upload + inline CodeMirror editor.
+               v-show (not v-if) keeps the container in the DOM whenever the
+               Document tab is open, so CM5 can initialise once at tab-open
+               time. autoRefresh:true re-measures when display:none is lifted. -->
+          <div v-show="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
+            <input
+              id="xslt-file-input"
+              type="file"
+              accept=".xsl,.xslt,.xml"
+              class="hidden"
+              @change="onXsltFileChange"
+            />
+            <div class="flex items-center gap-2">
+              <label
+                for="xslt-file-input"
+                class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                {{ t("websites.doc_xslt_filename") }}…
+              </label>
+              <span class="text-xs text-gray-500">
+                {{ xsltFileName || t("websites.doc_xslt_no_file") }}
+              </span>
+              <button
+                v-if="xsltFileName"
+                type="button"
+                class="text-xs text-red-500 hover:text-red-700"
+                @click="clearXsltFile"
+              >
+                {{ t("websites.doc_xslt_clear") }}
+              </button>
+            </div>
+            <!-- Toolbar row: fullscreen toggle -->
+            <div class="flex justify-end">
+              <button
+                type="button"
+                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                @click="xsltCm.toggleFullscreen()"
+              >
+                {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
+              </button>
+            </div>
+            <!-- CodeMirror XML editor — edits xslt_config.content directly.
+                 Named callback ref instead of plain string ref: Vue does not
+                 reliably update a Ref<HTMLElement> when the element lives
+                 inside a v-for + nested v-if/v-show chain. -->
+            <div
+              :ref="onXsltEditorRef"
+              class="overflow-hidden rounded border border-gray-300"
+              style="height: 260px;"
+            />
+          </div>
+
+          <!-- Catalog -->
+          <div v-if="(editForm.xslt_config as XsltConfig).source === 'catalog'" class="mt-3">
+            <select
+              v-model="(editForm.xslt_config as XsltConfig).catalog_id"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+            >
+              <option :value="null">{{ t("websites.doc_xslt_catalog_placeholder") }}</option>
+              <option v-for="tpl in xsltStore.templates" :key="tpl.id" :value="tpl.id">
+                {{ tpl.name }}
+                <template v-if="tpl.processor !== 'lxml'"> ({{ tpl.processor }})</template>
+              </option>
+            </select>
+            <p v-if="xsltStore.templates.length === 0" class="mt-1 text-xs text-gray-400">
+              {{ t("settings.xslt_templates_empty") }}
+            </p>
+          </div>
+
+          <!-- URL -->
+          <div v-if="(editForm.xslt_config as XsltConfig).source === 'url'" class="mt-3">
+            <input
+              v-model="(editForm.xslt_config as XsltConfig).url"
+              type="url"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+              :placeholder="t('websites.doc_xslt_url_placeholder')"
+            />
+          </div>
+        </div>
+
+        <!-- Processor -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700">{{ t("websites.doc_xslt_processor") }}</label>
+          <select
+            v-model="(editForm.xslt_config as XsltConfig).processor"
+            class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+          >
+            <option value="lxml">{{ t("websites.doc_xslt_processor_lxml") }}</option>
+            <option value="saxon" disabled>{{ t("websites.doc_xslt_processor_saxon") }}</option>
+          </select>
+        </div>
+
+        <!-- Preview -->
+        <div class="border-t border-indigo-100 pt-4">
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.doc_preview_section") }}</p>
+          <div v-if="!editingWebsite!.collection_id" class="text-xs text-gray-400">
+            {{ t("websites.doc_preview_no_collection") }}
+          </div>
+          <div v-else class="space-y-2">
+            <div class="flex items-center gap-2">
+              <select
+                v-model="previewDocFilename"
+                class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">{{ t("websites.doc_preview_select_doc") }}</option>
+                <option
+                  v-for="doc in collectionStore.documents"
+                  :key="doc.filename"
+                  :value="doc.filename"
+                >
+                  {{ doc.filename }}
+                </option>
+              </select>
+              <button
+                :disabled="!previewDocFilename || isPreviewing"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                @click="previewDocument(editingWebsite!.slug)"
+              >
+                {{ isPreviewing ? t("common.loading") : t("websites.doc_preview_button") }}
+              </button>
+            </div>
+            <p v-if="previewError" class="text-xs text-red-600">{{ previewError }}</p>
+            <iframe
+              v-if="previewBlobUrl"
+              :src="previewBlobUrl"
+              class="w-full rounded border border-gray-200 bg-white"
+              style="height: 420px;"
+              sandbox="allow-same-origin"
+              title="Document preview"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Indices -->
+      <div v-if="editTab === 'indices'" class="bg-gray-50 p-4 space-y-4">
+        <!-- Tags section -->
+        <div class="rounded border border-gray-200 bg-white p-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_tags_title") }}</p>
+            <button
+              :disabled="isRefreshingTags || !editingWebsite!.collection_id"
+              class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              @click="refreshTags(editingWebsite!.slug)"
+            >
+              {{ isRefreshingTags ? t("common.loading") : t("websites.indices_refresh_tags") }}
+            </button>
+          </div>
+          <p v-if="!editingWebsite!.collection_id" class="text-xs text-gray-400">{{ t("websites.indices_no_collection") }}</p>
+          <p v-else-if="!editingWebsite!.distinct_tags" class="text-xs text-gray-400">{{ t("websites.indices_tags_empty") }}</p>
+          <div v-else class="flex flex-wrap gap-1">
+            <span
+              v-for="tag in availableTags"
+              :key="tag"
+              class="rounded bg-indigo-50 px-2 py-0.5 text-xs font-mono text-indigo-700"
+            >&lt;{{ tag }}&gt;</span>
+          </div>
+          <p v-if="editingWebsite!.tags_refreshed_at" class="mt-1.5 text-xs text-gray-400">
+            {{ t("websites.indices_tags_updated") }}: {{ new Date(editingWebsite!.tags_refreshed_at).toLocaleString() }}
+          </p>
+        </div>
+
+        <!-- Index list -->
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-gray-700">{{ t("websites.indices_list_title") }}</p>
+          <div class="flex gap-2">
+            <button
+              :disabled="isRebuildingAll || editingWebsite!.indices.length === 0"
+              class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              @click="rebuildAllIndices(editingWebsite!.slug)"
+            >
+              {{ isRebuildingAll ? t("common.loading") : t("websites.indices_rebuild_all") }}
+            </button>
+            <button
+              class="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
+              @click="openAddIndexForm"
+            >
+              {{ t("websites.indices_add") }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="indexError" class="text-xs text-red-600">{{ indexError }}</p>
+
+        <!-- Add / edit form -->
+        <div v-if="showIndexForm" class="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-3">
+          <p class="text-xs font-semibold text-gray-700">
+            {{ editingIndexId ? t("websites.indices_edit") : t("websites.indices_new") }}
+          </p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_label") }}</label>
+              <input v-model="indexForm.label" type="text" placeholder="persons" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_title") }}</label>
+              <input v-model="indexForm.title" type="text" :placeholder="t('websites.indices_field_title_placeholder')" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_tag") }}</label>
+              <div class="relative mt-1">
+                <input
+                  v-model="indexTagQuery"
+                  type="text"
+                  :placeholder="t('websites.indices_select_tag')"
+                  class="w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono"
+                  autocomplete="off"
+                  @input="onTagInput"
+                  @focus="showTagDropdown = filteredTags.length > 0"
+                  @blur="onTagBlur"
+                />
+                <ul
+                  v-if="showTagDropdown && filteredTags.length > 0"
+                  class="absolute z-20 mt-0.5 max-h-48 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-md"
+                >
+                  <li
+                    v-for="tag in filteredTags"
+                    :key="tag"
+                    class="cursor-pointer px-2 py-1 text-xs font-mono hover:bg-indigo-50"
+                    @mousedown.prevent="selectTag(tag)"
+                  >&lt;{{ tag }}&gt;</li>
+                </ul>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_key_attr") }}</label>
+              <select v-model="indexForm.key_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                <option :value="null">{{ t("websites.indices_none_use_text") }}</option>
+                <option v-for="attr in availableAttrsForTag" :key="attr" :value="attr">@{{ attr }}</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700">{{ t("websites.indices_field_subkey_attr") }}</label>
+              <select v-model="indexForm.subkey_attribute" class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs">
+                <option :value="null">{{ t("websites.indices_none") }}</option>
+                <option
+                  v-for="attr in availableAttrsForTag.filter(a => a !== indexForm.key_attribute)"
+                  :key="attr"
+                  :value="attr"
+                >@{{ attr }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
+              @click="saveIndexForm(editingWebsite!.slug)"
+            >{{ t("common.save") }}</button>
+            <button
+              class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              @click="cancelIndexForm"
+            >{{ t("common.cancel") }}</button>
+          </div>
+        </div>
+
+        <!-- Indices list -->
+        <div v-if="editingWebsite!.indices.length === 0 && !showIndexForm" class="text-xs text-gray-400">
+          {{ t("websites.indices_empty") }}
+        </div>
+        <div v-else class="space-y-2">
+          <div
+            v-for="idx in editingWebsite!.indices"
+            :key="idx.id"
+            class="rounded border border-gray-200 bg-white p-3"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-800">{{ idx.title }}</p>
+                <p class="text-xs text-gray-500 font-mono">
+                  /index/{{ idx.label }}/ · &lt;{{ idx.tag }}&gt;
+                  <template v-if="idx.key_attribute"> · @{{ idx.key_attribute }}</template>
+                  <template v-if="idx.subkey_attribute"> / @{{ idx.subkey_attribute }}</template>
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400">
+                  <template v-if="idx.last_built_at">
+                    {{ t("websites.indices_built_at") }}: {{ new Date(idx.last_built_at).toLocaleString() }}
+                  </template>
+                  <template v-else>
+                    <span class="text-amber-600">{{ t("websites.indices_not_built") }}</span>
+                  </template>
+                </p>
+              </div>
+              <div class="flex shrink-0 gap-1">
+                <button
+                  :disabled="rebuildingIndexId === idx.id"
+                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  @click="rebuildIndex(editingWebsite!.slug, idx.id)"
+                >
+                  {{ rebuildingIndexId === idx.id ? t("common.loading") : t("websites.indices_rebuild") }}
+                </button>
+                <button
+                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                  @click="openEditIndexForm(idx)"
+                >{{ t("common.edit") }}</button>
+                <button
+                  :class="isDeletingIndexId === idx.id
+                    ? 'rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700'
+                    : 'rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50'"
+                  @click="deleteIndex(editingWebsite!.slug, idx.id)"
+                >
+                  {{ isDeletingIndexId === idx.id ? t("common.confirm") : t("common.delete") }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: CSS/JS -->
+      <div v-if="editTab === 'cssjs'" class="bg-indigo-50 p-4 space-y-5">
+        <div>
+          <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_css") }}</label>
+          <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_css_hint") }}</p>
+          <textarea
+            v-model="(editForm.custom_css as string)"
+            rows="12"
+            spellcheck="false"
+            class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold text-gray-700">{{ t("websites.cssjs_custom_js") }}</label>
+          <p class="mb-1 text-xs text-gray-500">{{ t("websites.cssjs_js_hint") }}</p>
+          <label class="mb-3 flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              v-model="(editForm.include_jquery as boolean)"
+              class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span class="text-xs text-gray-700">{{ t("websites.cssjs_include_jquery") }}</span>
+          </label>
+          <textarea
+            v-model="(editForm.custom_js as string)"
+            rows="12"
+            spellcheck="false"
+            class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      </div>
+      <!-- Action bar -->
+      <div class="border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
+        <template v-if="editTab !== 'pages' && editTab !== 'indices'">
+          <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
+          <button
+            :disabled="isEditing"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+            @click="saveEdit(editingWebsite!.slug)"
+          >
+            {{ t("common.save") }}
+          </button>
+        </template>
+        <template v-else-if="editTab === 'pages'">
+          <p v-if="pagesError" class="mr-auto text-xs text-red-600">{{ pagesError }}</p>
+          <button
+            :disabled="isSavingPages"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+            @click="savePages(editingWebsite!.slug)"
+          >
+            {{ t("websites.pages_save") }}
+          </button>
+        </template>
+        <button class="ml-auto rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100" @click="cancelEdit">
+          {{ t("common.cancel") }}
+        </button>
+      </div>
+    </div>
+  </Teleport>
+
 </template>
