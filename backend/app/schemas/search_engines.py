@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.website import BuildStatus
+
 
 # ── Nested collection info embedded in responses ──────────────────────────────
 
@@ -36,6 +38,9 @@ class SearchEngineResponse(BaseModel):
     slug: str
     title: str
     xslt_template_id: uuid.UUID | None
+    build_status: BuildStatus
+    last_build_at: datetime | None
+    build_error: str | None
     collections: list[SearchEngineCollectionItem]
     created_by: uuid.UUID | None
     created_at: datetime

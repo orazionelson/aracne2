@@ -631,7 +631,17 @@
     "error_title_required": "Title is required.",
     "error_slug_required": "Slug is required.",
     "error_save": "Failed to save. Please try again.",
-    "error_delete": "Failed to delete. Please try again."
+    "error_delete": "Failed to delete. Please try again.",
+    "build": "Build page",
+    "open": "Open",
+    "built_at": "Built",
+    "build_error_short": "Build error",
+    "build_status_idle": "idle",
+    "build_status_pending": "pending",
+    "build_status_building": "building",
+    "build_status_done": "done",
+    "build_status_failed": "failed",
+    "error_build": "Build failed. Please try again."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

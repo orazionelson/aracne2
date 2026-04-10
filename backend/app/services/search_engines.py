@@ -1,6 +1,8 @@
 """Business logic for search engines."""
 
+import textwrap
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -8,10 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.exceptions import ConflictError, NotFoundError, ExternalServiceError
 from app.db.existdb import existdb_client
+from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
 from app.models.search_engine import SearchEngine, SearchEngineCollection
+from app.models.website import BuildStatus
 from app.models.xslt_template import XsltTemplate
 from app.schemas.search_engines import (
     SearchEngineCollectionItem,
@@ -59,6 +64,9 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         slug=engine.slug,
         title=engine.title,
         xslt_template_id=engine.xslt_template_id,
+        build_status=engine.build_status,
+        last_build_at=engine.last_build_at,
+        build_error=engine.build_error,
         collections=col_items,
         created_by=engine.created_by,
         created_at=engine.created_at,
@@ -316,3 +324,212 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
     )
     cols = list(result.scalars().all())
     return [{"id": str(c.id), "slug": c.slug, "title": c.title} for c in cols]
+
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+
+def _render_search_page(slug: str, title: str) -> str:
+    """Generate the standalone HTML search page for a search engine.
+
+    The page is self-contained: a search form whose JS calls the public
+    API endpoint and renders results inline.  No external JS/CSS dependencies.
+    """
+    api_endpoint = f"/api/v1/search-engines/{slug}/search"
+    escaped_title = title.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+
+    return textwrap.dedent(f"""\
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>{escaped_title}</title>
+          <style>
+            *, *::before, *::after {{ box-sizing: border-box; }}
+            body {{
+              font-family: system-ui, -apple-system, sans-serif;
+              margin: 0;
+              background: #f9fafb;
+              color: #111827;
+            }}
+            header {{
+              background: #1e3a5f;
+              color: #fff;
+              padding: 1.25rem 2rem;
+            }}
+            header h1 {{ margin: 0; font-size: 1.4rem; font-weight: 600; }}
+            main {{ max-width: 800px; margin: 2rem auto; padding: 0 1.5rem; }}
+            #search-form {{
+              display: flex;
+              gap: 0.5rem;
+              margin-bottom: 1.5rem;
+            }}
+            #q {{
+              flex: 1;
+              padding: 0.6rem 1rem;
+              border: 1px solid #d1d5db;
+              border-radius: 0.375rem;
+              font-size: 1rem;
+            }}
+            #q:focus {{ outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }}
+            button[type=submit] {{
+              padding: 0.6rem 1.25rem;
+              background: #1e3a5f;
+              color: #fff;
+              border: none;
+              border-radius: 0.375rem;
+              font-size: 1rem;
+              cursor: pointer;
+            }}
+            button[type=submit]:hover {{ background: #2d4f7f; }}
+            #status {{ font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem; }}
+            article {{
+              background: #fff;
+              border: 1px solid #e5e7eb;
+              border-radius: 0.5rem;
+              padding: 1rem 1.25rem;
+              margin-bottom: 0.75rem;
+            }}
+            article h3 {{
+              margin: 0 0 0.4rem;
+              font-size: 1rem;
+              color: #1e3a5f;
+            }}
+            article .meta {{
+              font-size: 0.75rem;
+              color: #9ca3af;
+              margin-bottom: 0.5rem;
+            }}
+            article p {{ margin: 0; font-size: 0.9rem; color: #374151; line-height: 1.5; }}
+          </style>
+        </head>
+        <body>
+          <header><h1>{escaped_title}</h1></header>
+          <main>
+            <form id="search-form" role="search">
+              <input
+                type="search"
+                id="q"
+                name="q"
+                placeholder="Search..."
+                autocomplete="off"
+                autofocus
+              />
+              <button type="submit">Search</button>
+            </form>
+            <div id="status"></div>
+            <div id="results" role="region" aria-live="polite"></div>
+          </main>
+          <script>
+            (function () {{
+              var API = {api_endpoint!r};
+              var form = document.getElementById('search-form');
+              var qInput = document.getElementById('q');
+              var statusEl = document.getElementById('status');
+              var resultsEl = document.getElementById('results');
+
+              function escapeHtml(str) {{
+                return String(str)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+              }}
+
+              function renderResults(data) {{
+                if (data.total === 0) {{
+                  statusEl.textContent = 'No results for "' + escapeHtml(data.query) + '".';
+                  resultsEl.innerHTML = '';
+                  return;
+                }}
+                statusEl.textContent = data.total + ' result' + (data.total !== 1 ? 's' : '') +
+                  ' for "' + escapeHtml(data.query) + '"';
+                resultsEl.innerHTML = data.hits.map(function (h) {{
+                  return '<article>' +
+                    '<h3>' + escapeHtml(h.filename) + '</h3>' +
+                    '<div class="meta">' + escapeHtml(h.collection_slug) + '</div>' +
+                    '<p>' + escapeHtml(h.kwic) + '</p>' +
+                    '</article>';
+                }}).join('');
+              }}
+
+              form.addEventListener('submit', function (e) {{
+                e.preventDefault();
+                var q = qInput.value.trim();
+                if (!q) return;
+                statusEl.textContent = 'Searching\u2026';
+                resultsEl.innerHTML = '';
+                fetch(API + '?q=' + encodeURIComponent(q))
+                  .then(function (r) {{ return r.json(); }})
+                  .then(function (json) {{ renderResults(json.data); }})
+                  .catch(function () {{ statusEl.textContent = 'Search error. Please try again.'; }});
+              }});
+
+              // Auto-search if ?q= is in the URL.
+              var urlQ = new URLSearchParams(location.search).get('q');
+              if (urlQ) {{
+                qInput.value = urlQ;
+                form.dispatchEvent(new Event('submit'));
+              }}
+            }})();
+          </script>
+        </body>
+        </html>
+    """)
+
+
+async def _do_build(slug: str) -> None:
+    """Background task: generate the search page HTML and write it to disk."""
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(
+                select(SearchEngine)
+                .where(SearchEngine.slug == slug)
+                .options(selectinload(SearchEngine.collections))
+            )
+            engine = result.scalar_one_or_none()
+            if engine is None:
+                return
+
+            engine.build_status = BuildStatus.building
+            await db.commit()
+
+            html = _render_search_page(engine.slug, engine.title)
+
+            out_dir = settings.search_engines_root / slug
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "index.html").write_text(html, encoding="utf-8")
+
+            engine.build_status = BuildStatus.done
+            engine.last_build_at = datetime.now(UTC)
+            engine.build_error = None
+            await db.commit()
+            logger.info("search_engine_build_done", slug=slug)
+
+        except Exception as exc:
+            logger.error("search_engine_build_failed", slug=slug, error=str(exc))
+            try:
+                engine.build_status = BuildStatus.failed
+                engine.build_error = str(exc)
+                await db.commit()
+            except Exception:
+                pass
+
+
+async def trigger_build(db: AsyncSession, slug: str) -> SearchEngineResponse:
+    """Mark the search engine as pending and return immediately.
+
+    The caller is responsible for scheduling _do_build() as a background task.
+    """
+    engine = await _get_engine_or_404(db, slug)
+    if engine.build_status == BuildStatus.building:
+        raise ConflictError("Build already in progress")
+
+    engine.build_status = BuildStatus.pending
+    engine.build_error = None
+    await db.commit()
+    await db.refresh(engine, ["collections"])
+
+    col_ids = [row.collection_id for row in engine.collections]
+    collections = await _load_collections(db, col_ids)
+    return _to_response(engine, collections)

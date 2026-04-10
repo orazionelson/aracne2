@@ -4,11 +4,12 @@ import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.models.website import BuildStatus
 
 
 def _now() -> datetime:
@@ -30,6 +31,16 @@ class SearchEngine(Base):
         ForeignKey("xslt_templates.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Build state — reuses the website_build_status PostgreSQL enum type.
+    build_status: Mapped[BuildStatus] = mapped_column(
+        sa.Enum(BuildStatus, name="website_build_status", create_type=False),
+        nullable=False,
+        default=BuildStatus.idle,
+    )
+    last_build_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    build_error: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

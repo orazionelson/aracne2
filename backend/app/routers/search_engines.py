@@ -9,17 +9,24 @@ GET    /search-engines/{slug}                get a search engine
 PUT    /search-engines/{slug}                update a search engine
 DELETE /search-engines/{slug}                delete a search engine
 GET    /search-engines/public-collections    list published+public collections
+POST   /search-engines/{slug}/build          trigger HTML page build
 
 Public [pub]:
+GET    /search-pages/{slug}/                 serve built HTML search page
 GET    /search-engines/{slug}/search         full-text search (?q=...&collections=...&max_results=...)
 """
 
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+import asyncio
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError
+from app.config import settings
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.postgres import get_async_session
 from app.middleware.acl import ROLE_LEVEL, get_current_user
 from app.middleware.rate_limiter import limiter
@@ -115,6 +122,32 @@ async def delete_search_engine(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
     await svc.delete_search_engine(db, slug)
+
+
+# ── Build endpoint [D+] ──────────────────────────────────────────────────────
+
+@router.post("/search-engines/{slug}/build", response_model=None)
+async def build_search_engine(
+    slug: str,
+    background_tasks: BackgroundTasks,
+    _user: DesignerPlus,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict:
+    """Trigger an async HTML build for the search engine page."""
+    engine = await svc.trigger_build(db, slug)
+    background_tasks.add_task(svc._do_build, slug)
+    return {"data": engine.model_dump(mode="json")}
+
+
+# ── Public page serve endpoint [pub] ─────────────────────────────────────────
+
+@router.get("/search-pages/{slug}/", response_class=HTMLResponse)
+async def serve_search_page(slug: str) -> FileResponse:
+    """Serve the built HTML search page for the given search engine slug."""
+    index = settings.search_engines_root / slug / "index.html"
+    if not index.is_file():
+        raise NotFoundError(f"Search page for '{slug}' has not been built yet")
+    return FileResponse(str(index), media_type="text/html")
 
 
 # ── Public search endpoint [pub] ──────────────────────────────────────────────

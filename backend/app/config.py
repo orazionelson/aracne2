@@ -111,6 +111,11 @@ class Settings(BaseSettings):
     # Serve via nginx in production: location /sites/ { alias /app/sites/; }
     websites_root: Path = Path("/app/sites")
 
+    # Search engines HTML root — built search pages are written here.
+    # Each engine occupies a subdirectory named after its slug.
+    # Serve via nginx in production: location /search-pages/ { alias /app/search-pages/; }
+    search_engines_root: Path = Path("/app/search-pages")
+
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"
     admin_email: str = "admin@example.com"

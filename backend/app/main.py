@@ -69,8 +69,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
 
-    # Ensure the generated-sites directory exists before the router mounts it.
+    # Ensure the generated-sites and search-pages directories exist.
     settings.websites_root.mkdir(parents=True, exist_ok=True)
+    settings.search_engines_root.mkdir(parents=True, exist_ok=True)
 
     # Start periodic background jobs (audit log + session cleanup)
     register_jobs()

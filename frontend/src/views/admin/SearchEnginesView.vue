@@ -59,6 +59,14 @@
             <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
               {{ engine.slug }}
             </code>
+            <!-- Build status badge -->
+            <span
+              v-if="engine.build_status !== 'idle'"
+              :class="buildBadgeClass(engine.build_status)"
+              class="rounded-full px-2 py-0.5 text-xs font-medium"
+            >
+              {{ t(`search_engines.build_status_${engine.build_status}`) }}
+            </span>
           </div>
           <div class="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
             <span>
@@ -71,17 +79,33 @@
             <span v-if="engine.xslt_template_id" class="italic">
               {{ t("search_engines.xslt_assigned") }}
             </span>
+            <span v-if="engine.last_build_at" class="text-gray-400">
+              {{ t("search_engines.built_at") }}: {{ formatDate(engine.last_build_at) }}
+            </span>
+            <span v-if="engine.build_error" class="text-red-500" :title="engine.build_error">
+              {{ t("search_engines.build_error_short") }}
+            </span>
           </div>
         </div>
 
-        <!-- Public search URL -->
+        <!-- Build -->
+        <button
+          :disabled="engine.build_status === 'building' || engine.build_status === 'pending'"
+          class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          @click="triggerBuild(engine.slug)"
+        >
+          {{ t("search_engines.build") }}
+        </button>
+
+        <!-- Open built page -->
         <a
-          :href="`/api/v1/search-engines/${engine.slug}/search?q=test`"
+          v-if="engine.build_status === 'done'"
+          :href="`/api/v1/search-pages/${engine.slug}/`"
           target="_blank"
           rel="noopener"
           class="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
         >
-          {{ t("search_engines.test") }}
+          {{ t("search_engines.open") }}
         </a>
 
         <!-- Edit -->
@@ -256,7 +280,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useSearchEngineStore } from "@/stores/search_engines";
+import { useSearchEngineStore, type SearchEngineBuildStatus } from "@/stores/search_engines";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 
 const { t } = useI18n();
@@ -360,6 +384,40 @@ async function saveForm(): Promise<void> {
     formError.value = msg;
   } finally {
     saving.value = false;
+  }
+}
+
+// ── Build ─────────────────────────────────────────────────────────────────────
+
+function buildBadgeClass(status: SearchEngineBuildStatus): string {
+  switch (status) {
+    case "done":     return "bg-green-100 text-green-700";
+    case "failed":   return "bg-red-100 text-red-700";
+    case "building": return "bg-blue-100 text-blue-700";
+    case "pending":  return "bg-yellow-100 text-yellow-700";
+    default:         return "bg-gray-100 text-gray-500";
+  }
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString();
+}
+
+async function triggerBuild(slug: string): Promise<void> {
+  try {
+    await store.build(slug);
+    // Poll until done or failed (max ~30 s at 2 s intervals).
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      await store.fetchAll();
+      const engine = store.engines.find((e) => e.slug === slug);
+      if (!engine || engine.build_status === "done" || engine.build_status === "failed" || attempts >= 15) {
+        clearInterval(poll);
+      }
+    }, 2000);
+  } catch (err: unknown) {
+    window.alert(err instanceof Error ? err.message : t("search_engines.error_build"));
   }
 }
 

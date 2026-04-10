@@ -631,7 +631,17 @@
     "error_title_required": "Il titolo è obbligatorio.",
     "error_slug_required": "Lo slug è obbligatorio.",
     "error_save": "Salvataggio fallito. Riprova.",
-    "error_delete": "Eliminazione fallita. Riprova."
+    "error_delete": "Eliminazione fallita. Riprova.",
+    "build": "Costruisci pagina",
+    "open": "Apri",
+    "built_at": "Costruito",
+    "build_error_short": "Errore build",
+    "build_status_idle": "inattivo",
+    "build_status_pending": "in coda",
+    "build_status_building": "in costruzione",
+    "build_status_done": "completato",
+    "build_status_failed": "fallito",
+    "error_build": "Build fallita. Riprova."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

@@ -8,11 +8,16 @@ export interface SearchEngineCollection {
   title: string;
 }
 
+export type SearchEngineBuildStatus = "idle" | "pending" | "building" | "done" | "failed";
+
 export interface SearchEngine {
   id: string;
   slug: string;
   title: string;
   xslt_template_id: string | null;
+  build_status: SearchEngineBuildStatus;
+  last_build_at: string | null;
+  build_error: string | null;
   collections: SearchEngineCollection[];
   created_by: string | null;
   created_at: string;
@@ -86,6 +91,14 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     engines.value = engines.value.filter((e) => e.slug !== slug);
   }
 
+  async function build(slug: string): Promise<SearchEngine> {
+    const res = await api.post(`/search-engines/${slug}/build`);
+    const updated = res.data.data as SearchEngine;
+    const idx = engines.value.findIndex((e) => e.slug === slug);
+    if (idx !== -1) engines.value[idx] = updated;
+    return updated;
+  }
+
   return {
     engines,
     publicCollections,
@@ -96,5 +109,6 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     create,
     update,
     remove,
+    build,
   };
 });
