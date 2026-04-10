@@ -126,6 +126,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/admin/search-engines",
+      name: "admin-search-engines",
+      component: () => import("@/views/admin/SearchEnginesView.vue"),
+      // [D+]: Designer, EditorInChief, Admin.
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/entities",
       name: "entities",
       component: () => import("@/views/EntitiesView.vue"),

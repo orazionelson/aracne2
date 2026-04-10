@@ -1,0 +1,386 @@
+<template>
+  <div class="mx-auto max-w-5xl px-4 py-8">
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+      <h1 class="text-2xl font-semibold text-gray-900">{{ t("search_engines.title") }}</h1>
+      <button
+        class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        @click="openCreate"
+      >
+        + {{ t("search_engines.new") }}
+      </button>
+    </div>
+
+    <!-- Filter toolbar -->
+    <div class="mb-4 flex items-center gap-3">
+      <input
+        v-model="filterName"
+        type="search"
+        :placeholder="t('search_engines.filter_placeholder')"
+        class="w-64 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
+      />
+      <span class="text-xs text-gray-400">
+        {{ filteredEngines.length }} / {{ store.engines.length }}
+      </span>
+    </div>
+
+    <!-- Loading -->
+    <div v-if="store.loading" class="py-12 text-center text-sm text-gray-400">
+      {{ t("common.loading") }}
+    </div>
+
+    <!-- Empty state — no engines at all -->
+    <div
+      v-else-if="store.engines.length === 0"
+      class="rounded border border-dashed border-gray-300 py-16 text-center text-sm text-gray-400"
+    >
+      {{ t("search_engines.empty") }}
+    </div>
+
+    <!-- Empty state — filter no match -->
+    <div
+      v-else-if="filteredEngines.length === 0"
+      class="rounded border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400"
+    >
+      {{ t("search_engines.no_results") }}
+    </div>
+
+    <!-- Engine list -->
+    <div v-else class="divide-y divide-gray-200 rounded border border-gray-200 bg-white">
+      <div
+        v-for="engine in filteredEngines"
+        :key="engine.slug"
+        class="flex items-center gap-4 px-4 py-3"
+      >
+        <!-- Info -->
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-gray-900">{{ engine.title }}</span>
+            <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+              {{ engine.slug }}
+            </code>
+          </div>
+          <div class="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
+            <span>
+              {{
+                engine.collections.length === 0
+                  ? t("search_engines.no_collections_assigned")
+                  : t("search_engines.collections_count", { n: engine.collections.length })
+              }}
+            </span>
+            <span v-if="engine.xslt_template_id" class="italic">
+              {{ t("search_engines.xslt_assigned") }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Public search URL -->
+        <a
+          :href="`/api/v1/search-engines/${engine.slug}/search?q=test`"
+          target="_blank"
+          rel="noopener"
+          class="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+        >
+          {{ t("search_engines.test") }}
+        </a>
+
+        <!-- Edit -->
+        <button
+          class="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+          @click="openEdit(engine.slug)"
+        >
+          {{ t("search_engines.edit") }}
+        </button>
+
+        <!-- Delete -->
+        <button
+          class="rounded bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200"
+          @click="confirmDelete(engine.slug, engine.title)"
+        >
+          {{ t("search_engines.delete") }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Full-screen modal ──────────────────────────────────────────────────── -->
+  <Teleport to="body">
+    <div
+      v-if="modalOpen"
+      class="fixed inset-0 z-50 flex flex-col bg-white"
+      role="dialog"
+      aria-modal="true"
+    >
+      <!-- Modal header -->
+      <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">
+            {{ isCreating ? t("search_engines.modal_create_title") : t("search_engines.modal_edit_title") }}
+          </h2>
+          <p v-if="!isCreating" class="mt-0.5 text-xs text-gray-400">
+            {{ editingSlug }}
+          </p>
+        </div>
+        <button
+          class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          @click="closeModal"
+        >
+          <span class="sr-only">Close</span>
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fill-rule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal content -->
+      <div class="flex-1 overflow-y-auto px-6 py-6">
+        <form class="mx-auto max-w-xl space-y-5" @submit.prevent="saveForm">
+          <!-- Slug (create only) -->
+          <div v-if="isCreating">
+            <label class="mb-1 block text-xs font-medium text-gray-700">
+              {{ t("search_engines.slug_label") }}
+            </label>
+            <input
+              v-model="form.slug"
+              type="text"
+              required
+              pattern="^[a-z0-9_-]+$"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              :placeholder="t('search_engines.slug_placeholder')"
+            />
+            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.slug_hint") }}</p>
+          </div>
+
+          <!-- Title -->
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700">
+              {{ t("search_engines.title_label") }}
+            </label>
+            <input
+              v-model="form.title"
+              type="text"
+              required
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+            />
+          </div>
+
+          <!-- XSLT template -->
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700">
+              {{ t("search_engines.xslt_label") }}
+            </label>
+            <select
+              v-model="form.xslt_template_id"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+            >
+              <option :value="null">{{ t("search_engines.xslt_none") }}</option>
+              <option
+                v-for="tpl in xsltStore.templates"
+                :key="tpl.id"
+                :value="tpl.id"
+              >
+                {{ tpl.name }}
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.xslt_hint") }}</p>
+          </div>
+
+          <!-- Collections multiselect -->
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700">
+              {{ t("search_engines.collections_label") }}
+            </label>
+            <div
+              v-if="store.publicCollections.length === 0"
+              class="rounded border border-dashed border-gray-300 py-6 text-center text-xs text-gray-400"
+            >
+              {{ t("search_engines.no_public_collections") }}
+            </div>
+            <div
+              v-else
+              class="max-h-56 overflow-y-auto rounded border border-gray-200"
+            >
+              <label
+                v-for="col in store.publicCollections"
+                :key="col.id"
+                class="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  :value="col.id"
+                  v-model="form.collection_ids"
+                  class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span class="text-sm text-gray-800">{{ col.title }}</span>
+                <code class="ml-auto text-xs text-gray-400">{{ col.slug }}</code>
+              </label>
+            </div>
+            <p class="mt-1 text-xs text-gray-400">
+              {{ t("search_engines.collections_hint") }}
+            </p>
+          </div>
+
+          <!-- Error -->
+          <div v-if="formError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
+            {{ formError }}
+          </div>
+        </form>
+      </div>
+
+      <!-- Modal action bar -->
+      <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+        <button
+          type="button"
+          class="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+          @click="closeModal"
+        >
+          {{ t("search_engines.cancel") }}
+        </button>
+        <button
+          type="button"
+          :disabled="saving"
+          class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          @click="saveForm"
+        >
+          {{ saving ? t("common.saving") : t("search_engines.save") }}
+        </button>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { useSearchEngineStore } from "@/stores/search_engines";
+import { useXsltTemplateStore } from "@/stores/xslt_templates";
+
+const { t } = useI18n();
+const store = useSearchEngineStore();
+const xsltStore = useXsltTemplateStore();
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+
+const filterName = ref("");
+
+const filteredEngines = computed(() => {
+  if (!filterName.value) return store.engines;
+  const q = filterName.value.toLowerCase();
+  return store.engines.filter(
+    (e) =>
+      e.title.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q),
+  );
+});
+
+// ── Modal state ───────────────────────────────────────────────────────────────
+
+const modalOpen = ref(false);
+const isCreating = ref(false);
+const editingSlug = ref<string | null>(null);
+const saving = ref(false);
+const formError = ref<string | null>(null);
+
+interface FormState {
+  slug: string;
+  title: string;
+  xslt_template_id: string | null;
+  collection_ids: string[];
+}
+
+const defaultForm = (): FormState => ({
+  slug: "",
+  title: "",
+  xslt_template_id: null,
+  collection_ids: [],
+});
+
+const form = ref<FormState>(defaultForm());
+
+function openCreate(): void {
+  isCreating.value = true;
+  editingSlug.value = null;
+  form.value = defaultForm();
+  formError.value = null;
+  modalOpen.value = true;
+}
+
+function openEdit(slug: string): void {
+  const engine = store.engines.find((e) => e.slug === slug);
+  if (!engine) return;
+  isCreating.value = false;
+  editingSlug.value = slug;
+  form.value = {
+    slug: engine.slug,
+    title: engine.title,
+    xslt_template_id: engine.xslt_template_id,
+    collection_ids: engine.collections.map((c) => c.id),
+  };
+  formError.value = null;
+  modalOpen.value = true;
+}
+
+function closeModal(): void {
+  modalOpen.value = false;
+}
+
+async function saveForm(): Promise<void> {
+  formError.value = null;
+  if (!form.value.title.trim()) {
+    formError.value = t("search_engines.error_title_required");
+    return;
+  }
+  if (isCreating.value && !form.value.slug.trim()) {
+    formError.value = t("search_engines.error_slug_required");
+    return;
+  }
+  saving.value = true;
+  try {
+    if (isCreating.value) {
+      await store.create({
+        slug: form.value.slug,
+        title: form.value.title,
+        xslt_template_id: form.value.xslt_template_id,
+        collection_ids: form.value.collection_ids,
+      });
+    } else {
+      await store.update(editingSlug.value!, {
+        title: form.value.title,
+        xslt_template_id: form.value.xslt_template_id,
+        collection_ids: form.value.collection_ids,
+      });
+    }
+    closeModal();
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : t("search_engines.error_save");
+    formError.value = msg;
+  } finally {
+    saving.value = false;
+  }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+
+async function confirmDelete(slug: string, title: string): Promise<void> {
+  if (!window.confirm(t("search_engines.delete_confirm", { title }))) return;
+  try {
+    await store.remove(slug);
+  } catch (err: unknown) {
+    window.alert(err instanceof Error ? err.message : t("search_engines.error_delete"));
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  await Promise.all([
+    store.fetchAll(),
+    store.fetchPublicCollections(),
+    xsltStore.fetchTemplates(),
+  ]);
+});
+</script>
