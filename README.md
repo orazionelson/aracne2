@@ -69,11 +69,25 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 | eXist-db dashboard | http://localhost:8080/exist/apps/dashboard (login: admin / empty password) |
 | PostgreSQL | localhost:5432 (127.0.0.1 only) |
 
+### Stopping and restarting
+
+Always shut down cleanly before rebooting the machine:
+
+```bash
+make down   # stops containers and removes the Docker network
+# reboot
+make up     # recreates the network and starts all services in order
+```
+
+If you reboot without running `make down` first, Docker may leave the internal
+network in a broken state. Symptom: the backend starts but cannot reach
+PostgreSQL (`ConnectionRefusedError`). Fix: `docker compose down && make up`.
+
 ### Common commands
 
 ```bash
 make up            # Start all services
-make down          # Stop all services
+make down          # Stop all services (always run before rebooting)
 make logs          # Follow all logs
 make logs-be       # Backend logs only
 
