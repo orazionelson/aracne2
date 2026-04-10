@@ -54,6 +54,8 @@ class SearchEngineResponse(BaseModel):
 class SearchHit(BaseModel):
     collection_slug: str
     filename: str
+    title: str | None   # TEI titleStmt/title; null when absent
+    doc_url: str        # /browse/{collection_slug}/{filename}
     score: float
     mode: str           # "lucene" | "contains"
     kwic: str           # text snippet

@@ -276,11 +276,15 @@ async def run_search(
     for hit_el in root_el.findall("hit"):
         col_path = hit_el.get("collection_path", "")
         col_slug = path_to_slug.get(col_path, col_path.rsplit("/", 1)[-1])
+        filename = hit_el.get("filename", "")
+        raw_title = (hit_el.get("title") or "").strip()
         kwic_el = hit_el.find("kwic")
         kwic_text = kwic_el.text or "" if kwic_el is not None else ""
         hits.append(SearchHit(
             collection_slug=col_slug,
-            filename=hit_el.get("filename", ""),
+            filename=filename,
+            title=raw_title if raw_title else None,
+            doc_url=f"/browse/{col_slug}/{filename}",
             score=float(hit_el.get("score", "0")),
             mode=hit_el.get("mode", "contains"),
             kwic=kwic_text,
@@ -395,6 +399,8 @@ def _render_search_page(slug: str, title: str) -> str:
               font-size: 1rem;
               color: #1e3a5f;
             }}
+            article h3 a {{ color: #1e3a5f; text-decoration: none; }}
+            article h3 a:hover {{ text-decoration: underline; }}
             article .meta {{
               font-size: 0.75rem;
               color: #9ca3af;
@@ -442,12 +448,14 @@ def _render_search_page(slug: str, title: str) -> str:
                   resultsEl.innerHTML = '';
                   return;
                 }}
-                statusEl.textContent = data.total + ' result' + (data.total !== 1 ? 's' : '') +
+                statusEl.textContent = data.total + ' snippet' + (data.total !== 1 ? 's' : '') +
                   ' for "' + escapeHtml(data.query) + '"';
                 resultsEl.innerHTML = data.hits.map(function (h) {{
+                  var label = h.title || h.filename;
+                  var meta  = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
                   return '<article>' +
-                    '<h3>' + escapeHtml(h.filename) + '</h3>' +
-                    '<div class="meta">' + escapeHtml(h.collection_slug) + '</div>' +
+                    '<h3><a href="' + escapeHtml(h.doc_url) + '">' + escapeHtml(label) + '</a></h3>' +
+                    '<div class="meta">' + meta + '</div>' +
                     '<p>' + escapeHtml(h.kwic) + '</p>' +
                     '</article>';
                 }}).join('');
