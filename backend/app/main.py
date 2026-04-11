@@ -19,6 +19,7 @@ from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
 from app.routers import auth, body_templates as body_templates_router, health
 from app.routers import licenses as licenses_router, notifications, plugins
+from app.routers import media as media_router
 from app.routers import public_view as public_view_router
 from app.routers import schemas as schemas_router, settings as settings_router, users
 from app.routers import viaf as viaf_router
@@ -70,9 +71,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
 
-    # Ensure the generated-sites and search-pages directories exist.
+    # Ensure required filesystem directories exist.
     settings.websites_root.mkdir(parents=True, exist_ok=True)
     settings.search_engines_root.mkdir(parents=True, exist_ok=True)
+    settings.documents_media_root.mkdir(parents=True, exist_ok=True)
 
     # Start periodic background jobs (audit log + session cleanup)
     register_jobs()
@@ -247,3 +249,4 @@ app.include_router(public_view_router.router, prefix="/api/v1")
 app.include_router(websites_router.router, prefix="/api/v1")
 app.include_router(xslt_templates_router.router, prefix="/api/v1")
 app.include_router(search_engines_router.router, prefix="/api/v1")
+app.include_router(media_router.router, prefix="/api/v1")

@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     # Defaults to /app/media. Override via MEDIA_DIR env variable in production.
     media_dir: Path = Path("/app/media")
 
+    # Document media root — uploaded images associated with TEI documents.
+    # Each document's images live under {documents_media_root}/{collection_slug}/{doc_filename}/
+    # Defaults to /app/documents_media. Override via DOCUMENTS_MEDIA_ROOT in production.
+    documents_media_root: Path = Path("/app/documents_media")
+
     # Websites static root — generated static sites are written here.
     # Each site occupies a subdirectory named after its slug.
     # Serve via nginx in production: location /sites/ { alias /app/sites/; }
