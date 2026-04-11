@@ -267,12 +267,17 @@ export function useCodeMirror(
     });
 
     // ── 4. (Re)mark all <ref> tags ─────────────────────────────────────────
-    // Using markRefTagsOnInstance (unconditional clear + full rescan) rather
-    // than a single markText call. Even outside operation(), attaching a new
-    // marker immediately after two replaceRange calls can leave CM5's internal
-    // line-measurement state in a partially-updated condition that blocks
-    // cursor navigation. A full rescan operates on a fully stabilised document.
-    markRefTagsOnInstance(cm);
+    // Deferred to the next animation frame so CM5 has fully committed its
+    // rendering pipeline (including deferred DOM updates from the two
+    // replaceRange calls) before we clear and re-attach markers.
+    // Synchronous marking right after operation() can leave CM5 in a state
+    // where keyboard cursor navigation is blocked.
+    // cm.focus() is called afterward to restore keyboard focus, which DOM
+    // updates from markText can silently strip from the editor.
+    requestAnimationFrame(() => {
+      markRefTagsOnInstance(cm);
+      cm.focus();
+    });
   }
 
   /**
