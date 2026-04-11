@@ -174,10 +174,13 @@ export function useCodeMirror(
     if (!cm) return;
 
     const cursor = cm.getCursor();
+    // Declare refTag outside the operation so it is accessible for markText
+    // after the operation block (markText must not be called inside operation
+    // to avoid CM5 markedSpans corruption that crashes cursor navigation).
+    const refTag = `<ref target="#${noteId}" type="${type}"/>`;
 
     cm.operation(() => {
       // ── 1. Insert <ref> at cursor ──────────────────────────────────────────
-      const refTag = `<ref target="#${noteId}" type="${type}"/>`;
       cm.replaceRange(refTag, cursor, undefined, '+programmatic');
 
       // ── 2. Find the nearest ancestor container closing tag ─────────────────
@@ -261,15 +264,17 @@ export function useCodeMirror(
       const fromPos = cm.posFromIndex(insertFrom);
       const toPos   = insertTo !== undefined ? cm.posFromIndex(insertTo) : undefined;
       cm.replaceRange(noteMarkup, fromPos, toPos, '+programmatic');
+    });
 
-      // ── 4. Mark the newly inserted <ref> as read-only ─────────────────────
-      // cursor is still valid after both insertions because both were made
-      // after the cursor position in the document.
-      const refEnd = cm.posFromIndex(cm.indexFromPos(cursor) + refTag.length);
-      cm.markText(cursor, refEnd, {
-        className: 'cm-note-ref',
-        title: noteId,
-      });
+    // ── 4. Mark the inserted <ref> ─────────────────────────────────────────
+    // markText is called AFTER operation() so that CM5 has fully committed
+    // all replaceRange changes before attaching marker spans to lines.
+    // Calling markText inside operation() after replaceRange corrupts the
+    // internal markedSpans linked list and crashes cursor navigation.
+    const refEnd = cm.posFromIndex(cm.indexFromPos(cursor) + refTag.length);
+    cm.markText(cursor, refEnd, {
+      className: 'cm-note-ref',
+      title: noteId,
     });
   }
 
