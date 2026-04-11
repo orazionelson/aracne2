@@ -12,7 +12,7 @@ from app.core.constants import ROLE_LEVEL
 from app.core.exceptions import AuthenticationError
 from app.core.password import hash_password, verify_password
 from app.models.audit_log import AuditLog
-from app.models.role import UserRole
+from app.models.role import Role, UserRole
 from app.models.session import Session
 from app.models.user import User
 
@@ -152,8 +152,6 @@ async def authenticate_user(
 
 async def get_active_role(db: AsyncSession, user_id: uuid.UUID) -> str:
     """Return the highest active role name for a user."""
-    from app.models.role import Role
-
     stmt = (
         select(Role.name)
         .join(UserRole, UserRole.role_id == Role.id)
