@@ -285,7 +285,14 @@
     "tei_help_placeholder": "Cerca tag...",
     "tei_help_no_schema": "Nessuno schema caricato — assegna uno schema CM5 alla collezione",
     "tei_help_select": "Digita un nome tag per vedere la documentazione",
-    "search_google": "Cerca su Google"
+    "search_google": "Cerca su Google",
+    "note_btn_alpha": "Nota α",
+    "note_btn_numeric": "Nota #",
+    "note_alpha_title": "Inserisci nota alfabetica alla posizione del cursore",
+    "note_numeric_title": "Inserisci nota numerica alla posizione del cursore",
+    "note_content_placeholder": "Testo della nota (sono supportati tag TEI inline, es. <hi rend=\"italic\">testo</hi>)",
+    "note_ctrl_enter": "Ctrl+Invio per inserire",
+    "note_insert": "Inserisci nota"
   },
   "schemas": {
     "tab": "Schemi",

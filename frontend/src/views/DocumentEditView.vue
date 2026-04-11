@@ -9,6 +9,7 @@ import { useAiStore } from '@/stores/ai';
 import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
+import NoteModal from '@/components/ui/NoteModal.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -294,6 +295,33 @@ onMounted(async () => {
   try { await aiStore.fetchConfig(); } catch { /* non-fatal */ }
 });
 
+// ── Note insertion ─────────────────────────────────────────────────────────────
+
+const showNoteModal = ref(false);
+const pendingNoteType = ref<'alpha' | 'numeric'>('alpha');
+
+/** Generate a unique note ID in the format used by old Aracne (N + 9 base-36 chars). */
+function generateNoteId(): string {
+  const rand = Math.random().toString(36).slice(2, 11).padEnd(9, '0');
+  return `N${rand}`;
+}
+
+function openNoteModal(type: 'alpha' | 'numeric'): void {
+  pendingNoteType.value = type;
+  showNoteModal.value = true;
+}
+
+function handleNoteConfirm(content: string): void {
+  const noteId = generateNoteId();
+  if (!splitMode.value || !canSplit.value) {
+    singleCm.insertNote(pendingNoteType.value, noteId, content);
+  } else if (activeEditorTab.value === 'header') {
+    headerCm.insertNote(pendingNoteType.value, noteId, content);
+  } else {
+    bodyCm.insertNote(pendingNoteType.value, noteId, content);
+  }
+}
+
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(): Promise<void> {
   saveError.value = null;
@@ -455,6 +483,22 @@ async function runValidation(): Promise<void> {
           @click="prettyPrint"
         >
           {{ t('documents.pretty_print') }}
+        </button>
+        <button
+          :disabled="isLoading"
+          :title="t('documents.note_alpha_title')"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          @click="openNoteModal('alpha')"
+        >
+          {{ t('documents.note_btn_alpha') }}
+        </button>
+        <button
+          :disabled="isLoading"
+          :title="t('documents.note_numeric_title')"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          @click="openNoteModal('numeric')"
+        >
+          {{ t('documents.note_btn_numeric') }}
         </button>
         <button
           :title="isFullscreen ? t('documents.exit_fullscreen') : t('documents.fullscreen')"
@@ -739,6 +783,13 @@ async function runValidation(): Promise<void> {
     </div>
   </div>
   </div>
+
+  <!-- Note insertion modal -->
+  <NoteModal
+    v-model="showNoteModal"
+    :note-type="pendingNoteType"
+    @confirm="handleNoteConfirm"
+  />
 </template>
 
 <style>

@@ -141,6 +141,92 @@ export function useCodeMirror(
     editorInstance.value?.refresh();
   }
 
+  /**
+   * Insert a TEI footnote at the current cursor position.
+   *
+   * Two writes are performed atomically inside a CM5 operation:
+   *   1. A self-closing <ref target="#id" type="…"/> is inserted at the cursor.
+   *   2. A <note xml:id="id" type="…"> element is appended to the nearest
+   *      ancestor <div>'s <span type="notes"> block (or a new one is created
+   *      before the closing </div> if none exists yet).
+   *
+   * Both replaceRange calls use origin '+programmatic' so the beforeChange
+   * boundary-lock guard allows them through even in split mode.
+   */
+  function insertNote(
+    type: 'alpha' | 'numeric',
+    noteId: string,
+    noteContent: string,
+  ): void {
+    const cm = editorInstance.value;
+    if (!cm) return;
+
+    const cursor = cm.getCursor();
+
+    cm.operation(() => {
+      // ── 1. Insert <ref> at cursor ──────────────────────────────────────────
+      const refTag = `<ref target="#${noteId}" type="${type}"/>`;
+      cm.replaceRange(refTag, cursor, undefined, '+programmatic');
+
+      // ── 2. Find parent </div> by depth-counting forward ────────────────────
+      const newText = cm.getValue();
+      // indexFromPos gives the character offset of `cursor` in the updated doc.
+      // Adding refTag.length positions us immediately after the inserted ref.
+      const refOffset = cm.indexFromPos(cursor) + refTag.length;
+
+      let depth = 0;
+      let i = refOffset;
+      let closeDivOffset = -1;
+      while (i < newText.length) {
+        if (newText.startsWith('<div', i)) {
+          const next = newText[i + 4];
+          if (next === '>' || next === ' ' || next === '\t' || next === '\n' || next === '/') {
+            depth++;
+            i += 4;
+            continue;
+          }
+        } else if (newText.startsWith('</div>', i)) {
+          if (depth === 0) { closeDivOffset = i; break; }
+          depth--;
+          i += 6;
+          continue;
+        }
+        i++;
+      }
+
+      if (closeDivOffset === -1) return; // malformed XML — abort note block
+
+      // ── 3. Decide where to insert the <note> ──────────────────────────────
+      // Look for an existing <span type="notes"> between the ref and </div>.
+      const segment = newText.slice(refOffset, closeDivOffset);
+      const spanIdx = segment.lastIndexOf('<span type="notes">');
+
+      let noteMarkup: string;
+      let insertAtOffset: number;
+
+      if (spanIdx !== -1) {
+        // Append inside the existing notes span.
+        const absSpanStart = refOffset + spanIdx;
+        const closeSpanOffset = newText.indexOf('</span>', absSpanStart);
+        if (closeSpanOffset === -1) return; // malformed
+        noteMarkup = `\n        <note xml:id="${noteId}" type="${type}">${noteContent}</note>`;
+        insertAtOffset = closeSpanOffset;
+      } else {
+        // Create a new <span type="notes"> immediately before </div>.
+        noteMarkup = [
+          '',
+          '      <span type="notes">',
+          `        <note xml:id="${noteId}" type="${type}">${noteContent}</note>`,
+          '      </span>',
+        ].join('\n');
+        insertAtOffset = closeDivOffset;
+      }
+
+      const insertPos = cm.posFromIndex(insertAtOffset);
+      cm.replaceRange(noteMarkup, insertPos, undefined, '+programmatic');
+    });
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -225,7 +311,7 @@ export function useCodeMirror(
       // Cancel any user change that touches the top-n or bottom-n lines.
       // origin 'setValue' is allowed so programmatic content replacement works.
       instance.on('beforeChange', (cm, change) => {
-        if (change.origin === 'setValue') return;
+        if (change.origin === 'setValue' || change.origin === '+programmatic') return;
         const last = cm.lastLine();
         if (change.from.line < n || change.to.line > last - n) {
           change.cancel();
@@ -332,5 +418,6 @@ export function useCodeMirror(
     toggleFullscreen,
     foldAll,
     prettyPrint,
+    insertNote,
   };
 }

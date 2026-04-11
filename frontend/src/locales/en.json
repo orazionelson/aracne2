@@ -285,7 +285,14 @@
     "tei_help_placeholder": "Search tag...",
     "tei_help_no_schema": "No schema loaded — assign a CM5 schema to this collection",
     "tei_help_select": "Type a tag name to view its documentation",
-    "search_google": "Search on Google"
+    "search_google": "Search on Google",
+    "note_btn_alpha": "Note α",
+    "note_btn_numeric": "Note #",
+    "note_alpha_title": "Insert alphabetic note at cursor",
+    "note_numeric_title": "Insert numeric note at cursor",
+    "note_content_placeholder": "Note content (TEI inline tags supported, e.g. <hi rend=\"italic\">text</hi>)",
+    "note_ctrl_enter": "Ctrl+Enter to insert",
+    "note_insert": "Insert note"
   },
   "schemas": {
     "tab": "Schemas",
