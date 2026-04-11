@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -53,6 +54,29 @@ class AdvancedSearchConfig(BaseModel):
     attribute_filters: list[AdvancedSearchAttributeFilter] = Field(default_factory=list)
 
 
+# ── Embed configuration ───────────────────────────────────────────────────────
+
+class EmbedConfig(BaseModel):
+    """Configuration for the embeddable search widget.
+
+    mode: which forms to include in the widget.
+    allowed_origins: list of whitelisted HTTP origins (e.g. "https://example.com").
+    An empty list means all origins are allowed (open embed).
+    """
+    mode: Literal["simple", "advanced", "both"] = "simple"
+    allowed_origins: list[str] = Field(default_factory=list)
+
+    @field_validator("allowed_origins")
+    @classmethod
+    def _validate_origins(cls, v: list[str]) -> list[str]:
+        for o in v:
+            if not (o.startswith("http://") or o.startswith("https://")):
+                raise ValueError(
+                    f"Invalid origin {o!r}: must start with http:// or https://"
+                )
+        return v
+
+
 # ── CRUD schemas ──────────────────────────────────────────────────────────────
 
 _HEX_COLOR = r"^#[0-9a-fA-F]{6}$"
@@ -77,6 +101,8 @@ class SearchEngineCreate(BaseModel):
     advanced_search_config: AdvancedSearchConfig = Field(
         default_factory=AdvancedSearchConfig
     )
+    embed_enabled: bool = False
+    embed_config: EmbedConfig = Field(default_factory=EmbedConfig)
 
 
 class SearchEngineUpdate(BaseModel):
@@ -94,6 +120,8 @@ class SearchEngineUpdate(BaseModel):
     include_jquery: bool | None = None
     advanced_search_enabled: bool | None = None
     advanced_search_config: AdvancedSearchConfig | None = None
+    embed_enabled: bool | None = None
+    embed_config: EmbedConfig | None = None
 
 
 class SearchEngineResponse(BaseModel):
@@ -115,6 +143,8 @@ class SearchEngineResponse(BaseModel):
     include_jquery: bool
     advanced_search_enabled: bool
     advanced_search_config: AdvancedSearchConfig
+    embed_enabled: bool
+    embed_config: EmbedConfig
     collections: list[SearchEngineCollectionItem]
     created_by: uuid.UUID | None
     created_at: datetime
@@ -122,10 +152,32 @@ class SearchEngineResponse(BaseModel):
 
     @field_validator("advanced_search_config", mode="before")
     @classmethod
-    def _parse_config(cls, v: object) -> AdvancedSearchConfig:
+    def _parse_advanced_config(cls, v: object) -> AdvancedSearchConfig:
         if isinstance(v, dict):
             return AdvancedSearchConfig.model_validate(v)
         return v  # type: ignore[return-value]
+
+    @field_validator("embed_config", mode="before")
+    @classmethod
+    def _parse_embed_config(cls, v: object) -> EmbedConfig:
+        if isinstance(v, dict):
+            return EmbedConfig.model_validate(v)
+        return v  # type: ignore[return-value]
+
+    model_config = {"from_attributes": True}
+
+
+# ── Embed log entry ───────────────────────────────────────────────────────────
+
+class EmbedLogEntry(BaseModel):
+    id: int
+    origin: str | None
+    referer: str | None
+    ip_address: str | None
+    query: str
+    mode: str
+    allowed: bool
+    requested_at: datetime
 
     model_config = {"from_attributes": True}
 

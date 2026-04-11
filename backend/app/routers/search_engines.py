@@ -40,6 +40,7 @@ from app.schemas.search_engines import (
     SearchEngineUpdate,
 )
 from app.services import search_engines as svc
+from app.services.embed import list_embed_logs
 
 router = APIRouter(tags=["search-engines"])
 
@@ -154,6 +155,21 @@ async def get_available_tags(
     """
     tags = await svc.get_available_tags(db, slug)
     return {"data": tags}
+
+
+# ── Embed logs [D+] ─────────────────────────────────────────────────────────
+
+@router.get("/search-engines/{slug}/embed-logs", response_model=None)
+async def get_embed_logs(
+    slug: str,
+    _user: DesignerPlus,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    """Return paginated embed request logs for a search engine."""
+    result = await list_embed_logs(db, slug, page, per_page)
+    return result.model_dump(mode="json")
 
 
 # ── Build endpoint [D+] ──────────────────────────────────────────────────────

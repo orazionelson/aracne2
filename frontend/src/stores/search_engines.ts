@@ -25,6 +25,22 @@ export interface AdvancedSearchConfig {
   attribute_filters: AdvancedSearchAttributeFilter[];
 }
 
+export interface EmbedConfig {
+  mode: "simple" | "advanced" | "both";
+  allowed_origins: string[];
+}
+
+export interface EmbedLogEntry {
+  id: number;
+  origin: string | null;
+  referer: string | null;
+  ip_address: string | null;
+  query: string;
+  mode: string;
+  allowed: boolean;
+  requested_at: string;
+}
+
 export interface SearchEngine {
   id: string;
   slug: string;
@@ -44,6 +60,8 @@ export interface SearchEngine {
   include_jquery: boolean;
   advanced_search_enabled: boolean;
   advanced_search_config: AdvancedSearchConfig;
+  embed_enabled: boolean;
+  embed_config: EmbedConfig;
   collections: SearchEngineCollection[];
   created_by: string | null;
   created_at: string;
@@ -66,6 +84,8 @@ export interface SearchEngineCreate {
   include_jquery?: boolean;
   advanced_search_enabled?: boolean;
   advanced_search_config?: AdvancedSearchConfig;
+  embed_enabled?: boolean;
+  embed_config?: EmbedConfig;
 }
 
 export interface SearchEngineUpdate {
@@ -83,6 +103,8 @@ export interface SearchEngineUpdate {
   include_jquery?: boolean;
   advanced_search_enabled?: boolean;
   advanced_search_config?: AdvancedSearchConfig;
+  embed_enabled?: boolean;
+  embed_config?: EmbedConfig;
 }
 
 export interface PublicCollection {
@@ -157,6 +179,14 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     return res.data.data as Record<string, string[]>;
   }
 
+  async function fetchEmbedLogs(
+    slug: string,
+    page: number = 1,
+  ): Promise<{ data: EmbedLogEntry[]; pagination: { page: number; per_page: number; total: number; total_pages: number } }> {
+    const res = await api.get(`/search-engines/${slug}/embed-logs`, { params: { page } });
+    return res.data as { data: EmbedLogEntry[]; pagination: { page: number; per_page: number; total: number; total_pages: number } };
+  }
+
   return {
     engines,
     publicCollections,
@@ -170,5 +200,6 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     build,
     clearCache,
     fetchAvailableTags,
+    fetchEmbedLogs,
   };
 });

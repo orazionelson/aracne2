@@ -117,6 +117,14 @@
           {{ t("search_engines.clear_cache") }}
         </button>
 
+        <!-- Incorpora -->
+        <button
+          class="rounded bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700"
+          @click="openEmbed(engine.slug)"
+        >
+          {{ t("search_engines.embed") }}
+        </button>
+
         <!-- Edit -->
         <button
           class="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
@@ -596,6 +604,230 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- ── Embed modal ─────────────────────────────────────────────────────────── -->
+  <Teleport to="body">
+    <div
+      v-if="embedModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeEmbedModal"
+    >
+      <div class="flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" style="max-height:90vh">
+        <!-- Header -->
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">{{ t("search_engines.embed_modal_title") }}</h2>
+            <p class="mt-0.5 text-xs text-gray-400">{{ embedSlug }}</p>
+          </div>
+          <button class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" @click="closeEmbedModal">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex shrink-0 border-b border-gray-200 px-6">
+          <button
+            v-for="tab in embedTabs"
+            :key="tab.key"
+            type="button"
+            :class="['mr-1 border-b-2 px-4 py-3 text-sm font-medium transition-colors', embedActiveTab === tab.key ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700']"
+            @click="embedActiveTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto px-6 py-6">
+
+          <!-- Tab: Configura -->
+          <template v-if="embedActiveTab === 'config'">
+            <div class="space-y-5">
+              <!-- Enable toggle -->
+              <div>
+                <label class="flex cursor-pointer items-center gap-2">
+                  <input v-model="embedForm.embed_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-teal-600" />
+                  <span class="text-sm font-medium text-gray-700">{{ t("search_engines.embed_enabled_label") }}</span>
+                </label>
+                <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.embed_enabled_hint") }}</p>
+              </div>
+
+              <template v-if="embedForm.embed_enabled">
+                <!-- Mode -->
+                <div>
+                  <p class="mb-2 text-xs font-medium text-gray-700">{{ t("search_engines.embed_mode_label") }}</p>
+                  <div class="flex flex-col gap-2">
+                    <label v-for="opt in embedModeOptions" :key="opt.value" class="flex cursor-pointer items-center gap-2">
+                      <input v-model="embedForm.embed_config.mode" type="radio" :value="opt.value" class="h-4 w-4 border-gray-300 text-teal-600" />
+                      <span class="text-sm text-gray-700">{{ opt.label }}</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Allowed origins -->
+                <div>
+                  <p class="mb-1 text-xs font-medium text-gray-700">{{ t("search_engines.embed_origins_label") }}</p>
+                  <p class="mb-2 text-xs text-gray-400">{{ t("search_engines.embed_origins_hint") }}</p>
+                  <div
+                    v-for="(origin, idx) in embedForm.embed_config.allowed_origins"
+                    :key="idx"
+                    class="mb-1.5 flex items-center gap-2"
+                  >
+                    <input
+                      :value="origin"
+                      @input="embedForm.embed_config.allowed_origins[idx] = ($event.target as HTMLInputElement).value"
+                      type="url"
+                      :placeholder="t('search_engines.embed_origins_placeholder')"
+                      class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-teal-400 focus:outline-none"
+                    />
+                    <button type="button" class="shrink-0 text-xs text-red-500 hover:text-red-700" @click="removeOrigin(idx)">
+                      {{ t("search_engines.embed_origins_remove") }}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="mt-1 text-xs text-teal-600 hover:underline"
+                    @click="addOrigin"
+                  >
+                    + {{ t("search_engines.embed_origins_add") }}
+                  </button>
+                  <p v-if="embedForm.embed_config.allowed_origins.length === 0" class="mt-1 text-xs italic text-amber-600">
+                    {{ t("search_engines.embed_origins_open_warning") }}
+                  </p>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Tab: Snippet -->
+          <template v-if="embedActiveTab === 'snippet'">
+            <div v-if="!embedForm.embed_enabled" class="rounded border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
+              {{ t("search_engines.embed_snippet_disabled") }}
+            </div>
+            <div v-else class="space-y-4">
+              <!-- Sub-tab bar -->
+              <div class="flex gap-1 border-b border-gray-200">
+                <button
+                  v-for="st in snippetSubTabs"
+                  :key="st.key"
+                  type="button"
+                  :class="['border-b-2 px-3 py-2 text-xs font-medium transition-colors', snippetTab === st.key ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+                  @click="snippetTab = st.key"
+                >
+                  {{ st.label }}
+                </button>
+              </div>
+
+              <!-- widget.js snippet -->
+              <div v-if="snippetTab === 'widgetjs'">
+                <p class="mb-2 text-xs text-gray-500">{{ t("search_engines.embed_snippet_widgetjs_hint") }}</p>
+                <div class="relative">
+                  <textarea
+                    :value="widgetJsSnippet"
+                    readonly
+                    rows="5"
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    class="absolute right-2 top-2 rounded bg-teal-600 px-2 py-1 text-xs text-white hover:bg-teal-700"
+                    @click="copySnippet(widgetJsSnippet)"
+                  >
+                    {{ copied ? t("search_engines.embed_snippet_copied") : t("search_engines.embed_snippet_copy") }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Inline snippet -->
+              <div v-if="snippetTab === 'inline'">
+                <p class="mb-2 text-xs text-gray-500">{{ t("search_engines.embed_snippet_inline_hint") }}</p>
+                <div class="relative">
+                  <textarea
+                    :value="inlineSnippet"
+                    readonly
+                    rows="12"
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    class="absolute right-2 top-2 rounded bg-teal-600 px-2 py-1 text-xs text-white hover:bg-teal-700"
+                    @click="copySnippet(inlineSnippet)"
+                  >
+                    {{ copied ? t("search_engines.embed_snippet_copied") : t("search_engines.embed_snippet_copy") }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Tab: Statistiche -->
+          <template v-if="embedActiveTab === 'stats'">
+            <div v-if="embedLogsLoading" class="py-8 text-center text-sm text-gray-400">{{ t("common.loading") }}</div>
+            <div v-else-if="embedLogs.length === 0" class="rounded border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
+              {{ t("search_engines.embed_log_empty") }}
+            </div>
+            <div v-else>
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="border-b border-gray-200 text-left text-gray-500">
+                    <th class="pb-2 pr-3 font-medium">{{ t("search_engines.embed_log_origin") }}</th>
+                    <th class="pb-2 pr-3 font-medium">{{ t("search_engines.embed_log_query") }}</th>
+                    <th class="pb-2 pr-3 font-medium">{{ t("search_engines.embed_log_mode") }}</th>
+                    <th class="pb-2 pr-3 font-medium">{{ t("search_engines.embed_log_status") }}</th>
+                    <th class="pb-2 font-medium">{{ t("search_engines.embed_log_date") }}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr v-for="log in embedLogs" :key="log.id">
+                    <td class="py-1.5 pr-3 text-gray-700 font-mono max-w-[14rem] truncate" :title="log.origin ?? ''">
+                      {{ log.origin ?? '—' }}
+                    </td>
+                    <td class="py-1.5 pr-3 text-gray-700 max-w-[10rem] truncate" :title="log.query">{{ log.query }}</td>
+                    <td class="py-1.5 pr-3 text-gray-500">{{ log.mode }}</td>
+                    <td class="py-1.5 pr-3">
+                      <span :class="log.allowed ? 'text-green-600' : 'text-red-600'" class="font-medium">
+                        {{ log.allowed ? t("search_engines.embed_log_allowed") : t("search_engines.embed_log_blocked") }}
+                      </span>
+                    </td>
+                    <td class="py-1.5 text-gray-400">{{ formatDate(log.requested_at) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <!-- Pagination -->
+              <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+                <span>{{ t("search_engines.embed_log_total", { n: embedLogTotal }) }}</span>
+                <div class="flex gap-2">
+                  <button :disabled="embedLogPage <= 1" class="rounded border border-gray-200 px-2 py-1 disabled:opacity-40" @click="loadEmbedLogs(embedLogPage - 1)">‹</button>
+                  <span>{{ embedLogPage }} / {{ embedLogTotalPages }}</span>
+                  <button :disabled="embedLogPage >= embedLogTotalPages" class="rounded border border-gray-200 px-2 py-1 disabled:opacity-40" @click="loadEmbedLogs(embedLogPage + 1)">›</button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <button type="button" class="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100" @click="closeEmbedModal">
+            {{ t("search_engines.cancel") }}
+          </button>
+          <button
+            type="button"
+            :disabled="embedSaving"
+            class="rounded bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            @click="saveEmbedConfig"
+          >
+            {{ embedSaving ? t("common.saving") : t("search_engines.embed_save") }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -604,6 +836,8 @@ import { useI18n } from "vue-i18n";
 import {
   useSearchEngineStore,
   type AdvancedSearchConfig,
+  type EmbedConfig,
+  type EmbedLogEntry,
   type SearchEngineBuildStatus,
 } from "@/stores/search_engines";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
@@ -896,6 +1130,164 @@ async function confirmDelete(slug: string, title: string): Promise<void> {
     window.alert(err instanceof Error ? err.message : t("search_engines.error_delete"));
   }
 }
+
+// ── Embed modal ───────────────────────────────────────────────────────────────
+
+type EmbedTab = "config" | "snippet" | "stats";
+type SnippetTab = "widgetjs" | "inline";
+
+const embedModalOpen = ref(false);
+const embedSlug = ref<string>("");
+const embedSaving = ref(false);
+const embedActiveTab = ref<EmbedTab>("config");
+const snippetTab = ref<SnippetTab>("widgetjs");
+const copied = ref(false);
+
+interface EmbedFormState {
+  embed_enabled: boolean;
+  embed_config: EmbedConfig;
+}
+
+const embedForm = ref<EmbedFormState>({
+  embed_enabled: false,
+  embed_config: { mode: "simple", allowed_origins: [] },
+});
+
+const embedTabs = computed(() => [
+  { key: "config" as EmbedTab,  label: t("search_engines.embed_tab_config") },
+  { key: "snippet" as SnippetTab, label: t("search_engines.embed_tab_snippet") },
+  { key: "stats" as EmbedTab,   label: t("search_engines.embed_tab_stats") },
+]);
+
+const snippetSubTabs = computed(() => [
+  { key: "widgetjs" as SnippetTab, label: t("search_engines.embed_snippet_widgetjs") },
+  { key: "inline"   as SnippetTab, label: t("search_engines.embed_snippet_inline") },
+]);
+
+const embedModeOptions = computed(() => [
+  { value: "simple",   label: t("search_engines.embed_mode_simple") },
+  { value: "advanced", label: t("search_engines.embed_mode_advanced") },
+  { value: "both",     label: t("search_engines.embed_mode_both") },
+]);
+
+// Snippets are generated client-side using window.location.origin as API base.
+const widgetJsSnippet = computed(() => {
+  const base = window.location.origin;
+  const slug = embedSlug.value;
+  return `<div id="aracne2-${slug}"></div>\n<script\n  src="${base}/api/v1/embed/${slug}/widget.js"\n  data-target="aracne2-${slug}">\n<\/script>`;
+});
+
+const inlineSnippet = computed(() => {
+  const base = window.location.origin;
+  const slug = embedSlug.value;
+  const mode = embedForm.value.embed_config.mode;
+  return (
+    `<div id="aracne2-${slug}"></div>\n` +
+    `<script>\n` +
+    `/* Aracne2 embed widget — mode: ${mode} */\n` +
+    `(function(cfg){\n` +
+    `  var s=document.createElement('script');\n` +
+    `  s.src=cfg.api+'/api/v1/embed/'+cfg.slug+'/widget.js';\n` +
+    `  s.setAttribute('data-target','aracne2-'+cfg.slug);\n` +
+    `  document.currentScript.parentNode.insertBefore(s,document.currentScript.nextSibling);\n` +
+    `})({\n` +
+    `  slug: '${slug}',\n` +
+    `  api: '${base}'\n` +
+    `});\n` +
+    `<\/script>`
+  );
+});
+
+function openEmbed(slug: string): void {
+  const engine = store.engines.find((e) => e.slug === slug);
+  if (!engine) return;
+  embedSlug.value = slug;
+  embedForm.value = {
+    embed_enabled: engine.embed_enabled,
+    embed_config: {
+      mode: engine.embed_config.mode,
+      allowed_origins: [...engine.embed_config.allowed_origins],
+    },
+  };
+  embedActiveTab.value = "config";
+  snippetTab.value = "widgetjs";
+  copied.value = false;
+  embedLogs.value = [];
+  embedLogPage.value = 1;
+  embedLogTotal.value = 0;
+  embedLogTotalPages.value = 1;
+  embedModalOpen.value = true;
+}
+
+function closeEmbedModal(): void {
+  embedModalOpen.value = false;
+}
+
+function addOrigin(): void {
+  embedForm.value.embed_config.allowed_origins.push("");
+}
+
+function removeOrigin(idx: number): void {
+  embedForm.value.embed_config.allowed_origins.splice(idx, 1);
+}
+
+async function copySnippet(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  } catch {
+    // Fallback for browsers without clipboard API
+  }
+}
+
+async function saveEmbedConfig(): Promise<void> {
+  embedSaving.value = true;
+  try {
+    await store.update(embedSlug.value, {
+      embed_enabled: embedForm.value.embed_enabled,
+      embed_config: {
+        mode: embedForm.value.embed_config.mode,
+        allowed_origins: embedForm.value.embed_config.allowed_origins.filter((o) => o.trim()),
+      },
+    });
+    closeEmbedModal();
+  } catch (err: unknown) {
+    window.alert(err instanceof Error ? err.message : t("search_engines.error_save"));
+  } finally {
+    embedSaving.value = false;
+  }
+}
+
+// ── Embed stats ───────────────────────────────────────────────────────────────
+
+const embedLogs = ref<EmbedLogEntry[]>([]);
+const embedLogsLoading = ref(false);
+const embedLogPage = ref(1);
+const embedLogTotal = ref(0);
+const embedLogTotalPages = ref(1);
+
+async function loadEmbedLogs(page: number = 1): Promise<void> {
+  embedLogsLoading.value = true;
+  try {
+    const res = await store.fetchEmbedLogs(embedSlug.value, page);
+    embedLogs.value = res.data;
+    embedLogPage.value = res.pagination.page;
+    embedLogTotal.value = res.pagination.total;
+    embedLogTotalPages.value = res.pagination.total_pages;
+  } catch {
+    embedLogs.value = [];
+  } finally {
+    embedLogsLoading.value = false;
+  }
+}
+
+// Auto-load logs when the stats tab is opened.
+watch(embedActiveTab, (tab) => {
+  if (tab === "stats" && embedSlug.value) {
+    void loadEmbedLogs(1);
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

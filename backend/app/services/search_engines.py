@@ -26,6 +26,7 @@ from app.models.website import BuildStatus
 from app.models.xslt_template import XsltTemplate
 from app.schemas.search_engines import (
     AdvancedSearchConfig,
+    EmbedConfig,
     SearchEngineCollectionItem,
     SearchEngineCreate,
     SearchEngineResponse,
@@ -87,6 +88,8 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         advanced_search_config=AdvancedSearchConfig.model_validate(
             engine.advanced_search_config or {}
         ),
+        embed_enabled=engine.embed_enabled,
+        embed_config=EmbedConfig.model_validate(engine.embed_config or {}),
         collections=col_items,
         created_by=engine.created_by,
         created_at=engine.created_at,
@@ -168,6 +171,8 @@ async def create_search_engine(
         include_jquery=payload.include_jquery,
         advanced_search_enabled=payload.advanced_search_enabled,
         advanced_search_config=payload.advanced_search_config.model_dump(mode="json"),
+        embed_enabled=payload.embed_enabled,
+        embed_config=payload.embed_config.model_dump(mode="json"),
         created_by=created_by,
     )
     db.add(engine)
@@ -239,6 +244,12 @@ async def update_search_engine(
         engine.advanced_search_config = payload.advanced_search_config.model_dump(
             mode="json"
         )
+
+    if payload.embed_enabled is not None:
+        engine.embed_enabled = payload.embed_enabled
+
+    if payload.embed_config is not None:
+        engine.embed_config = payload.embed_config.model_dump(mode="json")
 
     collections: list[Collection] = []
     if payload.collection_ids is not None:

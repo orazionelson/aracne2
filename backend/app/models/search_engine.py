@@ -49,6 +49,10 @@ class SearchEngine(Base):
     footer_text: Mapped[str | None] = mapped_column(Text(), nullable=True)
     # When True, the footer is completely hidden on every built page.
     footer_hidden: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    # When True, the embed widget endpoints are active for this engine.
+    embed_enabled: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    # JSONB config: {mode: "simple"|"advanced"|"both", allowed_origins: [str]}
+    embed_config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     # Page background colour (CSS hex, e.g. "#f9fafb"); null = default.
     page_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     # Header background colour (CSS hex, e.g. "#1e3a5f"); null = default.

@@ -25,6 +25,7 @@ from app.routers import viaf as viaf_router
 from app.routers import search_engines as search_engines_router
 from app.routers import websites as websites_router
 from app.routers import xslt_templates as xslt_templates_router
+from app.routers.embed import router as embed_router
 
 configure_logging()
 
@@ -187,6 +188,49 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         },
     )
 
+
+# ── Embed sub-app ─────────────────────────────────────────────────────────────
+# Mounted as a separate ASGI app so its CORSMiddleware can allow all origins
+# for preflight.  Actual origin enforcement (whitelist) is done in each handler.
+_embed_app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+_embed_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],        # open preflight — whitelist enforced per-handler
+    allow_credentials=False,    # no JWT/cookies for the public embed endpoints
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+# Mirror the main app's exception handlers so PlatformException subclasses
+# (NotFoundError, AuthorizationError) are serialised correctly in the sub-app.
+@_embed_app.exception_handler(PlatformException)
+async def _embed_platform_exc(request: Request, exc: PlatformException) -> JSONResponse:
+    details: object = exc.details if settings.is_development else {}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message, "details": details}},
+    )
+
+
+@_embed_app.exception_handler(RequestValidationError)
+async def _embed_validation_exc(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Request validation failed",
+                "details": {},
+            }
+        },
+    )
+
+
+_embed_app.include_router(embed_router)
+app.mount("/api/v1/embed", _embed_app)
 
 # Routers
 app.include_router(health.router, prefix="/api/v1")
