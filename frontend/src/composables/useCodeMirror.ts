@@ -339,6 +339,85 @@ export function useCodeMirror(
     );
   }
 
+  /**
+   * Delete a TEI note by ID: removes both the inline <ref> marker and the
+   * corresponding <note> element. If the <span type="notes"> block becomes
+   * empty after the removal, it is deleted as well.
+   *
+   * Removals are done end-first (note block, then ref) so that the first
+   * replaceRange does not shift the position of the second.
+   */
+  function deleteNote(noteId: string): void {
+    const cm = editorInstance.value;
+    if (!cm) return;
+
+    cm.operation(() => {
+      const text = cm.getValue();
+
+      // ── 1. Remove the <note> element (and its <span> if it becomes empty) ──
+      const noteRe = new RegExp(
+        `<note xml:id="${noteId}" type="(?:alpha|numeric)">[\\s\\S]*?</note>`,
+      );
+      const noteMatch = noteRe.exec(text);
+      if (!noteMatch) return;
+
+      // Determine whether the enclosing <span type="notes"> becomes empty.
+      const spanOpenTag = '<span type="notes">';
+      const spanOpenIdx = text.lastIndexOf(spanOpenTag, noteMatch.index);
+
+      let blockStart = noteMatch.index;
+      let blockEnd   = noteMatch.index + noteMatch[0].length;
+
+      if (spanOpenIdx !== -1) {
+        const afterSpanOpen   = text.slice(spanOpenIdx + spanOpenTag.length);
+        const spanCloseRelIdx = afterSpanOpen.indexOf('</span>');
+        if (spanCloseRelIdx !== -1) {
+          const noteCountInSpan =
+            (afterSpanOpen.slice(0, spanCloseRelIdx).match(/<note /g) ?? []).length;
+
+          if (noteCountInSpan <= 1) {
+            // Only note — remove the entire <span type="notes">…</span> block.
+            const spanEnd = spanOpenIdx + spanOpenTag.length + spanCloseRelIdx + '</span>'.length;
+            // Consume the leading whitespace / newline before the span.
+            let start = spanOpenIdx;
+            while (start > 0 && (text[start - 1] === ' ' || text[start - 1] === '\t')) start--;
+            if (start > 0 && text[start - 1] === '\n') start--;
+            blockStart = start;
+            blockEnd   = spanEnd;
+          } else {
+            // Other notes remain — remove only this <note> line.
+            let start = noteMatch.index;
+            while (start > 0 && (text[start - 1] === ' ' || text[start - 1] === '\t')) start--;
+            if (start > 0 && text[start - 1] === '\n') start--;
+            blockStart = start;
+          }
+        }
+      }
+
+      cm.replaceRange(
+        '',
+        cm.posFromIndex(blockStart),
+        cm.posFromIndex(blockEnd),
+        '+programmatic',
+      );
+
+      // ── 2. Remove the <ref target="#noteId" .../> (earlier in document) ────
+      const updatedText = cm.getValue();
+      const refRe    = new RegExp(`<ref target="#${noteId}" type="(?:alpha|numeric)"\\/>`);
+      const refMatch = refRe.exec(updatedText);
+      if (!refMatch) return;
+
+      cm.replaceRange(
+        '',
+        cm.posFromIndex(refMatch.index),
+        cm.posFromIndex(refMatch.index + refMatch[0].length),
+        '+programmatic',
+      );
+      // The TextMarker covering the <ref> is automatically invalidated by CM5
+      // when its content range is removed; no explicit clear() needed.
+    });
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -580,5 +659,6 @@ export function useCodeMirror(
     prettyPrint,
     insertNote,
     editNote,
+    deleteNote,
   };
 }

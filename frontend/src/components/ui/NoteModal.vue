@@ -16,6 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   confirm: [content: string];
+  delete: [];
 }>();
 
 const noteContent = ref('');
@@ -35,6 +36,11 @@ watch(
 
 function handleConfirm(): void {
   emit('confirm', noteContent.value);
+  emit('update:modelValue', false);
+}
+
+function handleDelete(): void {
+  emit('delete');
   emit('update:modelValue', false);
 }
 
@@ -82,19 +88,31 @@ function title(): string {
         </div>
 
         <!-- Footer -->
-        <div class="flex justify-end gap-2 border-t border-gray-100 px-4 py-3">
+        <div class="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+          <!-- Delete button — only in edit mode -->
           <button
-            class="rounded border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            @click="handleCancel"
+            v-if="isEditing"
+            class="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+            @click="handleDelete"
           >
-            {{ t('common.cancel') }}
+            {{ t('documents.note_delete') }}
           </button>
-          <button
-            class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-            @click="handleConfirm"
-          >
-            {{ isEditing ? t('documents.note_save') : t('documents.note_insert') }}
-          </button>
+          <span v-else />
+
+          <div class="flex gap-2">
+            <button
+              class="rounded border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              @click="handleCancel"
+            >
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              @click="handleConfirm"
+            >
+              {{ isEditing ? t('documents.note_save') : t('documents.note_insert') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>

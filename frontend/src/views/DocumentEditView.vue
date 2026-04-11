@@ -335,6 +335,12 @@ function openNoteEditModal(
   showNoteModal.value = true;
 }
 
+function handleNoteDelete(): void {
+  if (!pendingNoteId.value) return;
+  const cmMap = { single: singleCm, header: headerCm, body: bodyCm } as const;
+  cmMap[editingCmKey.value].deleteNote(pendingNoteId.value);
+}
+
 function handleNoteConfirm(content: string): void {
   if (pendingNoteId.value) {
     // Edit the content of an existing <note> without touching the <ref> marker.
@@ -822,6 +828,7 @@ async function runValidation(): Promise<void> {
     :initial-content="noteModalInitialContent"
     :is-editing="pendingNoteId !== null"
     @confirm="handleNoteConfirm"
+    @delete="handleNoteDelete"
   />
 </template>
 

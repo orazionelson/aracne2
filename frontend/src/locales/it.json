@@ -294,6 +294,7 @@
     "note_ctrl_enter": "Ctrl+Invio per confermare",
     "note_insert": "Inserisci nota",
     "note_save": "Salva nota",
+    "note_delete": "Elimina nota",
     "note_edit_alpha_title": "Modifica nota alfabetica",
     "note_edit_numeric_title": "Modifica nota numerica"
   },
