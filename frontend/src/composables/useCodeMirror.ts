@@ -270,7 +270,6 @@ export function useCodeMirror(
         readOnly: true,
         className: 'cm-note-ref',
         title: noteId,
-        atomic: true,
       });
     });
   }
@@ -299,7 +298,6 @@ export function useCodeMirror(
         readOnly: true,
         className: 'cm-note-ref',
         title: match[1],
-        atomic: true,
       });
     }
   }
