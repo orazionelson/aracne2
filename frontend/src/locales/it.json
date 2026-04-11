@@ -646,7 +646,22 @@
     "cache_ttl_hint": "Per quanto tempo i risultati vengono memorizzati nella cache lato server. Imposta 0 per disabilitare. Massimo 10080 (7 giorni).",
     "clear_cache": "Svuota cache",
     "cache_cleared": "Cache svuotata ({n} voci eliminate).",
-    "error_clear_cache": "Impossibile svuotare la cache. Riprova."
+    "error_clear_cache": "Impossibile svuotare la cache. Riprova.",
+    "advanced_search_toggle": "Ricerca avanzata",
+    "advanced_search_hint": "Se attivo, viene costruita una pagina di ricerca avanzata separata.",
+    "advanced_named_tags_label": "Tag entità nominate",
+    "advanced_named_tags_hint": "Tag su cui gli utenti possono cercare (es. Persona → persName).",
+    "advanced_tag_label_placeholder": "Etichetta (es. Persona)",
+    "advanced_tag_element_placeholder": "Elemento (es. persName)",
+    "advanced_attr_filters_label": "Filtri per attributo",
+    "advanced_attr_filters_hint": "Attributi che gli utenti possono usare come filtro (es. Ruolo → role).",
+    "advanced_attr_label_placeholder": "Etichetta (es. Ruolo)",
+    "advanced_attr_attribute_placeholder": "Attributo (es. role)",
+    "advanced_add_tag": "Aggiungi tag",
+    "advanced_add_filter": "Aggiungi filtro",
+    "advanced_remove": "Rimuovi",
+    "advanced_label_required": "Etichetta ed elemento/attributo sono entrambi obbligatori.",
+    "advanced_element_invalid": "Il nome dell'elemento/attributo può contenere solo lettere, cifre, punti, trattini e underscore, e deve iniziare con una lettera o underscore."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

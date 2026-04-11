@@ -25,6 +25,7 @@ from app.models.search_engine import (
 from app.models.website import BuildStatus
 from app.models.xslt_template import XsltTemplate
 from app.schemas.search_engines import (
+    AdvancedSearchConfig,
     SearchEngineCollectionItem,
     SearchEngineCreate,
     SearchEngineResponse,
@@ -74,6 +75,10 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         last_build_at=engine.last_build_at,
         build_error=engine.build_error,
         cache_ttl_minutes=engine.cache_ttl_minutes,
+        advanced_search_enabled=engine.advanced_search_enabled,
+        advanced_search_config=AdvancedSearchConfig.model_validate(
+            engine.advanced_search_config or {}
+        ),
         collections=col_items,
         created_by=engine.created_by,
         created_at=engine.created_at,
@@ -145,6 +150,8 @@ async def create_search_engine(
         title=payload.title,
         xslt_template_id=payload.xslt_template_id,
         cache_ttl_minutes=payload.cache_ttl_minutes,
+        advanced_search_enabled=payload.advanced_search_enabled,
+        advanced_search_config=payload.advanced_search_config.model_dump(mode="json"),
         created_by=created_by,
     )
     db.add(engine)
@@ -184,6 +191,14 @@ async def update_search_engine(
 
     if payload.cache_ttl_minutes is not None:
         engine.cache_ttl_minutes = payload.cache_ttl_minutes
+
+    if payload.advanced_search_enabled is not None:
+        engine.advanced_search_enabled = payload.advanced_search_enabled
+
+    if payload.advanced_search_config is not None:
+        engine.advanced_search_config = payload.advanced_search_config.model_dump(
+            mode="json"
+        )
 
     collections: list[Collection] = []
     if payload.collection_ids is not None:
@@ -459,7 +474,9 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
-def _render_search_page(slug: str, title: str) -> str:
+def _render_search_page(
+    slug: str, title: str, advanced_search_enabled: bool = False
+) -> str:
     """Generate the standalone HTML search page for a search engine.
 
     The page is self-contained: a search form whose JS calls the public
@@ -467,6 +484,13 @@ def _render_search_page(slug: str, title: str) -> str:
     """
     api_endpoint = f"/api/v1/search-engines/{slug}/search"
     escaped_title = title.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+    adv_link = (
+        f'<p style="margin:0 0 1.5rem;font-size:0.85rem;">'
+        f'<a href="/api/v1/search-pages/{slug}/advanced/" '
+        f'style="color:#1e3a5f;">&#9658; Ricerca avanzata</a></p>'
+        if advanced_search_enabled
+        else ""
+    )
 
     return textwrap.dedent(f"""\
         <!DOCTYPE html>
@@ -550,6 +574,7 @@ def _render_search_page(slug: str, title: str) -> str:
               />
               <button type="submit">Search</button>
             </form>
+            {adv_link}
             <div id="status"></div>
             <div id="results" role="region" aria-live="polite"></div>
           </main>
@@ -626,6 +651,380 @@ def _render_search_page(slug: str, title: str) -> str:
     """)
 
 
+def _render_advanced_search_page(
+    slug: str,
+    title: str,
+    config: AdvancedSearchConfig,
+    collections: list[Collection],
+) -> str:
+    """Generate the standalone HTML advanced search page for a search engine.
+
+    The page is built once (at Build time) and calls the public advanced-search
+    API dynamically.  The named_tags and attribute_filters configured by the
+    admin are baked in as JS arrays.
+    """
+    api_endpoint = f"/api/v1/search-engines/{slug}/advanced-search"
+    main_page = f"/api/v1/search-pages/{slug}/"
+    escaped_title = title.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+
+    # Bake admin config into JS.
+    named_tags_js = "[" + ",".join(
+        f'{{"label":{t.label!r},"element":{t.element!r}}}'
+        for t in config.named_tags
+    ) + "]"
+    attr_filters_js = "[" + ",".join(
+        f'{{"label":{f.label!r},"attribute":{f.attribute!r}}}'
+        for f in config.attribute_filters
+    ) + "]"
+    collection_list_js = "[" + ",".join(
+        f'{{"slug":{c.slug!r},"title":{c.title!r}}}'
+        for c in collections
+    ) + "]"
+
+    show_collections = len(collections) > 1
+
+    return textwrap.dedent(f"""\
+        <!DOCTYPE html>
+        <html lang="it">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>{escaped_title} — Ricerca avanzata</title>
+          <style>
+            *, *::before, *::after {{ box-sizing: border-box; }}
+            body {{
+              font-family: system-ui, -apple-system, sans-serif;
+              margin: 0; background: #f9fafb; color: #111827;
+            }}
+            header {{
+              background: #1e3a5f; color: #fff; padding: 1.25rem 2rem;
+              display: flex; align-items: baseline; gap: 1rem;
+            }}
+            header h1 {{ margin: 0; font-size: 1.4rem; font-weight: 600; }}
+            header a {{ color: #93c5fd; font-size: 0.85rem; text-decoration: none; }}
+            header a:hover {{ text-decoration: underline; }}
+            main {{ max-width: 820px; margin: 2rem auto; padding: 0 1.5rem; }}
+            .field {{ margin-bottom: 1.25rem; }}
+            label {{ display: block; font-size: 0.8rem; font-weight: 600;
+                     color: #374151; margin-bottom: 0.3rem; }}
+            select, input[type=text], input[type=search] {{
+              width: 100%; padding: 0.55rem 0.9rem;
+              border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.95rem;
+            }}
+            select:focus, input:focus {{
+              outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe;
+            }}
+            .collections-grid {{
+              display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
+              padding: 0.6rem 0.9rem; border: 1px solid #d1d5db;
+              border-radius: 0.375rem; background: #fff;
+            }}
+            .collections-grid label {{
+              font-weight: 400; display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
+            }}
+            .row {{ display: flex; gap: 0.75rem; }}
+            .row .field {{ flex: 1; }}
+            button[type=submit] {{
+              padding: 0.6rem 1.5rem; background: #1e3a5f; color: #fff;
+              border: none; border-radius: 0.375rem; font-size: 1rem; cursor: pointer;
+            }}
+            button[type=submit]:hover {{ background: #2d4f7f; }}
+            #status {{ font-size: 0.875rem; color: #6b7280; margin: 1rem 0; }}
+            article {{
+              background: #fff; border: 1px solid #e5e7eb;
+              border-radius: 0.5rem; padding: 1rem 1.25rem; margin-bottom: 0.75rem;
+            }}
+            article h3 {{ margin: 0 0 0.35rem; font-size: 1rem; color: #1e3a5f; }}
+            article h3 a {{ color: #1e3a5f; text-decoration: none; }}
+            article h3 a:hover {{ text-decoration: underline; }}
+            article .meta {{ font-size: 0.72rem; color: #9ca3af; margin-bottom: 0.4rem; }}
+            article p {{ margin: 0; font-size: 0.9rem; color: #374151; line-height: 1.5; }}
+            .tag-badge {{
+              display: inline-block; font-size: 0.7rem; font-family: monospace;
+              background: #e0f2fe; color: #0369a1; border-radius: 0.25rem;
+              padding: 0.1rem 0.4rem; margin-right: 0.4rem;
+            }}
+            .hidden {{ display: none; }}
+          </style>
+        </head>
+        <body>
+          <header>
+            <h1>{escaped_title}</h1>
+            <a href="{main_page}">&#8592; Ricerca semplice</a>
+          </header>
+          <main>
+            <form id="adv-form">
+
+              <!-- Collection filter (only if >1 collection) -->
+              <div class="field" id="col-field" {"" if show_collections else 'style="display:none"'}>
+                <label>Collezioni</label>
+                <div class="collections-grid" id="col-grid"></div>
+              </div>
+
+              <!-- Named tag + text search -->
+              <div class="row" id="tag-row" {'class="row hidden"' if not config.named_tags else ''}>
+                <div class="field">
+                  <label for="tag-sel">Cerca all'interno del tag</label>
+                  <select id="tag-sel">
+                    <option value="">— nessun tag —</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="tag-q">Testo da cercare nel tag</label>
+                  <input type="search" id="tag-q" placeholder="es. Uccello"
+                         autocomplete="off" />
+                </div>
+              </div>
+
+              <!-- Attribute filter -->
+              <div class="row" id="attr-row" {'class="row hidden"' if not config.attribute_filters else ''}>
+                <div class="field">
+                  <label for="attr-sel">Filtra per attributo</label>
+                  <select id="attr-sel">
+                    <option value="">— nessun attributo —</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="attr-val">Valore dell'attributo</label>
+                  <input type="text" id="attr-val" placeholder="es. Conte"
+                         autocomplete="off" />
+                </div>
+              </div>
+
+              <div id="form-error" style="color:#dc2626;font-size:0.85rem;margin-bottom:0.75rem;"></div>
+              <button type="submit">Cerca</button>
+            </form>
+
+            <div id="status"></div>
+            <div id="results" role="region" aria-live="polite"></div>
+          </main>
+
+          <script>
+            (function () {{
+              var API         = {api_endpoint!r};
+              var NAMED_TAGS  = {named_tags_js};
+              var ATTR_FILTERS = {attr_filters_js};
+              var COLLECTIONS = {collection_list_js};
+              var SHOW_COLS   = {'true' if show_collections else 'false'};
+
+              var form      = document.getElementById('adv-form');
+              var statusEl  = document.getElementById('status');
+              var resultsEl = document.getElementById('results');
+              var errEl     = document.getElementById('form-error');
+              var tagSel    = document.getElementById('tag-sel');
+              var tagQ      = document.getElementById('tag-q');
+              var attrSel   = document.getElementById('attr-sel');
+              var attrVal   = document.getElementById('attr-val');
+              var colGrid   = document.getElementById('col-grid');
+              var tagRow    = document.getElementById('tag-row');
+              var attrRow   = document.getElementById('attr-row');
+
+              // ── Populate controls from baked-in config ────────────────────
+              NAMED_TAGS.forEach(function (t) {{
+                var opt = document.createElement('option');
+                opt.value = t.element;
+                opt.textContent = t.label + ' <' + t.element + '>';
+                tagSel.appendChild(opt);
+              }});
+              if (NAMED_TAGS.length > 0) tagRow.style.display = '';
+
+              ATTR_FILTERS.forEach(function (f) {{
+                var opt = document.createElement('option');
+                opt.value = f.attribute;
+                opt.textContent = f.label + ' (@' + f.attribute + ')';
+                attrSel.appendChild(opt);
+              }});
+              if (ATTR_FILTERS.length > 0) attrRow.style.display = '';
+
+              if (SHOW_COLS) {{
+                COLLECTIONS.forEach(function (c) {{
+                  var lbl = document.createElement('label');
+                  var cb  = document.createElement('input');
+                  cb.type = 'checkbox'; cb.value = c.slug; cb.checked = true;
+                  lbl.appendChild(cb);
+                  lbl.appendChild(document.createTextNode(' ' + c.title));
+                  colGrid.appendChild(lbl);
+                }});
+              }}
+
+              // ── HTML escaping ─────────────────────────────────────────────
+              function escapeHtml(str) {{
+                return String(str)
+                  .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+              }}
+
+              // ── Result rendering ──────────────────────────────────────────
+              function renderResults(data) {{
+                if (!data.hits || data.hits.length === 0) {{
+                  statusEl.textContent = 'Nessun risultato.';
+                  resultsEl.innerHTML = '';
+                  return;
+                }}
+                statusEl.textContent = data.hits.length +
+                  ' risultato' + (data.hits.length !== 1 ? 'i' : '') + ' trovato' +
+                  (data.hits.length !== 1 ? 'i' : '') + '.';
+                resultsEl.innerHTML = data.hits.map(function (h) {{
+                  var label  = h.title || h.filename;
+                  var badge  = h.element_name
+                    ? '<span class="tag-badge">&lt;' + escapeHtml(h.element_name) + '&gt;</span>'
+                    : '';
+                  var meta   = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
+                  return '<article>' +
+                    '<h3>' + badge + '<a href="' + escapeHtml(h.doc_url) + '">' +
+                    escapeHtml(label) + '</a></h3>' +
+                    '<div class="meta">' + meta + '</div>' +
+                    '<p>' + escapeHtml(h.kwic) + '</p>' +
+                    '</article>';
+                }}).join('');
+              }}
+
+              // ── Form submit ───────────────────────────────────────────────
+              form.addEventListener('submit', function (e) {{
+                e.preventDefault();
+                errEl.textContent = '';
+
+                var element  = tagSel.value;
+                var q        = tagQ.value.trim();
+                var attrName = attrSel.value;
+                var attrV    = attrVal.value.trim();
+
+                if (!element && !q && !attrName) {{
+                  errEl.textContent = 'Inserisci almeno un criterio di ricerca.';
+                  return;
+                }}
+
+                var params = new URLSearchParams();
+                if (q)       params.set('q',        q);
+                if (element) params.set('element',  element);
+                if (attrName) params.set('attr_name', attrName);
+                if (attrV)    params.set('attr_value', attrV);
+
+                if (SHOW_COLS) {{
+                  var checked = [];
+                  colGrid.querySelectorAll('input[type=checkbox]:checked').forEach(
+                    function (cb) {{ checked.push(cb.value); }}
+                  );
+                  if (checked.length > 0 && checked.length < COLLECTIONS.length) {{
+                    params.set('collections', checked.join(','));
+                  }}
+                }}
+
+                statusEl.textContent = 'Ricerca in corso\u2026';
+                resultsEl.innerHTML = '';
+
+                fetch(API + '?' + params.toString())
+                  .then(function (r) {{ return r.json(); }})
+                  .then(function (json) {{ renderResults(json.data); }})
+                  .catch(function () {{
+                    statusEl.textContent = 'Errore di ricerca. Riprova.';
+                  }});
+              }});
+            }})();
+          </script>
+        </body>
+        </html>
+    """)
+
+
+async def run_advanced_search(
+    db: AsyncSession,
+    slug: str,
+    q: str | None,
+    element_name: str | None,
+    attr_name: str | None,
+    attr_value: str | None,
+    collection_slugs: list[str] | None,
+    max_results: int,
+) -> SearchEngineSearchResponse:
+    """Execute an advanced structural/text search for the given search engine.
+
+    At least one of q, element_name, attr_name must be provided.
+    Results are NOT cached (advanced queries are expected to be specific/infrequent).
+    """
+    import defusedxml.ElementTree as ET  # noqa: PLC0415
+
+    if max_results < 1:
+        max_results = _MAX_RESULTS_DEFAULT
+    if max_results > _MAX_RESULTS_LIMIT:
+        max_results = _MAX_RESULTS_LIMIT
+
+    engine = await _get_engine_or_404(db, slug)
+
+    col_ids = [row.collection_id for row in engine.collections]
+    if not col_ids:
+        return SearchEngineSearchResponse(query=q or "", total=0, hits=[])
+
+    collections = await _load_collections(db, col_ids)
+    if collection_slugs:
+        allowed = {c.slug for c in collections}
+        for s in collection_slugs:
+            if s not in allowed:
+                raise NotFoundError(
+                    f"Collection '{s}' is not linked to search engine '{slug}'"
+                )
+        target_cols = [c for c in collections if c.slug in set(collection_slugs)]
+    else:
+        target_cols = collections
+
+    if not target_cols:
+        return SearchEngineSearchResponse(query=q or "", total=0, hits=[])
+
+    paths_csv = ",".join(existdb_client.col_path(c.slug) for c in target_cols)
+    path_to_slug: dict[str, str] = {
+        existdb_client.col_path(c.slug): c.slug for c in target_cols
+    }
+
+    try:
+        raw = await existdb_client.xquery(
+            "search/search_engine_advanced.xq",
+            variables={
+                "collection_paths_csv": paths_csv,
+                "query": q or "",
+                "element_name": element_name or "",
+                "attr_name": attr_name or "",
+                "attr_value": attr_value or "",
+                "max_results": str(max_results),
+            },
+        )
+    except ExternalServiceError as exc:
+        logger.error("search_engine_advanced_xquery_failed", slug=slug, error=str(exc))
+        return SearchEngineSearchResponse(query=q or "", total=0, hits=[])
+
+    try:
+        root_el = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        logger.error(
+            "search_engine_advanced_xml_parse_failed", slug=slug, error=str(exc)
+        )
+        return SearchEngineSearchResponse(query=q or "", total=0, hits=[])
+
+    hits: list[SearchHit] = []
+    for hit_el in root_el.findall("hit"):
+        col_path = hit_el.get("collection_path", "")
+        col_slug = path_to_slug.get(col_path, col_path.rsplit("/", 1)[-1])
+        filename = hit_el.get("filename", "")
+        raw_title = (hit_el.get("title") or "").strip()
+        element = hit_el.get("element", "") or None
+        kwic_el = hit_el.find("kwic")
+        kwic_text = kwic_el.text or "" if kwic_el is not None else ""
+        highlight = urllib.parse.quote(q) if q else urllib.parse.quote(
+            hit_el.get("element", "") or ""
+        )
+        hits.append(SearchHit(
+            collection_slug=col_slug,
+            filename=filename,
+            title=raw_title if raw_title else None,
+            doc_url=f"/browse/{col_slug}/{filename}?highlight={highlight}",
+            score=float(hit_el.get("score", "0")),
+            mode=hit_el.get("mode", "advanced-structural"),
+            kwic=kwic_text,
+            element_name=element,
+        ))
+
+    return SearchEngineSearchResponse(query=q or "", total=len(hits), hits=hits)
+
+
 async def _do_build(slug: str) -> None:
     """Background task: generate the search page HTML and write it to disk."""
     async with AsyncSessionLocal() as db:
@@ -642,11 +1041,28 @@ async def _do_build(slug: str) -> None:
             engine.build_status = BuildStatus.building
             await db.commit()
 
-            html = _render_search_page(engine.slug, engine.title)
-
             out_dir = settings.search_engines_root / slug
             out_dir.mkdir(parents=True, exist_ok=True)
+
+            # Main search page.
+            html = _render_search_page(
+                engine.slug, engine.title, engine.advanced_search_enabled
+            )
             (out_dir / "index.html").write_text(html, encoding="utf-8")
+
+            # Advanced search page (built only when the feature is enabled).
+            if engine.advanced_search_enabled:
+                col_ids = [row.collection_id for row in engine.collections]
+                cols = await _load_collections(db, col_ids)
+                config = AdvancedSearchConfig.model_validate(
+                    engine.advanced_search_config or {}
+                )
+                adv_html = _render_advanced_search_page(
+                    engine.slug, engine.title, config, cols
+                )
+                adv_dir = out_dir / "advanced"
+                adv_dir.mkdir(parents=True, exist_ok=True)
+                (adv_dir / "index.html").write_text(adv_html, encoding="utf-8")
 
             engine.build_status = BuildStatus.done
             engine.last_build_at = datetime.now(UTC)

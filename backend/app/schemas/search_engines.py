@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.website import BuildStatus
 
@@ -18,6 +18,41 @@ class SearchEngineCollectionItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Advanced search configuration ─────────────────────────────────────────────
+
+class AdvancedSearchTag(BaseModel):
+    """A named entity tag the admin exposes on the advanced search page.
+
+    Example: label="Persona", element="persName"
+    """
+    label: str = Field(..., min_length=1, max_length=64)
+    element: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-zA-Z_][a-zA-Z0-9._-]*$",
+    )
+
+
+class AdvancedSearchAttributeFilter(BaseModel):
+    """An attribute dimension the admin exposes on the advanced search page.
+
+    Example: label="Ruolo", attribute="role"
+    """
+    label: str = Field(..., min_length=1, max_length=64)
+    attribute: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-zA-Z_][a-zA-Z0-9._-]*$",
+    )
+
+
+class AdvancedSearchConfig(BaseModel):
+    named_tags: list[AdvancedSearchTag] = Field(default_factory=list)
+    attribute_filters: list[AdvancedSearchAttributeFilter] = Field(default_factory=list)
+
+
 # ── CRUD schemas ──────────────────────────────────────────────────────────────
 
 class SearchEngineCreate(BaseModel):
@@ -27,6 +62,10 @@ class SearchEngineCreate(BaseModel):
     collection_ids: list[uuid.UUID] = Field(default_factory=list)
     # 0 = cache disabled; default 60 minutes.
     cache_ttl_minutes: int = Field(default=60, ge=0, le=10080)
+    advanced_search_enabled: bool = False
+    advanced_search_config: AdvancedSearchConfig = Field(
+        default_factory=AdvancedSearchConfig
+    )
 
 
 class SearchEngineUpdate(BaseModel):
@@ -34,6 +73,8 @@ class SearchEngineUpdate(BaseModel):
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] | None = None
     cache_ttl_minutes: int | None = Field(default=None, ge=0, le=10080)
+    advanced_search_enabled: bool | None = None
+    advanced_search_config: AdvancedSearchConfig | None = None
 
 
 class SearchEngineResponse(BaseModel):
@@ -45,10 +86,19 @@ class SearchEngineResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     cache_ttl_minutes: int
+    advanced_search_enabled: bool
+    advanced_search_config: AdvancedSearchConfig
     collections: list[SearchEngineCollectionItem]
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("advanced_search_config", mode="before")
+    @classmethod
+    def _parse_config(cls, v: object) -> AdvancedSearchConfig:
+        if isinstance(v, dict):
+            return AdvancedSearchConfig.model_validate(v)
+        return v  # type: ignore[return-value]
 
     model_config = {"from_attributes": True}
 
@@ -59,10 +109,11 @@ class SearchHit(BaseModel):
     collection_slug: str
     filename: str
     title: str | None   # TEI titleStmt/title; null when absent
-    doc_url: str        # /browse/{collection_slug}/{filename}
+    doc_url: str        # /browse/{collection_slug}/{filename}?highlight=...
     score: float
-    mode: str           # "lucene" | "contains"
+    mode: str           # "lucene" | "contains" | "advanced-*"
     kwic: str           # text snippet
+    element_name: str | None = None  # populated by advanced search
 
 
 class SearchEngineSearchResponse(BaseModel):

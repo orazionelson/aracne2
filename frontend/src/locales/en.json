@@ -646,7 +646,22 @@
     "cache_ttl_hint": "How long search results are cached server-side. Set to 0 to disable caching. Maximum 10080 (7 days).",
     "clear_cache": "Clear cache",
     "cache_cleared": "Cache cleared ({n} entries deleted).",
-    "error_clear_cache": "Failed to clear cache. Please try again."
+    "error_clear_cache": "Failed to clear cache. Please try again.",
+    "advanced_search_toggle": "Advanced search",
+    "advanced_search_hint": "When enabled, a separate advanced search page is built alongside the main page.",
+    "advanced_named_tags_label": "Named entity tags",
+    "advanced_named_tags_hint": "Tags that users can target in a text search (e.g. Persona → persName).",
+    "advanced_tag_label_placeholder": "Label (e.g. Persona)",
+    "advanced_tag_element_placeholder": "Element (e.g. persName)",
+    "advanced_attr_filters_label": "Attribute filters",
+    "advanced_attr_filters_hint": "Attributes users can filter on (e.g. Role → role).",
+    "advanced_attr_label_placeholder": "Label (e.g. Role)",
+    "advanced_attr_attribute_placeholder": "Attribute (e.g. role)",
+    "advanced_add_tag": "Add tag",
+    "advanced_add_filter": "Add filter",
+    "advanced_remove": "Remove",
+    "advanced_label_required": "Both label and element/attribute are required.",
+    "advanced_element_invalid": "Element/attribute name may only contain letters, digits, dots, hyphens and underscores and must start with a letter or underscore."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

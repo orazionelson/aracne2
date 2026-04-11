@@ -272,6 +272,114 @@
             <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
           </div>
 
+          <!-- Advanced search toggle -->
+          <div>
+            <label class="flex cursor-pointer items-center gap-2">
+              <input
+                v-model="form.advanced_search_enabled"
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+              />
+              <span class="text-sm font-medium text-gray-700">
+                {{ t("search_engines.advanced_search_toggle") }}
+              </span>
+            </label>
+            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.advanced_search_hint") }}</p>
+          </div>
+
+          <!-- Advanced search config panel (visible only when enabled) -->
+          <div
+            v-if="form.advanced_search_enabled"
+            class="rounded border border-indigo-100 bg-indigo-50 px-4 py-4 space-y-5"
+          >
+            <!-- Named entity tags -->
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-700">
+                  {{ t("search_engines.advanced_named_tags_label") }}
+                </label>
+                <button
+                  type="button"
+                  class="text-xs text-indigo-600 hover:underline"
+                  @click="addTag"
+                >
+                  + {{ t("search_engines.advanced_add_tag") }}
+                </button>
+              </div>
+              <p class="mb-2 text-xs text-gray-400">{{ t("search_engines.advanced_named_tags_hint") }}</p>
+              <div
+                v-for="(tag, idx) in form.advanced_search_config.named_tags"
+                :key="idx"
+                class="mb-1.5 flex items-center gap-2"
+              >
+                <input
+                  v-model="tag.label"
+                  type="text"
+                  :placeholder="t('search_engines.advanced_tag_label_placeholder')"
+                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                />
+                <input
+                  v-model="tag.element"
+                  type="text"
+                  :placeholder="t('search_engines.advanced_tag_element_placeholder')"
+                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  class="text-xs text-red-500 hover:text-red-700"
+                  @click="removeTag(idx)"
+                >
+                  {{ t("search_engines.advanced_remove") }}
+                </button>
+              </div>
+              <p v-if="form.advanced_search_config.named_tags.length === 0" class="text-xs text-gray-400 italic">
+                {{ t("search_engines.advanced_named_tags_hint") }}
+              </p>
+            </div>
+
+            <!-- Attribute filters -->
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-700">
+                  {{ t("search_engines.advanced_attr_filters_label") }}
+                </label>
+                <button
+                  type="button"
+                  class="text-xs text-indigo-600 hover:underline"
+                  @click="addAttrFilter"
+                >
+                  + {{ t("search_engines.advanced_add_filter") }}
+                </button>
+              </div>
+              <p class="mb-2 text-xs text-gray-400">{{ t("search_engines.advanced_attr_filters_hint") }}</p>
+              <div
+                v-for="(filter, idx) in form.advanced_search_config.attribute_filters"
+                :key="idx"
+                class="mb-1.5 flex items-center gap-2"
+              >
+                <input
+                  v-model="filter.label"
+                  type="text"
+                  :placeholder="t('search_engines.advanced_attr_label_placeholder')"
+                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                />
+                <input
+                  v-model="filter.attribute"
+                  type="text"
+                  :placeholder="t('search_engines.advanced_attr_attribute_placeholder')"
+                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  class="text-xs text-red-500 hover:text-red-700"
+                  @click="removeAttrFilter(idx)"
+                >
+                  {{ t("search_engines.advanced_remove") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Error -->
           <div v-if="formError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
             {{ formError }}
@@ -304,7 +412,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useSearchEngineStore, type SearchEngineBuildStatus } from "@/stores/search_engines";
+import {
+  useSearchEngineStore,
+  type AdvancedSearchConfig,
+  type SearchEngineBuildStatus,
+} from "@/stores/search_engines";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 
 const { t } = useI18n();
@@ -338,6 +450,8 @@ interface FormState {
   xslt_template_id: string | null;
   collection_ids: string[];
   cache_ttl_minutes: number;
+  advanced_search_enabled: boolean;
+  advanced_search_config: AdvancedSearchConfig;
 }
 
 const defaultForm = (): FormState => ({
@@ -346,6 +460,8 @@ const defaultForm = (): FormState => ({
   xslt_template_id: null,
   collection_ids: [],
   cache_ttl_minutes: 60,
+  advanced_search_enabled: false,
+  advanced_search_config: { named_tags: [], attribute_filters: [] },
 });
 
 const form = ref<FormState>(defaultForm());
@@ -369,6 +485,11 @@ function openEdit(slug: string): void {
     xslt_template_id: engine.xslt_template_id,
     collection_ids: engine.collections.map((c) => c.id),
     cache_ttl_minutes: engine.cache_ttl_minutes,
+    advanced_search_enabled: engine.advanced_search_enabled,
+    advanced_search_config: {
+      named_tags: engine.advanced_search_config.named_tags.map((t) => ({ ...t })),
+      attribute_filters: engine.advanced_search_config.attribute_filters.map((f) => ({ ...f })),
+    },
   };
   formError.value = null;
   modalOpen.value = true;
@@ -397,6 +518,8 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        advanced_search_enabled: form.value.advanced_search_enabled,
+        advanced_search_config: form.value.advanced_search_config,
       });
     } else {
       await store.update(editingSlug.value!, {
@@ -404,6 +527,8 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        advanced_search_enabled: form.value.advanced_search_enabled,
+        advanced_search_config: form.value.advanced_search_config,
       });
     }
     closeModal();
@@ -414,6 +539,24 @@ async function saveForm(): Promise<void> {
   } finally {
     saving.value = false;
   }
+}
+
+// ── Advanced search config helpers ───────────────────────────────────────────
+
+function addTag(): void {
+  form.value.advanced_search_config.named_tags.push({ label: "", element: "" });
+}
+
+function removeTag(idx: number): void {
+  form.value.advanced_search_config.named_tags.splice(idx, 1);
+}
+
+function addAttrFilter(): void {
+  form.value.advanced_search_config.attribute_filters.push({ label: "", attribute: "" });
+}
+
+function removeAttrFilter(idx: number): void {
+  form.value.advanced_search_config.attribute_filters.splice(idx, 1);
 }
 
 // ── Build ─────────────────────────────────────────────────────────────────────

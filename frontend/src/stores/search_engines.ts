@@ -10,6 +10,21 @@ export interface SearchEngineCollection {
 
 export type SearchEngineBuildStatus = "idle" | "pending" | "building" | "done" | "failed";
 
+export interface AdvancedSearchTag {
+  label: string;
+  element: string;
+}
+
+export interface AdvancedSearchAttributeFilter {
+  label: string;
+  attribute: string;
+}
+
+export interface AdvancedSearchConfig {
+  named_tags: AdvancedSearchTag[];
+  attribute_filters: AdvancedSearchAttributeFilter[];
+}
+
 export interface SearchEngine {
   id: string;
   slug: string;
@@ -19,6 +34,8 @@ export interface SearchEngine {
   last_build_at: string | null;
   build_error: string | null;
   cache_ttl_minutes: number;
+  advanced_search_enabled: boolean;
+  advanced_search_config: AdvancedSearchConfig;
   collections: SearchEngineCollection[];
   created_by: string | null;
   created_at: string;
@@ -31,6 +48,8 @@ export interface SearchEngineCreate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  advanced_search_enabled?: boolean;
+  advanced_search_config?: AdvancedSearchConfig;
 }
 
 export interface SearchEngineUpdate {
@@ -38,6 +57,8 @@ export interface SearchEngineUpdate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  advanced_search_enabled?: boolean;
+  advanced_search_config?: AdvancedSearchConfig;
 }
 
 export interface PublicCollection {

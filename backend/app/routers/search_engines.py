@@ -10,10 +10,13 @@ PUT    /search-engines/{slug}                update a search engine
 DELETE /search-engines/{slug}                delete a search engine
 GET    /search-engines/public-collections    list published+public collections
 POST   /search-engines/{slug}/build          trigger HTML page build
+POST   /search-engines/{slug}/cache/clear    clear query cache
 
 Public [pub]:
 GET    /search-pages/{slug}/                 serve built HTML search page
+GET    /search-pages/{slug}/advanced/        serve built advanced search page
 GET    /search-engines/{slug}/search         full-text search (?q=...&collections=...&max_results=...)
+GET    /search-engines/{slug}/advanced-search  advanced structural/attribute search
 """
 
 from pathlib import Path
@@ -150,7 +153,7 @@ async def build_search_engine(
     return {"data": engine.model_dump(mode="json")}
 
 
-# ── Public page serve endpoint [pub] ─────────────────────────────────────────
+# ── Public page serve endpoints [pub] ────────────────────────────────────────
 
 @router.get("/search-pages/{slug}/", response_class=HTMLResponse)
 async def serve_search_page(slug: str) -> FileResponse:
@@ -161,7 +164,18 @@ async def serve_search_page(slug: str) -> FileResponse:
     return FileResponse(str(index), media_type="text/html")
 
 
-# ── Public search endpoint [pub] ──────────────────────────────────────────────
+@router.get("/search-pages/{slug}/advanced/", response_class=HTMLResponse)
+async def serve_advanced_search_page(slug: str) -> FileResponse:
+    """Serve the built advanced search page for the given search engine slug."""
+    index = settings.search_engines_root / slug / "advanced" / "index.html"
+    if not index.is_file():
+        raise NotFoundError(
+            f"Advanced search page for '{slug}' has not been built yet"
+        )
+    return FileResponse(str(index), media_type="text/html")
+
+
+# ── Public search endpoints [pub] ─────────────────────────────────────────────
 
 @router.get("/search-engines/{slug}/search", response_model=None)
 @limiter.limit("60/minute")
@@ -187,4 +201,54 @@ async def search(
         response.headers["Cache-Control"] = f"public, max-age={ttl_minutes * 60}"
     else:
         response.headers["Cache-Control"] = "no-store"
+    return {"data": result.model_dump(mode="json")}
+
+
+@router.get("/search-engines/{slug}/advanced-search", response_model=None)
+@limiter.limit("60/minute")
+async def advanced_search(
+    slug: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    q: str | None = Query(None, max_length=512, description="Text to search within the element"),
+    element: str | None = Query(
+        None,
+        max_length=64,
+        pattern=r"^[a-zA-Z_][a-zA-Z0-9._-]*$",
+        description="Element local-name to restrict text search (e.g. persName)",
+    ),
+    attr_name: str | None = Query(
+        None,
+        max_length=64,
+        pattern=r"^[a-zA-Z_][a-zA-Z0-9._-]*$",
+        description="Attribute local-name to filter on",
+    ),
+    attr_value: str | None = Query(
+        None, max_length=256, description="Attribute value to match (empty = any)"
+    ),
+    collections: str | None = Query(
+        None,
+        description="Comma-separated collection slugs to restrict search (default: all linked)",
+    ),
+    max_results: int = Query(50, ge=1, le=200, description="Maximum hits to return"),
+) -> dict:
+    """Public advanced structural/attribute search endpoint for a search engine.
+
+    At least one of q, element, or attr_name must be provided.
+    Results are not cached (advanced queries are typically specific/infrequent).
+    """
+    col_slugs: list[str] | None = None
+    if collections:
+        col_slugs = [s.strip() for s in collections.split(",") if s.strip()]
+
+    result = await svc.run_advanced_search(
+        db,
+        slug=slug,
+        q=q,
+        element_name=element,
+        attr_name=attr_name,
+        attr_value=attr_value,
+        collection_slugs=col_slugs,
+        max_results=max_results,
+    )
     return {"data": result.model_dump(mode="json")}

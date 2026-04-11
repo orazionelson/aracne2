@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,6 +44,14 @@ class SearchEngine(Base):
     # Server-side query cache TTL in minutes (0 = cache disabled).
     cache_ttl_minutes: Mapped[int] = mapped_column(
         Integer(), nullable=False, default=60
+    )
+    # Advanced search: when enabled, a separate /advanced/ page is built.
+    advanced_search_enabled: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, default=False
+    )
+    # JSONB config: {named_tags: [{label, element}], attribute_filters: [{label, attribute}]}
+    advanced_search_config: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
