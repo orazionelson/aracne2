@@ -165,17 +165,17 @@ async def test_delete_notification(
 
 
 @pytest.mark.asyncio
-async def test_delete_other_users_notification_returns_404(
+async def test_delete_other_users_notification_returns_403(
     client: AsyncClient,
     seeded_user: User,
     seeded_admin: User,
     seeded_notification: Notification,
 ) -> None:
-    """A user cannot delete another user's notification."""
+    """Admin cannot delete another user's notification — notifications are personal."""
     from app.tests.conftest import ADMIN_PASSWORD, ADMIN_USERNAME
 
     token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
     res = await client.delete(
         f"/api/v1/notifications/{seeded_notification.id}", headers=_auth(token)
     )
-    assert res.status_code == 404
+    assert res.status_code == 403
