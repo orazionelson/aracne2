@@ -266,16 +266,13 @@ export function useCodeMirror(
       cm.replaceRange(noteMarkup, fromPos, toPos, '+programmatic');
     });
 
-    // ── 4. Mark the inserted <ref> ─────────────────────────────────────────
-    // markText is called AFTER operation() so that CM5 has fully committed
-    // all replaceRange changes before attaching marker spans to lines.
-    // Calling markText inside operation() after replaceRange corrupts the
-    // internal markedSpans linked list and crashes cursor navigation.
-    const refEnd = cm.posFromIndex(cm.indexFromPos(cursor) + refTag.length);
-    cm.markText(cursor, refEnd, {
-      className: 'cm-note-ref',
-      title: noteId,
-    });
+    // ── 4. (Re)mark all <ref> tags ─────────────────────────────────────────
+    // Using markRefTagsOnInstance (unconditional clear + full rescan) rather
+    // than a single markText call. Even outside operation(), attaching a new
+    // marker immediately after two replaceRange calls can leave CM5's internal
+    // line-measurement state in a partially-updated condition that blocks
+    // cursor navigation. A full rescan operates on a fully stabilised document.
+    markRefTagsOnInstance(cm);
   }
 
   /**
@@ -285,12 +282,11 @@ export function useCodeMirror(
    * setValue() replaces the full document content).
    */
   function markRefTagsOnInstance(instance: Editor): void {
-    // Clear only markers that wrap a <ref …/> tag.
-    instance.getAllMarks().forEach((m) => {
-      const range = m.find() as { from: CodeMirror.Position; to: CodeMirror.Position } | undefined;
-      if (!range || !('from' in range)) return;
-      if (instance.getRange(range.from, range.to).startsWith('<ref ')) m.clear();
-    });
+    // Clear all TextMarkers unconditionally. The only markers we create are
+    // cm-note-ref markers for <ref> tags, so there is nothing else to preserve.
+    // Unconditional clearing also avoids any residual stale marker state that
+    // can block cursor navigation after replaceRange calls.
+    instance.getAllMarks().forEach((m) => m.clear());
 
     const text = instance.getValue();
     const pattern = /<ref target="#([^"]+)" type="(alpha|numeric)"\/>/g;
