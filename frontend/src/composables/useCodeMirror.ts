@@ -276,6 +276,12 @@ export function useCodeMirror(
     // updates from markText can silently strip from the editor.
     requestAnimationFrame(() => {
       markRefTagsOnInstance(cm);
+      // Force CM5 to re-measure all lines. markText calls can leave the
+      // line-measure cache stale; without this, vertical cursor movement
+      // (moveV) crashes with "Cannot read properties of undefined
+      // (reading 'map')" in prepareMeasureForLine — the same issue fixed
+      // by the refresh() call in setValue().
+      cm.refresh();
       cm.focus();
     });
   }
@@ -287,11 +293,18 @@ export function useCodeMirror(
    * setValue() replaces the full document content).
    */
   function markRefTagsOnInstance(instance: Editor): void {
-    // Clear all TextMarkers unconditionally. The only markers we create are
-    // cm-note-ref markers for <ref> tags, so there is nothing else to preserve.
-    // Unconditional clearing also avoids any residual stale marker state that
-    // can block cursor navigation after replaceRange calls.
-    instance.getAllMarks().forEach((m) => m.clear());
+    // Clear only markers that wrap a <ref …/> tag.
+    // Unconditional getAllMarks().clear() would also remove fold markers
+    // (collapsed TextMarkers created by the fold addon). Clearing those
+    // unexpectedly expands folded sections, changes the line count, and
+    // corrupts CM5's viewport state — causing "Cannot read properties of
+    // undefined (reading 'map')" crashes in prepareMeasureForLine on the
+    // next vertical cursor movement.
+    instance.getAllMarks().forEach((m) => {
+      const range = m.find() as { from: CodeMirror.Position; to: CodeMirror.Position } | undefined;
+      if (!range || !('from' in range)) return;
+      if (instance.getRange(range.from, range.to).startsWith('<ref ')) m.clear();
+    });
 
     const text = instance.getValue();
     const pattern = /<ref target="#([^"]+)" type="(alpha|numeric)"\/>/g;
