@@ -4,11 +4,12 @@ import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import BigInteger, Boolean, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
+from app.db.types import BigIntType
 
 
 def _now() -> datetime:
@@ -31,7 +32,7 @@ class SearchEngineEmbedLog(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger(), primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigIntType, primary_key=True, autoincrement=True)
     search_engine_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("search_engines.id", ondelete="CASCADE"),
