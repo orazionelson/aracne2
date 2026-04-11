@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.core.exceptions import ConflictError, NotFoundError, ExternalServiceError
+from app.core.exceptions import ConflictError, DomainValidationError, ExternalServiceError, NotFoundError
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
@@ -1273,6 +1273,8 @@ async def _do_build(slug: str) -> None:
             await db.commit()
 
             out_dir = settings.search_engines_root / slug
+            if not out_dir.resolve().is_relative_to(settings.search_engines_root.resolve()):
+                raise DomainValidationError(code="INVALID_SLUG", message="Slug resolves outside the allowed directory")
             out_dir.mkdir(parents=True, exist_ok=True)
 
             # Main search page.

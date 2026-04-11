@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, DomainValidationError, NotFoundError
 from app.services.xslt import apply_xslt
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
@@ -1853,6 +1853,8 @@ async def delete_website(db: AsyncSession, slug: str) -> None:
     website = await _get_website(db, slug)
     # Clean up generated static files if they exist.
     site_dir = settings.websites_root / slug
+    if not site_dir.resolve().is_relative_to(settings.websites_root.resolve()):
+        raise DomainValidationError(code="INVALID_SLUG", message="Slug resolves outside the allowed directory")
     if site_dir.exists():
         import shutil
         shutil.rmtree(site_dir, ignore_errors=True)
@@ -2599,6 +2601,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     logo_url: str | None = theme.get("logo_url") or None
 
     site_dir = settings.websites_root / slug
+    if not site_dir.resolve().is_relative_to(settings.websites_root.resolve()):
+        raise DomainValidationError(code="INVALID_SLUG", message="Slug resolves outside the allowed directory")
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "docs").mkdir(exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
@@ -2851,6 +2855,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     base = f"/api/v1/sites/{slug}"
 
     site_dir = settings.websites_root / slug
+    if not site_dir.resolve().is_relative_to(settings.websites_root.resolve()):
+        raise DomainValidationError(code="INVALID_SLUG", message="Slug resolves outside the allowed directory")
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
