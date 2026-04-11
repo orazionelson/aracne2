@@ -18,6 +18,7 @@ export interface SearchEngine {
   build_status: SearchEngineBuildStatus;
   last_build_at: string | null;
   build_error: string | null;
+  cache_ttl_minutes: number;
   collections: SearchEngineCollection[];
   created_by: string | null;
   created_at: string;
@@ -29,12 +30,14 @@ export interface SearchEngineCreate {
   title: string;
   xslt_template_id?: string | null;
   collection_ids?: string[];
+  cache_ttl_minutes?: number;
 }
 
 export interface SearchEngineUpdate {
   title?: string;
   xslt_template_id?: string | null;
   collection_ids?: string[];
+  cache_ttl_minutes?: number;
 }
 
 export interface PublicCollection {
@@ -99,6 +102,11 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     return updated;
   }
 
+  async function clearCache(slug: string): Promise<number> {
+    const res = await api.post(`/search-engines/${slug}/cache/clear`);
+    return (res.data.data as { deleted: number }).deleted;
+  }
+
   return {
     engines,
     publicCollections,
@@ -110,5 +118,6 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     update,
     remove,
     build,
+    clearCache,
   };
 });

@@ -641,7 +641,12 @@
     "build_status_building": "building",
     "build_status_done": "done",
     "build_status_failed": "failed",
-    "error_build": "Build failed. Please try again."
+    "error_build": "Build failed. Please try again.",
+    "cache_ttl_label": "Cache TTL (minutes)",
+    "cache_ttl_hint": "How long search results are cached server-side. Set to 0 to disable caching. Maximum 10080 (7 days).",
+    "clear_cache": "Clear cache",
+    "cache_cleared": "Cache cleared ({n} entries deleted).",
+    "error_clear_cache": "Failed to clear cache. Please try again."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

@@ -108,6 +108,15 @@
           {{ t("search_engines.open") }}
         </a>
 
+        <!-- Clear cache -->
+        <button
+          v-if="engine.cache_ttl_minutes > 0"
+          class="rounded bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-200"
+          @click="handleClearCache(engine.slug)"
+        >
+          {{ t("search_engines.clear_cache") }}
+        </button>
+
         <!-- Edit -->
         <button
           class="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
@@ -248,6 +257,21 @@
             </p>
           </div>
 
+          <!-- Cache TTL -->
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700">
+              {{ t("search_engines.cache_ttl_label") }}
+            </label>
+            <input
+              v-model.number="form.cache_ttl_minutes"
+              type="number"
+              min="0"
+              max="10080"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+            />
+            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
+          </div>
+
           <!-- Error -->
           <div v-if="formError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
             {{ formError }}
@@ -313,6 +337,7 @@ interface FormState {
   title: string;
   xslt_template_id: string | null;
   collection_ids: string[];
+  cache_ttl_minutes: number;
 }
 
 const defaultForm = (): FormState => ({
@@ -320,6 +345,7 @@ const defaultForm = (): FormState => ({
   title: "",
   xslt_template_id: null,
   collection_ids: [],
+  cache_ttl_minutes: 60,
 });
 
 const form = ref<FormState>(defaultForm());
@@ -342,6 +368,7 @@ function openEdit(slug: string): void {
     title: engine.title,
     xslt_template_id: engine.xslt_template_id,
     collection_ids: engine.collections.map((c) => c.id),
+    cache_ttl_minutes: engine.cache_ttl_minutes,
   };
   formError.value = null;
   modalOpen.value = true;
@@ -369,12 +396,14 @@ async function saveForm(): Promise<void> {
         title: form.value.title,
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
+        cache_ttl_minutes: form.value.cache_ttl_minutes,
       });
     } else {
       await store.update(editingSlug.value!, {
         title: form.value.title,
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
+        cache_ttl_minutes: form.value.cache_ttl_minutes,
       });
     }
     closeModal();
@@ -418,6 +447,17 @@ async function triggerBuild(slug: string): Promise<void> {
     }, 2000);
   } catch (err: unknown) {
     window.alert(err instanceof Error ? err.message : t("search_engines.error_build"));
+  }
+}
+
+// ── Cache ─────────────────────────────────────────────────────────────────────
+
+async function handleClearCache(slug: string): Promise<void> {
+  try {
+    const deleted = await store.clearCache(slug);
+    window.alert(t("search_engines.cache_cleared", { n: deleted }));
+  } catch (err: unknown) {
+    window.alert(err instanceof Error ? err.message : t("search_engines.error_clear_cache"));
   }
 }
 

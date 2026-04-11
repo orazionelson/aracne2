@@ -4,8 +4,8 @@ import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
@@ -41,6 +41,10 @@ class SearchEngine(Base):
         sa.DateTime(timezone=True), nullable=True
     )
     build_error: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Server-side query cache TTL in minutes (0 = cache disabled).
+    cache_ttl_minutes: Mapped[int] = mapped_column(
+        Integer(), nullable=False, default=60
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -78,4 +82,44 @@ class SearchEngineCollection(Base):
 
     search_engine: Mapped["SearchEngine"] = relationship(
         "SearchEngine", back_populates="collections"
+    )
+
+
+class SearchEngineQueryCache(Base):
+    """Server-side cache for search engine query results.
+
+    Cache key is SHA-256(normalised_query + '\\0' + sorted_collection_slugs).
+    Entries are invalidated by TTL (expires_at) and purged by a scheduled job.
+    """
+
+    __tablename__ = "search_engine_query_cache"
+    __table_args__ = (
+        sa.Index(
+            "ix_se_query_cache_engine_hash",
+            "search_engine_id",
+            "query_hash",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    search_engine_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("search_engines.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # SHA-256(normalised_query + '\0' + sorted_collection_slugs)
+    query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    query_text: Mapped[str] = mapped_column(String(512), nullable=False)
+    collections_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    hits: Mapped[list] = mapped_column(JSONB, nullable=False)
+    total: Mapped[int] = mapped_column(Integer(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_now
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
     )

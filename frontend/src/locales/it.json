@@ -641,7 +641,12 @@
     "build_status_building": "in costruzione",
     "build_status_done": "completato",
     "build_status_failed": "fallito",
-    "error_build": "Build fallita. Riprova."
+    "error_build": "Build fallita. Riprova.",
+    "cache_ttl_label": "TTL cache (minuti)",
+    "cache_ttl_hint": "Per quanto tempo i risultati vengono memorizzati nella cache lato server. Imposta 0 per disabilitare. Massimo 10080 (7 giorni).",
+    "clear_cache": "Svuota cache",
+    "cache_cleared": "Cache svuotata ({n} voci eliminate).",
+    "error_clear_cache": "Impossibile svuotare la cache. Riprova."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

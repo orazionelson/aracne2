@@ -1,12 +1,13 @@
 """Business logic for search engines."""
 
+import hashlib
 import textwrap
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,7 +16,11 @@ from app.core.exceptions import ConflictError, NotFoundError, ExternalServiceErr
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
-from app.models.search_engine import SearchEngine, SearchEngineCollection
+from app.models.search_engine import (
+    SearchEngine,
+    SearchEngineCollection,
+    SearchEngineQueryCache,
+)
 from app.models.website import BuildStatus
 from app.models.xslt_template import XsltTemplate
 from app.schemas.search_engines import (
@@ -67,6 +72,7 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         build_status=engine.build_status,
         last_build_at=engine.last_build_at,
         build_error=engine.build_error,
+        cache_ttl_minutes=engine.cache_ttl_minutes,
         collections=col_items,
         created_by=engine.created_by,
         created_at=engine.created_at,
@@ -137,6 +143,7 @@ async def create_search_engine(
         slug=payload.slug,
         title=payload.title,
         xslt_template_id=payload.xslt_template_id,
+        cache_ttl_minutes=payload.cache_ttl_minutes,
         created_by=created_by,
     )
     db.add(engine)
@@ -174,6 +181,9 @@ async def update_search_engine(
         # Explicitly set to null.
         engine.xslt_template_id = None
 
+    if payload.cache_ttl_minutes is not None:
+        engine.cache_ttl_minutes = payload.cache_ttl_minutes
+
     collections: list[Collection] = []
     if payload.collection_ids is not None:
         collections = await _validate_collections(db, payload.collection_ids)
@@ -203,6 +213,87 @@ async def delete_search_engine(db: AsyncSession, slug: str) -> None:
     await db.commit()
 
 
+async def clear_cache(db: AsyncSession, slug: str) -> int:
+    """Delete all cached query results for a search engine.
+
+    Returns the number of deleted entries.
+    """
+    engine = await _get_engine_or_404(db, slug)
+    result = await db.execute(
+        delete(SearchEngineQueryCache).where(
+            SearchEngineQueryCache.search_engine_id == engine.id
+        )
+    )
+    await db.commit()
+    deleted: int = result.rowcount
+    logger.info("search_engine_cache_cleared", slug=slug, deleted=deleted)
+    return deleted
+
+
+# ── Cache helpers ─────────────────────────────────────────────────────────────
+
+def _build_cache_key(q: str, collection_slugs: list[str]) -> str:
+    """Return a deterministic SHA-256 hex cache key."""
+    normalized = q.strip().lower()
+    cols = "|".join(sorted(collection_slugs))
+    return hashlib.sha256(f"{normalized}\x00{cols}".encode()).hexdigest()
+
+
+async def _get_from_cache(
+    db: AsyncSession,
+    engine_id: uuid.UUID,
+    query_hash: str,
+) -> SearchEngineQueryCache | None:
+    """Return a valid (non-expired) cache entry, or None on miss."""
+    result = await db.execute(
+        select(SearchEngineQueryCache).where(
+            SearchEngineQueryCache.search_engine_id == engine_id,
+            SearchEngineQueryCache.query_hash == query_hash,
+            SearchEngineQueryCache.expires_at > datetime.now(UTC),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _write_to_cache(
+    db: AsyncSession,
+    engine_id: uuid.UUID,
+    query_hash: str,
+    query_text: str,
+    collections_key: str,
+    hits: list[SearchHit],
+    ttl_minutes: int,
+) -> None:
+    """Upsert a cache entry (INSERT … ON CONFLICT DO UPDATE)."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    expires = datetime.now(UTC) + timedelta(minutes=ttl_minutes)
+    hits_data = [h.model_dump(mode="json") for h in hits]
+
+    stmt = pg_insert(SearchEngineQueryCache).values(
+        id=uuid.uuid4(),
+        search_engine_id=engine_id,
+        query_hash=query_hash,
+        query_text=query_text,
+        collections_key=collections_key,
+        hits=hits_data,
+        total=len(hits_data),
+        created_at=datetime.now(UTC),
+        expires_at=expires,
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["search_engine_id", "query_hash"],
+        set_={
+            "hits": stmt.excluded.hits,
+            "total": stmt.excluded.total,
+            "created_at": stmt.excluded.created_at,
+            "expires_at": stmt.excluded.expires_at,
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+
 # ── Public search ─────────────────────────────────────────────────────────────
 
 async def run_search(
@@ -211,8 +302,16 @@ async def run_search(
     q: str,
     collection_slugs: list[str] | None,
     max_results: int,
-) -> SearchEngineSearchResponse:
-    """Execute a cross-collection full-text search for the given search engine."""
+) -> tuple[SearchEngineSearchResponse, int]:
+    """Execute a cross-collection full-text search for the given search engine.
+
+    Returns a (response, cache_ttl_minutes) tuple so the caller can set
+    appropriate Cache-Control headers.  cache_ttl_minutes is 0 when caching
+    is disabled or the result is trivially empty.
+
+    Results are served from the PostgreSQL cache when available and not expired.
+    Cache is bypassed when cache_ttl_minutes == 0.
+    """
     import defusedxml.ElementTree as ET  # noqa: PLC0415
 
     if max_results < 1:
@@ -224,11 +323,10 @@ async def run_search(
     col_ids = [row.collection_id for row in engine.collections]
 
     if not col_ids:
-        return SearchEngineSearchResponse(query=q, total=0, hits=[])
+        return SearchEngineSearchResponse(query=q, total=0, hits=[]), 0
 
     # Load collections and build slug→col map.
     collections = await _load_collections(db, col_ids)
-    col_by_id: dict[uuid.UUID, Collection] = {c.id: c for c in collections}
 
     # Restrict to requested slugs if provided.
     target_cols: list[Collection] = []
@@ -244,11 +342,27 @@ async def run_search(
         target_cols = collections
 
     if not target_cols:
-        return SearchEngineSearchResponse(query=q, total=0, hits=[])
+        return SearchEngineSearchResponse(query=q, total=0, hits=[]), 0
 
-    # Build comma-separated path list for the XQuery.
+    target_slugs = [c.slug for c in target_cols]
+    collections_key = "|".join(sorted(target_slugs))
+    cache_key = _build_cache_key(q, target_slugs)
+
+    # ── Cache check ───────────────────────────────────────────────────────────
+    if engine.cache_ttl_minutes > 0:
+        cached_entry = await _get_from_cache(db, engine.id, cache_key)
+        if cached_entry is not None:
+            cached_hits = [SearchHit(**h) for h in cached_entry.hits]
+            logger.debug("search_engine_cache_hit", slug=slug, query=q)
+            return SearchEngineSearchResponse(
+                query=q,
+                total=cached_entry.total,
+                hits=cached_hits,
+                cached=True,
+            ), engine.cache_ttl_minutes
+
+    # ── Cache miss — run XQuery ───────────────────────────────────────────────
     paths_csv = ",".join(existdb_client.col_path(c.slug) for c in target_cols)
-    # Build slug lookup keyed by eXist-db path.
     path_to_slug: dict[str, str] = {
         existdb_client.col_path(c.slug): c.slug for c in target_cols
     }
@@ -264,13 +378,13 @@ async def run_search(
         )
     except ExternalServiceError as exc:
         logger.error("search_engine_xquery_failed", slug=slug, error=str(exc))
-        return SearchEngineSearchResponse(query=q, total=0, hits=[])
+        return SearchEngineSearchResponse(query=q, total=0, hits=[]), 0
 
     try:
         root_el = ET.fromstring(raw)
     except ET.ParseError as exc:
         logger.error("search_engine_xml_parse_failed", slug=slug, error=str(exc))
-        return SearchEngineSearchResponse(query=q, total=0, hits=[])
+        return SearchEngineSearchResponse(query=q, total=0, hits=[]), 0
 
     hits: list[SearchHit] = []
     for hit_el in root_el.findall("hit"):
@@ -290,7 +404,19 @@ async def run_search(
             kwic=kwic_text,
         ))
 
-    return SearchEngineSearchResponse(query=q, total=len(hits), hits=hits)
+    # ── Write to cache ────────────────────────────────────────────────────────
+    if engine.cache_ttl_minutes > 0:
+        await _write_to_cache(
+            db,
+            engine_id=engine.id,
+            query_hash=cache_key,
+            query_text=q,
+            collections_key=collections_key,
+            hits=hits,
+            ttl_minutes=engine.cache_ttl_minutes,
+        )
+
+    return SearchEngineSearchResponse(query=q, total=len(hits), hits=hits, cached=False), engine.cache_ttl_minutes
 
 
 # ── Collection validation helper ──────────────────────────────────────────────
@@ -434,6 +560,9 @@ def _render_search_page(slug: str, title: str) -> str:
               var statusEl = document.getElementById('status');
               var resultsEl = document.getElementById('results');
 
+              // Session-level cache: query string → API data object.
+              var _cache = new Map();
+
               function escapeHtml(str) {{
                 return String(str)
                   .replace(/&/g, '&amp;')
@@ -465,11 +594,21 @@ def _render_search_page(slug: str, title: str) -> str:
                 e.preventDefault();
                 var q = qInput.value.trim();
                 if (!q) return;
+
+                // Serve from in-page session cache when available.
+                if (_cache.has(q)) {{
+                  renderResults(_cache.get(q));
+                  return;
+                }}
+
                 statusEl.textContent = 'Searching\u2026';
                 resultsEl.innerHTML = '';
                 fetch(API + '?q=' + encodeURIComponent(q))
                   .then(function (r) {{ return r.json(); }})
-                  .then(function (json) {{ renderResults(json.data); }})
+                  .then(function (json) {{
+                    _cache.set(q, json.data);
+                    renderResults(json.data);
+                  }})
                   .catch(function () {{ statusEl.textContent = 'Search error. Please try again.'; }});
               }});
 

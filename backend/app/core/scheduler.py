@@ -5,8 +5,9 @@ Uses APScheduler (in-process, no external broker).  Jobs are registered
 here and started/stopped in the FastAPI lifespan.
 
 Current jobs:
-  - purge_audit_log       daily  — deletes old audit_log rows
-  - purge_expired_sessions daily  — deletes fully-expired session rows
+  - purge_audit_log              daily   — deletes old audit_log rows
+  - purge_expired_sessions       daily   — deletes fully-expired session rows
+  - purge_search_engine_cache    hourly  — deletes expired search engine cache entries
 
 Retention periods are read from system_settings at each job run so that
 Admin changes take effect without a restart.
@@ -88,6 +89,27 @@ async def purge_expired_sessions() -> None:
         logger.error("purge_expired_sessions_failed", error=str(exc))
 
 
+async def purge_search_engine_cache() -> None:
+    """Delete search_engine_query_cache rows whose expires_at is in the past."""
+    from datetime import UTC, datetime
+    from sqlalchemy import delete
+    from app.models.search_engine import SearchEngineQueryCache
+
+    now = datetime.now(UTC)
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                delete(SearchEngineQueryCache).where(
+                    SearchEngineQueryCache.expires_at < now
+                )
+            )
+            await db.commit()
+            deleted = result.rowcount
+        logger.info("purge_search_engine_cache_done", deleted=deleted)
+    except Exception as exc:
+        logger.error("purge_search_engine_cache_failed", error=str(exc))
+
+
 # ── Registration ───────────────────────────────────────────────────────────────
 
 def register_jobs() -> None:
@@ -106,6 +128,13 @@ def register_jobs() -> None:
         hour=2,
         minute=30,
         id="purge_expired_sessions",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        lambda: asyncio.ensure_future(purge_search_engine_cache()),
+        trigger="cron",
+        minute=15,  # :15 of every hour
+        id="purge_search_engine_cache",
         replace_existing=True,
     )
     logger.info("scheduler_jobs_registered", count=len(scheduler.get_jobs()))

@@ -25,12 +25,15 @@ class SearchEngineCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=256)
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] = Field(default_factory=list)
+    # 0 = cache disabled; default 60 minutes.
+    cache_ttl_minutes: int = Field(default=60, ge=0, le=10080)
 
 
 class SearchEngineUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=256)
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] | None = None
+    cache_ttl_minutes: int | None = Field(default=None, ge=0, le=10080)
 
 
 class SearchEngineResponse(BaseModel):
@@ -41,6 +44,7 @@ class SearchEngineResponse(BaseModel):
     build_status: BuildStatus
     last_build_at: datetime | None
     build_error: str | None
+    cache_ttl_minutes: int
     collections: list[SearchEngineCollectionItem]
     created_by: uuid.UUID | None
     created_at: datetime
@@ -65,3 +69,4 @@ class SearchEngineSearchResponse(BaseModel):
     query: str
     total: int
     hits: list[SearchHit]
+    cached: bool = False  # True when result was served from PostgreSQL cache

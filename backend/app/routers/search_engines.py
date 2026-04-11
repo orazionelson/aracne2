@@ -21,7 +21,7 @@ from typing import Annotated
 
 import asyncio
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,6 +124,17 @@ async def delete_search_engine(
     await svc.delete_search_engine(db, slug)
 
 
+@router.post("/search-engines/{slug}/cache/clear", response_model=None)
+async def clear_search_engine_cache(
+    slug: str,
+    _user: DesignerPlus,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict:
+    """Invalidate all cached query results for the search engine."""
+    deleted = await svc.clear_cache(db, slug)
+    return {"data": {"deleted": deleted}}
+
+
 # ── Build endpoint [D+] ──────────────────────────────────────────────────────
 
 @router.post("/search-engines/{slug}/build", response_model=None)
@@ -157,6 +168,7 @@ async def serve_search_page(slug: str) -> FileResponse:
 async def search(
     slug: str,
     request: Request,
+    response: Response,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     q: str = Query(..., min_length=1, max_length=512, description="Search query"),
     collections: str | None = Query(
@@ -170,5 +182,9 @@ async def search(
     if collections:
         col_slugs = [s.strip() for s in collections.split(",") if s.strip()]
 
-    result = await svc.run_search(db, slug, q, col_slugs, max_results)
+    result, ttl_minutes = await svc.run_search(db, slug, q, col_slugs, max_results)
+    if ttl_minutes > 0:
+        response.headers["Cache-Control"] = f"public, max-age={ttl_minutes * 60}"
+    else:
+        response.headers["Cache-Control"] = "no-store"
     return {"data": result.model_dump(mode="json")}
