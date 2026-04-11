@@ -202,6 +202,53 @@ Failed logins produced no log entry at all.
 
 ---
 
+## Follow-up review — quality-fix commits (`3bf8797` → `5988a88`)
+
+After the baseline review, a quality/refactor session introduced new commits. A
+targeted security pass was run on the diff (`7c97d03..HEAD`).
+
+### Quality commits — clean
+
+| Area | Verdict |
+|---|---|
+| `constants.py` — ROLE_LEVEL single source of truth | No issue — reduces divergence risk |
+| `acl.py` — `except Exception` → `except (AuthenticationError, ValueError, KeyError)` in `get_optional_user` | Improvement — unexpected errors no longer silently swallowed |
+| `services/users.py` — `selectinload` + `_build_response_from_loaded` | Correct — `revoked_at is None` filter preserved |
+| `routers/auth.py` / `routers/users.py` — docstrings only | No issue |
+| `routers/embed.py` — explicit return types | No issue |
+| `schemas/websites.py` — new response schemas | No issue |
+
+### 17. `preview_doc` filename not validated — Fixed
+
+**Issue (Medium):** `POST /websites/{slug}/preview-doc/{filename}` (added in
+commit `1bd044d`) passed `filename` directly to `existdb_client.get_document()`,
+which builds the eXist-db REST URL as
+`/exist/rest/db/collections/{slug}/{filename}` with no sanitisation.
+A URL-encoded dot-dot sequence could traverse outside the website's eXist-db
+collection — the same class of issue fixed for filesystem paths in `65b967e`.
+
+**Fix:** Added `_SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")` guard at
+the API boundary in `preview_doc`; returns HTTP 400 on violation.
+
+**Commit:** `eebbaac`
+
+### 18. `_resolve_site_file` weak containment check — Fixed
+
+**Issue (Low):** `_resolve_site_file` used `str(candidate).startswith(str(root))`
+to guard against path traversal. This has two weaknesses:
+1. Prefix-confusion: `/sites/foo` matches `/sites/foobar`.
+2. Containment was enforced against the shared websites root, not the specific
+   site's subdirectory — cross-site file access possible if the ASGI server
+   passed encoded dot-dot sequences.
+
+**Fix:** Replaced with `candidate.is_relative_to(site_root)` where
+`site_root = settings.websites_root.resolve() / slug`, consistent with the
+`Path.is_relative_to()` pattern used in service-layer fixes (`65b967e`).
+
+**Commit:** `eebbaac`
+
+---
+
 ## Deferred / out of scope
 
 | Item | Reason |
