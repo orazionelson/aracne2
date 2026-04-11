@@ -35,8 +35,11 @@ from app.core.constants import ROLE_LEVEL
 from app.middleware.acl import get_current_user
 from app.middleware.rate_limiter import limiter
 from app.models.user import User
+from app.schemas.common import DataResponse, PaginatedResponse
 from app.schemas.search_engines import (
+    EmbedLogEntry,
     SearchEngineCreate,
+    SearchEngineResponse,
     SearchEngineSearchResponse,
     SearchEngineUpdate,
 )
@@ -74,50 +77,50 @@ DesignerPlus = Annotated[User, Depends(_require_designer_plus)]
 async def list_public_collections(
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[list[dict[str, object]]]:
     """List all published + public collections available for search engine assignment."""
     cols = await svc.list_public_collections(db)
-    return {"data": cols}
+    return DataResponse(data=cols)
 
 
-@router.get("/search-engines", response_model=None)
+@router.get("/search-engines")
 async def list_search_engines(
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[list[SearchEngineResponse]]:
     engines = await svc.list_search_engines(db)
-    return {"data": [e.model_dump(mode="json") for e in engines]}
+    return DataResponse(data=engines)
 
 
-@router.post("/search-engines", status_code=201, response_model=None)
+@router.post("/search-engines", status_code=201)
 async def create_search_engine(
     payload: SearchEngineCreate,
     user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[SearchEngineResponse]:
     engine = await svc.create_search_engine(db, payload, created_by=user.id)
-    return {"data": engine.model_dump(mode="json")}
+    return DataResponse(data=engine)
 
 
-@router.get("/search-engines/{slug}", response_model=None)
+@router.get("/search-engines/{slug}")
 async def get_search_engine(
     slug: str,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[SearchEngineResponse]:
     engine = await svc.get_search_engine(db, slug)
-    return {"data": engine.model_dump(mode="json")}
+    return DataResponse(data=engine)
 
 
-@router.put("/search-engines/{slug}", response_model=None)
+@router.put("/search-engines/{slug}")
 async def update_search_engine(
     slug: str,
     payload: SearchEngineUpdate,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[SearchEngineResponse]:
     engine = await svc.update_search_engine(db, slug, payload)
-    return {"data": engine.model_dump(mode="json")}
+    return DataResponse(data=engine)
 
 
 @router.delete("/search-engines/{slug}", status_code=204)
@@ -129,25 +132,25 @@ async def delete_search_engine(
     await svc.delete_search_engine(db, slug)
 
 
-@router.post("/search-engines/{slug}/cache/clear", response_model=None)
+@router.post("/search-engines/{slug}/cache/clear")
 async def clear_search_engine_cache(
     slug: str,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[dict[str, int]]:
     """Invalidate all cached query results for the search engine."""
     deleted = await svc.clear_cache(db, slug)
-    return {"data": {"deleted": deleted}}
+    return DataResponse(data={"deleted": deleted})
 
 
 # ── Available tags [D+] ──────────────────────────────────────────────────────
 
-@router.get("/search-engines/{slug}/available-tags", response_model=None)
+@router.get("/search-engines/{slug}/available-tags")
 async def get_available_tags(
     slug: str,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[dict[str, list[str]]]:
     """Return the merged element→attributes map across all linked collections.
 
     Used by the admin UI to populate autocomplete suggestions in the
@@ -155,37 +158,36 @@ async def get_available_tags(
     (no caching) and are only accessible to Designer-plus users.
     """
     tags = await svc.get_available_tags(db, slug)
-    return {"data": tags}
+    return DataResponse(data=tags)
 
 
 # ── Embed logs [D+] ─────────────────────────────────────────────────────────
 
-@router.get("/search-engines/{slug}/embed-logs", response_model=None)
+@router.get("/search-engines/{slug}/embed-logs")
 async def get_embed_logs(
     slug: str,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
-) -> dict:
+) -> PaginatedResponse[EmbedLogEntry]:
     """Return paginated embed request logs for a search engine."""
-    result = await list_embed_logs(db, slug, page, per_page)
-    return result.model_dump(mode="json")
+    return await list_embed_logs(db, slug, page, per_page)
 
 
 # ── Build endpoint [D+] ──────────────────────────────────────────────────────
 
-@router.post("/search-engines/{slug}/build", response_model=None)
+@router.post("/search-engines/{slug}/build")
 async def build_search_engine(
     slug: str,
     background_tasks: BackgroundTasks,
     _user: DesignerPlus,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> dict:
+) -> DataResponse[SearchEngineResponse]:
     """Trigger an async HTML build for the search engine page."""
     engine = await svc.trigger_build(db, slug)
     background_tasks.add_task(svc._do_build, slug)
-    return {"data": engine.model_dump(mode="json")}
+    return DataResponse(data=engine)
 
 
 # ── Public page serve endpoints [pub] ────────────────────────────────────────
@@ -212,7 +214,7 @@ async def serve_advanced_search_page(slug: str) -> FileResponse:
 
 # ── Public search endpoints [pub] ─────────────────────────────────────────────
 
-@router.get("/search-engines/{slug}/search", response_model=None)
+@router.get("/search-engines/{slug}/search")
 @limiter.limit("60/minute")
 async def search(
     slug: str,
@@ -225,7 +227,7 @@ async def search(
         description="Comma-separated collection slugs to restrict search (default: all linked)",
     ),
     max_results: int = Query(50, ge=1, le=200, description="Maximum hits to return"),
-) -> dict:
+) -> DataResponse[SearchEngineSearchResponse]:
     """Public full-text search endpoint for a search engine."""
     col_slugs: list[str] | None = None
     if collections:
@@ -236,10 +238,10 @@ async def search(
         response.headers["Cache-Control"] = f"public, max-age={ttl_minutes * 60}"
     else:
         response.headers["Cache-Control"] = "no-store"
-    return {"data": result.model_dump(mode="json")}
+    return DataResponse(data=result)
 
 
-@router.get("/search-engines/{slug}/advanced-search", response_model=None)
+@router.get("/search-engines/{slug}/advanced-search")
 @limiter.limit("60/minute")
 async def advanced_search(
     slug: str,
@@ -266,7 +268,7 @@ async def advanced_search(
         description="Comma-separated collection slugs to restrict search (default: all linked)",
     ),
     max_results: int = Query(50, ge=1, le=200, description="Maximum hits to return"),
-) -> dict:
+) -> DataResponse[SearchEngineSearchResponse]:
     """Public advanced structural/attribute search endpoint for a search engine.
 
     At least one of q, element, or attr_name must be provided.
@@ -286,4 +288,4 @@ async def advanced_search(
         collection_slugs=col_slugs,
         max_results=max_results,
     )
-    return {"data": result.model_dump(mode="json")}
+    return DataResponse(data=result)

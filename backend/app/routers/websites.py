@@ -47,15 +47,17 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.constants import ROLE_LEVEL
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.postgres import get_async_session
-from app.core.constants import ROLE_LEVEL
 from app.middleware.acl import get_current_user, get_optional_user
 from app.models.user import User
-from app.models.website import BuildStatus, RenderingMode
+from app.models.website import BuildStatus, RenderingMode, Website
+from app.schemas.common import DataResponse
 from app.schemas.websites import (
     MetaSuggestionsResponse,
     WebsiteBuildResponse,
+    WebsiteCacheClearedResponse,
     WebsiteCreate,
     WebsiteIndexCreate,
     WebsiteIndexResponse,
@@ -64,7 +66,9 @@ from app.schemas.websites import (
     WebsitePageResponse,
     WebsitePageUpdate,
     WebsitePreviewDocRequest,
+    WebsitePreviewDocResponse,
     WebsiteResponse,
+    WebsiteTagsResponse,
     WebsiteUpdate,
 )
 from app.services import websites as svc
@@ -100,7 +104,7 @@ DesignerPlus = Annotated[User, Depends(_require_designer_plus)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
-def _check_site_access(website: "svc.WebsiteModel", user: User | None, request: Request) -> None:
+def _check_site_access(website: Website, user: User | None, request: Request) -> None:
     """Raise 404 if the site is not published and the caller is not staff.
 
     Unpublished sites are visible to any authenticated user with level >= 2
@@ -119,54 +123,54 @@ def _check_site_access(website: "svc.WebsiteModel", user: User | None, request: 
 
 # ── Website CRUD ──────────────────────────────────────────────────────────────
 
-@router.get("/websites", response_model=dict)
+@router.get("/websites")
 async def list_websites(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[list[WebsiteResponse]]:
     websites = await svc.list_websites(db)
-    return {"data": [WebsiteResponse.model_validate(w) for w in websites]}
+    return DataResponse(data=[WebsiteResponse.model_validate(w) for w in websites])
 
 
-@router.post("/websites", status_code=201, response_model=dict)
+@router.post("/websites", status_code=201)
 async def create_website(
     body: WebsiteCreate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteResponse]:
     website = await svc.create_website(db, body, user.id)
-    return {"data": WebsiteResponse.model_validate(website)}
+    return DataResponse(data=WebsiteResponse.model_validate(website))
 
 
-@router.get("/websites/{slug}", response_model=dict)
+@router.get("/websites/{slug}")
 async def get_website(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteResponse]:
     website = await svc.get_website(db, slug)
-    return {"data": WebsiteResponse.model_validate(website)}
+    return DataResponse(data=WebsiteResponse.model_validate(website))
 
 
-@router.get("/websites/{slug}/meta-suggestions", response_model=dict)
+@router.get("/websites/{slug}/meta-suggestions")
 async def get_meta_suggestions(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[MetaSuggestionsResponse]:
     suggestions = await svc.get_meta_suggestions(db, slug, user)
-    return {"data": MetaSuggestionsResponse.model_validate(suggestions)}
+    return DataResponse(data=MetaSuggestionsResponse.model_validate(suggestions))
 
 
-@router.put("/websites/{slug}", response_model=dict)
+@router.put("/websites/{slug}")
 async def update_website(
     slug: str,
     body: WebsiteUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteResponse]:
     website = await svc.update_website(db, slug, body)
-    return {"data": WebsiteResponse.model_validate(website)}
+    return DataResponse(data=WebsiteResponse.model_validate(website))
 
 
 @router.delete("/websites/{slug}", status_code=204)
@@ -180,23 +184,23 @@ async def delete_website(
 
 # ── Build trigger ─────────────────────────────────────────────────────────────
 
-@router.post("/websites/{slug}/build", response_model=dict)
+@router.post("/websites/{slug}/build")
 async def trigger_build(
     slug: str,
     background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteBuildResponse]:
     """Trigger a static site build.  Returns immediately; build runs in background."""
     await svc.trigger_build(db, slug)
     background_tasks.add_task(svc.run_build, slug)
-    return {
-        "data": WebsiteBuildResponse(
+    return DataResponse(
+        data=WebsiteBuildResponse(
             slug=slug,
             build_status="pending",
             message="Build queued.",
         )
-    }
+    )
 
 
 # ── ZIP download (STATIC only) ────────────────────────────────────────────────
@@ -242,12 +246,12 @@ async def download_site(
 
 # ── Cache management ─────────────────────────────────────────────────────────
 
-@router.post("/websites/{slug}/clear-cache", response_model=dict)
+@router.post("/websites/{slug}/clear-cache")
 async def clear_cache(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteCacheClearedResponse]:
     """Invalidate all cached rendered pages and XSLT transform for *slug*.
 
     Safe to call at any time; does not trigger a build.  Useful after
@@ -255,53 +259,53 @@ async def clear_cache(
     """
     await svc.get_website(db, slug)  # 404 guard
     svc.invalidate_cache(slug)
-    return {"data": {"cleared": True}}
+    return DataResponse(data=WebsiteCacheClearedResponse(cleared=True))
 
 
 # ── XSLT preview ─────────────────────────────────────────────────────────────
 
-@router.post("/websites/{slug}/preview-doc/{filename}", response_model=dict)
+@router.post("/websites/{slug}/preview-doc/{filename}")
 async def preview_doc(
     slug: str,
     filename: str,
     body: WebsitePreviewDocRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsitePreviewDocResponse]:
     """Apply the configured XSLT to a single document and return body HTML.
 
     Pass xslt_config in the request body to preview unsaved stylesheet changes.
     Omit it (or set to null) to use the website's currently saved xslt_config.
     """
     html = await svc.preview_document(db, slug, filename, body.xslt_config)
-    return {"data": {"html": html}}
+    return DataResponse(data=WebsitePreviewDocResponse(html=html))
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
-@router.post("/websites/{slug}/pages", status_code=201, response_model=dict)
+@router.post("/websites/{slug}/pages", status_code=201)
 async def create_page(
     slug: str,
     body: WebsitePageCreate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsitePageResponse]:
     website = await svc.get_website(db, slug)
     page = await svc.create_website_page(db, website.id, body)
-    return {"data": WebsitePageResponse.model_validate(page)}
+    return DataResponse(data=WebsitePageResponse.model_validate(page))
 
 
-@router.put("/websites/{slug}/pages/{page_slug}", response_model=dict)
+@router.put("/websites/{slug}/pages/{page_slug}")
 async def update_page(
     slug: str,
     page_slug: str,
     body: WebsitePageUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsitePageResponse]:
     website = await svc.get_website(db, slug)
     page = await svc.update_website_page(db, website.id, page_slug, body)
-    return {"data": WebsitePageResponse.model_validate(page)}
+    return DataResponse(data=WebsitePageResponse.model_validate(page))
 
 
 @router.delete("/websites/{slug}/pages/{page_slug}", status_code=204)
@@ -317,79 +321,79 @@ async def delete_page(
 
 # ── Tag discovery ─────────────────────────────────────────────────────────────
 
-@router.get("/websites/{slug}/tags", response_model=dict)
+@router.get("/websites/{slug}/tags")
 async def get_website_tags(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteTagsResponse]:
     """Return the cached distinct-tag map for this website's collection.
 
     The map is populated by POST /tags/refresh.  Returns null when no refresh
     has been run yet.
     """
     website = await svc.get_website(db, slug)
-    return {
-        "data": {
-            "distinct_tags": website.distinct_tags,
-            "tags_refreshed_at": website.tags_refreshed_at,
-        }
-    }
+    return DataResponse(
+        data=WebsiteTagsResponse(
+            distinct_tags=website.distinct_tags,
+            tags_refreshed_at=website.tags_refreshed_at,
+        )
+    )
 
 
-@router.post("/websites/{slug}/tags/refresh", response_model=dict)
+@router.post("/websites/{slug}/tags/refresh")
 async def refresh_website_tags(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteTagsResponse]:
     """Re-run the distinct-tag XQuery against the linked collection and cache the result."""
     website = await svc.refresh_website_tags(db, slug)
-    return {
-        "data": {
-            "distinct_tags": website.distinct_tags,
-            "tags_refreshed_at": website.tags_refreshed_at,
-        }
-    }
+    return DataResponse(
+        data=WebsiteTagsResponse(
+            distinct_tags=website.distinct_tags,
+            tags_refreshed_at=website.tags_refreshed_at,
+        )
+    )
 
 
 # ── Website indices ───────────────────────────────────────────────────────────
 
-@router.get("/websites/{slug}/indices", response_model=dict)
+@router.get("/websites/{slug}/indices")
 async def list_indices(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[list[WebsiteIndexResponse]]:
     website = await svc.get_website(db, slug)
     indices = await svc.list_website_indices(db, website.id)
-    return {"data": [WebsiteIndexResponse.model_validate(i) for i in indices]}
+    return DataResponse(data=[WebsiteIndexResponse.model_validate(i) for i in indices])
 
 
-@router.post("/websites/{slug}/indices", status_code=201, response_model=dict)
+@router.post("/websites/{slug}/indices", status_code=201)
 async def create_index(
     slug: str,
     body: WebsiteIndexCreate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteIndexResponse]:
     website = await svc.get_website(db, slug)
     idx = await svc.create_website_index(db, website.id, body)
-    return {"data": WebsiteIndexResponse.model_validate(idx)}
+    return DataResponse(data=WebsiteIndexResponse.model_validate(idx))
 
 
-@router.put("/websites/{slug}/indices/{index_id}", response_model=dict)
+@router.put("/websites/{slug}/indices/{index_id}")
 async def update_index(
     slug: str,
     index_id: str,
     body: WebsiteIndexUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteIndexResponse]:
     import uuid as _uuid
     website = await svc.get_website(db, slug)
     idx = await svc.update_website_index(db, website.id, _uuid.UUID(index_id), body)
-    return {"data": WebsiteIndexResponse.model_validate(idx)}
+    return DataResponse(data=WebsiteIndexResponse.model_validate(idx))
 
 
 @router.delete("/websites/{slug}/indices/{index_id}", status_code=204)
@@ -404,28 +408,28 @@ async def delete_index(
     await svc.delete_website_index(db, website.id, _uuid.UUID(index_id))
 
 
-@router.post("/websites/{slug}/indices/rebuild-all", response_model=dict)
+@router.post("/websites/{slug}/indices/rebuild-all")
 async def rebuild_all_indices(
     slug: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[list[WebsiteIndexResponse]]:
     """Rebuild all configured indices for this website.  Synchronous."""
     indices = await svc.rebuild_all_website_indices(db, slug)
-    return {"data": [WebsiteIndexResponse.model_validate(i) for i in indices]}
+    return DataResponse(data=[WebsiteIndexResponse.model_validate(i) for i in indices])
 
 
-@router.post("/websites/{slug}/indices/{index_id}/rebuild", response_model=dict)
+@router.post("/websites/{slug}/indices/{index_id}/rebuild")
 async def rebuild_index(
     slug: str,
     index_id: str,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
-) -> dict:
+) -> DataResponse[WebsiteIndexResponse]:
     """Rebuild the cached data for a single index.  Synchronous."""
     import uuid as _uuid
     idx = await svc.rebuild_website_index(db, slug, _uuid.UUID(index_id))
-    return {"data": WebsiteIndexResponse.model_validate(idx)}
+    return DataResponse(data=WebsiteIndexResponse.model_validate(idx))
 
 
 # ── Public site serving (all rendering modes) ─────────────────────────────────

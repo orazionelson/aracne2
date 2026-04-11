@@ -166,3 +166,23 @@ class WebsitePreviewDocRequest(BaseModel):
     xslt_config.  Pass a full XsltConfig dict to preview unsaved changes.
     """
     xslt_config: dict | None = None
+
+
+class WebsitePreviewDocResponse(BaseModel):
+    """HTML body returned by the preview-doc endpoint."""
+    html: str
+
+
+# ── Cache management ──────────────────────────────────────────────────────────
+
+class WebsiteCacheClearedResponse(BaseModel):
+    """Returned by the clear-cache endpoint."""
+    cleared: bool
+
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+class WebsiteTagsResponse(BaseModel):
+    """Distinct-tag map for a website's linked collection."""
+    distinct_tags: dict | None
+    tags_refreshed_at: datetime | None

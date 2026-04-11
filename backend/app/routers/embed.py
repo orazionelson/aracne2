@@ -13,6 +13,8 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_async_session
+from app.schemas.common import DataResponse
+from app.schemas.search_engines import SearchEngineSearchResponse
 from app.services.embed import (
     advanced_search_embed,
     render_widget_js,
@@ -55,7 +57,7 @@ async def embed_search(
         default=_MAX_RESULTS_DEFAULT, ge=1, le=_MAX_RESULTS_LIMIT
     ),
     db: AsyncSession = Depends(get_async_session),
-) -> dict:
+) -> DataResponse[SearchEngineSearchResponse]:
     """Full-text search via the embed widget.
 
     Origin is checked against the engine's allowed_origins whitelist.
@@ -63,7 +65,7 @@ async def embed_search(
     """
     col_list = [s.strip() for s in collections.split(",") if s.strip()] if collections else None
     result = await search_embed(db, slug, q, col_list, max_results, request)
-    return {"data": result.model_dump()}
+    return DataResponse(data=result)
 
 
 @router.get("/{slug}/advanced-search")
@@ -89,7 +91,7 @@ async def embed_advanced_search(
         default=_MAX_RESULTS_DEFAULT, ge=1, le=_MAX_RESULTS_LIMIT
     ),
     db: AsyncSession = Depends(get_async_session),
-) -> dict:
+) -> DataResponse[SearchEngineSearchResponse]:
     """Advanced structural/attribute search via the embed widget.
 
     Origin is checked against the engine's allowed_origins whitelist.
@@ -99,4 +101,4 @@ async def embed_advanced_search(
     result = await advanced_search_embed(
         db, slug, q, element, attr_name, attr_value, col_list, max_results, request
     )
-    return {"data": result.model_dump()}
+    return DataResponse(data=result)
