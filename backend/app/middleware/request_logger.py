@@ -1,3 +1,4 @@
+import hashlib
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -10,6 +11,18 @@ from starlette.responses import Response
 from app.config import settings
 
 logger = structlog.get_logger()
+
+
+def _log_ip(raw_ip: str) -> str:
+    """Return the IP as-is in development; pseudonymise with SHA-256 in production.
+
+    The JWT secret is used as a salt so the mapping is consistent within a
+    deployment but not reversible or comparable across deployments.
+    """
+    if not settings.is_production:
+        return raw_ip
+    digest = hashlib.sha256(f"{settings.jwt_secret}{raw_ip}".encode()).hexdigest()
+    return f"sha256:{digest}"
 
 
 class RequestLoggerMiddleware(BaseHTTPMiddleware):
@@ -30,6 +43,10 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
         # Skip health endpoint in production to reduce log noise
         skip = request.url.path == "/api/v1/health" and not settings.is_development
         if not skip:
+            raw_ip = request.headers.get(
+                "X-Forwarded-For",
+                request.client.host if request.client else "unknown",
+            )
             logger.info(
                 "http_request",
                 method=request.method,
@@ -37,10 +54,7 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 duration_ms=duration_ms,
                 request_id=request_id,
-                ip=request.headers.get(
-                    "X-Forwarded-For",
-                    request.client.host if request.client else "unknown",
-                ),
+                ip=_log_ip(raw_ip),
             )
 
         response.headers["X-Request-ID"] = request_id
