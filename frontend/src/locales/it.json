@@ -668,7 +668,13 @@
     "advanced_tags_refresh": "Aggiorna tag",
     "advanced_disabled_hint": "Attiva la Ricerca avanzata per configurare i tag e i filtri per attributo.",
     "tab_general": "Generale",
-    "tab_advanced": "Ricerca avanzata"
+    "tab_cssjs": "CSS/JS",
+    "tab_advanced": "Ricerca avanzata",
+    "cssjs_custom_css": "CSS personalizzato",
+    "cssjs_css_hint": "Aggiunto in un tag <style> su ogni pagina costruita (principale e avanzata).",
+    "cssjs_custom_js": "JavaScript personalizzato",
+    "cssjs_js_hint": "Iniettato in un tag <script> prima di </body> su ogni pagina costruita.",
+    "cssjs_include_jquery": "Includi jQuery 3.7 da CDN (caricato prima dello script personalizzato)"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

@@ -34,6 +34,9 @@ export interface SearchEngine {
   last_build_at: string | null;
   build_error: string | null;
   cache_ttl_minutes: number;
+  custom_css: string | null;
+  custom_js: string | null;
+  include_jquery: boolean;
   advanced_search_enabled: boolean;
   advanced_search_config: AdvancedSearchConfig;
   collections: SearchEngineCollection[];
@@ -48,6 +51,9 @@ export interface SearchEngineCreate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  custom_css?: string | null;
+  custom_js?: string | null;
+  include_jquery?: boolean;
   advanced_search_enabled?: boolean;
   advanced_search_config?: AdvancedSearchConfig;
 }
@@ -57,6 +63,9 @@ export interface SearchEngineUpdate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  custom_css?: string | null;
+  custom_js?: string | null;
+  include_jquery?: boolean;
   advanced_search_enabled?: boolean;
   advanced_search_config?: AdvancedSearchConfig;
 }

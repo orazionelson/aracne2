@@ -75,6 +75,9 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         last_build_at=engine.last_build_at,
         build_error=engine.build_error,
         cache_ttl_minutes=engine.cache_ttl_minutes,
+        custom_css=engine.custom_css,
+        custom_js=engine.custom_js,
+        include_jquery=engine.include_jquery,
         advanced_search_enabled=engine.advanced_search_enabled,
         advanced_search_config=AdvancedSearchConfig.model_validate(
             engine.advanced_search_config or {}
@@ -150,6 +153,9 @@ async def create_search_engine(
         title=payload.title,
         xslt_template_id=payload.xslt_template_id,
         cache_ttl_minutes=payload.cache_ttl_minutes,
+        custom_css=payload.custom_css or None,
+        custom_js=payload.custom_js or None,
+        include_jquery=payload.include_jquery,
         advanced_search_enabled=payload.advanced_search_enabled,
         advanced_search_config=payload.advanced_search_config.model_dump(mode="json"),
         created_by=created_by,
@@ -191,6 +197,15 @@ async def update_search_engine(
 
     if payload.cache_ttl_minutes is not None:
         engine.cache_ttl_minutes = payload.cache_ttl_minutes
+
+    if "custom_css" in payload.model_fields_set:
+        engine.custom_css = payload.custom_css or None
+
+    if "custom_js" in payload.model_fields_set:
+        engine.custom_js = payload.custom_js or None
+
+    if payload.include_jquery is not None:
+        engine.include_jquery = payload.include_jquery
 
     if payload.advanced_search_enabled is not None:
         engine.advanced_search_enabled = payload.advanced_search_enabled
@@ -515,8 +530,36 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
+def _custom_css_block(custom_css: str | None) -> str:
+    """Return a <style> block with sanitised custom CSS, or empty string."""
+    if not custom_css or not custom_css.strip():
+        return ""
+    safe = custom_css.replace("</style>", "")
+    return f"\n  <style>\n    /* custom */\n{safe}\n  </style>"
+
+
+def _custom_js_block(custom_js: str | None, include_jquery: bool) -> str:
+    """Return script tag(s) for optional jQuery + custom JS, or empty string."""
+    parts: list[str] = []
+    if include_jquery:
+        parts.append(
+            '  <script src="https://code.jquery.com/jquery-3.7.1.min.js"'
+            ' integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="'
+            ' crossorigin="anonymous"></script>'
+        )
+    if custom_js and custom_js.strip():
+        safe = custom_js.replace("</script>", "")
+        parts.append(f"  <script>\n{safe}\n  </script>")
+    return ("\n" + "\n".join(parts)) if parts else ""
+
+
 def _render_search_page(
-    slug: str, title: str, advanced_search_enabled: bool = False
+    slug: str,
+    title: str,
+    advanced_search_enabled: bool = False,
+    custom_css: str | None = None,
+    custom_js: str | None = None,
+    include_jquery: bool = False,
 ) -> str:
     """Generate the standalone HTML search page for a search engine.
 
@@ -532,6 +575,8 @@ def _render_search_page(
         if advanced_search_enabled
         else ""
     )
+    extra_css = _custom_css_block(custom_css)
+    extra_js = _custom_js_block(custom_js, include_jquery)
 
     return textwrap.dedent(f"""\
         <!DOCTYPE html>
@@ -599,7 +644,7 @@ def _render_search_page(
               margin-bottom: 0.5rem;
             }}
             article p {{ margin: 0; font-size: 0.9rem; color: #374151; line-height: 1.5; }}
-          </style>
+          </style>{extra_css}
         </head>
         <body>
           <header><h1>{escaped_title}</h1></header>
@@ -686,7 +731,7 @@ def _render_search_page(
                 form.dispatchEvent(new Event('submit'));
               }}
             }})();
-          </script>
+          </script>{extra_js}
         </body>
         </html>
     """)
@@ -697,6 +742,9 @@ def _render_advanced_search_page(
     title: str,
     config: AdvancedSearchConfig,
     collections: list[Collection],
+    custom_css: str | None = None,
+    custom_js: str | None = None,
+    include_jquery: bool = False,
 ) -> str:
     """Generate the standalone HTML advanced search page for a search engine.
 
@@ -712,6 +760,8 @@ def _render_advanced_search_page(
     api_endpoint = f"/api/v1/search-engines/{slug}/advanced-search"
     main_page = f"/api/v1/search-pages/{slug}/"
     escaped_title = title.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+    extra_css = _custom_css_block(custom_css)
+    extra_js = _custom_js_block(custom_js, include_jquery)
 
     # Bake admin config into JS.
     named_tags_js = "[" + ",".join(
@@ -806,7 +856,7 @@ def _render_advanced_search_page(
               background: #e0f2fe; color: #0369a1; border-radius: 0.25rem;
               padding: 0.1rem 0.4rem; margin-right: 0.4rem;
             }}
-          </style>
+          </style>{extra_css}
         </head>
         <body>
           <header>
@@ -1011,7 +1061,7 @@ def _render_advanced_search_page(
                   }});
               }});
             }})();
-          </script>
+          </script>{extra_js}
         </body>
         </html>
     """)
@@ -1136,7 +1186,12 @@ async def _do_build(slug: str) -> None:
 
             # Main search page.
             html = _render_search_page(
-                engine.slug, engine.title, engine.advanced_search_enabled
+                engine.slug,
+                engine.title,
+                engine.advanced_search_enabled,
+                custom_css=engine.custom_css,
+                custom_js=engine.custom_js,
+                include_jquery=engine.include_jquery,
             )
             (out_dir / "index.html").write_text(html, encoding="utf-8")
 
@@ -1148,7 +1203,13 @@ async def _do_build(slug: str) -> None:
                     engine.advanced_search_config or {}
                 )
                 adv_html = _render_advanced_search_page(
-                    engine.slug, engine.title, config, cols
+                    engine.slug,
+                    engine.title,
+                    config,
+                    cols,
+                    custom_css=engine.custom_css,
+                    custom_js=engine.custom_js,
+                    include_jquery=engine.include_jquery,
                 )
                 adv_dir = out_dir / "advanced"
                 adv_dir.mkdir(parents=True, exist_ok=True)

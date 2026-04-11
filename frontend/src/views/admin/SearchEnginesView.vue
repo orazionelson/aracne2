@@ -184,9 +184,10 @@
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
-          <!-- Badge on Advanced tab when feature is enabled -->
+          <!-- Dot badge: CSS/JS tab when content present, Advanced tab when enabled -->
           <span
-            v-if="tab.key === 'advanced' && form.advanced_search_enabled"
+            v-if="(tab.key === 'cssjs' && (form.custom_css || form.custom_js)) ||
+                  (tab.key === 'advanced' && form.advanced_search_enabled)"
             class="ml-1.5 inline-flex h-2 w-2 rounded-full bg-indigo-500"
           />
         </button>
@@ -296,6 +297,45 @@
                 class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
               />
               <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
+            </div>
+          </template>
+
+          <!-- ── Tab: CSS/JS ──────────────────────────────────────────────── -->
+          <template v-if="activeTab === 'cssjs'">
+            <!-- Custom CSS -->
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-gray-700">
+                {{ t("search_engines.cssjs_custom_css") }}
+              </label>
+              <p class="mb-1 text-xs text-gray-500">{{ t("search_engines.cssjs_css_hint") }}</p>
+              <textarea
+                v-model="form.custom_css"
+                rows="12"
+                spellcheck="false"
+                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+
+            <!-- Custom JS -->
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-gray-700">
+                {{ t("search_engines.cssjs_custom_js") }}
+              </label>
+              <p class="mb-1 text-xs text-gray-500">{{ t("search_engines.cssjs_js_hint") }}</p>
+              <label class="mb-3 flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  v-model="form.include_jquery"
+                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span class="text-xs text-gray-700">{{ t("search_engines.cssjs_include_jquery") }}</span>
+              </label>
+              <textarea
+                v-model="form.custom_js"
+                rows="12"
+                spellcheck="false"
+                class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none"
+              />
             </div>
           </template>
 
@@ -509,12 +549,13 @@ const filteredEngines = computed(() => {
 
 // ── Modal state ───────────────────────────────────────────────────────────────
 
-type ModalTab = "general" | "advanced";
+type ModalTab = "general" | "cssjs" | "advanced";
 
 const activeTab = ref<ModalTab>("general");
 
 const modalTabs = computed(() => [
   { key: "general" as ModalTab,  label: t("search_engines.tab_general") },
+  { key: "cssjs"   as ModalTab,  label: t("search_engines.tab_cssjs") },
   { key: "advanced" as ModalTab, label: t("search_engines.tab_advanced") },
 ]);
 
@@ -530,6 +571,9 @@ interface FormState {
   xslt_template_id: string | null;
   collection_ids: string[];
   cache_ttl_minutes: number;
+  custom_css: string;
+  custom_js: string;
+  include_jquery: boolean;
   advanced_search_enabled: boolean;
   advanced_search_config: AdvancedSearchConfig;
 }
@@ -540,6 +584,9 @@ const defaultForm = (): FormState => ({
   xslt_template_id: null,
   collection_ids: [],
   cache_ttl_minutes: 60,
+  custom_css: "",
+  custom_js: "",
+  include_jquery: false,
   advanced_search_enabled: false,
   advanced_search_config: { named_tags: [], attribute_filters: [] },
 });
@@ -569,6 +616,9 @@ function openEdit(slug: string): void {
     xslt_template_id: engine.xslt_template_id,
     collection_ids: engine.collections.map((c) => c.id),
     cache_ttl_minutes: engine.cache_ttl_minutes,
+    custom_css: engine.custom_css ?? "",
+    custom_js: engine.custom_js ?? "",
+    include_jquery: engine.include_jquery,
     advanced_search_enabled: engine.advanced_search_enabled,
     advanced_search_config: {
       named_tags: engine.advanced_search_config.named_tags.map((t) => ({ ...t })),
@@ -602,6 +652,9 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        custom_css: form.value.custom_css || null,
+        custom_js: form.value.custom_js || null,
+        include_jquery: form.value.include_jquery,
         advanced_search_enabled: form.value.advanced_search_enabled,
         advanced_search_config: form.value.advanced_search_config,
       });
@@ -611,6 +664,9 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        custom_css: form.value.custom_css || null,
+        custom_js: form.value.custom_js || null,
+        include_jquery: form.value.include_jquery,
         advanced_search_enabled: form.value.advanced_search_enabled,
         advanced_search_config: form.value.advanced_search_config,
       });

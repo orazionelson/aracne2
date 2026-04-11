@@ -45,6 +45,12 @@ class SearchEngine(Base):
     cache_ttl_minutes: Mapped[int] = mapped_column(
         Integer(), nullable=False, default=60
     )
+    # Custom CSS injected into every built page (main + advanced).
+    custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Custom JS injected before </body> on every built page.
+    custom_js: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # When True, jQuery 3.7 is loaded from CDN before custom_js.
+    include_jquery: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     # Advanced search: when enabled, a separate /advanced/ page is built.
     advanced_search_enabled: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, default=False

@@ -62,6 +62,9 @@ class SearchEngineCreate(BaseModel):
     collection_ids: list[uuid.UUID] = Field(default_factory=list)
     # 0 = cache disabled; default 60 minutes.
     cache_ttl_minutes: int = Field(default=60, ge=0, le=10080)
+    custom_css: str | None = None
+    custom_js: str | None = None
+    include_jquery: bool = False
     advanced_search_enabled: bool = False
     advanced_search_config: AdvancedSearchConfig = Field(
         default_factory=AdvancedSearchConfig
@@ -73,6 +76,9 @@ class SearchEngineUpdate(BaseModel):
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] | None = None
     cache_ttl_minutes: int | None = Field(default=None, ge=0, le=10080)
+    custom_css: str | None = None
+    custom_js: str | None = None
+    include_jquery: bool | None = None
     advanced_search_enabled: bool | None = None
     advanced_search_config: AdvancedSearchConfig | None = None
 
@@ -86,6 +92,9 @@ class SearchEngineResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     cache_ttl_minutes: int
+    custom_css: str | None
+    custom_js: str | None
+    include_jquery: bool
     advanced_search_enabled: bool
     advanced_search_config: AdvancedSearchConfig
     collections: list[SearchEngineCollectionItem]

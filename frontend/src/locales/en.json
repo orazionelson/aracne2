@@ -668,7 +668,13 @@
     "advanced_tags_refresh": "Refresh tags",
     "advanced_disabled_hint": "Enable Advanced search to configure named tags and attribute filters.",
     "tab_general": "General",
-    "tab_advanced": "Advanced search"
+    "tab_cssjs": "CSS/JS",
+    "tab_advanced": "Advanced search",
+    "cssjs_custom_css": "Custom CSS",
+    "cssjs_css_hint": "Appended inside a <style> tag on every built page (main and advanced).",
+    "cssjs_custom_js": "Custom JavaScript",
+    "cssjs_js_hint": "Injected in a <script> tag before </body> on every built page.",
+    "cssjs_include_jquery": "Include jQuery 3.7 from CDN (loaded before the custom script)"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"
