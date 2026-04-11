@@ -5,10 +5,11 @@ from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 
 
 def _now() -> datetime:
@@ -45,7 +46,7 @@ class CollectionValidationRun(Base):
     doc_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     validated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    results: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    results: Mapped[dict[str, Any] | None] = mapped_column(JsonbType(), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

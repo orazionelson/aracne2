@@ -1,7 +1,8 @@
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import JSON, BigInteger, Integer, SmallInteger, String, Text
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, INET, JSONB
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
 
@@ -27,6 +28,26 @@ class JsonbType(TypeDecorator[Any]):
         if dialect.name == "postgresql":
             return dialect.type_descriptor(JSONB())  # type: ignore[no-untyped-call, no-any-return]
         return dialect.type_descriptor(JSON())  # type: ignore[no-any-return]
+
+
+class TextArrayType(TypeDecorator[list[str]]):
+    """ARRAY(Text) on PostgreSQL, JSON on other dialects (e.g. SQLite in tests)."""
+
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> TypeEngine[Any]:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(ARRAY(sa.Text))  # type: ignore[no-any-return]
+        return dialect.type_descriptor(JSON())  # type: ignore[no-any-return]
+
+    def process_bind_param(self, value: list[str] | None, dialect: Any) -> Any:
+        return value
+
+    def process_result_value(self, value: Any, dialect: Any) -> list[str]:
+        if value is None:
+            return []
+        return list(value)
 
 
 class SmallIntType(TypeDecorator[int]):

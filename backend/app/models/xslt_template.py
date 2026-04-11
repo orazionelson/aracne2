@@ -2,44 +2,18 @@
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import ForeignKey, JSON, String, Text, TypeDecorator
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
-from sqlalchemy.engine.interfaces import Dialect
+from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
+from app.db.types import TextArrayType
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
-
-
-class _TextArray(TypeDecorator[list[str]]):
-    """Stores list[str] as PostgreSQL ARRAY(Text) on Postgres, JSON on other dialects.
-
-    Using a TypeDecorator keeps the ORM model portable across databases (including
-    the SQLite in-memory engine used in tests) while preserving native ARRAY semantics
-    in production.
-    """
-
-    impl = JSON
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect: Dialect) -> Any:
-        if dialect.name == "postgresql":
-            return dialect.type_descriptor(ARRAY(sa.Text))
-        return dialect.type_descriptor(JSON())
-
-    def process_bind_param(self, value: list[str] | None, dialect: Dialect) -> Any:
-        return value
-
-    def process_result_value(self, value: Any, dialect: Dialect) -> list[str]:
-        if value is None:
-            return []
-        return list(value)
 
 
 class XsltTemplate(Base):
@@ -56,7 +30,7 @@ class XsltTemplate(Base):
         String(32), nullable=False, server_default="lxml"
     )
     tags: Mapped[list[str]] = mapped_column(
-        _TextArray(), nullable=False, default=list
+        TextArrayType(), nullable=False, default=list
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

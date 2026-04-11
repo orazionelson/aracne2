@@ -5,10 +5,11 @@ from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 from app.models.website import BuildStatus
 
 
@@ -52,7 +53,7 @@ class SearchEngine(Base):
     # When True, the embed widget endpoints are active for this engine.
     embed_enabled: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     # JSONB config: {mode: "simple"|"advanced"|"both", allowed_origins: [str]}
-    embed_config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    embed_config: Mapped[dict] = mapped_column(JsonbType(), nullable=False, default=dict)
     # Page background colour (CSS hex, e.g. "#f9fafb"); null = default.
     page_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     # Header background colour (CSS hex, e.g. "#1e3a5f"); null = default.
@@ -71,7 +72,7 @@ class SearchEngine(Base):
     )
     # JSONB config: {named_tags: [{label, element}], attribute_filters: [{label, attribute}]}
     advanced_search_config: Mapped[dict] = mapped_column(
-        JSONB, nullable=False, default=dict
+        JsonbType(), nullable=False, default=dict
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -143,7 +144,7 @@ class SearchEngineQueryCache(Base):
     query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     query_text: Mapped[str] = mapped_column(String(512), nullable=False)
     collections_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    hits: Mapped[list] = mapped_column(JSONB, nullable=False)
+    hits: Mapped[list] = mapped_column(JsonbType(), nullable=False)
     total: Mapped[int] = mapped_column(Integer(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_now

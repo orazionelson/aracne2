@@ -5,10 +5,11 @@ from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 
 
 def _now() -> datetime:
@@ -94,7 +95,7 @@ class Collection(Base):
     )
     # TEI respStmt — array of {resp, name} objects stored as JSONB
     resp_stmts: Mapped[list[dict[str, Any]] | None] = mapped_column(
-        JSONB, nullable=True, default=None
+        JsonbType(), nullable=True, default=None
     )
     # Single author shared by all documents in the collection (optional)
     author: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)

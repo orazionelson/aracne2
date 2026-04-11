@@ -6,10 +6,11 @@ from enum import Enum as PyEnum
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 
 
 class RenderingMode(str, PyEnum):
@@ -47,20 +48,20 @@ class Website(Base):
         default=RenderingMode.STATIC,
     )
     theme_config: Mapped[dict] = mapped_column(
-        JSONB(), nullable=False, default=dict
+        JsonbType(), nullable=False, default=dict
     )
     # HTML and Dublin Core <meta> tags for every generated page
     meta_config: Mapped[dict] = mapped_column(
-        JSONB(), nullable=False, default=dict
+        JsonbType(), nullable=False, default=dict
     )
     nav_config: Mapped[list] = mapped_column(
-        JSONB(), nullable=False, default=list
+        JsonbType(), nullable=False, default=list
     )
     # XSLT configuration for document rendering during static build.
     # Keys: source ("default"|"custom"|"url"), content (str|null),
     #       url (str|null), processor ("lxml"|"saxon").
     xslt_config: Mapped[dict] = mapped_column(
-        JSONB(), nullable=False, default=dict
+        JsonbType(), nullable=False, default=dict
     )
     xslt_schema_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -102,7 +103,7 @@ class Website(Base):
     include_jquery: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=False)
 
     # Tag-discovery cache: {"persName": ["key", "role"], "placeName": ["ref"]}
-    distinct_tags: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    distinct_tags: Mapped[dict | None] = mapped_column(JsonbType(), nullable=True)
     tags_refreshed_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )
@@ -177,7 +178,7 @@ class WebsiteIndex(Base):
     # Optional further sub-grouping attribute (e.g. "role").
     subkey_attribute: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Pre-built index data, populated by rebuild_website_index().
-    cached_data: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    cached_data: Mapped[dict | None] = mapped_column(JsonbType(), nullable=True)
     last_built_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )
