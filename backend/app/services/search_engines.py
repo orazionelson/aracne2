@@ -703,6 +703,11 @@ def _render_advanced_search_page(
     The page is built once (at Build time) and calls the public advanced-search
     API dynamically.  The named_tags and attribute_filters configured by the
     admin are baked in as JS arrays.
+
+    Named tags and attribute filters are rendered as visible radio-button groups
+    so the user immediately sees all available options without opening a dropdown.
+    The attribute-value input is revealed only when a specific attribute radio
+    is selected.
     """
     api_endpoint = f"/api/v1/search-engines/{slug}/advanced-search"
     main_page = f"/api/v1/search-pages/{slug}/"
@@ -746,15 +751,33 @@ def _render_advanced_search_page(
             header a:hover {{ text-decoration: underline; }}
             main {{ max-width: 820px; margin: 2rem auto; padding: 0 1.5rem; }}
             .field {{ margin-bottom: 1.25rem; }}
-            label {{ display: block; font-size: 0.8rem; font-weight: 600;
-                     color: #374151; margin-bottom: 0.3rem; }}
-            select, input[type=text], input[type=search] {{
+            .field-label {{
+              display: block; font-size: 0.8rem; font-weight: 600;
+              color: #374151; margin-bottom: 0.4rem;
+            }}
+            input[type=text], input[type=search] {{
               width: 100%; padding: 0.55rem 0.9rem;
               border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.95rem;
             }}
-            select:focus, input:focus {{
+            input[type=text]:focus, input[type=search]:focus {{
               outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe;
             }}
+            /* Radio-button group replacing <select> */
+            .radio-group {{
+              display: flex; flex-wrap: wrap; gap: 0.4rem 0;
+              padding: 0.5rem 0.75rem;
+              border: 1px solid #d1d5db; border-radius: 0.375rem; background: #fff;
+            }}
+            .radio-opt {{
+              display: flex; align-items: center; gap: 0.4rem;
+              padding: 0.3rem 0.6rem; border-radius: 0.25rem;
+              cursor: pointer; font-size: 0.9rem; font-weight: 400;
+              color: #374151; transition: background 0.1s;
+            }}
+            .radio-opt:hover {{ background: #f3f4f6; }}
+            .radio-opt input[type=radio] {{ cursor: pointer; accent-color: #1e3a5f; }}
+            .radio-opt.any-opt {{ color: #9ca3af; font-style: italic; }}
+            .radio-opt input[type=radio]:checked + span {{ color: #1e3a5f; font-weight: 600; }}
             .collections-grid {{
               display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
               padding: 0.6rem 0.9rem; border: 1px solid #d1d5db;
@@ -763,8 +786,6 @@ def _render_advanced_search_page(
             .collections-grid label {{
               font-weight: 400; display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
             }}
-            .row {{ display: flex; gap: 0.75rem; }}
-            .row .field {{ flex: 1; }}
             button[type=submit] {{
               padding: 0.6rem 1.5rem; background: #1e3a5f; color: #fff;
               border: none; border-radius: 0.375rem; font-size: 1rem; cursor: pointer;
@@ -785,7 +806,6 @@ def _render_advanced_search_page(
               background: #e0f2fe; color: #0369a1; border-radius: 0.25rem;
               padding: 0.1rem 0.4rem; margin-right: 0.4rem;
             }}
-            .hidden {{ display: none; }}
           </style>
         </head>
         <body>
@@ -798,38 +818,42 @@ def _render_advanced_search_page(
 
               <!-- Collection filter (only if >1 collection) -->
               <div class="field" id="col-field" {"" if show_collections else 'style="display:none"'}>
-                <label>Collezioni</label>
+                <span class="field-label">Collezioni</span>
                 <div class="collections-grid" id="col-grid"></div>
               </div>
 
-              <!-- Named tag + text search -->
-              <div class="row" id="tag-row" {'class="row hidden"' if not config.named_tags else ''}>
-                <div class="field">
-                  <label for="tag-sel">Cerca all'interno del tag</label>
-                  <select id="tag-sel">
-                    <option value="">— nessun tag —</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="tag-q">Testo da cercare nel tag</label>
-                  <input type="search" id="tag-q" placeholder="es. Uccello"
-                         autocomplete="off" />
+              <!-- Named tag radio group (hidden until JS populates it) -->
+              <div class="field" id="tag-field" style="display:none">
+                <span class="field-label">Cerca all'interno del tag</span>
+                <div class="radio-group" id="tag-radios">
+                  <label class="radio-opt any-opt">
+                    <input type="radio" name="sel-tag" value="" checked />
+                    <span>qualsiasi elemento</span>
+                  </label>
                 </div>
               </div>
 
-              <!-- Attribute filter -->
-              <div class="row" id="attr-row" {'class="row hidden"' if not config.attribute_filters else ''}>
-                <div class="field">
-                  <label for="attr-sel">Filtra per attributo</label>
-                  <select id="attr-sel">
-                    <option value="">— nessun attributo —</option>
-                  </select>
+              <!-- Text search input (always visible) -->
+              <div class="field">
+                <label class="field-label" for="tag-q">Testo da cercare</label>
+                <input type="search" id="tag-q" placeholder="es. Uccello" autocomplete="off" />
+              </div>
+
+              <!-- Attribute filter radio group (hidden until JS populates it) -->
+              <div class="field" id="attr-field" style="display:none">
+                <span class="field-label">Filtra per attributo</span>
+                <div class="radio-group" id="attr-radios">
+                  <label class="radio-opt any-opt">
+                    <input type="radio" name="sel-attr" value="" checked />
+                    <span>nessun filtro</span>
+                  </label>
                 </div>
-                <div class="field">
-                  <label for="attr-val">Valore dell'attributo</label>
-                  <input type="text" id="attr-val" placeholder="es. Conte"
-                         autocomplete="off" />
-                </div>
+              </div>
+
+              <!-- Attribute value input (revealed when a specific attr is selected) -->
+              <div class="field" id="attr-val-field" style="display:none">
+                <label class="field-label" for="attr-val">Valore dell'attributo</label>
+                <input type="text" id="attr-val" placeholder="es. Conte" autocomplete="off" />
               </div>
 
               <div id="form-error" style="color:#dc2626;font-size:0.85rem;margin-bottom:0.75rem;"></div>
@@ -842,41 +866,64 @@ def _render_advanced_search_page(
 
           <script>
             (function () {{
-              var API         = {api_endpoint!r};
-              var NAMED_TAGS  = {named_tags_js};
+              var API          = {api_endpoint!r};
+              var NAMED_TAGS   = {named_tags_js};
               var ATTR_FILTERS = {attr_filters_js};
-              var COLLECTIONS = {collection_list_js};
-              var SHOW_COLS   = {'true' if show_collections else 'false'};
+              var COLLECTIONS  = {collection_list_js};
+              var SHOW_COLS    = {'true' if show_collections else 'false'};
 
-              var form      = document.getElementById('adv-form');
-              var statusEl  = document.getElementById('status');
-              var resultsEl = document.getElementById('results');
-              var errEl     = document.getElementById('form-error');
-              var tagSel    = document.getElementById('tag-sel');
-              var tagQ      = document.getElementById('tag-q');
-              var attrSel   = document.getElementById('attr-sel');
-              var attrVal   = document.getElementById('attr-val');
-              var colGrid   = document.getElementById('col-grid');
-              var tagRow    = document.getElementById('tag-row');
-              var attrRow   = document.getElementById('attr-row');
+              var form        = document.getElementById('adv-form');
+              var statusEl    = document.getElementById('status');
+              var resultsEl   = document.getElementById('results');
+              var errEl       = document.getElementById('form-error');
+              var tagField    = document.getElementById('tag-field');
+              var tagRadios   = document.getElementById('tag-radios');
+              var tagQ        = document.getElementById('tag-q');
+              var attrField   = document.getElementById('attr-field');
+              var attrRadios  = document.getElementById('attr-radios');
+              var attrValField = document.getElementById('attr-val-field');
+              var attrVal     = document.getElementById('attr-val');
+              var colGrid     = document.getElementById('col-grid');
 
-              // ── Populate controls from baked-in config ────────────────────
+              // ── Populate tag radio group ───────────────────────────────────
               NAMED_TAGS.forEach(function (t) {{
-                var opt = document.createElement('option');
-                opt.value = t.element;
-                opt.textContent = t.label + ' <' + t.element + '>';
-                tagSel.appendChild(opt);
+                var lbl = document.createElement('label');
+                lbl.className = 'radio-opt';
+                var rb = document.createElement('input');
+                rb.type = 'radio'; rb.name = 'sel-tag'; rb.value = t.element;
+                var sp = document.createElement('span');
+                sp.textContent = t.label + ' \u003c' + t.element + '\u003e';
+                lbl.appendChild(rb); lbl.appendChild(sp);
+                tagRadios.appendChild(lbl);
               }});
-              if (NAMED_TAGS.length > 0) tagRow.style.display = '';
+              if (NAMED_TAGS.length > 0) tagField.style.display = '';
 
+              // ── Populate attribute radio group ────────────────────────────
               ATTR_FILTERS.forEach(function (f) {{
-                var opt = document.createElement('option');
-                opt.value = f.attribute;
-                opt.textContent = f.label + ' (@' + f.attribute + ')';
-                attrSel.appendChild(opt);
+                var lbl = document.createElement('label');
+                lbl.className = 'radio-opt';
+                var rb = document.createElement('input');
+                rb.type = 'radio'; rb.name = 'sel-attr'; rb.value = f.attribute;
+                var sp = document.createElement('span');
+                sp.textContent = f.label + ' (@' + f.attribute + ')';
+                lbl.appendChild(rb); lbl.appendChild(sp);
+                attrRadios.appendChild(lbl);
               }});
-              if (ATTR_FILTERS.length > 0) attrRow.style.display = '';
+              if (ATTR_FILTERS.length > 0) attrField.style.display = '';
 
+              // Show / hide attribute-value input on radio change.
+              attrRadios.addEventListener('change', function (e) {{
+                if (e.target.name === 'sel-attr') {{
+                  if (e.target.value) {{
+                    attrValField.style.display = '';
+                  }} else {{
+                    attrValField.style.display = 'none';
+                    attrVal.value = '';
+                  }}
+                }}
+              }});
+
+              // ── Populate collection checkboxes ────────────────────────────
               if (SHOW_COLS) {{
                 COLLECTIONS.forEach(function (c) {{
                   var lbl = document.createElement('label');
@@ -906,11 +953,11 @@ def _render_advanced_search_page(
                   ' risultato' + (data.hits.length !== 1 ? 'i' : '') + ' trovato' +
                   (data.hits.length !== 1 ? 'i' : '') + '.';
                 resultsEl.innerHTML = data.hits.map(function (h) {{
-                  var label  = h.title || h.filename;
-                  var badge  = h.element_name
+                  var label = h.title || h.filename;
+                  var badge = h.element_name
                     ? '<span class="tag-badge">&lt;' + escapeHtml(h.element_name) + '&gt;</span>'
                     : '';
-                  var meta   = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
+                  var meta = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
                   return '<article>' +
                     '<h3>' + badge + '<a href="' + escapeHtml(h.doc_url) + '">' +
                     escapeHtml(label) + '</a></h3>' +
@@ -925,10 +972,12 @@ def _render_advanced_search_page(
                 e.preventDefault();
                 errEl.textContent = '';
 
-                var element  = tagSel.value;
-                var q        = tagQ.value.trim();
-                var attrName = attrSel.value;
-                var attrV    = attrVal.value.trim();
+                var checkedTag  = tagRadios.querySelector('input[name="sel-tag"]:checked');
+                var element     = checkedTag  ? checkedTag.value  : '';
+                var q           = tagQ.value.trim();
+                var checkedAttr = attrRadios.querySelector('input[name="sel-attr"]:checked');
+                var attrName    = checkedAttr ? checkedAttr.value : '';
+                var attrV       = attrVal.value.trim();
 
                 if (!element && !q && !attrName) {{
                   errEl.textContent = 'Inserisci almeno un criterio di ricerca.';
@@ -936,9 +985,9 @@ def _render_advanced_search_page(
                 }}
 
                 var params = new URLSearchParams();
-                if (q)       params.set('q',        q);
-                if (element) params.set('element',  element);
-                if (attrName) params.set('attr_name', attrName);
+                if (q)        params.set('q',         q);
+                if (element)  params.set('element',   element);
+                if (attrName) params.set('attr_name',  attrName);
                 if (attrV)    params.set('attr_value', attrV);
 
                 if (SHOW_COLS) {{
