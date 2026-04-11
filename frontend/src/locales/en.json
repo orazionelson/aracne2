@@ -730,6 +730,15 @@
     "embed_log_empty": "No embed requests logged yet.",
     "embed_log_total": "{n} total requests"
   },
+  "media": {
+    "panel_title": "Images",
+    "upload_btn": "Upload image…",
+    "uploading": "Uploading…",
+    "empty": "No images for this document.",
+    "insert": "Insert",
+    "confirm_delete": "Delete?",
+    "media_btn": "Images"
+  },
   "footer": {
     "powered_by": "Powered by Aracne2"
   },

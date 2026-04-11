@@ -452,6 +452,26 @@ export function useCodeMirror(
     });
   }
 
+  /**
+   * Insert a TEI <figure> element at the current cursor position.
+   *
+   * Produces:
+   *   <figure><graphic url="URL"/></figure>
+   *
+   * The cursor is placed after the inserted block.
+   */
+  function insertFigure(url: string): void {
+    const cm = editorInstance.value;
+    if (!cm) return;
+
+    const cursor = cm.getCursor();
+    const snippet = `<figure><graphic url="${url}"/></figure>`;
+    cm.replaceRange(snippet, cursor, undefined, '+programmatic');
+    const after = { line: cursor.line, ch: cursor.ch + snippet.length };
+    cm.setCursor(after);
+    cm.focus();
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -694,5 +714,6 @@ export function useCodeMirror(
     insertNote,
     editNote,
     deleteNote,
+    insertFigure,
   };
 }

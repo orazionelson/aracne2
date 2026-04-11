@@ -10,6 +10,7 @@ import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
+import MediaPanel from '@/components/ui/MediaPanel.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -85,6 +86,9 @@ const bodyCm = useCodeMirror(bodyEditorContainer, {
   lockBoundaryLines: 2, // locks <text><body> and </body></text>
   onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'body'),
 });
+
+// ── Media panel ───────────────────────────────────────────────────────────────
+const showMediaPanel = ref(false);
 
 // ── TEI Help panel ────────────────────────────────────────────────────────────
 const showHelpPanel = ref(false);
@@ -359,6 +363,18 @@ function handleNoteConfirm(content: string): void {
   }
 }
 
+// ── Figure insertion ──────────────────────────────────────────────────────────
+
+function handleInsertFigure(url: string): void {
+  if (!splitMode.value || !canSplit.value) {
+    singleCm.insertFigure(url);
+  } else if (activeEditorTab.value === 'header') {
+    headerCm.insertFigure(url);
+  } else {
+    bodyCm.insertFigure(url);
+  }
+}
+
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(): Promise<void> {
   saveError.value = null;
@@ -395,6 +411,7 @@ const activeEditor = computed(() => {
 
 function openAiPanel(): void {
   showHelpPanel.value = false;
+  showMediaPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -573,7 +590,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
               : 'border-gray-200 text-gray-600 hover:bg-gray-100',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) showAiPanel = false"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; }"
         >
           {{ t('documents.tei_help') }}
         </button>
@@ -588,6 +605,18 @@ async function runValidation(): Promise<void> {
           @click="showAiPanel ? closeAiPanel() : openAiPanel()"
         >
           {{ t('ai.button_editor') }}
+        </button>
+        <button
+          :disabled="isLoading"
+          :class="[
+            'rounded border px-2 py-1 text-xs',
+            showMediaPanel
+              ? 'border-teal-400 bg-teal-50 text-teal-700'
+              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; }"
+        >
+          {{ t('media.media_btn') }}
         </button>
         <button
           :disabled="isSaving || isLoading"
@@ -820,6 +849,15 @@ async function runValidation(): Promise<void> {
     </div>
   </div>
   </div>
+
+  <!-- Media panel sidebar -->
+  <MediaPanel
+    v-if="showMediaPanel && !isLoading"
+    :slug="slug"
+    :doc-filename="filename"
+    @insert-figure="handleInsertFigure"
+    @close="showMediaPanel = false"
+  />
 
   <!-- Note insertion / editing modal -->
   <NoteModal

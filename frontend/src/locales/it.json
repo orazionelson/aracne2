@@ -730,6 +730,15 @@
     "embed_log_empty": "Nessuna richiesta embed registrata.",
     "embed_log_total": "{n} richieste totali"
   },
+  "media": {
+    "panel_title": "Immagini",
+    "upload_btn": "Carica immagine…",
+    "uploading": "Caricamento…",
+    "empty": "Nessuna immagine per questo documento.",
+    "insert": "Inserisci",
+    "confirm_delete": "Elimina?",
+    "media_btn": "Immagini"
+  },
   "footer": {
     "powered_by": "Powered by Aracne2"
   },
