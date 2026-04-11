@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -59,6 +59,21 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def clean_db(test_engine: AsyncEngine) -> AsyncGenerator[None, None]:
+    """Truncate all tables before every test.
+
+    The test_engine is session-scoped and uses StaticPool, so commits made by
+    route handlers inside one test persist to subsequent tests.  This fixture
+    deletes all rows (in reverse FK order) before each test starts, giving
+    every test a clean, empty database.
+    """
+    async with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(delete(table))
+    yield
 
 
 @pytest_asyncio.fixture
