@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from app.core.ssrf import check_ssrf
+
 # All event names that can be routed to webhooks.
 SUPPORTED_EVENTS: list[str] = [
     "collection.submitted",
@@ -33,8 +35,10 @@ class WebhookEndpointCreate(BaseModel):
     @field_validator("url")
     @classmethod
     def url_must_be_http(cls, v: str) -> str:
-        if not (v.startswith("http://") or v.startswith("https://")):
-            raise ValueError("URL must start with http:// or https://")
+        try:
+            check_ssrf(v)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
         return v
 
     @field_validator("events")
@@ -58,8 +62,11 @@ class WebhookEndpointUpdate(BaseModel):
     @field_validator("url")
     @classmethod
     def url_must_be_http(cls, v: str | None) -> str | None:
-        if v is not None and not (v.startswith("http://") or v.startswith("https://")):
-            raise ValueError("URL must start with http:// or https://")
+        if v is not None:
+            try:
+                check_ssrf(v)
+            except Exception as exc:
+                raise ValueError(str(exc)) from exc
         return v
 
     @field_validator("events")

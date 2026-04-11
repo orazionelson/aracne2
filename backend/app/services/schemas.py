@@ -38,12 +38,9 @@ Algorithm overview:
   model tree directly (``ElementContent`` left/right nodes).
 """
 
-import ipaddress
 import re as _re
-import socket
 import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 import structlog
@@ -53,6 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import DomainValidationError, ExternalServiceError, NotFoundError
+from app.core.ssrf import check_ssrf
 from app.models.tei_schema import SchemaFormat, TeiSchema
 from app.models.user import User
 from app.schemas.tei_schemas import TeiSchemaCreate, TeiSchemaResponse, ValidationError, ValidationResult
@@ -150,40 +148,6 @@ def _ensure_schema_dir(schema_id: uuid.UUID) -> Path:
     d = _schema_dir(schema_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
-
-
-# ── SSRF guard ─────────────────────────────────────────────────────────────────
-
-def _check_ssrf(url: str) -> None:
-    """Raise DomainValidationError if the URL resolves to a non-public address.
-
-    See module docstring for the rationale behind this design choice.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise DomainValidationError("INVALID_URL", "Only http:// and https:// URLs are allowed.")
-    hostname = parsed.hostname or ""
-    if not hostname:
-        raise DomainValidationError("INVALID_URL", "URL must include a hostname.")
-    try:
-        ip_str = socket.gethostbyname(hostname)
-        addr = ipaddress.ip_address(ip_str)
-    except (socket.gaierror, ValueError) as exc:
-        raise DomainValidationError(
-            "INVALID_URL", f"Cannot resolve hostname {hostname!r}: {exc}"
-        ) from exc
-    if (
-        addr.is_private
-        or addr.is_loopback
-        or addr.is_link_local
-        or addr.is_multicast
-        or addr.is_reserved
-    ):
-        raise DomainValidationError(
-            "SSRF_BLOCKED",
-            f"URL resolves to a non-public address ({addr}). "
-            "Importing schemas from private or internal hosts is not permitted.",
-        )
 
 
 # ── Validation helpers ─────────────────────────────────────────────────────────
@@ -426,7 +390,7 @@ async def import_validation(
     schema_id: uuid.UUID,
     url: str,
 ) -> TeiSchemaResponse:
-    _check_ssrf(url)
+    check_ssrf(url)
     filename = urlparse(url).path.rsplit("/", 1)[-1] or "schema"
     fmt = _detect_format(filename)
     try:
@@ -455,7 +419,7 @@ async def import_cm5(
     schema_id: uuid.UUID,
     url: str,
 ) -> TeiSchemaResponse:
-    _check_ssrf(url)
+    check_ssrf(url)
     filename = urlparse(url).path.rsplit("/", 1)[-1] or "cm5.xml"
     try:
         content = await _fetch_url(url)

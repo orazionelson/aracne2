@@ -29,6 +29,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import ConflictError, DomainValidationError, NotFoundError
+from app.core.ssrf import check_ssrf
 from app.services.xslt import apply_xslt
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
@@ -1046,7 +1047,8 @@ async def _resolve_transform(
     elif source == "url":
         url = (xslt_config.get("url") or "").strip()
         if url:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            check_ssrf(url)
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 content = resp.text
