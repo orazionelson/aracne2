@@ -128,7 +128,7 @@ class WebsiteResponse(BaseModel):
     custom_css: str | None
     custom_js: str | None
     include_jquery: bool
-    distinct_tags: dict | None
+    distinct_tags: dict | list | None  # dict when populated, [] when XQuery returned no results
     tags_refreshed_at: datetime | None
     created_by: uuid.UUID | None
     created_at: datetime
@@ -183,6 +183,10 @@ class WebsiteCacheClearedResponse(BaseModel):
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
 class WebsiteTagsResponse(BaseModel):
-    """Distinct-tag map for a website's linked collection."""
-    distinct_tags: dict | None
+    """Distinct-tag map for a website's linked collection.
+
+    distinct_tags may be a dict (element → values map), an empty list
+    (XQuery returned no results), or None (no refresh has been run yet).
+    """
+    distinct_tags: dict | list | None
     tags_refreshed_at: datetime | None
