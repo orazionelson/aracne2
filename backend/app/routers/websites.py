@@ -37,6 +37,7 @@ GET    /sites/{slug}/{path:path}              static assets (CSS/JS/images)
 import asyncio
 import io
 import mimetypes
+import re
 import zipfile
 from pathlib import Path
 from typing import Annotated
@@ -270,6 +271,9 @@ async def clear_cache(
 
 # ── XSLT preview ─────────────────────────────────────────────────────────────
 
+_SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+
 @router.post("/websites/{slug}/preview-doc/{filename}")
 async def preview_doc(
     slug: str,
@@ -283,6 +287,8 @@ async def preview_doc(
     Pass xslt_config in the request body to preview unsaved stylesheet changes.
     Omit it (or set to null) to use the website's currently saved xslt_config.
     """
+    if not _SAFE_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
     html = await svc.preview_document(db, slug, filename, body.xslt_config)
     return DataResponse(data=WebsitePreviewDocResponse(html=html))
 
@@ -453,10 +459,12 @@ async def rebuild_index(
 
 def _resolve_site_file(slug: str, path: str = "index.html") -> Path:
     """Resolve a path inside the site directory, guarding against traversal."""
-    root = settings.websites_root.resolve()
-    candidate = (root / slug / path).resolve()
-    # Ensure the resolved path stays within the site root.
-    if not str(candidate).startswith(str(root)):
+    site_root = settings.websites_root.resolve() / slug
+    candidate = (site_root / path).resolve()
+    # Ensure the resolved path stays within this site's directory.
+    # is_relative_to() avoids the str.startswith prefix-confusion bug
+    # (e.g. /sites/foo matching /sites/foobar).
+    if not candidate.is_relative_to(site_root):
         raise HTTPException(status_code=403, detail="Forbidden")
     # Directory → serve index.html
     if candidate.is_dir():
