@@ -1,0 +1,24 @@
+# Development and test artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Environment and secrets
+.env
+.env.*
+
+# Version control
+.git/
+.gitignore
+
+# Editor metadata
+.vscode/
+.idea/
+*.swp
+*.swo

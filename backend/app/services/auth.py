@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.password import hash_password, verify_password
+from app.models.audit_log import AuditLog
 from app.models.role import UserRole
 from app.models.session import Session
 from app.models.user import User
@@ -138,6 +139,9 @@ async def authenticate_user(
     candidate_hash = user.password_hash if user else _DUMMY_HASH
     valid = verify_password(password, candidate_hash)
     if not user or not valid or not user.is_active:
+        # Log to structlog only — a DB write here would be rolled back by the
+        # exception handler in get_async_session before it could be committed.
+        logger.warning("login_failed", identifier=username_or_email[:64])
         raise AuthenticationError(
             code="INVALID_CREDENTIALS",
             message="Invalid credentials",
@@ -195,6 +199,17 @@ async def create_session(
     )
     db.add(session)
     user.last_login_at = _now()
+    db.add(AuditLog(
+        action="auth.login_success",
+        actor_id=user.id,
+        actor_username=user.username,
+        target_type="user",
+        target_id=str(user.id),
+        target_label=user.username,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        payload={"role": role},
+    ))
     await db.flush()
 
     access_token = create_access_token(user.id, access_jti, role)
@@ -292,5 +307,15 @@ async def change_password(
     for s in sessions:
         s.revoked_at = _now()
         s.revoked_reason = "password_change"
+
+    db.add(AuditLog(
+        action="auth.password_changed",
+        actor_id=user.id,
+        actor_username=user.username,
+        target_type="user",
+        target_id=str(user.id),
+        target_label=user.username,
+        payload={"sessions_revoked": len(sessions)},
+    ))
 
     logger.info("password_changed", user_id=str(user.id))

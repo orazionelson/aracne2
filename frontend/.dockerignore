@@ -1,0 +1,22 @@
+# Dependencies (reinstalled inside the image)
+node_modules/
+
+# Build output (rebuilt inside the image)
+dist/
+
+# Environment and secrets
+.env
+.env.*
+
+# Version control
+.git/
+.gitignore
+
+# Editor metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+coverage/
