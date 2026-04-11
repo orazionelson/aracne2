@@ -31,7 +31,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.db.postgres import get_async_session
-from app.middleware.acl import ROLE_LEVEL, get_current_user
+from app.core.constants import ROLE_LEVEL
+from app.middleware.acl import get_current_user
 from app.middleware.rate_limiter import limiter
 from app.models.user import User
 from app.schemas.search_engines import (

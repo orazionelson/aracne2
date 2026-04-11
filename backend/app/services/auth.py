@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.constants import ROLE_LEVEL
 from app.core.exceptions import AuthenticationError
 from app.core.password import hash_password, verify_password
 from app.models.audit_log import AuditLog
@@ -153,10 +154,6 @@ async def get_active_role(db: AsyncSession, user_id: uuid.UUID) -> str:
     """Return the highest active role name for a user."""
     from app.models.role import Role
 
-    role_level: dict[str, int] = {
-        "Admin": 4, "EditorInChief": 3,
-        "Designer": 2, "Editor": 2, "User": 1,
-    }
     stmt = (
         select(Role.name)
         .join(UserRole, UserRole.role_id == Role.id)
@@ -168,7 +165,7 @@ async def get_active_role(db: AsyncSession, user_id: uuid.UUID) -> str:
     roles = list(await db.scalars(stmt))
     if not roles:
         return "User"
-    return max(roles, key=lambda r: role_level.get(str(r), 0))
+    return max(roles, key=lambda r: ROLE_LEVEL.get(str(r), 0))
 
 
 async def create_session(

@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import ROLE_LEVEL
 from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.db.postgres import get_async_session
 from app.models.session import Session
@@ -17,14 +18,6 @@ from app.services.auth import decode_raw_token, decode_token
 logger = structlog.get_logger()
 
 _bearer = HTTPBearer(auto_error=False)
-
-ROLE_LEVEL: dict[str, int] = {
-    "Admin": 4,
-    "EditorInChief": 3,
-    "Designer": 2,
-    "Editor": 2,
-    "User": 1,
-}
 
 
 async def _get_current_user(
@@ -133,7 +126,9 @@ async def get_optional_user(
         request.state.user = user
         request.state.role = str(payload.get("role", "User"))
         return user
-    except Exception:
+    except (AuthenticationError, ValueError, KeyError):
+        # Invalid/malformed token: missing claims, bad UUID, expired signature.
+        # Any other exception is a genuine bug and should propagate.
         return None
 
 

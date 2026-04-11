@@ -4,7 +4,9 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.core.constants import ROLE_LEVEL
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.hooks import HookEvent, hook_registry
 from app.core.password import hash_password
@@ -21,14 +23,6 @@ from app.schemas.users import (
 )
 
 logger = structlog.get_logger()
-
-ROLE_LEVEL: dict[str, int] = {
-    "Admin": 4,
-    "EditorInChief": 3,
-    "Designer": 2,
-    "Editor": 2,
-    "User": 1,
-}
 
 
 def _now() -> datetime:
@@ -56,7 +50,7 @@ async def _audit(
 
 
 async def _build_response(db: AsyncSession, user: User) -> UserResponse:
-    """Build a UserResponse from an ORM User instance."""
+    """Build a UserResponse from an ORM User instance (issues one DB query)."""
     stmt = (
         select(Role.name, UserRole.assigned_at)
         .join(UserRole, UserRole.role_id == Role.id)
@@ -66,7 +60,41 @@ async def _build_response(db: AsyncSession, user: User) -> UserResponse:
     role_infos = [RoleInfo(role_name=r[0].value, assigned_at=r[1]) for r in rows]
     highest = max(
         (r[0].value for r in rows),
-        key=lambda r: ROLE_LEVEL.get(r, 0),
+        key=lambda role: ROLE_LEVEL.get(role, 0),
+        default="User",
+    )
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        display_name=user.display_name,
+        preferred_lang=user.preferred_lang,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        role=highest,
+        roles=role_infos,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        last_login_at=user.last_login_at,
+        deleted_at=user.deleted_at,
+    )
+
+
+def _build_response_from_loaded(user: User) -> UserResponse:
+    """Build a UserResponse using already-loaded user_roles relationship.
+
+    Assumes the caller issued the main query with
+    ``selectinload(User.user_roles).selectinload(UserRole.role)``
+    so that no additional DB round-trips are needed.
+    """
+    active_urs = [ur for ur in user.user_roles if ur.revoked_at is None]
+    role_infos = [
+        RoleInfo(role_name=ur.role.name.value, assigned_at=ur.assigned_at)
+        for ur in active_urs
+    ]
+    highest = max(
+        (ur.role.name.value for ur in active_urs),
+        key=lambda role: ROLE_LEVEL.get(role, 0),
         default="User",
     )
     return UserResponse(
@@ -116,10 +144,14 @@ async def list_users(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = await db.scalar(count_stmt) or 0
 
-    stmt = stmt.order_by(User.created_at.desc())
-    stmt = stmt.offset((page - 1) * per_page).limit(per_page)
+    stmt = (
+        stmt.order_by(User.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .options(selectinload(User.user_roles).selectinload(UserRole.role))
+    )
     users = list(await db.scalars(stmt))
-    responses = [await _build_response(db, u) for u in users]
+    responses = [_build_response_from_loaded(u) for u in users]
     return responses, total
 
 

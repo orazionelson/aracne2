@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
 from app.db.postgres import get_async_session
-from app.middleware.acl import ROLE_LEVEL, get_current_user, require_role
+from app.core.constants import ROLE_LEVEL
+from app.middleware.acl import get_current_user, require_role
 from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.schemas.users import (

@@ -34,7 +34,7 @@ from app.core.exceptions import (
 )
 from app.core.hooks import HookEvent, hook_registry
 from app.db.existdb import ExistDBClient
-from app.middleware.acl import ROLE_LEVEL
+from app.core.constants import ROLE_LEVEL
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection, CollectionStatus
 from app.models.collection_permission import CollectionPermission
