@@ -267,7 +267,6 @@ export function useCodeMirror(
       // after the cursor position in the document.
       const refEnd = cm.posFromIndex(cm.indexFromPos(cursor) + refTag.length);
       cm.markText(cursor, refEnd, {
-        readOnly: true,
         className: 'cm-note-ref',
         title: noteId,
       });
@@ -295,7 +294,6 @@ export function useCodeMirror(
       const from = instance.posFromIndex(match.index);
       const to   = instance.posFromIndex(match.index + match[0].length);
       instance.markText(from, to, {
-        readOnly: true,
         className: 'cm-note-ref',
         title: match[1],
       });
@@ -420,6 +418,26 @@ export function useCodeMirror(
         options.onChange!(cm.getValue());
       });
     }
+
+    // Protect <ref> inline markers from direct keyboard/paste editing.
+    // The visual marker (cm-note-ref class) carries no readOnly flag — that
+    // would block cursor navigation in CM5. Instead, we intercept beforeChange
+    // and cancel any edit whose range overlaps a <ref> marker.
+    // +programmatic and setValue origins are exempt (note insertion / loading).
+    instance.on('beforeChange', (_cm, change) => {
+      if (change.origin === '+programmatic' || change.origin === 'setValue') return;
+      const isRefMark = (m: CodeMirror.TextMarker): boolean => {
+        const r = m.find() as { from: CodeMirror.Position; to: CodeMirror.Position } | undefined;
+        return !!r && 'from' in r && instance.getRange(r.from, r.to).startsWith('<ref ');
+      };
+      if (
+        instance.findMarksAt(change.from).some(isRefMark) ||
+        instance.findMarksAt(change.to).some(isRefMark) ||
+        instance.findMarks(change.from, change.to).some(isRefMark)
+      ) {
+        change.cancel();
+      }
+    });
 
     if (options.lockBoundaryLines) {
       const n = options.lockBoundaryLines;
