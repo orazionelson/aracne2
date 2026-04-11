@@ -2,6 +2,7 @@
 
 import hashlib
 import textwrap
+import urllib.parse
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -398,7 +399,7 @@ async def run_search(
             collection_slug=col_slug,
             filename=filename,
             title=raw_title if raw_title else None,
-            doc_url=f"/browse/{col_slug}/{filename}",
+            doc_url=f"/browse/{col_slug}/{filename}?highlight={urllib.parse.quote(q)}",
             score=float(hit_el.get("score", "0")),
             mode=hit_el.get("mode", "contains"),
             kwic=kwic_text,

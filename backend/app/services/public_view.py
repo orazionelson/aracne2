@@ -29,6 +29,43 @@ _XSLT_PATH = Path(__file__).parent.parent / "xslt" / "tei_generic.xsl"
 # Module-level XSLT transform cache.
 _xslt_transform: etree.XSLT | None = None
 
+# Inline script injected into every rendered document.
+# Reads ?highlight=TERM from location.search, wraps matching text nodes in
+# <mark> elements, and smooth-scrolls to the first match.
+# Exits silently when ?highlight is absent — safe to inject unconditionally.
+_HIGHLIGHT_SCRIPT = (
+    '<script>(function(){'
+    'var m=location.search.match(/[?&]highlight=([^&]+)/);'
+    'if(!m)return;'
+    'var term=decodeURIComponent(m[1].replace(/\\+/g," ")).trim();'
+    'if(!term)return;'
+    'var root=document.querySelector(".tei-body")||document.querySelector("main");'
+    'if(!root)return;'
+    'function esc(s){return s.replace(/[.*+?^${}()|[\\]\\\\]/g,"\\\\$&");}'
+    'var re=new RegExp("("+esc(term)+")","gi");'
+    'var tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false);'
+    'var nodes=[];'
+    'var n;'
+    'while((n=tw.nextNode())){'
+    'if(/^(script|style|mark)$/i.test(n.parentNode.nodeName))continue;'
+    'if(re.test(n.textContent))nodes.push(n);'
+    're.lastIndex=0;'
+    '}'
+    'nodes.forEach(function(tn){'
+    'var parts=tn.textContent.split(re);'
+    'if(parts.length<2)return;'
+    'var frag=document.createDocumentFragment();'
+    'parts.forEach(function(p,i){'
+    'if(i%2===1){var mk=document.createElement("mark");mk.textContent=p;frag.appendChild(mk);}'
+    'else if(p)frag.appendChild(document.createTextNode(p));'
+    '});'
+    'tn.parentNode.replaceChild(frag,tn);'
+    '});'
+    'var first=root.querySelector("mark");'
+    'if(first)first.scrollIntoView({behavior:"smooth",block:"center"});'
+    '})();</script>'
+)
+
 
 def _get_transform() -> etree.XSLT:
     """Load and cache the XSLT transform.  Thread-safe for asyncio (single loop)."""
@@ -128,7 +165,9 @@ async def render_document_html(
         # eXist-db instance, not from untrusted user input.
         xml_doc = etree.fromstring(xml_bytes)  # noqa: S320
         result = transform(xml_doc)
-        return str(result)
+        html = str(result)
+        html = html.replace("</body>", f"{_HIGHLIGHT_SCRIPT}</body>", 1)
+        return html
     except Exception as exc:
         logger.error("render_document_failed", slug=slug, filename=filename, error=str(exc))
         raise DomainValidationError(

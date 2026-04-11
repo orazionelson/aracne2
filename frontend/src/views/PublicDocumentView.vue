@@ -11,9 +11,11 @@ const uiConfig = useUiConfigStore();
 const slug = route.params.slug as string;
 const filename = route.params.filename as string;
 
-const renderUrl = computed(
-  () => `/api/v1/public/collections/${slug}/documents/${filename}`,
-);
+const renderUrl = computed(() => {
+  const base = `/api/v1/public/collections/${slug}/documents/${filename}`;
+  const h = route.query.highlight;
+  return h ? `${base}?highlight=${encodeURIComponent(String(h))}` : base;
+});
 </script>
 
 <template>
