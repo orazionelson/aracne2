@@ -58,6 +58,11 @@ async def login(
     body: LoginRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[dict[str, object]]:
+    """Authenticate with username/email and password.
+
+    Returns the access token in the response body and sets the refresh token
+    in an httpOnly, SameSite=Strict cookie scoped to /api/v1/auth.
+    """
     user = await authenticate_user(db, body.username_or_email, body.password)
     role = await get_active_role(db, user.id)
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
@@ -88,6 +93,11 @@ async def refresh(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[TokenResponse]:
+    """Rotate the refresh token and issue a new access token.
+
+    Reads the refresh token from the httpOnly cookie, revokes the old session,
+    and creates a new one. Sets an updated refresh cookie on success.
+    """
     refresh_token = request.cookies.get(_REFRESH_COOKIE)
     if not refresh_token:
         from app.core.exceptions import AuthenticationError
@@ -108,6 +118,11 @@ async def logout(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[dict[str, str]]:
+    """Revoke the current session and clear the refresh cookie.
+
+    Best-effort: always returns 204, even if the access token is missing,
+    expired, or already revoked.
+    """
     # Best-effort revocation — do not raise even if token is missing or invalid
     try:
         auth_header = request.headers.get("Authorization", "")
@@ -127,6 +142,10 @@ async def me(
     current_user: Annotated[User, Depends(get_current_user)],
     request: Request,
 ) -> DataResponse[UserMeResponse]:
+    """Return the authenticated user's profile.
+
+    The role is read from the JWT payload — no additional DB query is issued.
+    """
     role = request.state.role
     return DataResponse(
         data=UserMeResponse(
@@ -154,6 +173,10 @@ async def password_change(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[dict[str, str]]:
+    """Change the current user's password and invalidate all active sessions.
+
+    Forbidden while acting under an impersonation token.
+    """
     from app.core.exceptions import AuthorizationError
     if getattr(request.state, "impersonated_by", None):
         raise AuthorizationError()

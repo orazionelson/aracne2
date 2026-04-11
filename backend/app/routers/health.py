@@ -15,7 +15,11 @@ async def health_check(
     db: AsyncSession = Depends(get_async_session),  # noqa: B008
     existdb: ExistDBClient = Depends(get_existdb),  # noqa: B008
 ) -> DataResponse[HealthResponse]:
+    """Check connectivity to PostgreSQL and eXist-db.
 
+    Returns status "healthy" when both services respond, "degraded" otherwise.
+    Error details are included in development mode only.
+    """
     # PostgreSQL check
     pg_status = "ok"
     pg_detail: str | None = None

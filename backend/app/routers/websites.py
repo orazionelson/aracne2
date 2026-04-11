@@ -158,6 +158,11 @@ async def get_meta_suggestions(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
 ) -> DataResponse[MetaSuggestionsResponse]:
+    """Return XQuery-derived metadata suggestions for the linked collection.
+
+    Suggestions are pre-computed from existing documents (authors, publishers,
+    etc.) to speed up the metadata edit form.
+    """
     suggestions = await svc.get_meta_suggestions(db, slug, user)
     return DataResponse(data=MetaSuggestionsResponse.model_validate(suggestions))
 
@@ -179,6 +184,7 @@ async def delete_website(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: DesignerPlus,
 ) -> None:
+    """Delete a website record and remove its static files from disk."""
     await svc.delete_website(db, slug)
 
 
@@ -467,8 +473,10 @@ def _dynamic_html_response(html: str, etag: str, request: Request) -> Response:
 
 @router.get("/sites/{slug}", include_in_schema=False)
 async def serve_site_index_redirect(slug: str) -> RedirectResponse:
-    # Redirect to the canonical URL with trailing slash so that relative links
-    # inside the generated HTML (e.g. docs/foo.xml.html) resolve correctly.
+    """Redirect to the canonical URL with trailing slash.
+
+    Required so that relative asset links inside generated HTML resolve correctly.
+    """
     return RedirectResponse(url=f"/api/v1/sites/{slug}/", status_code=301)
 
 
@@ -479,6 +487,7 @@ async def serve_site_index(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: OptionalUser,
 ) -> Response:
+    """Serve the site cover page, respecting the rendering mode and access guard."""
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
@@ -504,6 +513,7 @@ async def serve_site_browse(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: OptionalUser,
 ) -> Response:
+    """Serve the document list page, respecting the rendering mode and access guard."""
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
@@ -523,6 +533,11 @@ async def serve_site_search(
     user: OptionalUser,
     q: str = "",
 ) -> Response:
+    """Serve the search results page.
+
+    STATIC: serves a pre-built client-side JS search page.
+    DYNAMIC/HYBRID: runs a server-side eXist-db full-text search.
+    """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     if website.rendering_mode == RenderingMode.STATIC:
@@ -545,6 +560,11 @@ async def serve_site_doc(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: OptionalUser,
 ) -> Response:
+    """Serve a single document with XSLT applied.
+
+    STATIC: serves a pre-built .html file from disk.
+    DYNAMIC/HYBRID: renders live from eXist-db on every request.
+    """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     # HYBRID: document pages are always dynamic, even if a static file exists.
@@ -572,6 +592,10 @@ async def serve_site_page(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user: OptionalUser,
 ) -> Response:
+    """Serve a free Markdown page by slug.
+
+    STATIC/HYBRID: serves from disk. DYNAMIC: renders from DB.
+    """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):

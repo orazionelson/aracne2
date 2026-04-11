@@ -41,6 +41,11 @@ async def export_me(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserExport]:
+    """Export personal data for the authenticated user (GDPR art. 20).
+
+    Returns profile fields, active roles, and session count.
+    Password hash, IP address, and user-agent are never included.
+    """
     data = await export_my_data(db, current_user)
     return DataResponse(data=data)
 
@@ -50,6 +55,11 @@ async def delete_me(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
+    """Permanently delete the authenticated user's account (GDPR art. 17).
+
+    Hard-deletes the user row; cascades to sessions and user_roles.
+    Audit log entries are anonymized (actor_id set to NULL).
+    """
     await delete_my_account(db, current_user)
 
 
@@ -67,6 +77,11 @@ async def users_list(
     is_active: bool | None = Query(default=None),
     include_deleted: bool = Query(default=False),
 ) -> PaginatedResponse[UserResponse]:
+    """List users with optional filters.
+
+    include_deleted is silently downgraded to False for non-Admin callers,
+    even though the endpoint is accessible to EditorInChief.
+    """
     # include_deleted is restricted to Admin
     if include_deleted and ROLE_LEVEL.get(request.state.role, 0) < ROLE_LEVEL["Admin"]:
         include_deleted = False
@@ -92,6 +107,11 @@ async def user_create(
     current_user: Annotated[User, Depends(require_role(min_role="EditorInChief"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    """Create a new user account.
+
+    Admin-created accounts are automatically pre-verified.
+    The actor cannot assign a role whose level exceeds their own.
+    """
     # An actor cannot assign a role whose level exceeds their own.
     actor_level = ROLE_LEVEL.get(request.state.role, 0)
     if ROLE_LEVEL.get(body.role, 0) > actor_level:
@@ -106,6 +126,7 @@ async def user_detail(
     current_user: Annotated[User, Depends(require_role(min_role="EditorInChief"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    """Retrieve a user by UUID or username."""
     data = await get_user(db, user_id)
     return DataResponse(data=data)
 
@@ -117,6 +138,10 @@ async def user_update(
     current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    """Update mutable user fields.
+
+    Deactivating a user (is_active=False) revokes all their active sessions.
+    """
     data = await update_user(db, user_id, body, current_user)
     return DataResponse(data=data)
 
@@ -127,6 +152,10 @@ async def user_soft_delete(
     current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
+    """Soft-delete a user (sets deleted_at, deactivates, revokes sessions).
+
+    Cannot be used to delete the calling user's own account.
+    """
     await soft_delete_user(db, user_id, current_user)
 
 
@@ -139,6 +168,11 @@ async def role_assign(
     current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    """Assign a role to a user.
+
+    Invalidates all active sessions so the next token refresh picks up the
+    new role. Raises 409 if the role is already active.
+    """
     data = await assign_role(db, user_id, body.role_name, current_user)
     return DataResponse(data=data)
 
@@ -150,5 +184,9 @@ async def role_revoke(
     current_user: Annotated[User, Depends(require_role(min_role="Admin"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    """Revoke an active role from a user.
+
+    Invalidates all active sessions. Raises 404 if the role is not active.
+    """
     data = await revoke_role(db, user_id, role_name, current_user)
     return DataResponse(data=data)
