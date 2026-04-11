@@ -665,7 +665,10 @@
     "advanced_tags_loading": "Loading available tags…",
     "advanced_tags_loaded": "{n} element types found in linked collections.",
     "advanced_tags_empty": "No tags loaded yet. Click Refresh to scan the linked collections.",
-    "advanced_tags_refresh": "Refresh tags"
+    "advanced_tags_refresh": "Refresh tags",
+    "advanced_disabled_hint": "Enable Advanced search to configure named tags and attribute filters.",
+    "tab_general": "General",
+    "tab_advanced": "Advanced search"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

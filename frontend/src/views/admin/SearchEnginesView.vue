@@ -169,245 +169,289 @@
         </button>
       </div>
 
+      <!-- Tab bar -->
+      <div class="flex shrink-0 border-b border-gray-200 px-6">
+        <button
+          v-for="tab in modalTabs"
+          :key="tab.key"
+          type="button"
+          :class="[
+            'mr-1 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+            activeTab === tab.key
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+          ]"
+          @click="activeTab = tab.key"
+        >
+          {{ tab.label }}
+          <!-- Badge on Advanced tab when feature is enabled -->
+          <span
+            v-if="tab.key === 'advanced' && form.advanced_search_enabled"
+            class="ml-1.5 inline-flex h-2 w-2 rounded-full bg-indigo-500"
+          />
+        </button>
+      </div>
+
       <!-- Modal content -->
       <div class="flex-1 overflow-y-auto px-6 py-6">
         <form class="mx-auto max-w-xl space-y-5" @submit.prevent="saveForm">
-          <!-- Slug (create only) -->
-          <div v-if="isCreating">
-            <label class="mb-1 block text-xs font-medium text-gray-700">
-              {{ t("search_engines.slug_label") }}
-            </label>
-            <input
-              v-model="form.slug"
-              type="text"
-              required
-              pattern="^[a-z0-9_-]+$"
-              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              :placeholder="t('search_engines.slug_placeholder')"
-            />
-            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.slug_hint") }}</p>
-          </div>
 
-          <!-- Title -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-700">
-              {{ t("search_engines.title_label") }}
-            </label>
-            <input
-              v-model="form.title"
-              type="text"
-              required
-              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-            />
-          </div>
-
-          <!-- XSLT template -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-700">
-              {{ t("search_engines.xslt_label") }}
-            </label>
-            <select
-              v-model="form.xslt_template_id"
-              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-            >
-              <option :value="null">{{ t("search_engines.xslt_none") }}</option>
-              <option
-                v-for="tpl in xsltStore.templates"
-                :key="tpl.id"
-                :value="tpl.id"
-              >
-                {{ tpl.name }}
-              </option>
-            </select>
-            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.xslt_hint") }}</p>
-          </div>
-
-          <!-- Collections multiselect -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-700">
-              {{ t("search_engines.collections_label") }}
-            </label>
-            <div
-              v-if="store.publicCollections.length === 0"
-              class="rounded border border-dashed border-gray-300 py-6 text-center text-xs text-gray-400"
-            >
-              {{ t("search_engines.no_public_collections") }}
-            </div>
-            <div
-              v-else
-              class="max-h-56 overflow-y-auto rounded border border-gray-200"
-            >
-              <label
-                v-for="col in store.publicCollections"
-                :key="col.id"
-                class="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
-              >
-                <input
-                  type="checkbox"
-                  :value="col.id"
-                  v-model="form.collection_ids"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600"
-                />
-                <span class="text-sm text-gray-800">{{ col.title }}</span>
-                <code class="ml-auto text-xs text-gray-400">{{ col.slug }}</code>
+          <!-- ── Tab: General ──────────────────────────────────────────────── -->
+          <template v-if="activeTab === 'general'">
+            <!-- Slug (create only) -->
+            <div v-if="isCreating">
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.slug_label") }}
               </label>
-            </div>
-            <p class="mt-1 text-xs text-gray-400">
-              {{ t("search_engines.collections_hint") }}
-            </p>
-          </div>
-
-          <!-- Cache TTL -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-700">
-              {{ t("search_engines.cache_ttl_label") }}
-            </label>
-            <input
-              v-model.number="form.cache_ttl_minutes"
-              type="number"
-              min="0"
-              max="10080"
-              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-            />
-            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
-          </div>
-
-          <!-- Advanced search toggle -->
-          <div>
-            <label class="flex cursor-pointer items-center gap-2">
               <input
-                v-model="form.advanced_search_enabled"
-                type="checkbox"
-                class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                v-model="form.slug"
+                type="text"
+                required
+                pattern="^[a-z0-9_-]+$"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                :placeholder="t('search_engines.slug_placeholder')"
               />
-              <span class="text-sm font-medium text-gray-700">
-                {{ t("search_engines.advanced_search_toggle") }}
-              </span>
-            </label>
-            <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.advanced_search_hint") }}</p>
-          </div>
-
-          <!-- Advanced search config panel (visible only when enabled) -->
-          <div
-            v-if="form.advanced_search_enabled"
-            class="rounded border border-indigo-100 bg-indigo-50 px-4 py-4 space-y-5"
-          >
-            <!-- Datalists for autocomplete -->
-            <datalist id="dl-elements">
-              <option v-for="name in availableElementNames" :key="name" :value="name" />
-            </datalist>
-            <datalist id="dl-attrs">
-              <option v-for="attr in availableAttrNames" :key="attr" :value="attr" />
-            </datalist>
-
-            <!-- Tags refresh bar -->
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              <span v-if="tagsLoading">{{ t("search_engines.advanced_tags_loading") }}</span>
-              <span v-else-if="availableElementNames.length > 0">
-                {{ t("search_engines.advanced_tags_loaded", { n: availableElementNames.length }) }}
-              </span>
-              <span v-else>{{ t("search_engines.advanced_tags_empty") }}</span>
-              <button
-                type="button"
-                :disabled="tagsLoading"
-                class="ml-auto rounded bg-white px-2 py-1 text-xs text-indigo-600 border border-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
-                @click="loadAvailableTags"
-              >
-                {{ t("search_engines.advanced_tags_refresh") }}
-              </button>
+              <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.slug_hint") }}</p>
             </div>
 
-            <!-- Named entity tags -->
+            <!-- Title -->
             <div>
-              <div class="mb-1.5 flex items-center justify-between">
-                <label class="text-xs font-semibold text-gray-700">
-                  {{ t("search_engines.advanced_named_tags_label") }}
-                </label>
-                <button
-                  type="button"
-                  class="text-xs text-indigo-600 hover:underline"
-                  @click="addTag"
-                >
-                  + {{ t("search_engines.advanced_add_tag") }}
-                </button>
-              </div>
-              <p class="mb-2 text-xs text-gray-400">{{ t("search_engines.advanced_named_tags_hint") }}</p>
-              <div
-                v-for="(tag, idx) in form.advanced_search_config.named_tags"
-                :key="idx"
-                class="mb-1.5 flex items-center gap-2"
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.title_label") }}
+              </label>
+              <input
+                v-model="form.title"
+                type="text"
+                required
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+
+            <!-- XSLT template -->
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.xslt_label") }}
+              </label>
+              <select
+                v-model="form.xslt_template_id"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
               >
-                <input
-                  v-model="tag.label"
-                  type="text"
-                  :placeholder="t('search_engines.advanced_tag_label_placeholder')"
-                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-                />
-                <input
-                  v-model="tag.element"
-                  type="text"
-                  list="dl-elements"
-                  :placeholder="t('search_engines.advanced_tag_element_placeholder')"
-                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  class="text-xs text-red-500 hover:text-red-700"
-                  @click="removeTag(idx)"
+                <option :value="null">{{ t("search_engines.xslt_none") }}</option>
+                <option
+                  v-for="tpl in xsltStore.templates"
+                  :key="tpl.id"
+                  :value="tpl.id"
                 >
-                  {{ t("search_engines.advanced_remove") }}
-                </button>
+                  {{ tpl.name }}
+                </option>
+              </select>
+              <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.xslt_hint") }}</p>
+            </div>
+
+            <!-- Collections multiselect -->
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.collections_label") }}
+              </label>
+              <div
+                v-if="store.publicCollections.length === 0"
+                class="rounded border border-dashed border-gray-300 py-6 text-center text-xs text-gray-400"
+              >
+                {{ t("search_engines.no_public_collections") }}
               </div>
-              <p v-if="form.advanced_search_config.named_tags.length === 0" class="text-xs text-gray-400 italic">
-                {{ t("search_engines.advanced_named_tags_hint") }}
+              <div
+                v-else
+                class="max-h-56 overflow-y-auto rounded border border-gray-200"
+              >
+                <label
+                  v-for="col in store.publicCollections"
+                  :key="col.id"
+                  class="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    :value="col.id"
+                    v-model="form.collection_ids"
+                    class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                  />
+                  <span class="text-sm text-gray-800">{{ col.title }}</span>
+                  <code class="ml-auto text-xs text-gray-400">{{ col.slug }}</code>
+                </label>
+              </div>
+              <p class="mt-1 text-xs text-gray-400">
+                {{ t("search_engines.collections_hint") }}
               </p>
             </div>
 
-            <!-- Attribute filters -->
+            <!-- Cache TTL -->
             <div>
-              <div class="mb-1.5 flex items-center justify-between">
-                <label class="text-xs font-semibold text-gray-700">
-                  {{ t("search_engines.advanced_attr_filters_label") }}
-                </label>
-                <button
-                  type="button"
-                  class="text-xs text-indigo-600 hover:underline"
-                  @click="addAttrFilter"
-                >
-                  + {{ t("search_engines.advanced_add_filter") }}
-                </button>
-              </div>
-              <p class="mb-2 text-xs text-gray-400">{{ t("search_engines.advanced_attr_filters_hint") }}</p>
-              <div
-                v-for="(filter, idx) in form.advanced_search_config.attribute_filters"
-                :key="idx"
-                class="mb-1.5 flex items-center gap-2"
-              >
-                <input
-                  v-model="filter.label"
-                  type="text"
-                  :placeholder="t('search_engines.advanced_attr_label_placeholder')"
-                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-                />
-                <input
-                  v-model="filter.attribute"
-                  type="text"
-                  list="dl-attrs"
-                  :placeholder="t('search_engines.advanced_attr_attribute_placeholder')"
-                  class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  class="text-xs text-red-500 hover:text-red-700"
-                  @click="removeAttrFilter(idx)"
-                >
-                  {{ t("search_engines.advanced_remove") }}
-                </button>
-              </div>
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.cache_ttl_label") }}
+              </label>
+              <input
+                v-model.number="form.cache_ttl_minutes"
+                type="number"
+                min="0"
+                max="10080"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+              <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
             </div>
-          </div>
+          </template>
 
-          <!-- Error -->
+          <!-- ── Tab: Advanced Search ──────────────────────────────────────── -->
+          <template v-if="activeTab === 'advanced'">
+            <!-- Enable toggle -->
+            <div>
+              <label class="flex cursor-pointer items-center gap-2">
+                <input
+                  v-model="form.advanced_search_enabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span class="text-sm font-medium text-gray-700">
+                  {{ t("search_engines.advanced_search_toggle") }}
+                </span>
+              </label>
+              <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.advanced_search_hint") }}</p>
+            </div>
+
+            <!-- Config panel (visible only when enabled) -->
+            <template v-if="form.advanced_search_enabled">
+              <!-- Datalists for autocomplete -->
+              <datalist id="dl-elements">
+                <option v-for="name in availableElementNames" :key="name" :value="name" />
+              </datalist>
+              <datalist id="dl-attrs">
+                <option v-for="attr in availableAttrNames" :key="attr" :value="attr" />
+              </datalist>
+
+              <!-- Tags refresh bar -->
+              <div class="flex items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span v-if="tagsLoading">{{ t("search_engines.advanced_tags_loading") }}</span>
+                <span v-else-if="availableElementNames.length > 0">
+                  {{ t("search_engines.advanced_tags_loaded", { n: availableElementNames.length }) }}
+                </span>
+                <span v-else>{{ t("search_engines.advanced_tags_empty") }}</span>
+                <button
+                  type="button"
+                  :disabled="tagsLoading"
+                  class="ml-auto rounded bg-white px-2 py-1 text-xs text-indigo-600 border border-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                  @click="loadAvailableTags"
+                >
+                  {{ t("search_engines.advanced_tags_refresh") }}
+                </button>
+              </div>
+
+              <!-- Named entity tags -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700">
+                    {{ t("search_engines.advanced_named_tags_label") }}
+                  </span>
+                  <button
+                    type="button"
+                    class="text-xs text-indigo-600 hover:underline"
+                    @click="addTag"
+                  >
+                    + {{ t("search_engines.advanced_add_tag") }}
+                  </button>
+                </div>
+                <p class="text-xs text-gray-400">{{ t("search_engines.advanced_named_tags_hint") }}</p>
+
+                <div
+                  v-for="(tag, idx) in form.advanced_search_config.named_tags"
+                  :key="idx"
+                  class="flex items-center gap-2"
+                >
+                  <input
+                    v-model="tag.label"
+                    type="text"
+                    :placeholder="t('search_engines.advanced_tag_label_placeholder')"
+                    class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  />
+                  <input
+                    v-model="tag.element"
+                    type="text"
+                    list="dl-elements"
+                    :placeholder="t('search_engines.advanced_tag_element_placeholder')"
+                    class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    class="shrink-0 text-xs text-red-500 hover:text-red-700"
+                    @click="removeTag(idx)"
+                  >
+                    {{ t("search_engines.advanced_remove") }}
+                  </button>
+                </div>
+
+                <p
+                  v-if="form.advanced_search_config.named_tags.length === 0"
+                  class="text-xs italic text-gray-400"
+                >
+                  {{ t("search_engines.advanced_named_tags_hint") }}
+                </p>
+              </div>
+
+              <!-- Separator -->
+              <hr class="border-gray-200" />
+
+              <!-- Attribute filters -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700">
+                    {{ t("search_engines.advanced_attr_filters_label") }}
+                  </span>
+                  <button
+                    type="button"
+                    class="text-xs text-indigo-600 hover:underline"
+                    @click="addAttrFilter"
+                  >
+                    + {{ t("search_engines.advanced_add_filter") }}
+                  </button>
+                </div>
+                <p class="text-xs text-gray-400">{{ t("search_engines.advanced_attr_filters_hint") }}</p>
+
+                <div
+                  v-for="(filter, idx) in form.advanced_search_config.attribute_filters"
+                  :key="idx"
+                  class="flex items-center gap-2"
+                >
+                  <input
+                    v-model="filter.label"
+                    type="text"
+                    :placeholder="t('search_engines.advanced_attr_label_placeholder')"
+                    class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  />
+                  <input
+                    v-model="filter.attribute"
+                    type="text"
+                    list="dl-attrs"
+                    :placeholder="t('search_engines.advanced_attr_attribute_placeholder')"
+                    class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    class="shrink-0 text-xs text-red-500 hover:text-red-700"
+                    @click="removeAttrFilter(idx)"
+                  >
+                    {{ t("search_engines.advanced_remove") }}
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <!-- Disabled state hint -->
+            <div
+              v-else
+              class="rounded border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400"
+            >
+              {{ t("search_engines.advanced_disabled_hint") }}
+            </div>
+          </template>
+
+          <!-- Error (always visible regardless of active tab) -->
           <div v-if="formError" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
             {{ formError }}
           </div>
@@ -465,6 +509,15 @@ const filteredEngines = computed(() => {
 
 // ── Modal state ───────────────────────────────────────────────────────────────
 
+type ModalTab = "general" | "advanced";
+
+const activeTab = ref<ModalTab>("general");
+
+const modalTabs = computed(() => [
+  { key: "general" as ModalTab,  label: t("search_engines.tab_general") },
+  { key: "advanced" as ModalTab, label: t("search_engines.tab_advanced") },
+]);
+
 const modalOpen = ref(false);
 const isCreating = ref(false);
 const editingSlug = ref<string | null>(null);
@@ -499,6 +552,7 @@ function openCreate(): void {
   form.value = defaultForm();
   formError.value = null;
   availableTags.value = {};
+  activeTab.value = "general";
   modalOpen.value = true;
 }
 
@@ -508,6 +562,7 @@ function openEdit(slug: string): void {
   isCreating.value = false;
   editingSlug.value = slug;
   availableTags.value = {};
+  activeTab.value = "general";
   form.value = {
     slug: engine.slug,
     title: engine.title,

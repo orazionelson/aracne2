@@ -665,7 +665,10 @@
     "advanced_tags_loading": "Caricamento tag disponibili…",
     "advanced_tags_loaded": "{n} tipi di elemento trovati nelle collezioni collegate.",
     "advanced_tags_empty": "Nessun tag caricato. Clicca su Aggiorna per scansionare le collezioni collegate.",
-    "advanced_tags_refresh": "Aggiorna tag"
+    "advanced_tags_refresh": "Aggiorna tag",
+    "advanced_disabled_hint": "Attiva la Ricerca avanzata per configurare i tag e i filtri per attributo.",
+    "tab_general": "Generale",
+    "tab_advanced": "Ricerca avanzata"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"
