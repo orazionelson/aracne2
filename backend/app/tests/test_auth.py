@@ -120,3 +120,47 @@ async def test_logout_without_token_returns_200(client: AsyncClient) -> None:
     res = await client.post("/api/v1/auth/logout")
     assert res.status_code == 200
     assert res.json()["data"]["message"] == "Logged out successfully"
+
+
+# ── Impersonation ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_impersonation_as_admin(
+    client: AsyncClient, seeded_admin: User, seeded_user: User
+) -> None:
+    """Admin can impersonate a non-Admin user; returns a short-lived token."""
+    from app.tests.conftest import ADMIN_PASSWORD, ADMIN_USERNAME
+
+    token = (await client.post("/api/v1/auth/login", json={
+        "username_or_email": ADMIN_USERNAME,
+        "password": ADMIN_PASSWORD,
+    })).json()["data"]["access_token"]
+
+    res = await client.post(
+        f"/api/v1/auth/impersonate/{seeded_user.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "access_token" in data
+    assert data["impersonated_user"]["username"] == seeded_user.username
+
+
+@pytest.mark.asyncio
+async def test_impersonation_as_non_admin_returns_403(
+    client: AsyncClient, seeded_user: User, seeded_admin: User
+) -> None:
+    """Non-Admin cannot impersonate other users."""
+    from app.tests.conftest import TEST_USER_PASSWORD, TEST_USER_USERNAME
+
+    token = (await client.post("/api/v1/auth/login", json={
+        "username_or_email": TEST_USER_USERNAME,
+        "password": TEST_USER_PASSWORD,
+    })).json()["data"]["access_token"]
+
+    res = await client.post(
+        f"/api/v1/auth/impersonate/{seeded_admin.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 403

@@ -1,5 +1,7 @@
 from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -12,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 from app.core.password import hash_password
+from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import Base, get_async_session
 from app.main import app
 from app.middleware.rate_limiter import limiter
@@ -35,6 +38,10 @@ TEST_USER_USERNAME = "testuser"
 TEST_USER_PASSWORD = "testpassword1"
 ADMIN_USERNAME = "admin_test"
 ADMIN_PASSWORD = "adminpass1"
+DESIGNER_USERNAME = "designer_test"
+DESIGNER_PASSWORD = "designerpass1"
+EIC_USERNAME = "eic_test"
+EIC_PASSWORD = "eicpass1"
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -122,3 +129,78 @@ async def seeded_user(db_session: AsyncSession, seeded_roles: list[str]) -> _Use
     db_session.add(UserRole(user_id=user.id, role_id=editor_role.id))
     await db_session.flush()
     return user
+
+
+@pytest_asyncio.fixture
+async def seeded_designer(db_session: AsyncSession, seeded_roles: list[str]) -> _User:
+    user = _User(
+        username=DESIGNER_USERNAME,
+        email="designer_test@example.com",
+        password_hash=hash_password(DESIGNER_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    role = await db_session.scalar(select(_Role).where(_Role.name == "Designer"))
+    assert role is not None
+    db_session.add(UserRole(user_id=user.id, role_id=role.id))
+    await db_session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def seeded_editorinchief(
+    db_session: AsyncSession, seeded_roles: list[str]
+) -> _User:
+    user = _User(
+        username=EIC_USERNAME,
+        email="eic_test@example.com",
+        password_hash=hash_password(EIC_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    role = await db_session.scalar(
+        select(_Role).where(_Role.name == "EditorInChief")
+    )
+    assert role is not None
+    db_session.add(UserRole(user_id=user.id, role_id=role.id))
+    await db_session.flush()
+    return user
+
+
+@pytest.fixture
+def mock_existdb() -> AsyncMock:
+    """Async mock of ExistDBClient for tests that touch eXist-db endpoints."""
+    mock = AsyncMock(spec=ExistDBClient)
+    mock.ping = AsyncMock(return_value=True)
+    mock.ensure_root = AsyncMock(return_value=None)
+    mock.collection_exists = AsyncMock(return_value=True)
+    mock.create_collection = AsyncMock(return_value=None)
+    mock.delete_collection = AsyncMock(return_value=None)
+    mock.list_collection = AsyncMock(return_value=["doc1.xml"])
+    mock.get_document = AsyncMock(return_value=b"<doc/>")
+    mock.put_document = AsyncMock(return_value=None)
+    mock.delete_document = AsyncMock(return_value=None)
+    mock.xquery = AsyncMock(return_value=b"<results/>")
+    return mock
+
+
+@pytest_asyncio.fixture
+async def client_with_existdb(
+    db_session: AsyncSession, mock_existdb: AsyncMock
+) -> AsyncGenerator[AsyncClient, None]:
+    """HTTP client that overrides both the DB session and the ExistDB client."""
+
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_async_session] = override_get_session
+    app.dependency_overrides[get_existdb] = lambda: mock_existdb
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as c:
+        yield c
+    app.dependency_overrides.clear()

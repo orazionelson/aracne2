@@ -216,3 +216,52 @@ async def test_delete_my_account(client: AsyncClient, seeded_user: User) -> None
         },
     )
     assert login.status_code == 401
+
+
+# ── Update / soft-delete / role revocation ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_update_user_as_admin(
+    client: AsyncClient, seeded_admin: User, seeded_user: User
+) -> None:
+    """Admin can update a user's display_name."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    res = await client.patch(
+        f"/api/v1/users/{seeded_user.id}",
+        headers=_auth(token),
+        json={"display_name": "Updated Name"},
+    )
+    assert res.status_code == 200
+    assert res.json()["data"]["display_name"] == "Updated Name"
+
+
+@pytest.mark.asyncio
+async def test_delete_user_as_admin(
+    client: AsyncClient, seeded_admin: User, seeded_user: User
+) -> None:
+    """Admin can soft-delete a user; subsequent GET returns 404."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    res = await client.delete(
+        f"/api/v1/users/{seeded_user.id}", headers=_auth(token)
+    )
+    assert res.status_code == 204
+    get_res = await client.get(
+        f"/api/v1/users/{seeded_user.id}", headers=_auth(token)
+    )
+    assert get_res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_remove_role_from_user_as_admin(
+    client: AsyncClient, seeded_admin: User, seeded_user: User
+) -> None:
+    """Admin can revoke a role from a user."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    res = await client.delete(
+        f"/api/v1/users/{seeded_user.id}/roles/Editor",
+        headers=_auth(token),
+    )
+    assert res.status_code == 200
+    roles = [r["role_name"] for r in res.json()["data"]["roles"]]
+    assert "Editor" not in roles
