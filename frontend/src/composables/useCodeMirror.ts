@@ -97,6 +97,12 @@ export interface UseCodeMirrorOptions {
    * 2 → locks first 2 + last 2 lines (e.g. <text><body> / </body></text>)
    */
   lockBoundaryLines?: number;
+  /**
+   * Called when the user clicks on a <ref> inline marker.
+   * Receives the note ID, its type, and the current note text content.
+   * Use this to open an edit modal pre-filled with the existing note.
+   */
+  onRefClick?: (noteId: string, noteType: 'alpha' | 'numeric', currentContent: string) => void;
 }
 
 export function useCodeMirror(
@@ -117,6 +123,8 @@ export function useCodeMirror(
     // Without this, CM5's internal line-measure cache is stale and
     // click events crash with "Cannot read properties of undefined (reading 'map')".
     editorInstance.value.refresh();
+    // Re-apply read-only markers for <ref> tags that may be present in the new content.
+    markRefTagsOnInstance(editorInstance.value);
   }
 
   function toggleFullscreen(): void {
@@ -224,7 +232,86 @@ export function useCodeMirror(
 
       const insertPos = cm.posFromIndex(insertAtOffset);
       cm.replaceRange(noteMarkup, insertPos, undefined, '+programmatic');
+
+      // ── 4. Mark the newly inserted <ref> as read-only ─────────────────────
+      // cursor is still valid after both insertions because both were made
+      // after the cursor position in the document.
+      const refEnd = cm.posFromIndex(cm.indexFromPos(cursor) + refTag.length);
+      cm.markText(cursor, refEnd, {
+        readOnly: true,
+        className: 'cm-note-ref',
+        title: noteId,
+        atomic: true,
+      });
     });
+  }
+
+  /**
+   * Scan the document for all <ref target="#..." type="…"/> patterns and
+   * apply a read-only TextMarker with class `cm-note-ref` to each one.
+   * Existing ref markers are cleared first to avoid duplicates (e.g. after
+   * setValue() replaces the full document content).
+   */
+  function markRefTagsOnInstance(instance: Editor): void {
+    // Clear only markers that wrap a <ref …/> tag.
+    instance.getAllMarks().forEach((m) => {
+      const range = m.find() as { from: CodeMirror.Position; to: CodeMirror.Position } | undefined;
+      if (!range || !('from' in range)) return;
+      if (instance.getRange(range.from, range.to).startsWith('<ref ')) m.clear();
+    });
+
+    const text = instance.getValue();
+    const pattern = /<ref target="#([^"]+)" type="(alpha|numeric)"\/>/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      const from = instance.posFromIndex(match.index);
+      const to   = instance.posFromIndex(match.index + match[0].length);
+      instance.markText(from, to, {
+        readOnly: true,
+        className: 'cm-note-ref',
+        title: match[1],
+        atomic: true,
+      });
+    }
+  }
+
+  /**
+   * Return the text content of the <note xml:id="noteId"> element, or ''
+   * if not found. Used to pre-fill the edit modal.
+   */
+  function getNoteContent(noteId: string): string {
+    const cm = editorInstance.value;
+    if (!cm) return '';
+    const pattern = new RegExp(
+      `<note xml:id="${noteId}" type="(?:alpha|numeric)">(.*?)</note>`,
+      's',
+    );
+    const match = pattern.exec(cm.getValue());
+    return match ? match[1] : '';
+  }
+
+  /**
+   * Replace the text content of an existing <note xml:id="noteId"> element.
+   * Used when the editor re-opens a ref marker and the user saves edits.
+   */
+  function editNote(noteId: string, newContent: string): void {
+    const cm = editorInstance.value;
+    if (!cm) return;
+    const text = cm.getValue();
+    const pattern = new RegExp(
+      `(<note xml:id="${noteId}" type="(?:alpha|numeric)">)(.*?)(</note>)`,
+      's',
+    );
+    const match = pattern.exec(text);
+    if (!match) return;
+    const contentStart = match.index + match[1].length;
+    const contentEnd   = contentStart + match[2].length;
+    cm.replaceRange(
+      newContent,
+      cm.posFromIndex(contentStart),
+      cm.posFromIndex(contentEnd),
+      '+programmatic',
+    );
   }
 
   function prettyPrint(): void {
@@ -297,6 +384,8 @@ export function useCodeMirror(
           instance.indentLine(i, 'smart');
         }
       });
+      // Mark any <ref> tags already present in the initial content.
+      markRefTagsOnInstance(instance);
     }
 
     if (options.onChange) {
@@ -329,6 +418,32 @@ export function useCodeMirror(
         }
       };
       markLockedLines(instance);
+    }
+
+    // Detect clicks on <ref> markers and fire onRefClick so the parent can
+    // open a pre-filled edit modal. preventDefault() stops CM5 from placing
+    // the cursor inside the read-only marker range.
+    if (options.onRefClick) {
+      instance.on('mousedown', (_cm, event) => {
+        const pos = instance.coordsChar({ left: event.clientX, top: event.clientY });
+        const markers = instance.findMarksAt(pos);
+        const refMarker = markers.find((m) => {
+          const r = m.find() as { from: CodeMirror.Position; to: CodeMirror.Position } | undefined;
+          if (!r || !('from' in r)) return false;
+          return instance.getRange(r.from, r.to).startsWith('<ref ');
+        });
+        if (!refMarker) return;
+        event.preventDefault();
+        const range = refMarker.find() as { from: CodeMirror.Position; to: CodeMirror.Position };
+        const refText  = instance.getRange(range.from, range.to);
+        const idMatch   = /target="#([^"]+)"/.exec(refText);
+        const typeMatch = /type="(alpha|numeric)"/.exec(refText);
+        if (idMatch && typeMatch) {
+          const noteId   = idMatch[1];
+          const noteType = typeMatch[1] as 'alpha' | 'numeric';
+          options.onRefClick!(noteId, noteType, getNoteContent(noteId));
+        }
+      });
     }
 
     editorInstance.value = instance;
@@ -419,5 +534,6 @@ export function useCodeMirror(
     foldAll,
     prettyPrint,
     insertNote,
+    editNote,
   };
 }

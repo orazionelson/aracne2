@@ -67,6 +67,7 @@ const singleCm = useCodeMirror(editorContainer, {
   get initialValue() { return initialXml.value; },
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
+  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'single'),
 });
 
 const headerCm = useCodeMirror(headerEditorContainer, {
@@ -74,6 +75,7 @@ const headerCm = useCodeMirror(headerEditorContainer, {
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
   lockBoundaryLines: 1, // locks <teiHeader> and </teiHeader>
+  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'header'),
 });
 
 const bodyCm = useCodeMirror(bodyEditorContainer, {
@@ -81,6 +83,7 @@ const bodyCm = useCodeMirror(bodyEditorContainer, {
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
   lockBoundaryLines: 2, // locks <text><body> and </body></text>
+  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'body'),
 });
 
 // ── TEI Help panel ────────────────────────────────────────────────────────────
@@ -295,30 +298,58 @@ onMounted(async () => {
   try { await aiStore.fetchConfig(); } catch { /* non-fatal */ }
 });
 
-// ── Note insertion ─────────────────────────────────────────────────────────────
+// ── Note insertion / editing ───────────────────────────────────────────────────
+
+type CmKey = 'single' | 'header' | 'body';
 
 const showNoteModal = ref(false);
 const pendingNoteType = ref<'alpha' | 'numeric'>('alpha');
+/** null = inserting a new note; non-null = editing the note with this ID */
+const pendingNoteId = ref<string | null>(null);
+const noteModalInitialContent = ref('');
+/** Which CM instance owns the note being edited */
+const editingCmKey = ref<CmKey>('single');
 
-/** Generate a unique note ID in the format used by old Aracne (N + 9 base-36 chars). */
+/** Generate a unique note ID matching old-Aracne format: N + 9 base-36 chars. */
 function generateNoteId(): string {
-  const rand = Math.random().toString(36).slice(2, 11).padEnd(9, '0');
-  return `N${rand}`;
+  return `N${Math.random().toString(36).slice(2, 11).padEnd(9, '0')}`;
 }
 
 function openNoteModal(type: 'alpha' | 'numeric'): void {
   pendingNoteType.value = type;
+  pendingNoteId.value = null;
+  noteModalInitialContent.value = '';
+  showNoteModal.value = true;
+}
+
+function openNoteEditModal(
+  noteId: string,
+  type: 'alpha' | 'numeric',
+  content: string,
+  cmKey: CmKey,
+): void {
+  pendingNoteType.value = type;
+  pendingNoteId.value = noteId;
+  noteModalInitialContent.value = content;
+  editingCmKey.value = cmKey;
   showNoteModal.value = true;
 }
 
 function handleNoteConfirm(content: string): void {
-  const noteId = generateNoteId();
-  if (!splitMode.value || !canSplit.value) {
-    singleCm.insertNote(pendingNoteType.value, noteId, content);
-  } else if (activeEditorTab.value === 'header') {
-    headerCm.insertNote(pendingNoteType.value, noteId, content);
+  if (pendingNoteId.value) {
+    // Edit the content of an existing <note> without touching the <ref> marker.
+    const cmMap = { single: singleCm, header: headerCm, body: bodyCm } as const;
+    cmMap[editingCmKey.value].editNote(pendingNoteId.value, content);
   } else {
-    bodyCm.insertNote(pendingNoteType.value, noteId, content);
+    // Insert a brand-new <ref> + <note> pair.
+    const noteId = generateNoteId();
+    if (!splitMode.value || !canSplit.value) {
+      singleCm.insertNote(pendingNoteType.value, noteId, content);
+    } else if (activeEditorTab.value === 'header') {
+      headerCm.insertNote(pendingNoteType.value, noteId, content);
+    } else {
+      bodyCm.insertNote(pendingNoteType.value, noteId, content);
+    }
   }
 }
 
@@ -784,10 +815,12 @@ async function runValidation(): Promise<void> {
   </div>
   </div>
 
-  <!-- Note insertion modal -->
+  <!-- Note insertion / editing modal -->
   <NoteModal
     v-model="showNoteModal"
     :note-type="pendingNoteType"
+    :initial-content="noteModalInitialContent"
+    :is-editing="pendingNoteId !== null"
     @confirm="handleNoteConfirm"
   />
 </template>
@@ -798,5 +831,17 @@ async function runValidation(): Promise<void> {
   background-color: #f3f4f6; /* gray-100 */
   opacity: 0.75;
   cursor: not-allowed;
+}
+
+/* <ref> inline markers — read-only, clickable to open edit modal */
+.cm-note-ref {
+  background-color: #fef3c7; /* amber-100 */
+  border-bottom: 1px solid #f59e0b; /* amber-500 */
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0 1px;
+}
+.cm-note-ref:hover {
+  background-color: #fde68a; /* amber-200 */
 }
 </style>

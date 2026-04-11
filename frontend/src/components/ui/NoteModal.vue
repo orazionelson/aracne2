@@ -7,6 +7,10 @@ const { t } = useI18n();
 const props = defineProps<{
   modelValue: boolean;
   noteType: 'alpha' | 'numeric';
+  /** Pre-filled content when editing an existing note. */
+  initialContent?: string;
+  /** True when re-opening an existing note (vs. inserting a new one). */
+  isEditing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,12 +21,12 @@ const emit = defineEmits<{
 const noteContent = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-// Reset content and focus textarea whenever the modal opens.
+// Reset / pre-fill content and focus textarea whenever the modal opens.
 watch(
   () => props.modelValue,
   async (open) => {
     if (open) {
-      noteContent.value = '';
+      noteContent.value = props.initialContent ?? '';
       await nextTick();
       textareaRef.value?.focus();
     }
@@ -37,6 +41,17 @@ function handleConfirm(): void {
 function handleCancel(): void {
   emit('update:modelValue', false);
 }
+
+function title(): string {
+  if (props.isEditing) {
+    return props.noteType === 'alpha'
+      ? t('documents.note_edit_alpha_title')
+      : t('documents.note_edit_numeric_title');
+  }
+  return props.noteType === 'alpha'
+    ? t('documents.note_alpha_title')
+    : t('documents.note_numeric_title');
+}
 </script>
 
 <template>
@@ -49,9 +64,7 @@ function handleCancel(): void {
       <div class="w-[480px] rounded-lg border border-gray-200 bg-white shadow-xl">
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <span class="text-sm font-semibold text-gray-700">
-            {{ noteType === 'alpha' ? t('documents.note_alpha_title') : t('documents.note_numeric_title') }}
-          </span>
+          <span class="text-sm font-semibold text-gray-700">{{ title() }}</span>
           <button class="text-gray-400 hover:text-gray-700" @click="handleCancel">✕</button>
         </div>
 
@@ -80,7 +93,7 @@ function handleCancel(): void {
             class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             @click="handleConfirm"
           >
-            {{ t('documents.note_insert') }}
+            {{ isEditing ? t('documents.note_save') : t('documents.note_insert') }}
           </button>
         </div>
       </div>

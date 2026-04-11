@@ -291,8 +291,11 @@
     "note_alpha_title": "Insert alphabetic note at cursor",
     "note_numeric_title": "Insert numeric note at cursor",
     "note_content_placeholder": "Note content (TEI inline tags supported, e.g. <hi rend=\"italic\">text</hi>)",
-    "note_ctrl_enter": "Ctrl+Enter to insert",
-    "note_insert": "Insert note"
+    "note_ctrl_enter": "Ctrl+Enter to confirm",
+    "note_insert": "Insert note",
+    "note_save": "Save note",
+    "note_edit_alpha_title": "Edit alphabetic note",
+    "note_edit_numeric_title": "Edit numeric note"
   },
   "schemas": {
     "tab": "Schemas",
