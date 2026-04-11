@@ -669,6 +669,7 @@
     "advanced_disabled_hint": "Enable Advanced search to configure named tags and attribute filters.",
     "footer_text_label": "Footer note",
     "footer_text_placeholder": "e.g. A project by…",
+    "footer_hidden_label": "Hide footer",
     "footer_text_hint": "Optional note shown in the footer of every built page, next to the Aracne2 credit.",
     "appearance_label": "Appearance",
     "page_bg_color_label": "Page background",

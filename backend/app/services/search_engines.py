@@ -76,6 +76,7 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         build_error=engine.build_error,
         cache_ttl_minutes=engine.cache_ttl_minutes,
         footer_text=engine.footer_text,
+        footer_hidden=engine.footer_hidden,
         page_bg_color=engine.page_bg_color,
         header_bg_color=engine.header_bg_color,
         header_hidden=engine.header_hidden,
@@ -158,6 +159,7 @@ async def create_search_engine(
         xslt_template_id=payload.xslt_template_id,
         cache_ttl_minutes=payload.cache_ttl_minutes,
         footer_text=payload.footer_text or None,
+        footer_hidden=payload.footer_hidden,
         page_bg_color=payload.page_bg_color or None,
         header_bg_color=payload.header_bg_color or None,
         header_hidden=payload.header_hidden,
@@ -208,6 +210,9 @@ async def update_search_engine(
 
     if "footer_text" in payload.model_fields_set:
         engine.footer_text = payload.footer_text or None
+
+    if payload.footer_hidden is not None:
+        engine.footer_hidden = payload.footer_hidden
 
     if "page_bg_color" in payload.model_fields_set:
         engine.page_bg_color = payload.page_bg_color or None
@@ -550,8 +555,10 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
-def _footer_html(footer_text: str | None) -> str:
-    """Return the footer element for built search-engine pages."""
+def _footer_html(footer_text: str | None, footer_hidden: bool = False) -> str:
+    """Return the footer element for built search-engine pages, or empty string when hidden."""
+    if footer_hidden:
+        return ""
     import html as _html  # noqa: PLC0415
 
     credit = '<a href="https://github.com/orazionelson/aracne2" target="_blank" rel="noopener">Aracne2</a>'
@@ -612,6 +619,7 @@ def _render_search_page(
     custom_js: str | None = None,
     include_jquery: bool = False,
     footer_text: str | None = None,
+    footer_hidden: bool = False,
 ) -> str:
     """Generate the standalone HTML search page for a search engine.
 
@@ -723,7 +731,7 @@ def _render_search_page(
             <div id="status"></div>
             <div id="results" role="region" aria-live="polite"></div>
           </main>
-{_footer_html(footer_text)}
+{_footer_html(footer_text, footer_hidden)}
           <script>
             (function () {{
               var API = {api_endpoint!r};
@@ -809,6 +817,7 @@ def _render_advanced_search_page(
     custom_js: str | None = None,
     include_jquery: bool = False,
     footer_text: str | None = None,
+    footer_hidden: bool = False,
 ) -> str:
     """Generate the standalone HTML advanced search page for a search engine.
 
@@ -984,7 +993,7 @@ def _render_advanced_search_page(
             <div id="status"></div>
             <div id="results" role="region" aria-live="polite"></div>
           </main>
-{_footer_html(footer_text)}
+{_footer_html(footer_text, footer_hidden)}
           <script>
             (function () {{
               var API          = {api_endpoint!r};
@@ -1267,6 +1276,7 @@ async def _do_build(slug: str) -> None:
                 custom_js=engine.custom_js,
                 include_jquery=engine.include_jquery,
                 footer_text=engine.footer_text,
+                footer_hidden=engine.footer_hidden,
             )
             (out_dir / "index.html").write_text(html, encoding="utf-8")
 
@@ -1289,6 +1299,7 @@ async def _do_build(slug: str) -> None:
                     custom_js=engine.custom_js,
                     include_jquery=engine.include_jquery,
                     footer_text=engine.footer_text,
+                    footer_hidden=engine.footer_hidden,
                 )
                 adv_dir = out_dir / "advanced"
                 adv_dir.mkdir(parents=True, exist_ok=True)
