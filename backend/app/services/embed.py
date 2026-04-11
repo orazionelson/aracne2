@@ -138,10 +138,9 @@ async def advanced_search_embed(
         raise AuthorizationError(
             f"Origin '{origin}' is not authorised to use this embed widget"
         )
-    result, _ = await run_advanced_search(
+    return await run_advanced_search(
         db, slug, q, element_name, attr_name, attr_value, collections, max_results
     )
-    return result
 
 
 # ── Widget JS generation ──────────────────────────────────────────────────────
