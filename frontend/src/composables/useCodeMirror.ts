@@ -174,10 +174,11 @@ export function useCodeMirror(
     if (!cm) return;
 
     const cursor = cm.getCursor();
-    // Declare refTag outside the operation so it is accessible for markText
-    // after the operation block (markText must not be called inside operation
-    // to avoid CM5 markedSpans corruption that crashes cursor navigation).
     const refTag = `<ref target="#${noteId}" type="${type}"/>`;
+    // Cursor position right after the inserted <ref> tag.
+    // Captured before the operation so we can restore it after the
+    // setValue round-trip that follows.
+    const cursorAfterRef = { line: cursor.line, ch: cursor.ch + refTag.length };
 
     cm.operation(() => {
       // ── 1. Insert <ref> at cursor ──────────────────────────────────────────
@@ -266,22 +267,24 @@ export function useCodeMirror(
       cm.replaceRange(noteMarkup, fromPos, toPos, '+programmatic');
     });
 
-    // ── 4. (Re)mark all <ref> tags ─────────────────────────────────────────
-    // Deferred to the next animation frame so CM5 has fully committed its
-    // rendering pipeline (including deferred DOM updates from the two
-    // replaceRange calls) before we clear and re-attach markers.
-    // Synchronous marking right after operation() can leave CM5 in a state
-    // where keyboard cursor navigation is blocked.
-    // cm.focus() is called afterward to restore keyboard focus, which DOM
-    // updates from markText can silently strip from the editor.
+    // ── 4. Full document rebuild to fix CM5's internal state ──────────────
+    // After two replaceRange calls, CM5's view array contains new LineView
+    // objects whose .measure property is uninitialised. Any call to
+    // coordsChar or findPosV (arrow-key navigation) crashes in
+    // prepareMeasureForLine with "Cannot read properties of undefined
+    // (reading 'map')". cm.refresh() only clears character-width caches —
+    // it does NOT rebuild LineView.measure for new lines.
+    //
+    // The only reliable reset is cm.setValue() with the same content, which
+    // internally calls makeChange({full:true}) and rebuilds every line
+    // object from scratch. We wrap in rAF so CM5 finishes its own rendering
+    // pipeline before the rebuild, then restore cursor + focus.
     requestAnimationFrame(() => {
-      markRefTagsOnInstance(cm);
-      // Force CM5 to re-measure all lines. markText calls can leave the
-      // line-measure cache stale; without this, vertical cursor movement
-      // (moveV) crashes with "Cannot read properties of undefined
-      // (reading 'map')" in prepareMeasureForLine — the same issue fixed
-      // by the refresh() call in setValue().
+      const content = cm.getValue();
+      cm.setValue(content);
       cm.refresh();
+      markRefTagsOnInstance(cm);
+      cm.setCursor(cursorAfterRef);
       cm.focus();
     });
   }
@@ -369,6 +372,7 @@ export function useCodeMirror(
   function deleteNote(noteId: string): void {
     const cm = editorInstance.value;
     if (!cm) return;
+    const savedCursor = cm.getCursor();
 
     cm.operation(() => {
       const text = cm.getValue();
@@ -434,6 +438,17 @@ export function useCodeMirror(
       );
       // The TextMarker covering the <ref> is automatically invalidated by CM5
       // when its content range is removed; no explicit clear() needed.
+    });
+
+    // Same full-rebuild pattern as insertNote: replaceRange leaves new/removed
+    // LineView objects with uninitialised .measure, crashing coordsChar.
+    requestAnimationFrame(() => {
+      const content = cm.getValue();
+      cm.setValue(content);
+      cm.refresh();
+      markRefTagsOnInstance(cm);
+      cm.setCursor(savedCursor);
+      cm.focus();
     });
   }
 
