@@ -2,10 +2,12 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useAuthStore } from "@/stores/auth";
 import { useUiConfigStore } from "@/stores/ui_config";
 
 const { t } = useI18n();
 const route = useRoute();
+const auth = useAuthStore();
 const uiConfig = useUiConfigStore();
 
 const slug = route.params.slug as string;
@@ -20,8 +22,10 @@ const renderUrl = computed(() => {
 
 <template>
   <div class="flex min-h-screen flex-col bg-gray-50">
-    <!-- Public header -->
+    <!-- Public header: shown only for unauthenticated visitors.
+         Authenticated users already have AppNavbar from App.vue. -->
     <header
+      v-if="!auth.isAuthenticated"
       class="flex h-14 items-center gap-3 px-6 text-white shadow"
       :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
     >
