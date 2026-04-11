@@ -155,8 +155,12 @@ export function useCodeMirror(
    * Two writes are performed atomically inside a CM5 operation:
    *   1. A self-closing <ref target="#id" type="…"/> is inserted at the cursor.
    *   2. A <note xml:id="id" type="…"> element is appended to the nearest
-   *      ancestor <div>'s <span type="notes"> block (or a new one is created
-   *      before the closing </div> if none exists yet).
+   *      ancestor container element's <span type="notes"> block (or a new one
+   *      is created before the container's closing tag if none exists yet).
+   *
+   * Container elements searched in order (nearest match wins):
+   *   <div>     — body sections (narratio, petitio, …)
+   *   <summary> — teiHeader msContents summary
    *
    * Both replaceRange calls use origin '+programmatic' so the beforeChange
    * boundary-lock guard allows them through even in split mode.
@@ -176,62 +180,87 @@ export function useCodeMirror(
       const refTag = `<ref target="#${noteId}" type="${type}"/>`;
       cm.replaceRange(refTag, cursor, undefined, '+programmatic');
 
-      // ── 2. Find parent </div> by depth-counting forward ────────────────────
-      const newText = cm.getValue();
-      // indexFromPos gives the character offset of `cursor` in the updated doc.
-      // Adding refTag.length positions us immediately after the inserted ref.
+      // ── 2. Find the nearest ancestor container closing tag ─────────────────
+      // Try each candidate container tag and return the nearest match.
+      const NOTE_CONTAINERS = ['div', 'summary'];
+      const newText  = cm.getValue();
       const refOffset = cm.indexFromPos(cursor) + refTag.length;
 
-      let depth = 0;
-      let i = refOffset;
-      let closeDivOffset = -1;
-      while (i < newText.length) {
-        if (newText.startsWith('<div', i)) {
-          const next = newText[i + 4];
-          if (next === '>' || next === ' ' || next === '\t' || next === '\n' || next === '/') {
-            depth++;
-            i += 4;
-            continue;
+      function nearestContainerClose(text: string, from: number): number {
+        let best = -1;
+        for (const tag of NOTE_CONTAINERS) {
+          const open  = `<${tag}`;
+          const close = `</${tag}>`;
+          let depth = 0;
+          let i = from;
+          while (i < text.length) {
+            if (text.startsWith(close, i)) {
+              if (depth === 0) { if (best === -1 || i < best) best = i; break; }
+              depth--;
+              i += close.length;
+              continue;
+            }
+            if (text.startsWith(open, i)) {
+              const next = text[i + open.length];
+              if (next === '>' || next === ' ' || next === '\t' || next === '\n' || next === '/') {
+                depth++;
+                i += open.length;
+                continue;
+              }
+            }
+            i++;
           }
-        } else if (newText.startsWith('</div>', i)) {
-          if (depth === 0) { closeDivOffset = i; break; }
-          depth--;
-          i += 6;
-          continue;
         }
-        i++;
+        return best;
       }
 
-      if (closeDivOffset === -1) return; // malformed XML — abort note block
+      const containerCloseOffset = nearestContainerClose(newText, refOffset);
+      if (containerCloseOffset === -1) return; // no known container found
 
       // ── 3. Decide where to insert the <note> ──────────────────────────────
-      // Look for an existing <span type="notes"> between the ref and </div>.
-      const segment = newText.slice(refOffset, closeDivOffset);
-      const spanIdx = segment.lastIndexOf('<span type="notes">');
+      // Priority order for an existing notes block in [refOffset, containerClose]:
+      //   a) <span type="notes"> … </span>  (open form — already has notes)
+      //   b) <span type="notes"/>            (self-closing placeholder from template)
+      //   c) none → create a new block
+      const segment = newText.slice(refOffset, containerCloseOffset);
+      const openSpanIdx       = segment.lastIndexOf('<span type="notes">');
+      const placeholderIdx    = segment.lastIndexOf('<span type="notes"/>');
 
       let noteMarkup: string;
-      let insertAtOffset: number;
+      let insertFrom: number;
+      let insertTo: number | undefined; // defined only when replacing a range
 
-      if (spanIdx !== -1) {
-        // Append inside the existing notes span.
-        const absSpanStart = refOffset + spanIdx;
+      if (openSpanIdx !== -1) {
+        // (a) Append inside existing open <span type="notes">.
+        const absSpanStart   = refOffset + openSpanIdx;
         const closeSpanOffset = newText.indexOf('</span>', absSpanStart);
         if (closeSpanOffset === -1) return; // malformed
         noteMarkup = `\n        <note xml:id="${noteId}" type="${type}">${noteContent}</note>`;
-        insertAtOffset = closeSpanOffset;
+        insertFrom = closeSpanOffset;
+      } else if (placeholderIdx !== -1) {
+        // (b) Replace self-closing placeholder with a full notes block.
+        const absPlaceholder = refOffset + placeholderIdx;
+        noteMarkup = [
+          '<span type="notes">',
+          `        <note xml:id="${noteId}" type="${type}">${noteContent}</note>`,
+          '      </span>',
+        ].join('\n');
+        insertFrom = absPlaceholder;
+        insertTo   = absPlaceholder + '<span type="notes"/>'.length;
       } else {
-        // Create a new <span type="notes"> immediately before </div>.
+        // (c) Create a brand-new <span type="notes"> before the container close.
         noteMarkup = [
           '',
           '      <span type="notes">',
           `        <note xml:id="${noteId}" type="${type}">${noteContent}</note>`,
           '      </span>',
         ].join('\n');
-        insertAtOffset = closeDivOffset;
+        insertFrom = containerCloseOffset;
       }
 
-      const insertPos = cm.posFromIndex(insertAtOffset);
-      cm.replaceRange(noteMarkup, insertPos, undefined, '+programmatic');
+      const fromPos = cm.posFromIndex(insertFrom);
+      const toPos   = insertTo !== undefined ? cm.posFromIndex(insertTo) : undefined;
+      cm.replaceRange(noteMarkup, fromPos, toPos, '+programmatic');
 
       // ── 4. Mark the newly inserted <ref> as read-only ─────────────────────
       // cursor is still valid after both insertions because both were made
