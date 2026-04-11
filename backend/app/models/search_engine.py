@@ -45,6 +45,8 @@ class SearchEngine(Base):
     cache_ttl_minutes: Mapped[int] = mapped_column(
         Integer(), nullable=False, default=60
     )
+    # Optional footer note shown on every built page.
+    footer_text: Mapped[str | None] = mapped_column(Text(), nullable=True)
     # Page background colour (CSS hex, e.g. "#f9fafb"); null = default.
     page_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     # Header background colour (CSS hex, e.g. "#1e3a5f"); null = default.

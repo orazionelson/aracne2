@@ -34,6 +34,7 @@ export interface SearchEngine {
   last_build_at: string | null;
   build_error: string | null;
   cache_ttl_minutes: number;
+  footer_text: string | null;
   page_bg_color: string | null;
   header_bg_color: string | null;
   header_hidden: boolean;
@@ -54,6 +55,7 @@ export interface SearchEngineCreate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  footer_text?: string | null;
   page_bg_color?: string | null;
   header_bg_color?: string | null;
   header_hidden?: boolean;
@@ -69,6 +71,7 @@ export interface SearchEngineUpdate {
   xslt_template_id?: string | null;
   collection_ids?: string[];
   cache_ttl_minutes?: number;
+  footer_text?: string | null;
   page_bg_color?: string | null;
   header_bg_color?: string | null;
   header_hidden?: boolean;

@@ -75,6 +75,7 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         last_build_at=engine.last_build_at,
         build_error=engine.build_error,
         cache_ttl_minutes=engine.cache_ttl_minutes,
+        footer_text=engine.footer_text,
         page_bg_color=engine.page_bg_color,
         header_bg_color=engine.header_bg_color,
         header_hidden=engine.header_hidden,
@@ -156,6 +157,7 @@ async def create_search_engine(
         title=payload.title,
         xslt_template_id=payload.xslt_template_id,
         cache_ttl_minutes=payload.cache_ttl_minutes,
+        footer_text=payload.footer_text or None,
         page_bg_color=payload.page_bg_color or None,
         header_bg_color=payload.header_bg_color or None,
         header_hidden=payload.header_hidden,
@@ -203,6 +205,9 @@ async def update_search_engine(
 
     if payload.cache_ttl_minutes is not None:
         engine.cache_ttl_minutes = payload.cache_ttl_minutes
+
+    if "footer_text" in payload.model_fields_set:
+        engine.footer_text = payload.footer_text or None
 
     if "page_bg_color" in payload.model_fields_set:
         engine.page_bg_color = payload.page_bg_color or None
@@ -545,6 +550,15 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
+def _footer_html(footer_text: str | None) -> str:
+    """Return the footer element for built search-engine pages."""
+    import html as _html  # noqa: PLC0415
+
+    credit = '<a href="https://github.com/orazionelson/aracne2" target="_blank" rel="noopener">Aracne2</a>'
+    note = f'<span>{_html.escape(footer_text)}</span> &middot; ' if footer_text else ""
+    return f"          <footer>{note}Built with {credit}</footer>"
+
+
 def _theme_css_block(
     page_bg_color: str | None,
     header_bg_color: str | None,
@@ -597,6 +611,7 @@ def _render_search_page(
     custom_css: str | None = None,
     custom_js: str | None = None,
     include_jquery: bool = False,
+    footer_text: str | None = None,
 ) -> str:
     """Generate the standalone HTML search page for a search engine.
 
@@ -682,6 +697,12 @@ def _render_search_page(
               margin-bottom: 0.5rem;
             }}
             article p {{ margin: 0; font-size: 0.9rem; color: #374151; line-height: 1.5; }}
+            footer {{
+              text-align: center; font-size: 0.75rem; color: #9ca3af;
+              padding: 1.5rem; margin-top: 2rem; border-top: 1px solid #e5e7eb;
+            }}
+            footer a {{ color: #6b7280; }}
+            footer a:hover {{ text-decoration: underline; }}
           </style>{theme_css}{extra_css}
         </head>
         <body>
@@ -702,6 +723,7 @@ def _render_search_page(
             <div id="status"></div>
             <div id="results" role="region" aria-live="polite"></div>
           </main>
+{_footer_html(footer_text)}
           <script>
             (function () {{
               var API = {api_endpoint!r};
@@ -786,6 +808,7 @@ def _render_advanced_search_page(
     custom_css: str | None = None,
     custom_js: str | None = None,
     include_jquery: bool = False,
+    footer_text: str | None = None,
 ) -> str:
     """Generate the standalone HTML advanced search page for a search engine.
 
@@ -898,6 +921,12 @@ def _render_advanced_search_page(
               background: #e0f2fe; color: #0369a1; border-radius: 0.25rem;
               padding: 0.1rem 0.4rem; margin-right: 0.4rem;
             }}
+            footer {{
+              text-align: center; font-size: 0.75rem; color: #9ca3af;
+              padding: 1.5rem; margin-top: 2rem; border-top: 1px solid #e5e7eb;
+            }}
+            footer a {{ color: #6b7280; }}
+            footer a:hover {{ text-decoration: underline; }}
           </style>{theme_css}{extra_css}
         </head>
         <body>
@@ -955,7 +984,7 @@ def _render_advanced_search_page(
             <div id="status"></div>
             <div id="results" role="region" aria-live="polite"></div>
           </main>
-
+{_footer_html(footer_text)}
           <script>
             (function () {{
               var API          = {api_endpoint!r};
@@ -1237,6 +1266,7 @@ async def _do_build(slug: str) -> None:
                 custom_css=engine.custom_css,
                 custom_js=engine.custom_js,
                 include_jquery=engine.include_jquery,
+                footer_text=engine.footer_text,
             )
             (out_dir / "index.html").write_text(html, encoding="utf-8")
 
@@ -1258,6 +1288,7 @@ async def _do_build(slug: str) -> None:
                     custom_css=engine.custom_css,
                     custom_js=engine.custom_js,
                     include_jquery=engine.include_jquery,
+                    footer_text=engine.footer_text,
                 )
                 adv_dir = out_dir / "advanced"
                 adv_dir.mkdir(parents=True, exist_ok=True)

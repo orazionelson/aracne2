@@ -353,6 +353,20 @@
                 <span class="text-xs text-gray-700">{{ t("search_engines.header_hidden_label") }}</span>
               </label>
             </div>
+
+            <!-- Footer text -->
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-700">
+                {{ t("search_engines.footer_text_label") }}
+              </label>
+              <textarea
+                v-model="form.footer_text"
+                rows="3"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                :placeholder="t('search_engines.footer_text_placeholder')"
+              />
+              <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.footer_text_hint") }}</p>
+            </div>
           </template>
 
           <!-- ── Tab: CSS/JS ──────────────────────────────────────────────── -->
@@ -626,6 +640,7 @@ interface FormState {
   xslt_template_id: string | null;
   collection_ids: string[];
   cache_ttl_minutes: number;
+  footer_text: string;
   page_bg_color: string;
   header_bg_color: string;
   header_hidden: boolean;
@@ -645,6 +660,7 @@ const defaultForm = (): FormState => ({
   xslt_template_id: null,
   collection_ids: [],
   cache_ttl_minutes: 60,
+  footer_text: "",
   page_bg_color: PAGE_BG_DEFAULT,
   header_bg_color: HEADER_BG_DEFAULT,
   header_hidden: false,
@@ -680,6 +696,7 @@ function openEdit(slug: string): void {
     xslt_template_id: engine.xslt_template_id,
     collection_ids: engine.collections.map((c) => c.id),
     cache_ttl_minutes: engine.cache_ttl_minutes,
+    footer_text: engine.footer_text ?? "",
     page_bg_color: engine.page_bg_color ?? PAGE_BG_DEFAULT,
     header_bg_color: engine.header_bg_color ?? HEADER_BG_DEFAULT,
     header_hidden: engine.header_hidden,
@@ -719,6 +736,7 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        footer_text: form.value.footer_text || null,
         page_bg_color: form.value.page_bg_color !== PAGE_BG_DEFAULT ? form.value.page_bg_color : null,
         header_bg_color: form.value.header_bg_color !== HEADER_BG_DEFAULT ? form.value.header_bg_color : null,
         header_hidden: form.value.header_hidden,
@@ -734,6 +752,7 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        footer_text: form.value.footer_text || null,
         page_bg_color: form.value.page_bg_color !== PAGE_BG_DEFAULT ? form.value.page_bg_color : null,
         header_bg_color: form.value.header_bg_color !== HEADER_BG_DEFAULT ? form.value.header_bg_color : null,
         header_hidden: form.value.header_hidden,

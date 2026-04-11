@@ -65,6 +65,7 @@ class SearchEngineCreate(BaseModel):
     collection_ids: list[uuid.UUID] = Field(default_factory=list)
     # 0 = cache disabled; default 60 minutes.
     cache_ttl_minutes: int = Field(default=60, ge=0, le=10080)
+    footer_text: str | None = None
     page_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
     header_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
     header_hidden: bool = False
@@ -82,6 +83,7 @@ class SearchEngineUpdate(BaseModel):
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] | None = None
     cache_ttl_minutes: int | None = Field(default=None, ge=0, le=10080)
+    footer_text: str | None = None
     page_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
     header_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
     header_hidden: bool | None = None
@@ -101,6 +103,7 @@ class SearchEngineResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     cache_ttl_minutes: int
+    footer_text: str | None
     page_bg_color: str | None
     header_bg_color: str | None
     header_hidden: bool
