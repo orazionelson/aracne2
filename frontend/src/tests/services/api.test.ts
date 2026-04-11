@@ -46,9 +46,9 @@ describe("api request interceptor", () => {
   it("injects Authorization header when accessToken is set", async () => {
     const { useAuthStore } = await import("@/stores/auth");
     const authStore = useAuthStore();
-    // Simulate a logged-in state by directly setting the token ref.
-    (authStore as unknown as { accessToken: { value: string } }).accessToken.value =
-      "my-access-token";
+    // Simulate a logged-in state. Pinia setup stores unwrap refs in the
+    // reactive proxy, so $patch is the safe way to set state from outside.
+    authStore.$patch({ accessToken: "my-access-token" } as Parameters<typeof authStore.$patch>[0]);
 
     // Import the real api module (interceptors are registered at module load time).
     const { default: api } = await import("@/services/api");

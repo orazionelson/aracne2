@@ -20,8 +20,13 @@ vi.mock("@/main", () => ({
 }));
 
 // Mock @/services/api so no real HTTP calls are made.
-const mockPost = vi.fn();
-const mockGet = vi.fn();
+// vi.mock is hoisted to the top of the file, so variables referenced inside
+// the factory must be created with vi.hoisted() to be initialized in time.
+const { mockPost, mockGet } = vi.hoisted(() => ({
+  mockPost: vi.fn(),
+  mockGet: vi.fn(),
+}));
+
 vi.mock("@/services/api", () => ({
   default: {
     post: mockPost,

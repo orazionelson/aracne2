@@ -19,12 +19,17 @@ vi.mock("@/main", () => ({
 }));
 
 // Capture calls to apiClient so we can inspect request bodies.
-const mockGet = vi.fn();
-const mockPost = vi.fn();
-const mockPatch = vi.fn();
-const mockDelete = vi.fn();
-const mockGetPaginated = vi.fn();
-const mockUpload = vi.fn();
+// vi.mock is hoisted to the top of the file, so variables referenced inside
+// the factory must be created with vi.hoisted() to be initialized in time.
+const { mockGet, mockPost, mockPatch, mockDelete, mockGetPaginated, mockUpload } =
+  vi.hoisted(() => ({
+    mockGet: vi.fn(),
+    mockPost: vi.fn(),
+    mockPatch: vi.fn(),
+    mockDelete: vi.fn(),
+    mockGetPaginated: vi.fn(),
+    mockUpload: vi.fn(),
+  }));
 
 vi.mock("@/services/api", () => ({
   default: {
@@ -156,8 +161,15 @@ describe("useCollectionStore", () => {
     });
 
     expect(capturedForm).toBeDefined();
+    // jsdom's File may not implement .text() or support Response(blob) body.
+    // FileReader is universally supported in jsdom.
     const file = capturedForm!.get("file") as File;
-    const text = await file.text();
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
 
     // Entities must be escaped — raw HTML chars must not appear inside attributes/text
     expect(text).toContain("&lt;Evil &amp; Co&gt;");
