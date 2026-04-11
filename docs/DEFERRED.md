@@ -386,3 +386,92 @@ sistema dei Preset Prompts è operativo e la configurazione AI è già in
 3. Integrarlo nel layout del Document tab.
 
 *Aggiunto: 2026-04-09*
+
+---
+
+## 14. TEI `<zone>` — allineamento testo-immagine a livello di parola/riga
+
+### Contesto
+
+Il modulo media (Fase B della galleria immagini) implementa `<figure>` inline e
+`<facsimile>` per pagine. Il modello `<zone>` è il passo successivo: consente di
+collegare singole parole, righe o segmenti del trascritto a regioni rettangolari
+dell'immagine della carta.
+
+```xml
+<facsimile>
+  <surface xml:id="f1r">
+    <graphic url="media/carta_1r.jpg"/>
+    <zone xml:id="z_line1" ulx="42" uly="120" lrx="1800" lry="200"/>
+    <zone xml:id="z_word1" ulx="42" uly="120" lrx="310" lry="200"/>
+  </surface>
+</facsimile>
+
+<!-- nel testo: -->
+<lb facs="#z_line1"/>
+<w facs="#z_word1">Bartholomeo</w>
+```
+
+### Perché è deferred
+
+Richiede un **editor visuale sovrapposto all'immagine**: l'utente deve poter
+disegnare rettangoli direttamente sulla foto della carta e associarli a elementi
+del trascritto. Nessuna delle librerie già nel progetto supporta questo — serve
+un componente dedicato (canvas o SVG overlay).
+
+È un modulo a sé stante, indipendente da `<figure>` e `<facsimile>`.
+
+### Architettura prevista
+
+**Backend — nessuna modifica strutturale**
+Le `<zone>` sono parte del blocco `<facsimile>` già nel documento TEI XML.
+Il backend gestisce già la lettura/scrittura del blocco facsimile.
+Serve solo un endpoint aggiuntivo per aggiornare le zone di una surface:
+
+```
+PUT /collections/{slug}/documents/{doc_id}/facsimile/{surface_id}/zones
+```
+
+Riceve la lista delle zone con coordinate e le scrive nel `<facsimile>` del documento.
+
+**Frontend — nuovo componente `ZoneEditor.vue`**
+
+Un editor visuale con:
+- Immagine della carta (`<img>` o `<canvas>`) come sfondo
+- Overlay SVG per disegnare rettangoli (`<rect>`) con drag-and-drop
+- Lista delle zone esistenti (già nel `<facsimile>`) visualizzate come rettangoli colorati
+- Click su un rettangolo → seleziona la zona, mostra il suo `xml:id`
+- Associazione zona ↔ elemento TEI: l'utente seleziona una zona e poi clicca
+  su una parola/riga nel CodeMirror editor, il sistema aggiunge `facs="#zone_id"`
+  all'elemento selezionato
+
+**Flusso di inserimento**
+1. L'utente apre una carta dalla gallery (ha già una `<surface>` con `<graphic>`)
+2. `ZoneEditor` mostra l'immagine con le zone già definite (se presenti)
+3. L'utente disegna un nuovo rettangolo → viene assegnato un `xml:id` auto-generato
+4. L'utente torna nell'editor XML e seleziona il testo corrispondente
+5. Il sistema inserisce `facs="#zone_id"` sull'elemento appropriato (`<w>`, `<lb>`, ecc.)
+6. Al salvataggio, le zone vengono scritte nel `<facsimile>` del documento
+
+**Librerie candidate**
+- Nessuna libreria esterna aggiuntiva se si usa SVG nativo (sufficiente per rettangoli)
+- `fabric.js` o `konva` se serve editing avanzato (rotazione, poligoni)
+- Preferire SVG nativo per restare coerenti con il principio di non aggiungere
+  dipendenze non necessarie
+
+### Prerequisiti
+
+| Prerequisito | Note |
+|---|---|
+| Modulo galleria media (Fase B) | Necessario — le zone appartengono a `<surface>` già definite |
+| Gestione `<facsimile>` nel documento (split a 3 parti) | Necessario — le zone sono nel blocco facsimile |
+| Endpoint PUT zones | Da implementare |
+| `ZoneEditor.vue` | Nuovo componente, stimato ≈ 300-400 righe Vue + SVG |
+
+### Trigger per l'implementazione
+
+Prima richiesta esplicita di allineamento testo-immagine a livello di
+parola/riga da parte di un Editor o EditorInChief, oppure integrazione
+con pipeline HTR/OCR che produce coordinate di zona automaticamente.
+
+*Aggiunto: 2026-04-12*
