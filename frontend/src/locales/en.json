@@ -661,7 +661,11 @@
     "advanced_add_filter": "Add filter",
     "advanced_remove": "Remove",
     "advanced_label_required": "Both label and element/attribute are required.",
-    "advanced_element_invalid": "Element/attribute name may only contain letters, digits, dots, hyphens and underscores and must start with a letter or underscore."
+    "advanced_element_invalid": "Element/attribute name may only contain letters, digits, dots, hyphens and underscores and must start with a letter or underscore.",
+    "advanced_tags_loading": "Loading available tags…",
+    "advanced_tags_loaded": "{n} element types found in linked collections.",
+    "advanced_tags_empty": "No tags loaded yet. Click Refresh to scan the linked collections.",
+    "advanced_tags_refresh": "Refresh tags"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

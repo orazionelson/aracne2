@@ -292,6 +292,31 @@
             v-if="form.advanced_search_enabled"
             class="rounded border border-indigo-100 bg-indigo-50 px-4 py-4 space-y-5"
           >
+            <!-- Datalists for autocomplete -->
+            <datalist id="dl-elements">
+              <option v-for="name in availableElementNames" :key="name" :value="name" />
+            </datalist>
+            <datalist id="dl-attrs">
+              <option v-for="attr in availableAttrNames" :key="attr" :value="attr" />
+            </datalist>
+
+            <!-- Tags refresh bar -->
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <span v-if="tagsLoading">{{ t("search_engines.advanced_tags_loading") }}</span>
+              <span v-else-if="availableElementNames.length > 0">
+                {{ t("search_engines.advanced_tags_loaded", { n: availableElementNames.length }) }}
+              </span>
+              <span v-else>{{ t("search_engines.advanced_tags_empty") }}</span>
+              <button
+                type="button"
+                :disabled="tagsLoading"
+                class="ml-auto rounded bg-white px-2 py-1 text-xs text-indigo-600 border border-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                @click="loadAvailableTags"
+              >
+                {{ t("search_engines.advanced_tags_refresh") }}
+              </button>
+            </div>
+
             <!-- Named entity tags -->
             <div>
               <div class="mb-1.5 flex items-center justify-between">
@@ -321,6 +346,7 @@
                 <input
                   v-model="tag.element"
                   type="text"
+                  list="dl-elements"
                   :placeholder="t('search_engines.advanced_tag_element_placeholder')"
                   class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
                 />
@@ -366,6 +392,7 @@
                 <input
                   v-model="filter.attribute"
                   type="text"
+                  list="dl-attrs"
                   :placeholder="t('search_engines.advanced_attr_attribute_placeholder')"
                   class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
                 />
@@ -410,7 +437,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   useSearchEngineStore,
@@ -471,6 +498,7 @@ function openCreate(): void {
   editingSlug.value = null;
   form.value = defaultForm();
   formError.value = null;
+  availableTags.value = {};
   modalOpen.value = true;
 }
 
@@ -479,6 +507,7 @@ function openEdit(slug: string): void {
   if (!engine) return;
   isCreating.value = false;
   editingSlug.value = slug;
+  availableTags.value = {};
   form.value = {
     slug: engine.slug,
     title: engine.title,
@@ -540,6 +569,42 @@ async function saveForm(): Promise<void> {
     saving.value = false;
   }
 }
+
+// ── Advanced search: available tags from linked collections ──────────────────
+
+const availableTags = ref<Record<string, string[]>>({});
+const tagsLoading = ref(false);
+
+/** Sorted element names from the linked collections. */
+const availableElementNames = computed(() => Object.keys(availableTags.value).sort());
+
+/** All distinct attribute names across all elements. */
+const availableAttrNames = computed(() =>
+  [...new Set(Object.values(availableTags.value).flat())].sort(),
+);
+
+async function loadAvailableTags(): Promise<void> {
+  const slug = editingSlug.value;
+  if (!slug) return;
+  tagsLoading.value = true;
+  try {
+    availableTags.value = await store.fetchAvailableTags(slug);
+  } catch {
+    availableTags.value = {};
+  } finally {
+    tagsLoading.value = false;
+  }
+}
+
+// Auto-fetch when the advanced search panel is first opened during an edit.
+watch(
+  () => form.value.advanced_search_enabled,
+  (enabled) => {
+    if (enabled && editingSlug.value && Object.keys(availableTags.value).length === 0) {
+      void loadAvailableTags();
+    }
+  },
+);
 
 // ── Advanced search config helpers ───────────────────────────────────────────
 

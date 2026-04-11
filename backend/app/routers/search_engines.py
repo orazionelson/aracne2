@@ -138,6 +138,24 @@ async def clear_search_engine_cache(
     return {"data": {"deleted": deleted}}
 
 
+# ── Available tags [D+] ──────────────────────────────────────────────────────
+
+@router.get("/search-engines/{slug}/available-tags", response_model=None)
+async def get_available_tags(
+    slug: str,
+    _user: DesignerPlus,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict:
+    """Return the merged element→attributes map across all linked collections.
+
+    Used by the admin UI to populate autocomplete suggestions in the
+    advanced search config panel.  Results are computed on every request
+    (no caching) and are only accessible to Designer-plus users.
+    """
+    tags = await svc.get_available_tags(db, slug)
+    return {"data": tags}
+
+
 # ── Build endpoint [D+] ──────────────────────────────────────────────────────
 
 @router.post("/search-engines/{slug}/build", response_model=None)

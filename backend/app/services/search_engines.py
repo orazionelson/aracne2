@@ -456,6 +456,47 @@ async def _validate_collections(
     return rows
 
 
+# ── Available tags ────────────────────────────────────────────────────────────
+
+async def get_available_tags(db: AsyncSession, slug: str) -> dict[str, list[str]]:
+    """Return the merged element→attributes map across all linked collections.
+
+    Runs ``collections/distinct_tags.xq`` once per linked collection and
+    merges the results by taking the union of attribute names per element.
+    Collections that fail to scan are skipped with a warning.
+    """
+    import json as _json  # noqa: PLC0415
+
+    engine = await _get_engine_or_404(db, slug)
+    col_ids = [row.collection_id for row in engine.collections]
+    if not col_ids:
+        return {}
+
+    collections = await _load_collections(db, col_ids)
+    merged: dict[str, set[str]] = {}
+
+    for col in collections:
+        path = existdb_client.col_path(col.slug)
+        try:
+            raw = await existdb_client.xquery(
+                "collections/distinct_tags.xq", {"path": path}
+            )
+            data: dict[str, list[str]] = _json.loads(raw.decode("utf-8"))
+            for elem, attrs in data.items():
+                if elem not in merged:
+                    merged[elem] = set()
+                merged[elem].update(attrs)
+        except Exception as exc:
+            logger.warning(
+                "search_engine_tags_scan_failed",
+                slug=slug,
+                collection=col.slug,
+                error=str(exc),
+            )
+
+    return {k: sorted(v) for k, v in sorted(merged.items())}
+
+
 # ── Public collection listing ─────────────────────────────────────────────────
 
 async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:

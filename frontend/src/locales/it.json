@@ -661,7 +661,11 @@
     "advanced_add_filter": "Aggiungi filtro",
     "advanced_remove": "Rimuovi",
     "advanced_label_required": "Etichetta ed elemento/attributo sono entrambi obbligatori.",
-    "advanced_element_invalid": "Il nome dell'elemento/attributo può contenere solo lettere, cifre, punti, trattini e underscore, e deve iniziare con una lettera o underscore."
+    "advanced_element_invalid": "Il nome dell'elemento/attributo può contenere solo lettere, cifre, punti, trattini e underscore, e deve iniziare con una lettera o underscore.",
+    "advanced_tags_loading": "Caricamento tag disponibili…",
+    "advanced_tags_loaded": "{n} tipi di elemento trovati nelle collezioni collegate.",
+    "advanced_tags_empty": "Nessun tag caricato. Clicca su Aggiorna per scansionare le collezioni collegate.",
+    "advanced_tags_refresh": "Aggiorna tag"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

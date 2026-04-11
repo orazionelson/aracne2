@@ -128,6 +128,11 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     return (res.data.data as { deleted: number }).deleted;
   }
 
+  async function fetchAvailableTags(slug: string): Promise<Record<string, string[]>> {
+    const res = await api.get(`/search-engines/${slug}/available-tags`);
+    return res.data.data as Record<string, string[]>;
+  }
+
   return {
     engines,
     publicCollections,
@@ -140,5 +145,6 @@ export const useSearchEngineStore = defineStore("searchEngines", () => {
     remove,
     build,
     clearCache,
+    fetchAvailableTags,
   };
 });
