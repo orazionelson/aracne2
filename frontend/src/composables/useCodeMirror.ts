@@ -453,6 +453,23 @@ export function useCodeMirror(
   }
 
   /**
+   * Insert a TEI <pb> page-break element at the current cursor position.
+   *
+   * Produces: <pb facs="#surfaceId"/>
+   */
+  function insertPageBreak(surfaceId: string): void {
+    const cm = editorInstance.value;
+    if (!cm) return;
+
+    const cursor = cm.getCursor();
+    const snippet = `<pb facs="#${surfaceId}"/>`;
+    cm.replaceRange(snippet, cursor, undefined, '+programmatic');
+    const after = { line: cursor.line, ch: cursor.ch + snippet.length };
+    cm.setCursor(after);
+    cm.focus();
+  }
+
+  /**
    * Insert a TEI <figure> element at the current cursor position.
    *
    * Produces:
@@ -715,5 +732,6 @@ export function useCodeMirror(
     editNote,
     deleteNote,
     insertFigure,
+    insertPageBreak,
   };
 }

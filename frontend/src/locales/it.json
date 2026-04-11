@@ -735,7 +735,12 @@
     "upload_btn": "Carica immagine…",
     "uploading": "Caricamento…",
     "empty": "Nessuna immagine per questo documento.",
-    "insert": "Inserisci",
+    "insert": "Figura",
+    "insert_as_card": "Carta",
+    "insert_as_card_title": "Registra come <surface> in <facsimile> e inserisce <pb> alla posizione del cursore",
+    "insert_pb": "pb",
+    "insert_pb_title": "Inserisce <pb facs=\"#{id}\"/> alla posizione del cursore",
+    "surface_registered": "Registrata in <facsimile>",
     "confirm_delete": "Elimina?",
     "media_btn": "Immagini"
   },

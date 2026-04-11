@@ -735,7 +735,12 @@
     "upload_btn": "Upload image…",
     "uploading": "Uploading…",
     "empty": "No images for this document.",
-    "insert": "Insert",
+    "insert": "Figure",
+    "insert_as_card": "Card",
+    "insert_as_card_title": "Register as <surface> in <facsimile> and insert <pb> at cursor",
+    "insert_pb": "pb",
+    "insert_pb_title": "Insert <pb facs=\"#{id}\"/> at cursor",
+    "surface_registered": "Registered in <facsimile>",
     "confirm_delete": "Delete?",
     "media_btn": "Images"
   },

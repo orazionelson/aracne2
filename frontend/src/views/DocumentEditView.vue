@@ -43,10 +43,22 @@ const schemaWarning = ref<string | null>(null);
 const activeEditorTab = ref<'header' | 'body'>('header');
 // Outer XML context preserved for reassembly
 const outerBefore = ref('');
-const outerBetween = ref(''); // whitespace/elements between </teiHeader> and <text>
+/** Whitespace/content that precedes the <facsimile> block (or the full
+ *  between-segment when no facsimile is present). */
+const outerBetween = ref('');
 const outerAfter = ref('');
 // False when the document lacks <teiHeader>/<text> — falls back to single editor
 const canSplit = ref(true);
+
+// ── Facsimile state (split mode only) ─────────────────────────────────────────
+interface FacsimileSurface {
+  id: string;   // xml:id of the <surface> element
+  url: string;  // url attribute of the nested <graphic> element
+}
+/** Raw <facsimile>…</facsimile> XML managed in memory; null = not present. */
+const facsimileXml    = ref<string | null>(null);
+/** Content of outerBetween that follows </facsimile> (usually a newline). */
+const facsimileSuffix = ref('');
 
 // ── Editor containers ──────────────────────────────────────────────────────────
 // Single-mode (non-split or split-fallback)
@@ -210,9 +222,60 @@ function splitXml(xml: string): {
   };
 }
 
+/** Return the full between-segment, including the facsimile block if present. */
+function getOuterBetween(): string {
+  if (facsimileXml.value !== null) {
+    return outerBetween.value + facsimileXml.value + facsimileSuffix.value;
+  }
+  return outerBetween.value;
+}
+
 /** Reassemble a full TEI XML string from its parts. */
 function reassembleXml(newHeader: string, newBody: string): string {
-  return outerBefore.value + newHeader + outerBetween.value + newBody + outerAfter.value;
+  return outerBefore.value + newHeader + getOuterBetween() + newBody + outerAfter.value;
+}
+
+// ── Surfaces computed from facsimile XML ──────────────────────────────────────
+const surfaces = computed((): FacsimileSurface[] => {
+  if (!facsimileXml.value) return [];
+  const result: FacsimileSurface[] = [];
+  const surfaceRe = /<surface\b([^>]*)>([\s\S]*?)<\/surface>/g;
+  let sm: RegExpExecArray | null;
+  while ((sm = surfaceRe.exec(facsimileXml.value)) !== null) {
+    const idMatch  = /xml:id="([^"]+)"/.exec(sm[1]);
+    const urlMatch = /url="([^"]+)"/.exec(sm[2]);
+    if (idMatch && urlMatch) {
+      result.push({ id: idMatch[1], url: urlMatch[1] });
+    }
+  }
+  return result;
+});
+
+/**
+ * Register a new <surface> for mediaUrl in the <facsimile> block.
+ * Creates the block from scratch if it does not exist yet.
+ * Returns the xml:id of the new (or already existing) surface.
+ */
+function addSurface(mediaUrl: string): string {
+  const existing = surfaces.value.find((s) => s.url === mediaUrl);
+  if (existing) return existing.id;
+
+  const nextId = `s${surfaces.value.length + 1}`;
+  const surface = `<surface xml:id="${nextId}"><graphic url="${mediaUrl}"/></surface>`;
+
+  if (facsimileXml.value === null) {
+    // outerBetween currently holds the full between-segment (no facsimile).
+    // Split it into prefix (kept in outerBetween) and suffix.
+    facsimileXml.value    = `<facsimile>\n    ${surface}\n  </facsimile>`;
+    facsimileSuffix.value = '\n';
+    // outerBetween stays as the prefix (typically '\n')
+  } else {
+    facsimileXml.value = facsimileXml.value.replace(
+      /\s*<\/facsimile>/,
+      `\n    ${surface}\n  </facsimile>`,
+    );
+  }
+  return nextId;
 }
 
 // ── CM5 schema loader ──────────────────────────────────────────────────────────
@@ -268,9 +331,20 @@ onMounted(async () => {
         headerInitialXml.value = parts.header;
         bodyInitialXml.value   = parts.body;
         outerBefore.value      = parts.before;
-        outerBetween.value     = parts.between;
         outerAfter.value       = parts.after;
         canSplit.value = true;
+
+        // Extract <facsimile> block from between-segment (if present).
+        const fb = findBlock(parts.between, 'facsimile');
+        if (fb) {
+          outerBetween.value    = parts.between.slice(0, fb.start);
+          facsimileXml.value    = parts.between.slice(fb.start, fb.end);
+          facsimileSuffix.value = parts.between.slice(fb.end);
+        } else {
+          outerBetween.value    = parts.between;
+          facsimileXml.value    = null;
+          facsimileSuffix.value = '';
+        }
       } else {
         canSplit.value = false;
         initialXml.value = xml; // fallback to single editor
@@ -372,6 +446,17 @@ function handleInsertFigure(url: string): void {
     headerCm.insertFigure(url);
   } else {
     bodyCm.insertFigure(url);
+  }
+}
+
+function handleInsertAsCard(mediaUrl: string): void {
+  const surfaceId = addSurface(mediaUrl);
+  if (!splitMode.value || !canSplit.value) {
+    singleCm.insertPageBreak(surfaceId);
+  } else if (activeEditorTab.value === 'header') {
+    headerCm.insertPageBreak(surfaceId);
+  } else {
+    bodyCm.insertPageBreak(surfaceId);
   }
 }
 
@@ -855,7 +940,9 @@ async function runValidation(): Promise<void> {
     v-if="showMediaPanel && !isLoading"
     :slug="slug"
     :doc-filename="filename"
+    :surfaces="surfaces"
     @insert-figure="handleInsertFigure"
+    @insert-as-card="handleInsertAsCard"
     @close="showMediaPanel = false"
   />
 

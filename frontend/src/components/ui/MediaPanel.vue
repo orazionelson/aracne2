@@ -3,13 +3,22 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMediaStore, type MediaItem } from '@/stores/mediaStore';
 
+interface FacsimileSurface {
+  id: string;
+  url: string;
+}
+
 const props = defineProps<{
   slug: string;
   docFilename: string;
+  /** Surfaces currently registered in the document's <facsimile> block. */
+  surfaces: FacsimileSurface[];
 }>();
 
 const emit = defineEmits<{
   (e: 'insertFigure', url: string): void;
+  /** Adds a <surface> to <facsimile> (if needed) and inserts <pb facs="#id"/>. */
+  (e: 'insertAsCard', url: string): void;
   (e: 'close'): void;
 }>();
 
@@ -73,8 +82,9 @@ async function handleDelete(filename: string): Promise<void> {
   }
 }
 
-function handleInsert(item: MediaItem): void {
-  emit('insertFigure', item.url);
+/** Return the surface registered for this image URL, or undefined. */
+function surfaceFor(item: MediaItem): FacsimileSurface | undefined {
+  return props.surfaces.find((s) => s.url === item.url);
 }
 
 function formatSize(bytes: number): string {
@@ -146,16 +156,35 @@ function formatSize(bytes: number): string {
 
           <!-- Info + actions -->
           <div class="min-w-0 flex-1">
-            <p class="truncate font-mono text-xs text-gray-700" :title="item.filename">
-              {{ item.filename }}
-            </p>
+            <!-- Filename + surface badge -->
+            <div class="flex items-center gap-1">
+              <p class="min-w-0 truncate font-mono text-xs text-gray-700" :title="item.filename">
+                {{ item.filename }}
+              </p>
+              <span
+                v-if="surfaceFor(item)"
+                class="flex-shrink-0 rounded bg-teal-50 px-1 py-0.5 font-mono text-xs text-teal-700"
+                :title="t('media.surface_registered')"
+              >
+                #{{ surfaceFor(item)!.id }}
+              </span>
+            </div>
             <p class="text-xs text-gray-400">{{ formatSize(item.size) }}</p>
-            <div class="mt-1 flex gap-1">
+
+            <!-- Action buttons -->
+            <div class="mt-1 flex flex-wrap gap-1">
               <button
                 class="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-100"
-                @click="handleInsert(item)"
+                @click="emit('insertFigure', item.url)"
               >
                 {{ t('media.insert') }}
+              </button>
+              <button
+                class="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100"
+                :title="surfaceFor(item) ? t('media.insert_pb_title', { id: surfaceFor(item)!.id }) : t('media.insert_as_card_title')"
+                @click="emit('insertAsCard', item.url)"
+              >
+                {{ surfaceFor(item) ? t('media.insert_pb') : t('media.insert_as_card') }}
               </button>
               <button
                 v-if="confirmDeleteFilename !== item.filename"
