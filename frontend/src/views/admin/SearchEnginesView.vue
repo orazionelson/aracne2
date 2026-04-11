@@ -298,6 +298,61 @@
               />
               <p class="mt-1 text-xs text-gray-400">{{ t("search_engines.cache_ttl_hint") }}</p>
             </div>
+
+            <!-- Page appearance -->
+            <div class="space-y-3 rounded border border-gray-200 px-4 py-3">
+              <p class="text-xs font-semibold text-gray-700">{{ t("search_engines.appearance_label") }}</p>
+
+              <!-- Page background color -->
+              <div class="flex items-center gap-3">
+                <label class="w-40 shrink-0 text-xs text-gray-600">
+                  {{ t("search_engines.page_bg_color_label") }}
+                </label>
+                <input
+                  v-model="form.page_bg_color"
+                  type="color"
+                  class="h-8 w-12 cursor-pointer rounded border border-gray-300 p-0.5"
+                />
+                <button
+                  type="button"
+                  class="text-xs text-gray-400 hover:text-gray-600"
+                  @click="form.page_bg_color = PAGE_BG_DEFAULT"
+                >
+                  {{ t("search_engines.color_reset") }}
+                </button>
+              </div>
+
+              <!-- Header background color -->
+              <div class="flex items-center gap-3">
+                <label class="w-40 shrink-0 text-xs text-gray-600">
+                  {{ t("search_engines.header_bg_color_label") }}
+                </label>
+                <input
+                  v-model="form.header_bg_color"
+                  type="color"
+                  :disabled="form.header_hidden"
+                  class="h-8 w-12 cursor-pointer rounded border border-gray-300 p-0.5 disabled:opacity-40"
+                />
+                <button
+                  type="button"
+                  :disabled="form.header_hidden"
+                  class="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                  @click="form.header_bg_color = HEADER_BG_DEFAULT"
+                >
+                  {{ t("search_engines.color_reset") }}
+                </button>
+              </div>
+
+              <!-- Hide header -->
+              <label class="flex cursor-pointer items-center gap-2">
+                <input
+                  v-model="form.header_hidden"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span class="text-xs text-gray-700">{{ t("search_engines.header_hidden_label") }}</span>
+              </label>
+            </div>
           </template>
 
           <!-- ── Tab: CSS/JS ──────────────────────────────────────────────── -->
@@ -571,6 +626,9 @@ interface FormState {
   xslt_template_id: string | null;
   collection_ids: string[];
   cache_ttl_minutes: number;
+  page_bg_color: string;
+  header_bg_color: string;
+  header_hidden: boolean;
   custom_css: string;
   custom_js: string;
   include_jquery: boolean;
@@ -578,12 +636,18 @@ interface FormState {
   advanced_search_config: AdvancedSearchConfig;
 }
 
+const PAGE_BG_DEFAULT   = "#f9fafb";
+const HEADER_BG_DEFAULT = "#1e3a5f";
+
 const defaultForm = (): FormState => ({
   slug: "",
   title: "",
   xslt_template_id: null,
   collection_ids: [],
   cache_ttl_minutes: 60,
+  page_bg_color: PAGE_BG_DEFAULT,
+  header_bg_color: HEADER_BG_DEFAULT,
+  header_hidden: false,
   custom_css: "",
   custom_js: "",
   include_jquery: false,
@@ -616,6 +680,9 @@ function openEdit(slug: string): void {
     xslt_template_id: engine.xslt_template_id,
     collection_ids: engine.collections.map((c) => c.id),
     cache_ttl_minutes: engine.cache_ttl_minutes,
+    page_bg_color: engine.page_bg_color ?? PAGE_BG_DEFAULT,
+    header_bg_color: engine.header_bg_color ?? HEADER_BG_DEFAULT,
+    header_hidden: engine.header_hidden,
     custom_css: engine.custom_css ?? "",
     custom_js: engine.custom_js ?? "",
     include_jquery: engine.include_jquery,
@@ -652,6 +719,9 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        page_bg_color: form.value.page_bg_color !== PAGE_BG_DEFAULT ? form.value.page_bg_color : null,
+        header_bg_color: form.value.header_bg_color !== HEADER_BG_DEFAULT ? form.value.header_bg_color : null,
+        header_hidden: form.value.header_hidden,
         custom_css: form.value.custom_css || null,
         custom_js: form.value.custom_js || null,
         include_jquery: form.value.include_jquery,
@@ -664,6 +734,9 @@ async function saveForm(): Promise<void> {
         xslt_template_id: form.value.xslt_template_id,
         collection_ids: form.value.collection_ids,
         cache_ttl_minutes: form.value.cache_ttl_minutes,
+        page_bg_color: form.value.page_bg_color !== PAGE_BG_DEFAULT ? form.value.page_bg_color : null,
+        header_bg_color: form.value.header_bg_color !== HEADER_BG_DEFAULT ? form.value.header_bg_color : null,
+        header_hidden: form.value.header_hidden,
         custom_css: form.value.custom_css || null,
         custom_js: form.value.custom_js || null,
         include_jquery: form.value.include_jquery,

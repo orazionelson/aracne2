@@ -55,6 +55,9 @@ class AdvancedSearchConfig(BaseModel):
 
 # ── CRUD schemas ──────────────────────────────────────────────────────────────
 
+_HEX_COLOR = r"^#[0-9a-fA-F]{6}$"
+
+
 class SearchEngineCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$")
     title: str = Field(..., min_length=1, max_length=256)
@@ -62,6 +65,9 @@ class SearchEngineCreate(BaseModel):
     collection_ids: list[uuid.UUID] = Field(default_factory=list)
     # 0 = cache disabled; default 60 minutes.
     cache_ttl_minutes: int = Field(default=60, ge=0, le=10080)
+    page_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
+    header_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
+    header_hidden: bool = False
     custom_css: str | None = None
     custom_js: str | None = None
     include_jquery: bool = False
@@ -76,6 +82,9 @@ class SearchEngineUpdate(BaseModel):
     xslt_template_id: uuid.UUID | None = None
     collection_ids: list[uuid.UUID] | None = None
     cache_ttl_minutes: int | None = Field(default=None, ge=0, le=10080)
+    page_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
+    header_bg_color: str | None = Field(None, pattern=_HEX_COLOR)
+    header_hidden: bool | None = None
     custom_css: str | None = None
     custom_js: str | None = None
     include_jquery: bool | None = None
@@ -92,6 +101,9 @@ class SearchEngineResponse(BaseModel):
     last_build_at: datetime | None
     build_error: str | None
     cache_ttl_minutes: int
+    page_bg_color: str | None
+    header_bg_color: str | None
+    header_hidden: bool
     custom_css: str | None
     custom_js: str | None
     include_jquery: bool

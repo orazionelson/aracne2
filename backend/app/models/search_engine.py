@@ -45,6 +45,12 @@ class SearchEngine(Base):
     cache_ttl_minutes: Mapped[int] = mapped_column(
         Integer(), nullable=False, default=60
     )
+    # Page background colour (CSS hex, e.g. "#f9fafb"); null = default.
+    page_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    # Header background colour (CSS hex, e.g. "#1e3a5f"); null = default.
+    header_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    # When True, the header is hidden on every built page.
+    header_hidden: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     # Custom CSS injected into every built page (main + advanced).
     custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
     # Custom JS injected before </body> on every built page.

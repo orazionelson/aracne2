@@ -75,6 +75,9 @@ def _to_response(engine: SearchEngine, collections: list[Collection]) -> SearchE
         last_build_at=engine.last_build_at,
         build_error=engine.build_error,
         cache_ttl_minutes=engine.cache_ttl_minutes,
+        page_bg_color=engine.page_bg_color,
+        header_bg_color=engine.header_bg_color,
+        header_hidden=engine.header_hidden,
         custom_css=engine.custom_css,
         custom_js=engine.custom_js,
         include_jquery=engine.include_jquery,
@@ -153,6 +156,9 @@ async def create_search_engine(
         title=payload.title,
         xslt_template_id=payload.xslt_template_id,
         cache_ttl_minutes=payload.cache_ttl_minutes,
+        page_bg_color=payload.page_bg_color or None,
+        header_bg_color=payload.header_bg_color or None,
+        header_hidden=payload.header_hidden,
         custom_css=payload.custom_css or None,
         custom_js=payload.custom_js or None,
         include_jquery=payload.include_jquery,
@@ -197,6 +203,15 @@ async def update_search_engine(
 
     if payload.cache_ttl_minutes is not None:
         engine.cache_ttl_minutes = payload.cache_ttl_minutes
+
+    if "page_bg_color" in payload.model_fields_set:
+        engine.page_bg_color = payload.page_bg_color or None
+
+    if "header_bg_color" in payload.model_fields_set:
+        engine.header_bg_color = payload.header_bg_color or None
+
+    if payload.header_hidden is not None:
+        engine.header_hidden = payload.header_hidden
 
     if "custom_css" in payload.model_fields_set:
         engine.custom_css = payload.custom_css or None
@@ -530,6 +545,25 @@ async def list_public_collections(db: AsyncSession) -> list[dict[str, Any]]:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
+def _theme_css_block(
+    page_bg_color: str | None,
+    header_bg_color: str | None,
+    header_hidden: bool,
+) -> str:
+    """Return a <style> block that applies the theme overrides, or empty string."""
+    rules: list[str] = []
+    if page_bg_color:
+        rules.append(f"    body {{ background: {page_bg_color} !important; }}")
+    if header_bg_color:
+        rules.append(f"    header {{ background: {header_bg_color} !important; }}")
+    if header_hidden:
+        rules.append("    header { display: none !important; }")
+        rules.append("    main { margin-top: 1.5rem; }")
+    if not rules:
+        return ""
+    return "\n  <style>\n" + "\n".join(rules) + "\n  </style>"
+
+
 def _custom_css_block(custom_css: str | None) -> str:
     """Return a <style> block with sanitised custom CSS, or empty string."""
     if not custom_css or not custom_css.strip():
@@ -557,6 +591,9 @@ def _render_search_page(
     slug: str,
     title: str,
     advanced_search_enabled: bool = False,
+    page_bg_color: str | None = None,
+    header_bg_color: str | None = None,
+    header_hidden: bool = False,
     custom_css: str | None = None,
     custom_js: str | None = None,
     include_jquery: bool = False,
@@ -575,6 +612,7 @@ def _render_search_page(
         if advanced_search_enabled
         else ""
     )
+    theme_css = _theme_css_block(page_bg_color, header_bg_color, header_hidden)
     extra_css = _custom_css_block(custom_css)
     extra_js = _custom_js_block(custom_js, include_jquery)
 
@@ -644,7 +682,7 @@ def _render_search_page(
               margin-bottom: 0.5rem;
             }}
             article p {{ margin: 0; font-size: 0.9rem; color: #374151; line-height: 1.5; }}
-          </style>{extra_css}
+          </style>{theme_css}{extra_css}
         </head>
         <body>
           <header><h1>{escaped_title}</h1></header>
@@ -742,6 +780,9 @@ def _render_advanced_search_page(
     title: str,
     config: AdvancedSearchConfig,
     collections: list[Collection],
+    page_bg_color: str | None = None,
+    header_bg_color: str | None = None,
+    header_hidden: bool = False,
     custom_css: str | None = None,
     custom_js: str | None = None,
     include_jquery: bool = False,
@@ -760,6 +801,7 @@ def _render_advanced_search_page(
     api_endpoint = f"/api/v1/search-engines/{slug}/advanced-search"
     main_page = f"/api/v1/search-pages/{slug}/"
     escaped_title = title.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+    theme_css = _theme_css_block(page_bg_color, header_bg_color, header_hidden)
     extra_css = _custom_css_block(custom_css)
     extra_js = _custom_js_block(custom_js, include_jquery)
 
@@ -856,7 +898,7 @@ def _render_advanced_search_page(
               background: #e0f2fe; color: #0369a1; border-radius: 0.25rem;
               padding: 0.1rem 0.4rem; margin-right: 0.4rem;
             }}
-          </style>{extra_css}
+          </style>{theme_css}{extra_css}
         </head>
         <body>
           <header>
@@ -1189,6 +1231,9 @@ async def _do_build(slug: str) -> None:
                 engine.slug,
                 engine.title,
                 engine.advanced_search_enabled,
+                page_bg_color=engine.page_bg_color,
+                header_bg_color=engine.header_bg_color,
+                header_hidden=engine.header_hidden,
                 custom_css=engine.custom_css,
                 custom_js=engine.custom_js,
                 include_jquery=engine.include_jquery,
@@ -1207,6 +1252,9 @@ async def _do_build(slug: str) -> None:
                     engine.title,
                     config,
                     cols,
+                    page_bg_color=engine.page_bg_color,
+                    header_bg_color=engine.header_bg_color,
+                    header_hidden=engine.header_hidden,
                     custom_css=engine.custom_css,
                     custom_js=engine.custom_js,
                     include_jquery=engine.include_jquery,
