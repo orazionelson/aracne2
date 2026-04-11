@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AuthorizationError
 from app.db.postgres import get_async_session
 from app.middleware.acl import ROLE_LEVEL, get_current_user, require_role
 from app.models.user import User
@@ -85,10 +86,15 @@ async def users_list(
 
 @router.post("", status_code=201)
 async def user_create(
+    request: Request,
     body: UserCreate,
     current_user: Annotated[User, Depends(require_role(min_role="EditorInChief"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[UserResponse]:
+    # An actor cannot assign a role whose level exceeds their own.
+    actor_level = ROLE_LEVEL.get(request.state.role, 0)
+    if ROLE_LEVEL.get(body.role, 0) > actor_level:
+        raise AuthorizationError()
     data = await create_user(db, body, current_user)
     return DataResponse(data=data)
 
