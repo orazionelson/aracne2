@@ -90,7 +90,7 @@ async def test_embed_search_returns_empty_results(
         f"/api/v1/embed/{embed_engine.slug}/search?q=test"
     )
     assert res.status_code == 200
-    assert res.json()["data"]["results"] == []
+    assert res.json()["data"]["hits"] == []
 
 
 @pytest.mark.asyncio
@@ -102,7 +102,7 @@ async def test_embed_advanced_search_returns_empty_results(
         f"/api/v1/embed/{embed_engine.slug}/advanced-search?element=persName"
     )
     assert res.status_code == 200
-    assert res.json()["data"]["results"] == []
+    assert res.json()["data"]["hits"] == []
 
 
 @pytest.mark.asyncio

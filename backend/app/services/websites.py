@@ -1842,6 +1842,7 @@ async def update_website(
     website.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(website)
+    await db.refresh(website, attribute_names=["pages", "indices"])
     # Any metadata or XSLT change must invalidate the rendered-page and XSLT caches
     # immediately so dynamic/hybrid sites do not serve stale HTML.
     invalidate_cache(slug)

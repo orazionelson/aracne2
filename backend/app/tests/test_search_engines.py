@@ -198,7 +198,7 @@ async def test_search_public_endpoint_with_no_collections(
         f"/api/v1/search-engines/{seeded_engine.slug}/search?q=test"
     )
     assert res.status_code == 200
-    assert res.json()["data"]["results"] == []
+    assert res.json()["data"]["hits"] == []
 
 
 @pytest.mark.asyncio
@@ -210,7 +210,7 @@ async def test_advanced_search_public_endpoint_with_no_collections(
         f"/api/v1/search-engines/{seeded_engine.slug}/advanced-search?element=persName"
     )
     assert res.status_code == 200
-    assert res.json()["data"]["results"] == []
+    assert res.json()["data"]["hits"] == []
 
 
 @pytest.mark.asyncio

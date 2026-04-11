@@ -12,6 +12,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.collection import Collection, CollectionStatus
 from app.models.user import User
 from app.models.website import Website
 from app.tests.conftest import (
@@ -230,10 +231,10 @@ async def test_create_website_index(
     res = await client.post(
         f"/api/v1/websites/{seeded_website.slug}/indices",
         headers=_auth(token),
-        json={"label": "Persons", "element": "persName"},
+        json={"label": "persons", "title": "Persons", "tag": "persName"},
     )
     assert res.status_code == 201
-    assert res.json()["data"]["label"] == "Persons"
+    assert res.json()["data"]["label"] == "persons"
 
 
 @pytest.mark.asyncio
@@ -244,17 +245,17 @@ async def test_update_website_index(
     create_res = await client.post(
         f"/api/v1/websites/{seeded_website.slug}/indices",
         headers=_auth(token),
-        json={"label": "Places", "element": "placeName"},
+        json={"label": "places", "title": "Places", "tag": "placeName"},
     )
     assert create_res.status_code == 201
     idx_id = create_res.json()["data"]["id"]
     res = await client.put(
         f"/api/v1/websites/{seeded_website.slug}/indices/{idx_id}",
         headers=_auth(token),
-        json={"label": "Places Updated", "element": "placeName"},
+        json={"label": "places-updated", "tag": "placeName"},
     )
     assert res.status_code == 200
-    assert res.json()["data"]["label"] == "Places Updated"
+    assert res.json()["data"]["label"] == "places-updated"
 
 
 @pytest.mark.asyncio
@@ -265,7 +266,7 @@ async def test_delete_website_index(
     create_res = await client.post(
         f"/api/v1/websites/{seeded_website.slug}/indices",
         headers=_auth(token),
-        json={"label": "Orgs", "element": "orgName"},
+        json={"label": "orgs", "title": "Orgs", "tag": "orgName"},
     )
     assert create_res.status_code == 201
     idx_id = create_res.json()["data"]["id"]
@@ -281,9 +282,24 @@ async def test_delete_website_index(
 
 @pytest.mark.asyncio
 async def test_refresh_tags_calls_existdb(
-    client: AsyncClient, seeded_designer: User, seeded_website: Website
+    client: AsyncClient,
+    db_session: AsyncSession,
+    seeded_designer: User,
+    seeded_website: Website,
 ) -> None:
     """Refresh tags endpoint triggers eXist-db XQuery and returns 200."""
+    # The service requires website.collection_id to be set.
+    col = Collection(
+        slug="tags-col",
+        title="Tags Collection",
+        status=CollectionStatus.published,
+        is_public=True,
+    )
+    db_session.add(col)
+    await db_session.flush()
+    seeded_website.collection_id = col.id
+    await db_session.flush()
+
     token = await _login_as(client, DESIGNER_USERNAME, DESIGNER_PASSWORD)
     with patch("app.services.websites.existdb_client") as mock_db:
         mock_db.xquery = AsyncMock(return_value=b"[]")

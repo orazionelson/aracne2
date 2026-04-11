@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.password import hash_password
 from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import Base, get_async_session
-from app.main import app
+from app.main import app, embed_app
 from app.middleware.rate_limiter import limiter
 from app.models import Role, User, UserRole  # noqa: F401 — required for metadata
 from app.models.role import Role as _Role
@@ -90,11 +90,13 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield db_session
 
     app.dependency_overrides[get_async_session] = override_get_session
+    embed_app.dependency_overrides[get_async_session] = override_get_session
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as c:
         yield c
     app.dependency_overrides.clear()
+    embed_app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
@@ -214,8 +216,10 @@ async def client_with_existdb(
 
     app.dependency_overrides[get_async_session] = override_get_session
     app.dependency_overrides[get_existdb] = lambda: mock_existdb
+    embed_app.dependency_overrides[get_async_session] = override_get_session
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as c:
         yield c
     app.dependency_overrides.clear()
+    embed_app.dependency_overrides.clear()
