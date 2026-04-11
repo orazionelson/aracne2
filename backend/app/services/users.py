@@ -130,7 +130,7 @@ async def get_user(db: AsyncSession, user_id: str) -> UserResponse:
         user = await db.get(User, uid)
     except ValueError:
         user = await db.scalar(select(User).where(User.username == user_id))
-    if not user:
+    if not user or user.deleted_at is not None:
         raise NotFoundError(message="User not found")
     return await _build_response(db, user)
 
