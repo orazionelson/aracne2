@@ -1958,6 +1958,7 @@ async def preview_document(
     ir_pb_layout  = (ir_cfg.get("pb") or {}).get("layout", "inline")
     ir_modal  = bool(ir_cfg.get("enabled")) and (
         ir_fig_layout == "modal" or ir_pb_layout == "modal"
+        or bool(ir_cfg.get("facsimile_gallery"))
     )
     ir_column = bool(ir_cfg.get("enabled")) and (
         ir_fig_layout in ("column-left", "column-right")
@@ -3264,6 +3265,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     _ir_pb_layout   = (_ir_cfg.get("pb", {}) or {}).get("layout", "inline")
     _ir_modal: bool = _ir_enabled and (
         _ir_fig_layout == "modal" or _ir_pb_layout == "modal"
+        or _ir_gallery
     )
     _ir_column: bool = _ir_enabled and (
         _ir_fig_layout in ("column-left", "column-right")
