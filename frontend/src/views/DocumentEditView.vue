@@ -550,8 +550,15 @@ async function handleSave(): Promise<void> {
   saved.value = false;
   isSaving.value = true;
   try {
-    await store.updateDocument(slug, filename, getFullValue());
+    const assembled = getFullValue();
+    await store.updateDocument(slug, filename, assembled);
     saved.value = true;
+    // In single-editor mode the facsimile block is kept separately in memory
+    // and injected into `assembled` by getFullValue(). Write the assembled XML
+    // back into the editor so what the user sees matches what was saved.
+    if ((!splitMode.value || !canSplit.value) && facsimileXml.value !== null) {
+      singleCm.setValue(assembled);
+    }
     if (hasValidationSchema.value) runValidation();
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
