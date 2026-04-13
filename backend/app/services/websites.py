@@ -1172,11 +1172,12 @@ def _style_block(
         f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};"
         f"--font:{font};--footer-bg:{footer_bg};--footer-text:{footer_color};}}"
     )
-    # Fixed header: pin the <header> to the viewport top and add body padding
-    # so content starts below the navbar (navbar height is 3.5rem = 56px).
+    # Fixed header: pin the site navbar (direct child <header> of <body>) to the
+    # viewport top and add body padding so content starts below it (3.5rem = 56px).
+    # Using "body > header" avoids matching <header> elements inside document content.
     fixed_header_css = (
         "\n/* fixed-header */\n"
-        "header{position:fixed;top:0;left:0;right:0;z-index:200;}"
+        "body>header{position:fixed;top:0;left:0;right:0;z-index:200;}"
         "body{padding-top:3.5rem;}"
     ) if theme.get("fixed_header") else ""
     # Custom CSS is trusted Designer input; strip </style> to prevent tag break.
