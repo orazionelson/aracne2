@@ -338,8 +338,49 @@ function switchTab(tab: 'header' | 'body'): void {
 
 // ── Get full XML value (handles both modes) ────────────────────────────────────
 function getFullValue(): string {
-  if (!splitMode.value || !canSplit.value) return singleCm.getValue();
+  if (!splitMode.value || !canSplit.value) {
+    // In single-editor mode the facsimile block is managed separately in
+    // memory (facsimileXml). We must inject it back between </teiHeader> and
+    // <text> before saving, otherwise it would be silently dropped.
+    if (facsimileXml.value !== null) {
+      const raw = singleCm.getValue();
+      const parts = splitXml(raw);
+      if (parts) {
+        // Use the in-memory facsimile state (outerBetween + facsimileXml +
+        // facsimileSuffix) rather than whatever was in parts.between, because
+        // addSurface() has been modifying facsimileXml in memory.
+        return outerBefore.value + parts.header + getOuterBetween() + parts.body + outerAfter.value;
+      }
+    }
+    return singleCm.getValue();
+  }
   return reassembleXml(headerCm.getValue(), bodyCm.getValue());
+}
+
+/** Extract the <facsimile> block from a full XML string and populate the
+ *  in-memory refs used by getFullValue() / reassembleXml(). This is called
+ *  in every load path (split, split-fallback, and pure single-editor) so that
+ *  addSurface() and getFullValue() always have consistent state. */
+function _extractFacsimileFromXml(xml: string): void {
+  const parts = splitXml(xml);
+  if (!parts) {
+    // Document is not a valid TEI split — nothing to extract.
+    facsimileXml.value    = null;
+    facsimileSuffix.value = '';
+    return;
+  }
+  outerBefore.value = parts.before;
+  outerAfter.value  = parts.after;
+  const fb = findBlock(parts.between, 'facsimile');
+  if (fb) {
+    outerBetween.value    = parts.between.slice(0, fb.start);
+    facsimileXml.value    = parts.between.slice(fb.start, fb.end);
+    facsimileSuffix.value = parts.between.slice(fb.end);
+  } else {
+    outerBetween.value    = parts.between;
+    facsimileXml.value    = null;
+    facsimileSuffix.value = '';
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
@@ -377,9 +418,14 @@ onMounted(async () => {
         }
       } else {
         canSplit.value = false;
-        initialXml.value = xml; // fallback to single editor
+        // Extract facsimile from the full XML even in fallback/single mode
+        // so that getFullValue() can inject it back on save.
+        _extractFacsimileFromXml(xml);
+        initialXml.value = xml;
       }
     } else {
+      // Pure single-editor mode: extract facsimile for save-time injection.
+      _extractFacsimileFromXml(xml);
       initialXml.value = xml;
     }
   } else {
