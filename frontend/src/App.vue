@@ -63,10 +63,13 @@ const BANNER_HEIGHT = 40;
   />
 
   <div
-    class="flex min-h-screen flex-col"
-    :class="showNav ? (auth.impersonating ? 'pt-24' : 'pt-14') : ''"
+    :class="[
+      'flex flex-col',
+      clipsOwnScroll ? 'h-screen overflow-hidden' : 'min-h-screen',
+      showNav ? (auth.impersonating ? 'pt-24' : 'pt-14') : '',
+    ]"
   >
-    <main :class="['flex-1', clipsOwnScroll ? 'overflow-hidden' : '']">
+    <main :class="['flex-1 min-h-0', clipsOwnScroll ? 'overflow-hidden' : '']">
       <RouterView />
     </main>
     <AppFooter v-if="showFooter" />
