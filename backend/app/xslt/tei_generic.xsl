@@ -153,6 +153,52 @@
             display: block;
             margin: 1rem auto;
           }
+          /* ── Abstract / summary ──────────────────────────────────────────── */
+          div.tei-abstract {
+            margin-top: 1rem;
+            border-top: 1px solid #e2e2e2;
+            padding-top: 0.75rem;
+          }
+          p.tei-abstract-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #888;
+            margin: 0 0 0.35rem;
+          }
+          div.tei-abstract p { margin: 0.4em 0; font-size: 0.9rem; color: #444; font-style: italic; }
+          /* ── Notes from notesStmt ────────────────────────────────────────── */
+          div.tei-header-note {
+            margin-top: 0.65rem;
+            border-left: 3px solid #e2e2e2;
+            padding-left: 0.75rem;
+            font-size: 0.85rem;
+            color: #555;
+          }
+          /* ── Sources / bibliography ──────────────────────────────────────── */
+          section.tei-sources {
+            margin-bottom: 2rem;
+            padding: 0.9rem 1.1rem;
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 3px;
+          }
+          p.tei-sources-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #888;
+            margin: 0 0 0.6rem;
+            font-weight: 600;
+          }
+          ul.tei-list-bibl { margin: 0; padding: 0; list-style: none; }
+          li.tei-bibl {
+            font-size: 0.85rem;
+            color: #444;
+            margin: 0.3rem 0;
+            padding-left: 1.25rem;
+            text-indent: -1.25rem;
+          }
         </style>
       </head>
       <body>
@@ -170,7 +216,20 @@
     <header class="tei-header">
       <xsl:apply-templates select="tei:fileDesc/tei:titleStmt"/>
       <xsl:apply-templates select="tei:fileDesc/tei:publicationStmt"/>
+      <!-- Abstract: lives in profileDesc/abstract -->
+      <xsl:apply-templates select="tei:profileDesc/tei:abstract"/>
+      <!-- Summary / descriptive notes from notesStmt -->
+      <xsl:apply-templates select="tei:fileDesc/tei:notesStmt/tei:note[normalize-space(.) != '']"
+                           mode="header-note"/>
     </header>
+    <!-- Bibliography from sourceDesc: rendered as a separate block between
+         the document header and the body text. -->
+    <xsl:if test="tei:fileDesc/tei:sourceDesc//tei:listBibl">
+      <section class="tei-sources">
+        <p class="tei-sources-title">Sources</p>
+        <xsl:apply-templates select="tei:fileDesc/tei:sourceDesc//tei:listBibl"/>
+      </section>
+    </xsl:if>
   </xsl:template>
 
   <xsl:template match="tei:titleStmt">
@@ -204,7 +263,41 @@
   </xsl:template>
 
   <!-- Suppress encoding description and revision history from output -->
-  <xsl:template match="tei:encodingDesc | tei:revisionDesc | tei:profileDesc"/>
+  <xsl:template match="tei:encodingDesc | tei:revisionDesc"/>
+
+  <!-- profileDesc: only abstract is rendered; textClass, langUsage etc. are
+       suppressed to prevent them leaking through the default catch-all. -->
+  <xsl:template match="tei:profileDesc">
+    <xsl:apply-templates select="tei:abstract"/>
+  </xsl:template>
+
+  <!-- Abstract (profileDesc/abstract) ─────────────────────────────────── -->
+  <xsl:template match="tei:abstract">
+    <div class="tei-abstract">
+      <p class="tei-abstract-label">Abstract</p>
+      <xsl:apply-templates/>
+    </div>
+  </xsl:template>
+
+  <!-- Notes from notesStmt — rendered as indented blocks in the header.
+       A mode is used so the general tei:note template (superscript markers
+       for in-body notes) is not inadvertently applied to header notes. -->
+  <xsl:template match="tei:note" mode="header-note">
+    <div class="tei-header-note">
+      <xsl:apply-templates/>
+    </div>
+  </xsl:template>
+
+  <!-- Bibliography: listBibl and bibl ──────────────────────────────────── -->
+  <xsl:template match="tei:listBibl">
+    <ul class="tei-list-bibl">
+      <xsl:apply-templates select="tei:bibl | tei:biblStruct | tei:biblFull"/>
+    </ul>
+  </xsl:template>
+
+  <xsl:template match="tei:bibl | tei:biblStruct | tei:biblFull">
+    <li class="tei-bibl"><xsl:apply-templates/></li>
+  </xsl:template>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- text / body / front / back                                              -->
