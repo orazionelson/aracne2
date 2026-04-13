@@ -933,8 +933,6 @@ async function runValidation(): Promise<void> {
       </button>
     </div>
   </div>
-  </div>
-
   <!-- Media panel sidebar -->
   <MediaPanel
     v-if="showMediaPanel && !isLoading"
@@ -945,6 +943,7 @@ async function runValidation(): Promise<void> {
     @insert-as-card="handleInsertAsCard"
     @close="showMediaPanel = false"
   />
+  </div>
 
   <!-- Note insertion / editing modal -->
   <NoteModal
