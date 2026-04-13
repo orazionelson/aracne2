@@ -332,6 +332,12 @@ async function handleUnpublish(): Promise<void> {
   await doWorkflow(() => store.unpublishCollection(slug));
 }
 
+async function handleDirectPublish(): Promise<void> {
+  if (!confirm(t("collections.direct_publish_confirm"))) return;
+  await doWorkflow(() => store.directPublishCollection(slug, workflowNote.value.trim() || undefined));
+  workflowNote.value = "";
+}
+
 // ── Documents ─────────────────────────────────────────────────────────────────
 const docError = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -1167,6 +1173,28 @@ function statusClass(s: string): string {
           >
             {{ t("collections.unpublish") }}
           </button>
+        </div>
+
+        <!-- Direct publish (Admin/EiC, any status except published) -->
+        <div
+          v-if="isEiC && store.current.status !== 'published'"
+          class="mt-3 border-t border-dashed border-gray-200 pt-3"
+        >
+          <p class="mb-2 text-xs text-gray-400">{{ t("collections.direct_publish_hint") }}</p>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="workflowNote"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              :placeholder="t('collections.workflow_note_optional')"
+            />
+            <button
+              :disabled="isActing"
+              class="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              @click="handleDirectPublish"
+            >
+              {{ t("collections.direct_publish") }}
+            </button>
+          </div>
         </div>
 
         <!-- Quiescent state messages -->

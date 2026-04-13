@@ -51,6 +51,7 @@ from app.services.xmldb import (
     create_collection,
     delete_collection,
     delete_document,
+    direct_publish_collection,
     download_document,
     get_collection,
     get_document_metadata,
@@ -255,6 +256,24 @@ async def collection_publish(
 ) -> DataResponse[CollectionResponse]:
     role: str = request.state.role
     data = await publish_collection(db, collection_id, body, current_user, role)
+    return DataResponse(data=data)
+
+
+@router.post("/{collection_id}/direct-publish")
+async def collection_direct_publish(
+    collection_id: str,
+    body: WorkflowAction,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionResponse]:
+    """Publish a collection directly from any status (EditorInChief+).
+
+    Bypasses the draft → assigned → review → published workflow.
+    Useful for batch imports, manual curation, or emergency publishing.
+    """
+    role: str = request.state.role
+    data = await direct_publish_collection(db, collection_id, body, current_user, role)
     return DataResponse(data=data)
 
 

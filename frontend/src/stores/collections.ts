@@ -291,6 +291,12 @@ export const useCollectionStore = defineStore("collections", () => {
     });
   }
 
+  async function directPublishCollection(id: string, note?: string): Promise<void> {
+    current.value = await apiClient.post<Collection>(`/collections/${id}/direct-publish`, {
+      note: note || undefined,
+    });
+  }
+
   // ── Documents ────────────────────────────────────────────────────────────────
 
   async function fetchDocuments(collectionId: string): Promise<void> {
@@ -411,6 +417,7 @@ export const useCollectionStore = defineStore("collections", () => {
     rejectCollection,
     publishCollection,
     unpublishCollection,
+    directPublishCollection,
     fetchDocuments,
     createDocument,
     uploadDocument,

@@ -592,6 +592,42 @@ async def publish_collection(
     return CollectionResponse.model_validate(col)
 
 
+async def direct_publish_collection(
+    db: AsyncSession,
+    collection_id: str,
+    body: WorkflowAction,
+    actor: User,
+    role: str,
+) -> CollectionResponse:
+    """Publish a collection directly from any status, bypassing the normal workflow.
+
+    Restricted to EditorInChief and Admin. Emits ON_COLLECTION_PUBLISHED and
+    notifies the assigned editor (if any), exactly as the regular publish path does.
+    """
+    _assert_eic(role)
+    col = await _get_or_404(db, collection_id)
+
+    if col.status == CollectionStatus.published:
+        raise ConflictError("Collection is already published")
+
+    col.status = CollectionStatus.published
+    col.published_at = _now()
+
+    if col.editor_id:
+        _notify(
+            db,
+            col.editor_id,
+            "collection.published",
+            f"{_actor_label(actor)} ha pubblicato direttamente: {col.title}",
+            body.note,
+        )
+    _audit(db, "collection.direct_published", actor, col, {"note": body.note})
+    await db.flush()
+    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
+    logger.info("collection_direct_published", slug=col.slug, actor=actor.username)
+    return CollectionResponse.model_validate(col)
+
+
 async def unpublish_collection(
     db: AsyncSession,
     collection_id: str,
