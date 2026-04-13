@@ -1488,17 +1488,53 @@ def _build_search_content() -> str:
 
 # ── XSLT preview ──────────────────────────────────────────────────────────────
 
+def _inline_media_images(html: str, col_slug: str) -> str:
+    """Replace media API ``src`` URLs with inline base64 data URIs.
+
+    The preview iframe cannot send Bearer auth headers for ``<img>`` requests,
+    so images would appear broken.  Reading from the filesystem and inlining
+    them as data URIs is safe for a single-document admin preview.
+    """
+    import base64
+    import mimetypes
+
+    media_root = settings.documents_media_root / col_slug
+
+    def _replace(match: re.Match[str]) -> str:
+        doc_fn = match.group(1)   # e.g. "ara2.1.xml"
+        img_fn = match.group(2)   # e.g. "screenshot.png"
+        img_path = (media_root / doc_fn / img_fn).resolve()
+        # Containment check — must stay inside documents_media_root.
+        try:
+            img_path.relative_to(settings.documents_media_root.resolve())
+        except ValueError:
+            return match.group(0)
+        if not img_path.is_file():
+            return match.group(0)
+        mime = mimetypes.guess_type(str(img_path))[0] or "image/jpeg"
+        data = base64.b64encode(img_path.read_bytes()).decode()
+        return f'src="data:{mime};base64,{data}"'
+
+    prefix = f"/api/v1/collections/{col_slug}/documents/"
+    pattern = r'src="' + re.escape(prefix) + r'([^/]+)/media/([^"]+)"'
+    return re.sub(pattern, _replace, html)
+
+
 async def preview_document(
     db: AsyncSession,
     slug: str,
     filename: str,
     xslt_config_override: dict | None = None,
 ) -> str:
-    """Apply XSLT to a single document and return the body HTML fragment.
+    """Apply XSLT to a single document and return a full preview HTML page.
 
     Used by the admin Document tab to preview rendering before a full build.
     If *xslt_config_override* is provided, it takes precedence over the
     website's saved xslt_config (allows previewing unsaved stylesheet changes).
+
+    Images are inlined as base64 data URIs so they render without auth headers
+    inside the sandboxed preview iframe.
+    Image-rendering CSS overrides from ``image_rendering`` config are applied.
     """
     website = await _get_website(db, slug)
     if website.collection_id is None:
@@ -1517,7 +1553,42 @@ async def preview_document(
     )
     xslt_transform = await _resolve_transform(config)
     doc_body: str = await asyncio.to_thread(xslt_transform, xml_bytes)
-    return doc_body
+
+    # Inject facsimile gallery if enabled in image_rendering config.
+    ir_cfg: dict = config.get("image_rendering") or {}
+    if ir_cfg.get("enabled") and ir_cfg.get("facsimile_gallery"):
+        doc_body = _inject_facsimile_gallery(doc_body, xml_bytes)
+
+    # Inline media images as data URIs (preview iframe has no Bearer auth).
+    doc_body = _inline_media_images(doc_body, col.slug)
+
+    # Build image-rendering CSS overrides so the preview matches the static site.
+    ir_css = _build_image_rendering_css(ir_cfg)
+    ir_style = f"<style>{ir_css}</style>\n" if ir_css else ""
+
+    # Inject modal JS when a modal layout is active.
+    ir_modal = ir_cfg.get("enabled") and (
+        (ir_cfg.get("figure") or {}).get("layout") == "modal"
+        or (ir_cfg.get("pb") or {}).get("layout") == "modal"
+    )
+    modal_script = f"<script>{_IMAGE_MODAL_JS}</script>\n" if ir_modal else ""
+
+    return (
+        "<!DOCTYPE html><html><head>"
+        "<meta charset='UTF-8'>"
+        "<style>body{font-family:Georgia,'Times New Roman',serif;font-size:1rem;"
+        "line-height:1.85;color:#1a1a1a;max-width:780px;margin:2rem auto;"
+        "padding:0 1.25rem;background:#fff;}"
+        "figure{margin:1.5rem auto;max-width:100%;text-align:center;}"
+        "figure img{max-width:100%;height:auto;display:block;margin:0 auto;}"
+        "figure.tei-pb-facsimile{border:1px solid #e5e7eb;border-radius:3px;padding:.5rem;background:#fafafa;}"
+        "</style>"
+        f"{ir_style}"
+        "</head><body>"
+        f'<div class="tei-body">{doc_body}</div>'
+        f"{modal_script}"
+        "</body></html>"
+    )
 
 
 # ── Dynamic / Hybrid rendering ────────────────────────────────────────────────

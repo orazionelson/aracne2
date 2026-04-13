@@ -578,6 +578,8 @@ async function saveEdit(slug: string): Promise<void> {
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
+      nav_config: editForm.value.nav_config as AracnePageConfig[],
+      xslt_config: editForm.value.xslt_config as XsltConfig,
       custom_css: (editForm.value.custom_css as string) || null,
       custom_js: (editForm.value.custom_js as string) || null,
       include_jquery: editForm.value.include_jquery as boolean,
