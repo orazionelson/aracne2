@@ -244,7 +244,12 @@ p { margin-bottom: 1rem; }
 a { color: var(--primary); }
 ul { margin: 0.5rem 0 1rem 1.5rem; }
 li { margin-bottom: 0.3rem; }
-.doc-count { font-size: 0.85rem; color: #6b7280; margin-bottom: 1.5rem; }
+.doc-count { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
+.browse-filter { display:block; width:100%; max-width:30rem; padding:.45rem .75rem;
+  font-size:.9rem; border:1px solid #d1d5db; border-radius:4px; margin-bottom:1.25rem;
+  outline:none; box-sizing:border-box; }
+.browse-filter:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
+.browse-no-results { font-size:.9rem; color:#9ca3af; padding:1rem 0; }
 .doc-list { list-style: none; margin-left: 0; }
 .doc-list li { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0; }
 .doc-list a { font-weight: 500; }
@@ -1723,6 +1728,10 @@ def _build_cover_content(
 def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
     """Return the document list HTML for browse.html / dynamic browse page.
 
+    Includes a live client-side filter input.  Each ``<li>`` carries a
+    ``data-filter`` attribute with the lowercased title + author text so the
+    inline JS can filter without any server round-trip.
+
     *site_base_url*: when set (dynamic/hybrid mode) doc links use absolute paths;
     otherwise relative static paths with .html extension.
     """
@@ -1731,22 +1740,50 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
     for doc in docs:
         filename = _html.escape(doc["filename"])
         label = _html.escape(doc.get("title") or doc["filename"])
+        author = doc.get("author") or ""
+        filter_text = _html.escape((label + " " + author).lower())
         author_line = (
-            f'<div class="doc-meta">{_html.escape(doc["author"])}</div>'
-            if doc.get("author")
+            f'<div class="doc-meta">{_html.escape(author)}</div>'
+            if author
             else ""
         )
         if site_base_url:
             href = f"{site_base_url}/docs/{filename}"
         else:
             href = f"docs/{filename}.html"
-        items += f'<li><a href="{href}">{label}</a>{author_line}</li>\n'
+        items += (
+            f'<li data-filter="{filter_text}">'
+            f'<a href="{href}">{label}</a>{author_line}</li>\n'
+        )
+
+    filter_js = """\
+(function(){
+var inp=document.getElementById('browse-filter');
+var cnt=document.getElementById('browse-count');
+var no=document.getElementById('browse-no-results');
+var total=parseInt(cnt.dataset.total,10);
+inp.addEventListener('input',function(){
+  var q=inp.value.trim().toLowerCase();
+  var items=document.querySelectorAll('.doc-list li');
+  var visible=0;
+  items.forEach(function(li){
+    var match=!q||li.dataset.filter.indexOf(q)!==-1;
+    li.style.display=match?'':'none';
+    if(match)visible++;
+  });
+  cnt.textContent=q?(visible+' of '+total+' document'+(total!==1?'s':'')):(total+' document'+(total!==1?'s':''));
+  no.style.display=(visible===0&&q)?'':'none';
+});
+})();"""
 
     return f"""<h1>Documents</h1>
-<p class="doc-count">{count} document{'s' if count != 1 else ''}</p>
+<input type="search" id="browse-filter" class="browse-filter" placeholder="Filter documents\u2026" autocomplete="off">
+<p class="doc-count" id="browse-count" data-total="{count}">{count} document{'s' if count != 1 else ''}</p>
+<p class="browse-no-results" id="browse-no-results" style="display:none">No documents match your filter.</p>
 <ul class="doc-list">
 {items}
-</ul>"""
+</ul>
+<script>{filter_js}</script>"""
 
 
 def _extract_plain_text(xml_bytes: bytes) -> str:
