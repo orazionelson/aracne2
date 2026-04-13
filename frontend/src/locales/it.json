@@ -508,6 +508,8 @@
     "theme_footer_text": "Colore del testo",
     "theme_header_section": "Header",
     "theme_hide_header": "Nascondi header",
+    "theme_fixed_header": "Header fisso",
+    "theme_fixed_header_hint": "La barra di navigazione rimane fissa in cima durante lo scorrimento della pagina.",
     "theme_logo": "URL logo nella navbar",
     "theme_logo_hint": "URL assoluto o percorso relativo (es. /logo.png) — lascia vuoto per nessun logo",
     "theme_widgets": "Widget",
