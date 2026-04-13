@@ -95,7 +95,7 @@ function formatSize(bytes: number): string {
 </script>
 
 <template>
-  <div class="flex w-80 flex-shrink-0 flex-col border-l border-gray-200 bg-white">
+  <div class="flex flex-shrink-0 flex-col bg-white" style="min-width: 240px;">
     <!-- Header -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
       <span class="text-sm font-semibold text-gray-700">{{ t('media.panel_title') }}</span>

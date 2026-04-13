@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -101,6 +101,36 @@ const bodyCm = useCodeMirror(bodyEditorContainer, {
 
 // ── Media panel ───────────────────────────────────────────────────────────────
 const showMediaPanel = ref(false);
+
+// ── Panel resize ──────────────────────────────────────────────────────────────
+const PANEL_MIN_PX = 240;
+const PANEL_MAX_PX = 720;
+const panelWidth    = ref(384);   // initial width matching w-96
+const isDragging    = ref(false);
+const dragStartX    = ref(0);
+const dragStartW    = ref(0);
+
+const anyPanelOpen = computed(
+  () => showHelpPanel.value || showAiPanel.value || showMediaPanel.value,
+);
+
+function startPanelDrag(e: MouseEvent): void {
+  isDragging.value  = true;
+  dragStartX.value  = e.clientX;
+  dragStartW.value  = panelWidth.value;
+  e.preventDefault();
+}
+
+function onPanelDragMove(e: MouseEvent): void {
+  if (!isDragging.value) return;
+  // Dragging left (negative delta) widens the panel.
+  const delta = dragStartX.value - e.clientX;
+  panelWidth.value = Math.max(PANEL_MIN_PX, Math.min(PANEL_MAX_PX, dragStartW.value + delta));
+}
+
+function onPanelDragEnd(): void {
+  isDragging.value = false;
+}
 
 // ── TEI Help panel ────────────────────────────────────────────────────────────
 const showHelpPanel = ref(false);
@@ -374,6 +404,14 @@ onMounted(async () => {
   isLoading.value = false;
   // Fetch AI config to know whether to show the AI button (non-fatal).
   try { await aiStore.fetchConfig(); } catch { /* non-fatal */ }
+
+  document.addEventListener('mousemove', onPanelDragMove);
+  document.addEventListener('mouseup',   onPanelDragEnd);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onPanelDragMove);
+  document.removeEventListener('mouseup',   onPanelDragEnd);
 });
 
 // ── Note insertion / editing ───────────────────────────────────────────────────
@@ -574,7 +612,7 @@ async function runValidation(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-3.5rem)] flex-row">
+  <div class="flex h-[calc(100vh-3.5rem)] flex-row" :class="isDragging ? 'select-none' : ''">
   <!-- Main editor column -->
   <div class="flex min-w-0 flex-1 flex-col px-4 py-4">
     <!-- Header bar -->
@@ -883,10 +921,25 @@ async function runValidation(): Promise<void> {
       </table>
     </div>
   </div>
+
+  <!-- Panel resize handle — appears between editor and any open panel -->
+  <div
+    v-if="anyPanelOpen"
+    class="group relative z-10 flex w-[5px] flex-shrink-0 cursor-col-resize select-none items-center justify-center transition-colors"
+    :class="isDragging ? 'bg-indigo-400' : 'bg-gray-200 hover:bg-indigo-400'"
+    @mousedown="startPanelDrag"
+  >
+    <!-- Grip dots -->
+    <div class="pointer-events-none flex flex-col gap-[3px]">
+      <span v-for="i in 5" :key="i" class="h-[3px] w-[3px] rounded-full transition-colors" :class="isDragging ? 'bg-white' : 'bg-gray-400 group-hover:bg-white'"/>
+    </div>
+  </div>
+
   <!-- TEI Help panel -->
   <div
     v-if="showHelpPanel"
-    class="flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white"
+    class="flex flex-shrink-0 flex-col bg-white"
+    :style="{ width: panelWidth + 'px' }"
   >
     <!-- Panel header -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
@@ -948,7 +1001,8 @@ async function runValidation(): Promise<void> {
   <!-- AI sidebar panel -->
   <div
     v-if="showAiPanel"
-    class="flex w-96 flex-shrink-0 flex-col border-l border-gray-200 bg-white"
+    class="flex flex-shrink-0 flex-col bg-white"
+    :style="{ width: panelWidth + 'px' }"
   >
     <!-- Header with action buttons -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
@@ -1009,6 +1063,7 @@ async function runValidation(): Promise<void> {
     :slug="slug"
     :doc-filename="filename"
     :surfaces="surfaces"
+    :style="{ width: panelWidth + 'px' }"
     @insert-figure="handleInsertFigure"
     @insert-as-card="handleInsertAsCard"
     @close="showMediaPanel = false"
