@@ -95,7 +95,10 @@ export const useMediaStore = defineStore('media', () => {
    */
   async function fetchBlobUrl(apiUrl: string): Promise<string | null> {
     try {
-      const res = await api.get<Blob>(apiUrl, { responseType: 'blob' });
+      // item.url from the backend already contains the full "/api/v1/..." prefix.
+      // Strip it so the api Axios instance (baseURL: "/api/v1") does not double it.
+      const path = apiUrl.startsWith('/api/v1') ? apiUrl.slice('/api/v1'.length) : apiUrl;
+      const res = await api.get<Blob>(path, { responseType: 'blob' });
       return URL.createObjectURL(res.data);
     } catch {
       return null;
