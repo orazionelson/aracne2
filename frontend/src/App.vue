@@ -21,8 +21,10 @@ onMounted(() => { uiConfig.fetchConfig(); });
 // Show navbar on all authenticated pages; hide on login and 404
 const showNav = computed(() => auth.isAuthenticated && route.name !== "not-found");
 
-// Show footer everywhere except login and 404
-const showFooter = computed(() => route.name !== "login" && route.name !== "not-found");
+// Show footer everywhere except login, 404 and the full-bleed document editor
+const showFooter = computed(() =>
+  route.name !== "login" && route.name !== "not-found" && route.name !== "document-edit"
+);
 
 // Full-bleed views that manage their own scroll: suppress <main> overflow so
 // the view's internal flex layout (not the page body) controls scrolling.
