@@ -402,6 +402,34 @@ function handleInsertAsCard(mediaUrl: string): void {
   singleCm.insertPageBreak(addSurface(mediaUrl));
 }
 
+/**
+ * Called when a media file is deleted from storage.
+ * Removes dead references from the editor:
+ *   1. The linked <surface> (if any) from <facsimile> + its facs="#id" on <pb>.
+ *   2. Any self-closing <graphic url="mediaUrl"/> elements in the document body.
+ */
+function handleCleanupMediaRefs(mediaUrl: string): void {
+  // 1. Remove linked surface if present.
+  const surface = surfaces.value.find((s) => s.url === mediaUrl);
+  if (surface) {
+    deleteSurface(surface.id);
+  }
+
+  // 2. Strip inline <graphic> elements pointing to this URL.
+  //    The URL may contain regex-special chars (slashes, dots, brackets) — escape them.
+  const escapedUrl = mediaUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const graphicRe = new RegExp(
+    `\\s*<graphic\\b[^>]*\\burl="${escapedUrl}"[^>]*/?>`,
+    'g',
+  );
+  const current = singleCm.getValue();
+  const cleaned = current.replace(graphicRe, '');
+  if (cleaned !== current) {
+    singleCm.setValue(cleaned);
+    saved.value = false;
+  }
+}
+
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(): Promise<void> {
   saveError.value = null;
@@ -904,6 +932,7 @@ async function runValidation(): Promise<void> {
     @insert-figure="handleInsertFigure"
     @insert-as-card="handleInsertAsCard"
     @delete-surface="deleteSurface"
+    @cleanup-media-refs="handleCleanupMediaRefs"
     @close="showMediaPanel = false"
   />
   </div>

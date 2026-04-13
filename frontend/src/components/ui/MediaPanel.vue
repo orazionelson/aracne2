@@ -23,6 +23,12 @@ const emit = defineEmits<{
   (e: 'insertAsCard', url: string): void;
   /** Removes <surface xml:id="id"> from <facsimile> and strips facs="#id" from all <pb>. */
   (e: 'deleteSurface', surfaceId: string): void;
+  /**
+   * Fired after a media file is successfully deleted from storage.
+   * The parent must strip dead <graphic url="mediaUrl"> references from the
+   * editor and remove the linked <surface> (if any) from <facsimile>.
+   */
+  (e: 'cleanupMediaRefs', mediaUrl: string): void;
   (e: 'close'): void;
 }>();
 
@@ -87,12 +93,18 @@ async function handleUpload(event: Event): Promise<void> {
 
 async function handleDelete(filename: string): Promise<void> {
   confirmDeleteFilename.value = null;
+  // Capture the URL before the item disappears from the store.
+  const item = store.items.find((i) => i.filename === filename);
   const ok = await store.deleteMedia(props.slug, props.docFilename, filename);
-  if (ok && blobUrls.value[filename]) {
-    URL.revokeObjectURL(blobUrls.value[filename]);
-    const updated = { ...blobUrls.value };
-    delete updated[filename];
-    blobUrls.value = updated;
+  if (ok) {
+    if (blobUrls.value[filename]) {
+      URL.revokeObjectURL(blobUrls.value[filename]);
+      const updated = { ...blobUrls.value };
+      delete updated[filename];
+      blobUrls.value = updated;
+    }
+    // Ask the parent to clean up any dead XML references to this file.
+    if (item) emit('cleanupMediaRefs', item.url);
   }
 }
 
