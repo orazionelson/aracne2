@@ -593,6 +593,8 @@
     "doc_img_layout_col_left": "Column left (outside text)",
     "doc_img_layout_col_right": "Column right (outside text)",
     "doc_img_layout_modal": "Modal on click",
+    "doc_img_layout_oto": "One-to-one (facing facsimile viewer)",
+    "doc_img_layout_oto_hint": "The left column displays the current facsimile page (updates as you scroll). The right column contains the text. All other figures open as modals.",
     "doc_img_gallery": "Show facsimile gallery at document top",
     "doc_img_gallery_hint": "Thumbnails of all <pb facs> surfaces, collected before the text.",
     "doc_img_connectors": "Connect images to text anchors",

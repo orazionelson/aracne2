@@ -531,6 +531,36 @@ def _build_image_rendering_css(cfg: dict) -> str:
                 lines.append(
                     "figure.tei-pb-facsimile{max-width:120px;margin:1rem auto;}"
                 )
+        elif pb_layout == "one-to-one":
+            # Facsimile figures are hidden inline; JS moves them into the panel.
+            lines.append("figure.tei-pb-facsimile{display:none!important;}")
+            # Other figures become modal-clickable (modal JS handles the overlay).
+            lines.append("figure.tei-figure img{cursor:zoom-in;}")
+            # Two-column grid: panel (left) + text (right).
+            lines.append(
+                ".oto-layout{display:grid;grid-template-columns:1fr 1fr;"
+                "gap:2rem;align-items:start;}"
+                ".oto-panel{position:sticky;top:4rem;"
+                "max-height:calc(100vh - 6rem);"
+                "display:flex;flex-direction:column;gap:.5rem;"
+                "background:#f9fafb;border:1px solid #e5e7eb;"
+                "border-radius:6px;padding:.75rem;}"
+                ".oto-img{width:100%;height:auto;"
+                "max-height:calc(100vh - 11rem);"
+                "object-fit:contain;display:block;}"
+                ".oto-nav{display:flex;align-items:center;"
+                "justify-content:center;gap:.6rem;flex-shrink:0;}"
+                ".oto-nav-btn{background:#f3f4f6;border:1px solid #d1d5db;"
+                "border-radius:4px;padding:.2rem .55rem;cursor:pointer;"
+                "font-size:.85rem;line-height:1.4;color:#374151;}"
+                ".oto-nav-btn:disabled{opacity:.3;cursor:default;}"
+                ".oto-nav-btn:hover:not(:disabled){background:#e5e7eb;}"
+                ".oto-nav-counter{font-size:.75rem;color:#6b7280;font-family:monospace;}"
+                "@media(max-width:720px){"
+                ".oto-layout{display:block!important;}"
+                ".oto-panel{position:static;max-height:60vw;}"
+                "}"
+            )
 
     # ── dedicated column layout (left / right) ────────────────────────────────
     # Determine which selectors need a column and which side they go to.
@@ -771,6 +801,113 @@ def _build_image_column_js(cfg: dict) -> str:
 
     js += "})();"
     return js
+
+
+def _build_one_to_one_js(cfg: dict) -> str:
+    """Return JS that sets up the one-to-one facsimile viewer layout.
+
+    Two-column layout: sticky image panel on the left (showing the current
+    facsimile page), scrollable document text on the right.
+    IntersectionObserver updates the panel image automatically as the reader
+    scrolls through ``<pb facs>`` boundaries.  Prev/next buttons allow manual
+    navigation.  All ``<figure class="tei-figure">`` images remain as modal
+    triggers (their cursor:zoom-in CSS is set by _build_image_rendering_css;
+    _IMAGE_MODAL_JS handles the actual overlay).
+    """
+    if not cfg or not cfg.get("enabled"):
+        return ""
+    pb = cfg.get("pb", {}) or {}
+    if pb.get("layout") != "one-to-one":
+        return ""
+
+    return (
+        "(function(){"
+        "var body=document.querySelector('.tei-body');"
+        "if(!body)return;"
+        # Collect facsimile figures in document order.
+        "var figs=Array.prototype.slice.call(body.querySelectorAll('figure.tei-pb-facsimile'));"
+        "if(!figs.length)return;"
+        # Extract the src of each figure's <img> (figures are display:none via CSS;
+        # their img.src is still accessible before they are moved to the panel).
+        "var pages=figs.map(function(f){"
+        "var img=f.querySelector('img');"
+        "return{src:img?img.src:'',fig:f};"
+        "});"
+        # Insert invisible zero-height anchors immediately before each figure so
+        # IntersectionObserver has something to watch (display:none elements have
+        # no layout and getBoundingClientRect() returns zeros).
+        "var anchors=pages.map(function(p,i){"
+        "var a=document.createElement('span');"
+        "a.style.cssText='display:block;height:0;overflow:hidden;';"
+        "a.dataset.otoIdx=String(i);"
+        "p.fig.parentNode.insertBefore(a,p.fig);"
+        "return a;"
+        "});"
+        # Build the two-column wrapper grid.
+        "var layout=document.createElement('div');"
+        "layout.className='oto-layout';"
+        "body.parentNode.insertBefore(layout,body);"
+        # Build the image panel (left column).
+        "var panel=document.createElement('div');"
+        "panel.className='oto-panel';"
+        "var imgEl=document.createElement('img');"
+        "imgEl.className='oto-img';"
+        "imgEl.alt='';"
+        # Navigation bar: ← counter →
+        "var nav=document.createElement('div');"
+        "nav.className='oto-nav';"
+        "var prevBtn=document.createElement('button');"
+        "prevBtn.className='oto-nav-btn';"
+        "prevBtn.innerHTML='&#8592;';"
+        "var counter=document.createElement('span');"
+        "counter.className='oto-nav-counter';"
+        "var nextBtn=document.createElement('button');"
+        "nextBtn.className='oto-nav-btn';"
+        "nextBtn.innerHTML='&#8594;';"
+        "nav.appendChild(prevBtn);nav.appendChild(counter);nav.appendChild(nextBtn);"
+        "panel.appendChild(imgEl);panel.appendChild(nav);"
+        # Left panel first, text body second.
+        "layout.appendChild(panel);layout.appendChild(body);"
+        # State.
+        "var cur=0;"
+        "function goTo(i){"
+        "cur=i;"
+        "imgEl.src=pages[i].src;"
+        "counter.textContent=(i+1)+' / '+pages.length;"
+        "prevBtn.disabled=i===0;"
+        "nextBtn.disabled=i===pages.length-1;"
+        "}"
+        "goTo(0);"
+        # Manual prev / next — scroll the corresponding anchor into view.
+        "prevBtn.addEventListener('click',function(){"
+        "if(cur>0){cur--;goTo(cur);"
+        "anchors[cur].scrollIntoView({behavior:'smooth',block:'start'});}"
+        "});"
+        "nextBtn.addEventListener('click',function(){"
+        "if(cur<pages.length-1){cur++;goTo(cur);"
+        "anchors[cur].scrollIntoView({behavior:'smooth',block:'start'});}"
+        "});"
+        # IntersectionObserver: track which anchors are in the top 60 % of the
+        # viewport and show the image for the first (earliest) visible one.
+        # rootMargin '0px 0px -40% 0px' means an anchor only counts as
+        # 'intersecting' when it is above the 60 % mark of the viewport height.
+        "if(typeof IntersectionObserver!=='undefined'){"
+        "var vis={};"
+        "var obs=new IntersectionObserver(function(entries){"
+        "entries.forEach(function(e){"
+        "vis[e.target.dataset.otoIdx]=e.isIntersecting;"
+        "});"
+        "var first=-1;"
+        "for(var k in vis){"
+        "if(vis[k]){var ki=parseInt(k,10);"
+        "if(first===-1||ki<first)first=ki;}"
+        "}"
+        "if(first!==-1&&first!==cur)goTo(first);"
+        "},{rootMargin:'0px 0px -40% 0px',threshold:0});"
+        "anchors.forEach(function(a){obs.observe(a);});"
+        "}"
+        "})();"
+    )
 
 
 def _build_note_rendering_css(cfg: dict) -> str:
@@ -2120,11 +2257,13 @@ async def preview_document(
     ir_modal  = bool(ir_cfg.get("enabled")) and (
         ir_fig_layout == "modal" or ir_pb_layout == "modal"
         or bool(ir_cfg.get("facsimile_gallery"))
+        or ir_pb_layout == "one-to-one"  # OTO makes all figures modal-clickable
     )
     ir_column = bool(ir_cfg.get("enabled")) and (
         ir_fig_layout in ("column-left", "column-right")
         or ir_pb_layout in ("column-left", "column-right")
     )
+    ir_oto = bool(ir_cfg.get("enabled")) and ir_pb_layout == "one-to-one"
     # Build note-rendering CSS/JS overrides.
     nr_cfg: dict = config.get("note_rendering") or {}
     nr_css: str = _build_note_rendering_css(nr_cfg)
@@ -2136,14 +2275,15 @@ async def preview_document(
         extra_scripts += f"<script>{_IMAGE_MODAL_JS}</script>\n"
     if ir_column:
         extra_scripts += f"<script>{_build_image_column_js(ir_cfg)}</script>\n"
+    if ir_oto:
+        extra_scripts += f"<script>{_build_one_to_one_js(ir_cfg)}</script>\n"
     if nr_js:
         extra_scripts += f"<script>{nr_js}</script>\n"
 
-    # For the column preview the preview body needs a <main> wrapper so the
-    # column JS can find document.querySelector('main').
+    # Column and OTO previews need a <main> wrapper so JS can find .tei-body's parent.
     body_content = (
         f'<main><div class="tei-body">{doc_body}</div></main>'
-        if ir_column
+        if ir_column or ir_oto
         else f'<div class="tei-body">{doc_body}</div>'
     )
 
@@ -3427,11 +3567,13 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     _ir_modal: bool = _ir_enabled and (
         _ir_fig_layout == "modal" or _ir_pb_layout == "modal"
         or _ir_gallery
+        or _ir_pb_layout == "one-to-one"  # OTO makes all figures modal-clickable
     )
     _ir_column: bool = _ir_enabled and (
         _ir_fig_layout in ("column-left", "column-right")
         or _ir_pb_layout in ("column-left", "column-right")
     )
+    _ir_oto: bool = _ir_enabled and _ir_pb_layout == "one-to-one"
     # Note rendering configuration.
     _nr_cfg: dict = (website.xslt_config or {}).get("note_rendering") or {}
     _nr_css: str = _build_note_rendering_css(_nr_cfg)
@@ -3442,12 +3584,14 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     # non-doc pages share the same style but show no TEI content).
     doc_style = _style_block(theme, website.custom_css, _doc_extra_css)
     style = _style_block(theme, website.custom_css)
-    # Append modal, column and note-rendering JS to site's custom JS when active.
+    # Append modal, column, OTO and note-rendering JS to site's custom JS when active.
     custom_js = website.custom_js
     if _ir_modal:
         custom_js = (custom_js or "") + "\n" + _IMAGE_MODAL_JS
     if _ir_column:
         custom_js = (custom_js or "") + "\n" + _build_image_column_js(_ir_cfg)
+    if _ir_oto:
+        custom_js = (custom_js or "") + "\n" + _build_one_to_one_js(_ir_cfg)
     if _nr_js:
         custom_js = (custom_js or "") + "\n" + _nr_js
     include_jquery = website.include_jquery

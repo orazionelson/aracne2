@@ -1745,7 +1745,12 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                       <option value="column-left">{{ t("websites.doc_img_layout_col_left") }}</option>
                       <option value="column-right">{{ t("websites.doc_img_layout_col_right") }}</option>
                       <option value="modal">{{ t("websites.doc_img_layout_modal") }}</option>
+                      <option value="one-to-one">{{ t("websites.doc_img_layout_oto") }}</option>
                     </select>
+                    <p
+                      v-if="(editForm.xslt_config as XsltConfig).image_rendering!.pb.layout === 'one-to-one'"
+                      class="mt-1 text-xs text-indigo-600"
+                    >{{ t("websites.doc_img_layout_oto_hint") }}</p>
                   </div>
                 </div>
               </template>
