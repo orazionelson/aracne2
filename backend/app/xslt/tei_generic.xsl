@@ -69,6 +69,28 @@
             margin: 0.8rem 0 0.4rem;
             letter-spacing: 0.05em;
           }
+          figure.tei-pb-facsimile {
+            display: block;
+            margin: 2rem auto;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+            border-radius: 3px;
+            padding: 0.5rem;
+            background: #fafafa;
+          }
+          figure.tei-pb-facsimile img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+          }
+          figcaption.tei-pb-label {
+            margin-top: 0.3rem;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            font-family: monospace;
+            letter-spacing: 0.04em;
+          }
           span.tei-cb { color: #bbb; margin: 0 0.2em; }
           /* ── Named entities ──────────────────────────────────────────────── */
           span.tei-persname  { color: #9b3000; border-bottom: 1px dotted #9b3000; }
@@ -293,12 +315,33 @@
   </xsl:template>
 
   <xsl:template match="tei:pb">
-    <span class="tei-pb">
-      <xsl:choose>
-        <xsl:when test="@n">[p. <xsl:value-of select="@n"/>]</xsl:when>
-        <xsl:otherwise>[&#x2015;]</xsl:otherwise>
-      </xsl:choose>
-    </span>
+    <xsl:choose>
+      <!-- @facs="#id" — look up the surface in the facsimile block and show its image -->
+      <xsl:when test="@facs and starts-with(@facs, '#')">
+        <xsl:variable name="surf-id" select="substring-after(@facs, '#')"/>
+        <xsl:variable name="img-url"
+          select="//tei:surface[@xml:id = $surf-id]/tei:graphic/@url"/>
+        <figure class="tei-pb-facsimile">
+          <xsl:if test="$img-url != ''">
+            <img src="{$img-url}" alt="Facsimile {$surf-id}" class="tei-pb-img"/>
+          </xsl:if>
+          <figcaption class="tei-pb-label">
+            <xsl:choose>
+              <xsl:when test="@n">p. <xsl:value-of select="@n"/></xsl:when>
+              <xsl:otherwise>#<xsl:value-of select="$surf-id"/></xsl:otherwise>
+            </xsl:choose>
+          </figcaption>
+        </figure>
+      </xsl:when>
+      <!-- @n only — show page number inline -->
+      <xsl:when test="@n">
+        <span class="tei-pb">[p. <xsl:value-of select="@n"/>]</span>
+      </xsl:when>
+      <!-- bare <pb/> — horizontal rule marker -->
+      <xsl:otherwise>
+        <span class="tei-pb">[&#x2015;]</span>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
