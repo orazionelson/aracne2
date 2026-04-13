@@ -254,6 +254,15 @@ li { margin-bottom: 0.3rem; }
 .doc-list li { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0; }
 .doc-list a { font-weight: 500; }
 .doc-meta { font-size: 0.85rem; color: #6b7280; margin-top: 0.2rem; }
+.browse-pagination { display:flex; align-items:center; gap:.35rem;
+  flex-wrap:wrap; margin-top:1.5rem; }
+.browse-pagination button { padding:.3rem .65rem; font-size:.82rem; border:1px solid #d1d5db;
+  border-radius:3px; background:#fff; cursor:pointer; line-height:1.4; }
+.browse-pagination button:hover:not(:disabled) { background:#f3f4f6; }
+.browse-pagination button.active { background:var(--primary); color:#fff;
+  border-color:var(--primary); font-weight:600; }
+.browse-pagination button:disabled { opacity:.4; cursor:default; }
+.browse-pagination .pg-ellipsis { padding:.3rem .3rem; font-size:.82rem; color:#9ca3af; }
 /* ── Document page — TEI header banner ── */
 .tei-header {
   background: var(--doc-banner-bg);
@@ -1725,15 +1734,22 @@ def _build_cover_content(
     return hero + grid
 
 
+_BROWSE_PAGE_SIZE = 20
+
+
 def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
     """Return the document list HTML for browse.html / dynamic browse page.
 
-    Includes a live client-side filter input.  Each ``<li>`` carries a
-    ``data-filter`` attribute with the lowercased title + author text so the
-    inline JS can filter without any server round-trip.
+    Features:
+    - Live text filter (title + author substring match, case-insensitive).
+    - Client-side pagination (*_BROWSE_PAGE_SIZE* items per page).
+    - Filter resets to page 1; pagination controls update dynamically.
 
-    *site_base_url*: when set (dynamic/hybrid mode) doc links use absolute paths;
-    otherwise relative static paths with .html extension.
+    Each ``<li>`` carries a ``data-filter`` attribute (lowercased title +
+    author) so the inline JS never needs a server round-trip.
+
+    *site_base_url*: when set (dynamic/hybrid mode) doc links use absolute
+    paths; otherwise relative static paths with .html extension.
     """
     count = len(docs)
     items = ""
@@ -1756,25 +1772,71 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
             f'<a href="{href}">{label}</a>{author_line}</li>\n'
         )
 
-    filter_js = """\
-(function(){
+    js = f"""\
+(function(){{
+var PAGE_SIZE={_BROWSE_PAGE_SIZE};
 var inp=document.getElementById('browse-filter');
 var cnt=document.getElementById('browse-count');
 var no=document.getElementById('browse-no-results');
-var total=parseInt(cnt.dataset.total,10);
-inp.addEventListener('input',function(){
+var pg=document.getElementById('browse-pagination');
+var allItems=Array.from(document.querySelectorAll('.doc-list li'));
+var filtered=allItems.slice();
+var currentPage=1;
+
+function render(){{
+  var total=filtered.length;
+  var pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>pages)currentPage=pages;
+  var start=(currentPage-1)*PAGE_SIZE;
+  var end=start+PAGE_SIZE;
+  allItems.forEach(function(li){{li.style.display='none';}});
+  filtered.forEach(function(li,i){{li.style.display=(i>=start&&i<end)?'':'none';}});
+  // count label
+  var q=inp.value.trim();
+  if(q){{
+    cnt.textContent=total+' of {count} document'+(({count})!==1?'s':'')+' matching \u201c'+q+'\u201d';
+  }}else{{
+    cnt.textContent=total+' document'+(total!==1?'s':'');
+  }}
+  no.style.display=(total===0&&q)?'':'none';
+  // pagination
+  pg.innerHTML='';
+  if(pages<=1)return;
+  function btn(label,page,disabled,active){{
+    var b=document.createElement('button');
+    b.textContent=label;
+    if(disabled)b.disabled=true;
+    if(active)b.className='active';
+    if(!disabled)b.addEventListener('click',function(){{currentPage=page;render();}});
+    return b;
+  }}
+  pg.appendChild(btn('\u2039 Prev',currentPage-1,currentPage===1,false));
+  // page window: always show first, last, and up to 3 pages around current
+  var shown=[];
+  for(var i=1;i<=pages;i++){{
+    if(i===1||i===pages||Math.abs(i-currentPage)<=1)shown.push(i);
+  }}
+  var prev=0;
+  shown.forEach(function(p){{
+    if(prev&&p-prev>1){{
+      var sp=document.createElement('span');
+      sp.className='pg-ellipsis';sp.textContent='\u2026';pg.appendChild(sp);
+    }}
+    pg.appendChild(btn(String(p),p,false,p===currentPage));
+    prev=p;
+  }});
+  pg.appendChild(btn('Next \u203a',currentPage+1,currentPage===pages,false));
+}}
+
+inp.addEventListener('input',function(){{
   var q=inp.value.trim().toLowerCase();
-  var items=document.querySelectorAll('.doc-list li');
-  var visible=0;
-  items.forEach(function(li){
-    var match=!q||li.dataset.filter.indexOf(q)!==-1;
-    li.style.display=match?'':'none';
-    if(match)visible++;
-  });
-  cnt.textContent=q?(visible+' of '+total+' document'+(total!==1?'s':'')):(total+' document'+(total!==1?'s':''));
-  no.style.display=(visible===0&&q)?'':'none';
-});
-})();"""
+  filtered=q?allItems.filter(function(li){{return li.dataset.filter.indexOf(q)!==-1;}}):allItems.slice();
+  currentPage=1;
+  render();
+}});
+
+render();
+}})();"""
 
     return f"""<h1>Documents</h1>
 <input type="search" id="browse-filter" class="browse-filter" placeholder="Filter documents\u2026" autocomplete="off">
@@ -1783,7 +1845,8 @@ inp.addEventListener('input',function(){
 <ul class="doc-list">
 {items}
 </ul>
-<script>{filter_js}</script>"""
+<div class="browse-pagination" id="browse-pagination"></div>
+<script>{js}</script>"""
 
 
 def _extract_plain_text(xml_bytes: bytes) -> str:
