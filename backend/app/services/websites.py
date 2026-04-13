@@ -518,17 +518,18 @@ def _build_image_rendering_css(cfg: dict) -> str:
         col_side = "left" if pb_layout == "column-left" else "right"
 
     if col_selectors:
-        # Override main to a two-column grid.  The sidebar slot is 260px wide;
-        # the text column takes the remaining space.
+        # Apply the two-column grid to a wrapper div (.col-layout-wrapper) that
+        # the JS creates around .tei-body only.  This avoids pulling unrelated
+        # siblings of <main> (e.g. breadcrumb <nav>) into the grid.
         if col_side == "right":
             lines.append(
-                "main{display:grid;grid-template-columns:1fr 260px;"
-                "gap:2.5rem;align-items:start;max-width:1100px;}"
+                ".col-layout-wrapper{display:grid;grid-template-columns:1fr 260px;"
+                "gap:2.5rem;align-items:start;}"
             )
         else:
             lines.append(
-                "main{display:grid;grid-template-columns:260px 1fr;"
-                "gap:2.5rem;align-items:start;max-width:1100px;}"
+                ".col-layout-wrapper{display:grid;grid-template-columns:260px 1fr;"
+                "gap:2.5rem;align-items:start;}"
             )
         lines.append(
             ".tei-body{min-width:0;}"
@@ -546,7 +547,7 @@ def _build_image_rendering_css(cfg: dict) -> str:
         # Responsive: stack vertically on narrow screens.
         lines.append(
             "@media(max-width:700px){"
-            "main{grid-template-columns:1fr!important;}"
+            ".col-layout-wrapper{grid-template-columns:1fr!important;}"
             ".img-sidebar{position:static;max-height:none;}"
             "}"
         )
@@ -601,13 +602,20 @@ def _build_image_column_js(cfg: dict) -> str:
     sel_js = ",".join(selectors)
     return (
         "(function(){"
-        "var main=document.querySelector('main');"
-        "if(!main)return;"
-        f"var figs=main.querySelectorAll('{sel_js}');"
+        # Find .tei-body — the grid must wrap only this element, not all of <main>.
+        "var body=document.querySelector('.tei-body');"
+        "if(!body)return;"
+        f"var figs=body.querySelectorAll('{sel_js}');"
         "if(!figs.length)return;"
+        # Create wrapper, replace .tei-body in DOM, move .tei-body inside wrapper.
+        "var wrapper=document.createElement('div');"
+        "wrapper.className='col-layout-wrapper';"
+        "body.parentNode.insertBefore(wrapper,body);"
+        "wrapper.appendChild(body);"
+        # Create sidebar and place it on the correct side.
         "var sb=document.createElement('div');"
         "sb.className='img-sidebar';"
-        f"if('{side}'==='right'){{main.appendChild(sb);}}else{{main.insertBefore(sb,main.firstChild);}}"
+        f"if('{side}'==='right'){{wrapper.appendChild(sb);}}else{{wrapper.insertBefore(sb,body);}}"
         "figs.forEach(function(f){sb.appendChild(f);f.style.display='block';});"
         "})();"
     )
