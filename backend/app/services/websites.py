@@ -258,6 +258,16 @@ li { margin-bottom: 0.3rem; }
 .doc-meta .doc-author { display: inline; }
 .doc-meta .doc-filename { display: inline; font-family: monospace; font-size: 0.8rem;
   color: #9ca3af; margin-left: 0.5rem; }
+.browse-toolbar { display:flex; align-items:center; flex-wrap:wrap;
+  gap:.5rem; margin-bottom:1rem; }
+.browse-sort-label { font-size:.8rem; color:#6b7280; white-space:nowrap; }
+.browse-sort-btn { padding:.25rem .6rem; font-size:.8rem; border:1px solid #d1d5db;
+  border-radius:3px; background:#fff; cursor:pointer; display:inline-flex;
+  align-items:center; gap:.25rem; }
+.browse-sort-btn:hover { background:#f3f4f6; }
+.browse-sort-btn.sort-active { border-color:var(--primary); color:var(--primary);
+  font-weight:600; }
+.browse-sort-btn .sort-arrow { font-size:.7rem; }
 .browse-pagination { display:flex; align-items:center; gap:.35rem;
   flex-wrap:wrap; margin-top:1.5rem; }
 .browse-pagination button { padding:.3rem .65rem; font-size:.82rem; border:1px solid #d1d5db;
@@ -1779,8 +1789,14 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
             href = f"{site_base_url}/docs/{filename}"
         else:
             href = f"docs/{filename}.html"
+        sort_title = _html.escape(label.lower())
+        sort_author = _html.escape(author.lower())
+        sort_filename = _html.escape(doc["filename"].lower())
         items += (
-            f'<li data-filter="{filter_text}">'
+            f'<li data-filter="{filter_text}"'
+            f' data-title="{sort_title}"'
+            f' data-author="{sort_author}"'
+            f' data-filename="{sort_filename}">'
             f'<a href="{href}" class="doc-title">{label}</a>'
             f'{meta_line}</li>\n'
         )
@@ -1792,9 +1808,26 @@ var inp=document.getElementById('browse-filter');
 var cnt=document.getElementById('browse-count');
 var no=document.getElementById('browse-no-results');
 var pg=document.getElementById('browse-pagination');
-var allItems=Array.from(document.querySelectorAll('.doc-list li'));
+var list=document.querySelector('.doc-list');
+var allItems=Array.from(list.querySelectorAll('li'));
 var filtered=allItems.slice();
 var currentPage=1;
+var sortKey='title';
+var sortDir=1; // 1=asc, -1=desc
+
+function applyFilterSort(){{
+  var q=inp.value.trim().toLowerCase();
+  filtered=q?allItems.filter(function(li){{return li.dataset.filter.indexOf(q)!==-1;}}):allItems.slice();
+  filtered.sort(function(a,b){{
+    var av=a.dataset[sortKey]||'';
+    var bv=b.dataset[sortKey]||'';
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  }});
+  currentPage=1;
+  // re-append in sorted order so tab-order and DOM match
+  filtered.forEach(function(li){{list.appendChild(li);}});
+  render();
+}}
 
 function render(){{
   var total=filtered.length;
@@ -1812,6 +1845,13 @@ function render(){{
     cnt.textContent=total+' document'+(total!==1?'s':'');
   }}
   no.style.display=(total===0&&q)?'':'none';
+  // sort button arrows
+  document.querySelectorAll('.browse-sort-btn').forEach(function(b){{
+    var active=b.dataset.sort===sortKey;
+    b.classList.toggle('sort-active',active);
+    var arrow=b.querySelector('.sort-arrow');
+    if(arrow)arrow.textContent=active?(sortDir===1?'\u25b4':'\u25be'):'';
+  }});
   // pagination
   pg.innerHTML='';
   if(pages<=1)return;
@@ -1824,7 +1864,6 @@ function render(){{
     return b;
   }}
   pg.appendChild(btn('\u2039 Prev',currentPage-1,currentPage===1,false));
-  // page window: always show first, last, and up to 3 pages around current
   var shown=[];
   for(var i=1;i<=pages;i++){{
     if(i===1||i===pages||Math.abs(i-currentPage)<=1)shown.push(i);
@@ -1841,18 +1880,27 @@ function render(){{
   pg.appendChild(btn('Next \u203a',currentPage+1,currentPage===pages,false));
 }}
 
-inp.addEventListener('input',function(){{
-  var q=inp.value.trim().toLowerCase();
-  filtered=q?allItems.filter(function(li){{return li.dataset.filter.indexOf(q)!==-1;}}):allItems.slice();
-  currentPage=1;
-  render();
+inp.addEventListener('input',function(){{applyFilterSort();}});
+
+document.querySelectorAll('.browse-sort-btn').forEach(function(b){{
+  b.addEventListener('click',function(){{
+    var key=b.dataset.sort;
+    if(sortKey===key){{sortDir=-sortDir;}}else{{sortKey=key;sortDir=1;}}
+    applyFilterSort();
+  }});
 }});
 
-render();
+applyFilterSort();
 }})();"""
 
     return f"""<h1>Documents</h1>
-<input type="search" id="browse-filter" class="browse-filter" placeholder="Filter documents\u2026" autocomplete="off">
+<div class="browse-toolbar">
+  <input type="search" id="browse-filter" class="browse-filter" style="margin-bottom:0" placeholder="Filter documents\u2026" autocomplete="off">
+  <span class="browse-sort-label">Sort:</span>
+  <button class="browse-sort-btn sort-active" data-sort="title">Title <span class="sort-arrow">\u25b4</span></button>
+  <button class="browse-sort-btn" data-sort="author">Author <span class="sort-arrow"></span></button>
+  <button class="browse-sort-btn" data-sort="filename">Filename <span class="sort-arrow"></span></button>
+</div>
 <p class="doc-count" id="browse-count" data-total="{count}">{count} document{'s' if count != 1 else ''}</p>
 <p class="browse-no-results" id="browse-no-results" style="display:none">No documents match your filter.</p>
 <ul class="doc-list">
