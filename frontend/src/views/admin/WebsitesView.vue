@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig, type ImageRenderingConfig } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig, type ImageRenderingConfig, type NoteRenderingConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
@@ -522,8 +522,13 @@ async function startEdit(website: Website): Promise<void> {
         facsimile_gallery: exIR?.facsimile_gallery ?? false,
         column_connectors: exIR?.column_connectors ?? false,
       };
-      const defaults: XsltConfig = { source: "default", content: null, url: null, catalog_id: null, processor: "lxml", image_rendering: ir };
-      return { ...defaults, ...ex, image_rendering: ir };
+      const exNR = ex.note_rendering;
+      const nr: NoteRenderingConfig = {
+        enabled: exNR?.enabled ?? false,
+        mode: exNR?.mode ?? "end-of-text",
+      };
+      const defaults: XsltConfig = { source: "default", content: null, url: null, catalog_id: null, processor: "lxml", image_rendering: ir, note_rendering: nr };
+      return { ...defaults, ...ex, image_rendering: ir, note_rendering: nr };
     })(),
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
     custom_css: website.custom_css ?? "",
@@ -1774,6 +1779,70 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               </label>
               <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.doc_img_connectors_hint") }}</p>
             </template>
+          </template>
+        </div>
+
+        <!-- Note Rendering -->
+        <div class="border-t border-indigo-100 pt-4">
+          <div class="mb-3 flex items-center justify-between">
+            <p class="text-xs font-semibold text-gray-700">{{ t("websites.doc_note_section") }}</p>
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                class="rounded text-indigo-600"
+                v-model="(editForm.xslt_config as XsltConfig).note_rendering!.enabled"
+              />
+              {{ t("websites.doc_note_enabled") }}
+            </label>
+          </div>
+          <p class="mb-3 text-xs text-gray-400">{{ t("websites.doc_note_enabled_hint") }}</p>
+
+          <template v-if="(editForm.xslt_config as XsltConfig).note_rendering!.enabled">
+            <p class="mb-2 text-xs font-medium text-gray-600">{{ t("websites.doc_note_mode") }}</p>
+            <div class="space-y-2">
+              <!-- end-of-text -->
+              <label class="flex cursor-pointer items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="radio"
+                  class="mt-0.5 text-indigo-600"
+                  value="end-of-text"
+                  v-model="(editForm.xslt_config as XsltConfig).note_rendering!.mode"
+                />
+                <span>
+                  <span class="font-medium">{{ t("websites.doc_note_mode_end_of_text") }}</span>
+                  <br />
+                  <span class="text-gray-400">{{ t("websites.doc_note_mode_end_of_text_hint") }}</span>
+                </span>
+              </label>
+              <!-- tooltip -->
+              <label class="flex cursor-pointer items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="radio"
+                  class="mt-0.5 text-indigo-600"
+                  value="tooltip"
+                  v-model="(editForm.xslt_config as XsltConfig).note_rendering!.mode"
+                />
+                <span>
+                  <span class="font-medium">{{ t("websites.doc_note_mode_tooltip") }}</span>
+                  <br />
+                  <span class="text-gray-400">{{ t("websites.doc_note_mode_tooltip_hint") }}</span>
+                </span>
+              </label>
+              <!-- frame -->
+              <label class="flex cursor-pointer items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="radio"
+                  class="mt-0.5 text-indigo-600"
+                  value="frame"
+                  v-model="(editForm.xslt_config as XsltConfig).note_rendering!.mode"
+                />
+                <span>
+                  <span class="font-medium">{{ t("websites.doc_note_mode_frame") }}</span>
+                  <br />
+                  <span class="text-gray-400">{{ t("websites.doc_note_mode_frame_hint") }}</span>
+                </span>
+              </label>
+            </div>
           </template>
         </div>
 

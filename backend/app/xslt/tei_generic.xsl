@@ -113,17 +113,41 @@
           a.tei-ref { color: inherit; text-decoration: underline; }
           cite.tei-title-inline { font-style: italic; }
           /* ── Footnote markers ────────────────────────────────────────────── */
-          span.tei-note-marker {
-            display: inline-block; vertical-align: super;
-            font-size: 0.7rem; color: #888; cursor: pointer;
-            margin: 0 0.1em; background: #f5f5f5;
-            border: 1px solid #ddd; border-radius: 2px; padding: 0 0.2em;
+          /* ── Note reference markers (superscript) ───────────────────────── */
+          sup.tei-note-ref {
+            font-size: 0.7em;
+            line-height: 1;
+            vertical-align: super;
+            margin: 0 0.08em;
           }
-          aside.tei-notes {
-            margin-top: 3rem; border-top: 1px solid #e2e2e2;
-            padding-top: 1rem; font-size: 0.85rem; color: #555;
+          a.tei-note-link {
+            color: #3b82f6;
+            text-decoration: none;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 2px;
+            padding: 0 0.22em;
           }
-          aside.tei-notes p { margin: 0.4rem 0; }
+          a.tei-note-link:hover { background: #dbeafe; }
+          /* ── Notes section at end of document ───────────────────────────── */
+          aside.tei-notes-section {
+            margin-top: 3rem;
+            border-top: 1px solid #e2e2e2;
+            padding-top: 1rem;
+            font-size: 0.85rem;
+          }
+          .tei-note-entry {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.2rem 0;
+            color: #444;
+            line-height: 1.6;
+          }
+          .tei-note-entry:target { background: #fffbeb; border-radius: 3px; padding-left: 0.3rem; }
+          span.tei-note-back { flex-shrink: 0; min-width: 1.6rem; text-align: right; color: #6b7280; }
+          a.tei-note-back-link { color: #6b7280; text-decoration: none; }
+          a.tei-note-back-link:hover { color: #3b82f6; }
+          span.tei-note-body { flex: 1; }
           /* ── Quote / said ────────────────────────────────────────────────── */
           q.tei-q { quotes: "\201C" "\201D" "\2018" "\2019"; }
           blockquote.tei-quote { margin: 1rem 2rem; font-style: italic; }
@@ -218,9 +242,12 @@
       <xsl:apply-templates select="tei:fileDesc/tei:publicationStmt"/>
       <!-- Abstract: lives in profileDesc/abstract -->
       <xsl:apply-templates select="tei:profileDesc/tei:abstract"/>
-      <!-- Summary / descriptive notes from notesStmt -->
-      <xsl:apply-templates select="tei:fileDesc/tei:notesStmt/tei:note[normalize-space(.) != '']"
-                           mode="header-note"/>
+      <!-- Summary / descriptive notes from notesStmt.
+           Notes with type="alpha" or type="numeric" are body-reference notes;
+           they are excluded here and collected in the end-of-text notes section. -->
+      <xsl:apply-templates
+        select="tei:fileDesc/tei:notesStmt/tei:note[normalize-space(.) != ''][not(@type='alpha' or @type='numeric')]"
+        mode="header-note"/>
     </header>
     <!-- Bibliography from sourceDesc: rendered as a separate block between
          the document header and the body text. -->
@@ -309,13 +336,47 @@
       <xsl:apply-templates select="tei:body"/>
       <xsl:apply-templates select="tei:back"/>
     </main>
-    <!-- Collect all notes at the bottom -->
-    <xsl:if test="//tei:note[normalize-space(.) != '']">
-      <aside class="tei-notes">
-        <xsl:for-each select="//tei:note[normalize-space(.) != '']">
-          <p>
-            <xsl:value-of select="position()"/>. <xsl:apply-templates/>
-          </p>
+    <!-- Notes section: collects all alpha/numeric-typed notes from the whole
+         document (notesStmt, back, inline body) plus untyped inline body notes.
+         Alpha and numeric sequences are rendered separately in document order.
+         The section is always present when notes exist; the display mode
+         (tooltip / frame) may hide it via CSS injected by the build service. -->
+    <xsl:variable name="alpha-notes"
+      select="//tei:note[@type='alpha'][normalize-space(.) != '']"/>
+    <xsl:variable name="numeric-notes"
+      select="//tei:note[@type='numeric'][normalize-space(.) != '']
+              | //tei:text//tei:note[not(@type)][normalize-space(.) != '']"/>
+    <xsl:if test="$alpha-notes or $numeric-notes">
+      <aside class="tei-notes-section">
+        <xsl:for-each select="$alpha-notes">
+          <xsl:variable name="nid">
+            <xsl:choose>
+              <xsl:when test="@xml:id"><xsl:value-of select="@xml:id"/></xsl:when>
+              <xsl:otherwise><xsl:value-of select="generate-id()"/></xsl:otherwise>
+            </xsl:choose>
+          </xsl:variable>
+          <div class="tei-note-entry" id="note-{$nid}" data-note-type="alpha">
+            <span class="tei-note-back">
+              <a href="#back-{$nid}" class="tei-note-back-link">
+                <xsl:number value="position()" format="a"/>.</a>
+            </span>
+            <span class="tei-note-body"><xsl:apply-templates/></span>
+          </div>
+        </xsl:for-each>
+        <xsl:for-each select="$numeric-notes">
+          <xsl:variable name="nid">
+            <xsl:choose>
+              <xsl:when test="@xml:id"><xsl:value-of select="@xml:id"/></xsl:when>
+              <xsl:otherwise><xsl:value-of select="generate-id()"/></xsl:otherwise>
+            </xsl:choose>
+          </xsl:variable>
+          <div class="tei-note-entry" id="note-{$nid}" data-note-type="numeric">
+            <span class="tei-note-back">
+              <a href="#back-{$nid}" class="tei-note-back-link">
+                <xsl:value-of select="position()"/>.</a>
+            </span>
+            <span class="tei-note-body"><xsl:apply-templates/></span>
+          </div>
         </xsl:for-each>
       </aside>
     </xsl:if>
@@ -642,19 +703,52 @@
   </xsl:template>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- Notes — emit a superscript marker; full text collected at end of text  -->
+  <!-- Notes                                                                   -->
+  <!--                                                                         -->
+  <!-- Two patterns are supported:                                             -->
+  <!--   1. Ref-based: <ref type="alpha" target="#id"/> inline +               -->
+  <!--      <note xml:id="id" type="alpha"> anywhere in document.             -->
+  <!--      The ref emits the marker; the note is suppressed inline and        -->
+  <!--      collected in the end-of-text notes section.                        -->
+  <!--   2. Inline: <note type="alpha"> directly in body text.                 -->
+  <!--      The note emits the marker; content collected in notes section.     -->
+  <!--                                                                         -->
+  <!-- type="alpha"   → letter sequence: a, b, c …                            -->
+  <!-- type="numeric" or no type → number sequence: 1, 2, 3 …                 -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
-  <xsl:template match="tei:note">
-    <xsl:if test="normalize-space(.) != ''">
-      <span class="tei-note-marker">
-        <xsl:for-each select="//tei:note[normalize-space(.) != '']">
-          <xsl:if test="generate-id(.) = generate-id(current())">
-            <xsl:value-of select="position()"/>
-          </xsl:if>
-        </xsl:for-each>
-      </span>
-    </xsl:if>
+  <!-- Notes with xml:id (ref-based): suppress inline rendering.
+       Their markers are emitted by the tei:ref[@type] template below. -->
+  <xsl:template match="tei:note[@xml:id and (@type='alpha' or @type='numeric')]"/>
+
+  <!-- Inline notes without xml:id: emit a superscript marker.
+       Content is collected in the end-of-text notes section. -->
+  <xsl:template match="tei:note[not(@xml:id) and normalize-space(.) != '']">
+    <xsl:variable name="note-type">
+      <xsl:choose>
+        <xsl:when test="@type = 'alpha'">alpha</xsl:when>
+        <xsl:otherwise>numeric</xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="gen-id" select="generate-id()"/>
+    <xsl:variable name="label">
+      <xsl:choose>
+        <xsl:when test="$note-type = 'alpha'">
+          <xsl:number count="//tei:note[@type='alpha'][not(@xml:id)][normalize-space(.)!='']"
+                      level="any" format="a"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:number
+            count="//tei:note[@type='numeric' or (not(@type) and ancestor::tei:text)][not(@xml:id)][normalize-space(.)!='']"
+            level="any" format="1"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <sup class="tei-note-ref" id="back-{$gen-id}" data-note-type="{$note-type}">
+      <a href="#note-{$gen-id}" class="tei-note-link">
+        <xsl:value-of select="$label"/>
+      </a>
+    </sup>
   </xsl:template>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -662,7 +756,37 @@
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
   <xsl:template match="tei:ref[@target]">
-    <a href="{@target}" class="tei-ref"><xsl:apply-templates/></a>
+    <xsl:choose>
+      <!-- Note reference: @type="alpha" or @type="numeric" pointing to a fragment.
+           Renders as a superscript marker with alpha/numeric sequential label. -->
+      <xsl:when test="starts-with(@target,'#') and (@type='alpha' or @type='numeric')">
+        <xsl:variable name="note-id" select="substring-after(@target,'#')"/>
+        <xsl:variable name="note-type" select="@type"/>
+        <xsl:variable name="label">
+          <xsl:choose>
+            <xsl:when test="$note-type = 'alpha'">
+              <xsl:number
+                count="tei:ref[starts-with(@target,'#')][@type='alpha']"
+                level="any" format="a"/>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:number
+                count="tei:ref[starts-with(@target,'#')][@type='numeric']"
+                level="any" format="1"/>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:variable>
+        <sup class="tei-note-ref" id="back-{$note-id}" data-note-type="{$note-type}">
+          <a href="#note-{$note-id}" class="tei-note-link">
+            <xsl:value-of select="$label"/>
+          </a>
+        </sup>
+      </xsl:when>
+      <!-- Regular external / internal link -->
+      <xsl:otherwise>
+        <a href="{@target}" class="tei-ref"><xsl:apply-templates/></a>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="tei:ref">

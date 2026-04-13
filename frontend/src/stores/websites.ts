@@ -8,6 +8,7 @@ export type XsltSource = "default" | "custom" | "url" | "catalog";
 export type XsltProcessor = "lxml" | "saxon";
 export type ImageSize = "full" | "thumbnail";
 export type ImageLayout = "inline" | "left" | "right" | "modal" | "column-left" | "column-right";
+export type NoteDisplayMode = "end-of-text" | "tooltip" | "frame";
 
 export interface ImageRenderingConfig {
   enabled: boolean;
@@ -17,6 +18,11 @@ export interface ImageRenderingConfig {
   column_connectors: boolean;
 }
 
+export interface NoteRenderingConfig {
+  enabled: boolean;
+  mode: NoteDisplayMode;
+}
+
 export interface XsltConfig {
   source: XsltSource;
   content: string | null;
@@ -24,6 +30,7 @@ export interface XsltConfig {
   catalog_id: string | null;
   processor: XsltProcessor;
   image_rendering?: ImageRenderingConfig;
+  note_rendering?: NoteRenderingConfig;
 }
 
 export interface AracnePageConfig {
