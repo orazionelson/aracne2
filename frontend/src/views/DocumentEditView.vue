@@ -615,100 +615,170 @@ async function runValidation(): Promise<void> {
       </div>
 
       <!-- Toolbar -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-shrink-0 items-center gap-1">
+
+        <!-- ── Format group ────────────────────────────────────────────────── -->
         <button
           :title="t('documents.pretty_print')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100"
           @click="prettyPrint"
         >
+          <!-- icon: code brackets -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+          </svg>
           {{ t('documents.pretty_print') }}
         </button>
+
+        <button
+          :title="isFullscreen ? t('documents.exit_fullscreen') : t('documents.fullscreen')"
+          class="inline-flex items-center rounded border border-transparent p-1.5 text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100"
+          @click="toggleFullscreen"
+        >
+          <!-- icon: arrows-pointing-out / arrows-pointing-in -->
+          <svg v-if="!isFullscreen" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
+          </svg>
+          <svg v-else class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/>
+          </svg>
+        </button>
+
+        <span class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
+
+        <!-- ── Notes group ─────────────────────────────────────────────────── -->
         <button
           :disabled="isLoading"
           :title="t('documents.note_alpha_title')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50"
           @click="openNoteModal('alpha')"
         >
+          <!-- icon: pencil -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/>
+          </svg>
           {{ t('documents.note_btn_alpha') }}
         </button>
+
         <button
           :disabled="isLoading"
           :title="t('documents.note_numeric_title')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50"
           @click="openNoteModal('numeric')"
         >
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/>
+          </svg>
           {{ t('documents.note_btn_numeric') }}
         </button>
-        <button
-          :title="isFullscreen ? t('documents.exit_fullscreen') : t('documents.fullscreen')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-          @click="toggleFullscreen"
-        >
-          {{ isFullscreen ? t('documents.exit_fullscreen') : t('documents.fullscreen') }}
-        </button>
+
+        <span v-if="hasValidationSchema" class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
+
+        <!-- ── Validate ────────────────────────────────────────────────────── -->
         <button
           v-if="hasValidationSchema"
           :disabled="isValidating || isLoading"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            validationResult?.valid === true
+              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+              : validationResult?.valid === false
+                ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+          ]"
           @click="runValidation"
         >
-          {{ isValidating ? t('documents.validating') : t('documents.validate') }}
+          <!-- icon: shield-check, or spinner when validating -->
+          <svg v-if="!isValidating" class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
+          </svg>
+          <svg v-else class="h-3.5 w-3.5 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+          </svg>
+          <span>
+            {{ isValidating ? t('documents.validating') : t('documents.validate') }}
+          </span>
+          <span
+            v-if="validationResult && !validationResult.valid"
+            class="ml-0.5 rounded-full bg-red-200 px-1.5 py-0.5 text-xs font-semibold leading-none text-red-800"
+          >
+            {{ validationResult.errors.length }}
+          </span>
         </button>
-        <span
-          v-if="validationResult && validationResult.valid"
-          class="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700"
-        >
-          {{ t('documents.valid') }}
-        </span>
-        <span
-          v-else-if="validationResult && !validationResult.valid"
-          class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
-        >
-          {{ t('documents.invalid', { n: validationResult.errors.length }) }}
-        </span>
-        <span v-if="saved" class="text-xs text-green-600">{{ t('documents.saved') }}</span>
-        <span v-if="saveError" class="max-w-xs truncate text-xs text-red-600">{{ saveError }}</span>
+
+        <span class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
+
+        <!-- ── Panel toggles ──────────────────────────────────────────────── -->
         <button
           :class="[
-            'rounded border px-2 py-1 text-xs',
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors',
             showHelpPanel
-              ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
           @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; }"
         >
+          <!-- icon: book-open -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+          </svg>
           {{ t('documents.tei_help') }}
         </button>
+
         <button
           v-if="aiEnabled && !isLoading"
           :class="[
-            'rounded border px-2 py-1 text-xs',
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors',
             showAiPanel
-              ? 'border-violet-400 bg-violet-50 text-violet-700'
-              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+              ? 'border-violet-300 bg-violet-50 text-violet-700'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
           @click="showAiPanel ? closeAiPanel() : openAiPanel()"
         >
+          <!-- icon: sparkles -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/>
+          </svg>
           {{ t('ai.button_editor') }}
         </button>
+
         <button
           :disabled="isLoading"
           :class="[
-            'rounded border px-2 py-1 text-xs',
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
             showMediaPanel
-              ? 'border-teal-400 bg-teal-50 text-teal-700'
-              : 'border-gray-200 text-gray-600 hover:bg-gray-100',
+              ? 'border-teal-300 bg-teal-50 text-teal-700'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
           @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; }"
         >
+          <!-- icon: photo -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+          </svg>
           {{ t('media.media_btn') }}
         </button>
+
+        <!-- ── Status feedback ────────────────────────────────────────────── -->
+        <span v-if="saved" class="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+          </svg>
+          {{ t('documents.saved') }}
+        </span>
+        <span v-if="saveError" class="max-w-xs truncate text-xs text-red-600">{{ saveError }}</span>
+
+        <!-- ── Save ──────────────────────────────────────────────────────── -->
         <button
           :disabled="isSaving || isLoading"
-          class="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          class="ml-1 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
           @click="handleSave"
         >
-          {{ isSaving ? t('common.loading') : t('common.save') }}
+          <!-- icon: arrow-down-tray (save) -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </div>
