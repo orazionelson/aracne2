@@ -1821,7 +1821,7 @@ function applyFilterSort(){{
   filtered.sort(function(a,b){{
     var av=a.dataset[sortKey]||'';
     var bv=b.dataset[sortKey]||'';
-    return av<bv?-sortDir:av>bv?sortDir:0;
+    return av.localeCompare(bv,undefined,{{numeric:true,sensitivity:'base'}})*sortDir;
   }});
   currentPage=1;
   // re-append in sorted order so tab-order and DOM match
