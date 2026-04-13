@@ -532,33 +532,44 @@ def _build_image_rendering_css(cfg: dict) -> str:
                     "figure.tei-pb-facsimile{max-width:120px;margin:1rem auto;}"
                 )
         elif pb_layout == "one-to-one":
-            # Facsimile figures are hidden inline; JS moves them into the panel.
+            # Facsimile figures are hidden inline; JS moves their src into the panel.
             lines.append("figure.tei-pb-facsimile{display:none!important;}")
             # Other figures become modal-clickable (modal JS handles the overlay).
             lines.append("figure.tei-figure img{cursor:zoom-in;}")
-            # Two-column grid: panel (left) + text (right).
+            # Full-viewport override for <main> — also applied via JS for older browsers.
             lines.append(
-                ".oto-layout{display:grid;grid-template-columns:1fr 1fr;"
-                "gap:2rem;align-items:start;}"
-                ".oto-panel{position:sticky;top:4rem;"
-                "max-height:calc(100vh - 6rem);"
-                "display:flex;flex-direction:column;gap:.5rem;"
-                "background:#f9fafb;border:1px solid #e5e7eb;"
-                "border-radius:6px;padding:.75rem;}"
-                ".oto-img{width:100%;height:auto;"
-                "max-height:calc(100vh - 11rem);"
-                "object-fit:contain;display:block;}"
-                ".oto-nav{display:flex;align-items:center;"
-                "justify-content:center;gap:.6rem;flex-shrink:0;}"
-                ".oto-nav-btn{background:#f3f4f6;border:1px solid #d1d5db;"
-                "border-radius:4px;padding:.2rem .55rem;cursor:pointer;"
-                "font-size:.85rem;line-height:1.4;color:#374151;}"
+                "main:has(.oto-layout){"
+                "max-width:100%!important;padding:0!important;margin:0!important;}"
+            )
+            # Two-column grid: dark image panel (left) + scrollable text (right).
+            # The panel is sticky and fills the viewport area below the navbar (3.5rem).
+            lines.append(
+                ".oto-layout{display:grid;grid-template-columns:1fr 1fr;min-height:100vh;}"
+                ".oto-panel{"
+                "position:sticky;top:3.5rem;height:calc(100vh - 3.5rem);"
+                "display:flex;flex-direction:column;"
+                "background:#111827;overflow:hidden;}"
+                ".oto-img{"
+                "flex:1;min-height:0;width:100%;height:100%;"
+                "object-fit:contain;display:block;padding:.75rem;}"
+                ".oto-nav{"
+                "display:flex;align-items:center;justify-content:center;"
+                "gap:.6rem;padding:.4rem .75rem;flex-shrink:0;"
+                "border-top:1px solid #374151;background:#1f2937;}"
+                ".oto-nav-btn{"
+                "background:#374151;border:1px solid #4b5563;"
+                "border-radius:4px;padding:.2rem .55rem;"
+                "cursor:pointer;font-size:.85rem;line-height:1.4;color:#f9fafb;}"
                 ".oto-nav-btn:disabled{opacity:.3;cursor:default;}"
-                ".oto-nav-btn:hover:not(:disabled){background:#e5e7eb;}"
-                ".oto-nav-counter{font-size:.75rem;color:#6b7280;font-family:monospace;}"
+                ".oto-nav-btn:hover:not(:disabled){background:#4b5563;}"
+                ".oto-nav-counter{font-size:.75rem;color:#9ca3af;font-family:monospace;}"
+                # Text column: padding restores the comfortable reading margin.
+                ".oto-layout>.tei-body{padding:2rem 2.5rem 4rem;}"
                 "@media(max-width:720px){"
-                ".oto-layout{display:block!important;}"
-                ".oto-panel{position:static;max-height:60vw;}"
+                "main:has(.oto-layout){max-width:100%!important;padding:0!important;margin:0!important;}"
+                ".oto-layout{display:block!important;min-height:auto;}"
+                ".oto-panel{position:static;height:60vw;top:0;}"
+                ".oto-layout>.tei-body{padding:1rem 1.5rem 2rem;}"
                 "}"
             )
 
@@ -843,10 +854,19 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "p.fig.parentNode.insertBefore(a,p.fig);"
         "return a;"
         "});"
+        # Capture <main> before moving body — needed for the full-width override.
+        "var mainEl=body.parentNode;"
         # Build the two-column wrapper grid.
         "var layout=document.createElement('div');"
         "layout.className='oto-layout';"
         "body.parentNode.insertBefore(layout,body);"
+        # Override <main>'s max-width / padding so the grid spans the full viewport.
+        # (CSS :has() is the declarative version; this JS path covers older browsers.)
+        "if(mainEl){"
+        "mainEl.style.maxWidth='100%';"
+        "mainEl.style.padding='0';"
+        "mainEl.style.margin='0';"
+        "}"
         # Build the image panel (left column).
         "var panel=document.createElement('div');"
         "panel.className='oto-panel';"
