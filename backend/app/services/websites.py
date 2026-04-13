@@ -418,8 +418,169 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 
 _DEFAULT_FONT = 'Georgia,"Times New Roman",serif'
 
+# ── Image rendering helpers ───────────────────────────────────────────────────
 
-def _style_block(theme: dict, custom_css: str | None = None) -> str:
+# Minimal modal JS injected into document pages when any layout is set to
+# "modal".  Uses event delegation so it works on dynamically-added elements.
+_IMAGE_MODAL_JS = """\
+(function(){
+var ov=document.createElement('div');
+ov.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;cursor:zoom-out;align-items:center;justify-content:center;';
+var mi=document.createElement('img');
+mi.style.cssText='max-width:92vw;max-height:90vh;object-fit:contain;border-radius:4px;box-shadow:0 0 40px rgba(0,0,0,.5);';
+ov.appendChild(mi);
+document.body.appendChild(ov);
+function open(src){mi.src=src;ov.style.display='flex';document.body.style.overflow='hidden';}
+function close(){ov.style.display='none';mi.src='';document.body.style.overflow='';}
+ov.addEventListener('click',close);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+document.addEventListener('click',function(e){
+  var t=e.target;
+  if(t.tagName==='IMG'&&t.closest('figure.tei-figure,figure.tei-pb-facsimile,.gallery-item')){
+    e.preventDefault();open(t.src);
+  }
+});
+})();"""
+
+
+def _build_image_rendering_css(cfg: dict) -> str:
+    """Return CSS override rules derived from the *image_rendering* config dict.
+
+    Returns an empty string when image rendering is disabled or cfg is empty.
+    The returned CSS is appended inside the per-page ``<style>`` block so it
+    overrides the XSLT-generated defaults without touching the stylesheet.
+    """
+    if not cfg or not cfg.get("enabled"):
+        return ""
+
+    lines: list[str] = ["/* image-rendering overrides */"]
+
+    fig   = cfg.get("figure", {}) or {}
+    pb    = cfg.get("pb", {}) or {}
+    fig_size   = fig.get("size", "full")
+    fig_layout = fig.get("layout", "inline")
+    pb_show    = pb.get("show", True)
+    pb_size    = pb.get("size", "thumbnail")
+    pb_layout  = pb.get("layout", "inline")
+
+    # ── figure ───────────────────────────────────────────────────────────────
+    if fig_size == "thumbnail":
+        lines.append("figure.tei-figure{max-width:200px;}")
+    if fig_layout == "left":
+        lines.append(
+            "figure.tei-figure{float:left;max-width:min(40%,320px);"
+            "margin:0 1.5rem 1rem 0;clear:left;}"
+        )
+    elif fig_layout == "right":
+        lines.append(
+            "figure.tei-figure{float:right;max-width:min(40%,320px);"
+            "margin:0 0 1rem 1.5rem;clear:right;}"
+        )
+    elif fig_layout == "modal":
+        lines.append("figure.tei-figure img{cursor:zoom-in;}")
+        if fig_size == "thumbnail":
+            lines.append("figure.tei-figure{max-width:160px;}")
+
+    # ── pb facsimile ─────────────────────────────────────────────────────────
+    if not pb_show:
+        lines.append("figure.tei-pb-facsimile{display:none;}")
+    else:
+        if pb_size == "thumbnail":
+            lines.append("figure.tei-pb-facsimile{max-width:200px;margin:1rem auto;}")
+        if pb_layout == "left":
+            lines.append(
+                "figure.tei-pb-facsimile{float:left;max-width:min(35%,260px);"
+                "margin:0 1.5rem 1rem 0;clear:left;}"
+            )
+        elif pb_layout == "right":
+            lines.append(
+                "figure.tei-pb-facsimile{float:right;max-width:min(35%,260px);"
+                "margin:0 0 1rem 1.5rem;clear:right;}"
+            )
+        elif pb_layout == "modal":
+            lines.append("figure.tei-pb-facsimile img{cursor:zoom-in;}")
+            if pb_size == "thumbnail":
+                lines.append(
+                    "figure.tei-pb-facsimile{max-width:120px;margin:1rem auto;}"
+                )
+
+    # ── facsimile gallery ─────────────────────────────────────────────────────
+    if cfg.get("facsimile_gallery"):
+        lines.append(
+            ".facsimile-gallery{margin:1.5rem 0;padding:1rem;"
+            "border:1px solid #e5e7eb;border-radius:4px;background:#fafafa;}"
+            ".facsimile-gallery h3{font-size:.8rem;color:#6b7280;margin:0 0 .75rem;"
+            "text-transform:uppercase;letter-spacing:.06em;}"
+            ".gallery-grid{display:flex;flex-wrap:wrap;gap:.75rem;}"
+            ".gallery-item{margin:0;text-align:center;}"
+            ".gallery-item img{width:100px;height:100px;object-fit:cover;"
+            "border:1px solid #e5e7eb;border-radius:3px;display:block;cursor:zoom-in;}"
+            "figcaption.gallery-caption{font-size:.65rem;color:#9ca3af;"
+            "font-family:monospace;margin-top:.2rem;}"
+        )
+
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
+    """Prepend a facsimile thumbnail gallery to *doc_body*.
+
+    Parses *xml_bytes* (a TEI document from eXist-db) to collect all
+    ``<surface xml:id="…"><graphic url="…"/>`` entries from the
+    ``<facsimile>`` block and renders them as a ``.facsimile-gallery`` div.
+
+    The media API URLs are *not* rewritten here; the caller's URL-rewrite step
+    runs after this function and handles them uniformly.
+
+    Returns *doc_body* unchanged when no surfaces are found or the XML is
+    malformed.
+    """
+    try:
+        root = etree.fromstring(xml_bytes)  # noqa: S320 — trusted eXist-db source
+    except etree.XMLSyntaxError:
+        return doc_body
+
+    tei_ns = "http://www.tei-c.org/ns/1.0"
+    xml_ns = "http://www.w3.org/XML/1998/namespace"
+    surfaces = root.findall(f".//{{{tei_ns}}}facsimile/{{{tei_ns}}}surface")
+    if not surfaces:
+        return doc_body
+
+    items: list[str] = []
+    for surface in surfaces:
+        surf_id = surface.get(f"{{{xml_ns}}}id", "")
+        graphic = surface.find(f"{{{tei_ns}}}graphic")
+        if graphic is None:
+            continue
+        url = graphic.get("url", "")
+        if not url:
+            continue
+        esc_url = _html.escape(url)
+        esc_id  = _html.escape(surf_id)
+        items.append(
+            f'<figure class="gallery-item">'
+            f'<img src="{esc_url}" alt="{esc_id}" loading="lazy"/>'
+            f'<figcaption class="gallery-caption">#{esc_id}</figcaption>'
+            f'</figure>'
+        )
+
+    if not items:
+        return doc_body
+
+    gallery = (
+        '<div class="facsimile-gallery">'
+        '<h3>Facsimile</h3>'
+        '<div class="gallery-grid">' + "".join(items) + "</div>"
+        "</div>"
+    )
+    return gallery + doc_body
+
+
+def _style_block(
+    theme: dict,
+    custom_css: str | None = None,
+    extra_css: str | None = None,
+) -> str:
     primary = _html.escape(theme.get("primary_color", "#1e293b"))
     text = _html.escape(theme.get("text_color", "#1e293b"))
     bg = _html.escape(theme.get("bg_color", "#ffffff"))
@@ -437,8 +598,10 @@ def _style_block(theme: dict, custom_css: str | None = None) -> str:
         f"--font:{font};--footer-bg:{footer_bg};--footer-text:{footer_color};}}"
     )
     # Custom CSS is trusted Designer input; strip </style> to prevent tag break.
-    extra = f"\n/* custom */\n{custom_css.replace('</style>', '')}" if custom_css else ""
-    return f"<style>\n{root_vars}\n{_STATIC_CSS}{extra}\n</style>"
+    custom = f"\n/* custom */\n{custom_css.replace('</style>', '')}" if custom_css else ""
+    # extra_css is builder-generated (image-rendering overrides) — already safe.
+    extra = f"\n{extra_css}" if extra_css else ""
+    return f"<style>\n{root_vars}\n{_STATIC_CSS}{custom}{extra}\n</style>"
 
 
 # Sentinels emitted by widget Tiptap nodes (renderHTML output).
@@ -2610,8 +2773,23 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     (site_dir / "docs").mkdir(exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
+    # ── Image rendering configuration ─────────────────────────────────────
+    _ir_cfg: dict = (website.xslt_config or {}).get("image_rendering") or {}
+    _ir_css: str = _build_image_rendering_css(_ir_cfg)
+    _ir_enabled: bool = bool(_ir_cfg.get("enabled"))
+    _ir_gallery: bool = _ir_enabled and bool(_ir_cfg.get("facsimile_gallery"))
+    _ir_modal: bool = _ir_enabled and (
+        (_ir_cfg.get("figure", {}) or {}).get("layout") == "modal"
+        or (_ir_cfg.get("pb", {}) or {}).get("layout") == "modal"
+    )
+    # Append image-rendering CSS to the per-site style block (doc pages only;
+    # non-doc pages share the same style but show no TEI content).
+    doc_style = _style_block(theme, website.custom_css, _ir_css if _ir_css else None)
     style = _style_block(theme, website.custom_css)
+    # Append modal JS to site's custom JS when modal layout is active.
     custom_js = website.custom_js
+    if _ir_modal:
+        custom_js = (custom_js or "") + "\n" + _IMAGE_MODAL_JS
     include_jquery = website.include_jquery
 
     # Only visible free pages appear in the navigation.
@@ -2760,15 +2938,22 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
 
         for doc_info in doc_infos:
             filename = doc_info["filename"]
+            xml_bytes_doc: bytes = b""
             try:
-                xml_bytes = await existdb_client.get_document(col.slug, filename)
-                doc_body = await asyncio.to_thread(xslt_transform, xml_bytes)
-                doc_bodies[filename] = _extract_plain_text(xml_bytes)
+                xml_bytes_doc = await existdb_client.get_document(col.slug, filename)
+                doc_body = await asyncio.to_thread(xslt_transform, xml_bytes_doc)
+                doc_bodies[filename] = _extract_plain_text(xml_bytes_doc)
             except Exception as exc:
                 logger.warning(
                     "website_build_doc_failed", slug=slug, filename=filename, error=str(exc)
                 )
                 doc_body = f"<p>Could not render document: {_html.escape(str(exc))}</p>"
+
+            # Inject facsimile gallery at the top of the document body when
+            # enabled.  The gallery contains API URLs that the URL-rewrite step
+            # below converts to relative paths, so order matters.
+            if _ir_gallery and xml_bytes_doc:
+                doc_body = _inject_facsimile_gallery(doc_body, xml_bytes_doc)
 
             # Rewrite API media URLs to relative paths.
             # Pattern: /api/v1/collections/{slug}/documents/{doc_filename}/media/{file}
@@ -2796,7 +2981,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 site_title=website.title,
                 page_title=label,
                 content=f'<div class="tei-body">{doc_body}</div>',
-                style=style,
+                style=doc_style,
                 navbar=navbar("../"),
                 breadcrumb=_render_breadcrumb(doc_crumbs),
                 footer_note=footer_note,

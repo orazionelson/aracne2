@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig } from "@/stores/websites";
+import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig, type ImageRenderingConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
@@ -512,14 +512,18 @@ async function startEdit(website: Website): Promise<void> {
       hide_header: false,
       ...website.theme_config,
     },
-    xslt_config: {
-      source: "default",
-      content: null,
-      url: null,
-      catalog_id: null,
-      processor: "lxml",
-      ...(website.xslt_config ?? {}),
-    } as XsltConfig,
+    xslt_config: (() => {
+      const ex = (website.xslt_config ?? {}) as Partial<XsltConfig>;
+      const exIR = ex.image_rendering;
+      const ir: ImageRenderingConfig = {
+        enabled: exIR?.enabled ?? false,
+        figure: { size: exIR?.figure?.size ?? "full", layout: exIR?.figure?.layout ?? "inline" },
+        pb: { show: exIR?.pb?.show ?? true, size: exIR?.pb?.size ?? "thumbnail", layout: exIR?.pb?.layout ?? "inline" },
+        facsimile_gallery: exIR?.facsimile_gallery ?? false,
+      };
+      const defaults: XsltConfig = { source: "default", content: null, url: null, catalog_id: null, processor: "lxml", image_rendering: ir };
+      return { ...defaults, ...ex, image_rendering: ir };
+    })(),
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(website.meta_config ?? {}) }),
     custom_css: website.custom_css ?? "",
     custom_js: website.custom_js ?? "",
@@ -1648,6 +1652,104 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <option value="lxml">{{ t("websites.doc_xslt_processor_lxml") }}</option>
             <option value="saxon" disabled>{{ t("websites.doc_xslt_processor_saxon") }}</option>
           </select>
+        </div>
+
+        <!-- Image Rendering -->
+        <div class="border-t border-indigo-100 pt-4">
+          <div class="mb-3 flex items-center justify-between">
+            <p class="text-xs font-semibold text-gray-700">{{ t("websites.doc_img_section") }}</p>
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                class="rounded text-indigo-600"
+                v-model="(editForm.xslt_config as XsltConfig).image_rendering!.enabled"
+              />
+              {{ t("websites.doc_img_enabled") }}
+            </label>
+          </div>
+
+          <template v-if="(editForm.xslt_config as XsltConfig).image_rendering?.enabled">
+            <!-- figure -->
+            <div class="mb-4 rounded border border-indigo-100 bg-white p-3">
+              <p class="mb-2 text-xs font-semibold text-gray-600">{{ t("websites.doc_img_figure_title") }}</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500">{{ t("websites.doc_img_size") }}</label>
+                  <select
+                    v-model="(editForm.xslt_config as XsltConfig).image_rendering!.figure.size"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                  >
+                    <option value="full">{{ t("websites.doc_img_size_full") }}</option>
+                    <option value="thumbnail">{{ t("websites.doc_img_size_thumb") }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500">{{ t("websites.doc_img_layout") }}</label>
+                  <select
+                    v-model="(editForm.xslt_config as XsltConfig).image_rendering!.figure.layout"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                  >
+                    <option value="inline">{{ t("websites.doc_img_layout_inline") }}</option>
+                    <option value="left">{{ t("websites.doc_img_layout_left") }}</option>
+                    <option value="right">{{ t("websites.doc_img_layout_right") }}</option>
+                    <option value="modal">{{ t("websites.doc_img_layout_modal") }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- pb facsimile -->
+            <div class="mb-4 rounded border border-indigo-100 bg-white p-3">
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-xs font-semibold text-gray-600">{{ t("websites.doc_img_pb_title") }}</p>
+                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
+                  <input
+                    type="checkbox"
+                    class="rounded text-teal-600"
+                    v-model="(editForm.xslt_config as XsltConfig).image_rendering!.pb.show"
+                  />
+                  {{ t("websites.doc_img_pb_show") }}
+                </label>
+              </div>
+              <template v-if="(editForm.xslt_config as XsltConfig).image_rendering?.pb.show">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="mb-1 block text-xs text-gray-500">{{ t("websites.doc_img_size") }}</label>
+                    <select
+                      v-model="(editForm.xslt_config as XsltConfig).image_rendering!.pb.size"
+                      class="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                    >
+                      <option value="full">{{ t("websites.doc_img_size_full") }}</option>
+                      <option value="thumbnail">{{ t("websites.doc_img_size_thumb") }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs text-gray-500">{{ t("websites.doc_img_layout") }}</label>
+                    <select
+                      v-model="(editForm.xslt_config as XsltConfig).image_rendering!.pb.layout"
+                      class="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                    >
+                      <option value="inline">{{ t("websites.doc_img_layout_inline") }}</option>
+                      <option value="left">{{ t("websites.doc_img_layout_left") }}</option>
+                      <option value="right">{{ t("websites.doc_img_layout_right") }}</option>
+                      <option value="modal">{{ t("websites.doc_img_layout_modal") }}</option>
+                    </select>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- facsimile gallery -->
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                class="rounded text-indigo-600"
+                v-model="(editForm.xslt_config as XsltConfig).image_rendering!.facsimile_gallery"
+              />
+              {{ t("websites.doc_img_gallery") }}
+            </label>
+            <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.doc_img_gallery_hint") }}</p>
+          </template>
         </div>
 
         <!-- Preview -->

@@ -6,6 +6,15 @@ export type RenderingMode = "STATIC" | "DYNAMIC" | "HYBRID";
 export type BuildStatus = "idle" | "pending" | "building" | "done" | "failed";
 export type XsltSource = "default" | "custom" | "url" | "catalog";
 export type XsltProcessor = "lxml" | "saxon";
+export type ImageSize = "full" | "thumbnail";
+export type ImageLayout = "inline" | "left" | "right" | "modal";
+
+export interface ImageRenderingConfig {
+  enabled: boolean;
+  figure: { size: ImageSize; layout: ImageLayout };
+  pb: { show: boolean; size: ImageSize; layout: ImageLayout };
+  facsimile_gallery: boolean;
+}
 
 export interface XsltConfig {
   source: XsltSource;
@@ -13,6 +22,7 @@ export interface XsltConfig {
   url: string | null;
   catalog_id: string | null;
   processor: XsltProcessor;
+  image_rendering?: ImageRenderingConfig;
 }
 
 export interface AracnePageConfig {
