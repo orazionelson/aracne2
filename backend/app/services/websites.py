@@ -533,8 +533,9 @@ def _build_image_rendering_css(cfg: dict) -> str:
             )
         lines.append(
             ".tei-body{min-width:0;}"
-            ".img-sidebar{align-self:start;position:sticky;top:1.5rem;"
-            "overflow-y:auto;max-height:90vh;}"
+            # The sidebar uses position:relative so the JS can place each figure
+            # with position:absolute at the Y coordinate of its text anchor.
+            ".img-sidebar{position:relative;}"
             ".img-sidebar figure{margin:0 0 1rem 0;max-width:100%;}"
             ".img-sidebar figure img{max-width:100%;height:auto;"
             "border:1px solid #e5e7eb;border-radius:3px;display:block;}"
@@ -545,10 +546,12 @@ def _build_image_rendering_css(cfg: dict) -> str:
         lines.append(",".join(col_selectors) + "{display:none;}")
         lines.append(".img-sidebar figure{display:block;}")
         # Responsive: stack vertically on narrow screens.
+        # On narrow screens the sidebar is hidden (images already appear inline
+        # via the placeholder anchors in the text, so nothing is lost).
         lines.append(
             "@media(max-width:700px){"
-            ".col-layout-wrapper{grid-template-columns:1fr!important;}"
-            ".img-sidebar{position:static;max-height:none;}"
+            ".col-layout-wrapper{display:block!important;}"
+            ".img-sidebar{display:none!important;}"
             "}"
         )
 
@@ -571,12 +574,22 @@ def _build_image_rendering_css(cfg: dict) -> str:
 
 
 def _build_image_column_js(cfg: dict) -> str:
-    """Return JS that moves images into a dedicated sidebar column.
+    """Return JS that moves images into a dedicated sidebar column, vertically
+    anchored to their citation point in the text.
 
-    Called only when at least one layout is ``"column-left"`` or
-    ``"column-right"``.  The JS creates an ``.img-sidebar`` div inside
-    ``<main>``, moves matching ``<figure>`` elements into it, then un-hides
-    them (the CSS hides inline figures so nothing renders until JS runs).
+    Strategy:
+    1. Figures are hidden by CSS (``display:none``) to prevent inline layout.
+       Their ``getBoundingClientRect()`` returns zeros, so we cannot measure
+       their positions directly.
+    2. Before building the wrapper/sidebar we insert a zero-size ``<span>``
+       placeholder immediately before each figure.  Placeholders are not
+       subject to the CSS ``display:none`` rule and therefore report correct
+       viewport coordinates, marking the exact text line where each figure is
+       cited.
+    3. We build the ``.col-layout-wrapper`` grid, measure each placeholder's
+       Y position relative to the wrapper top, then append each figure to the
+       sidebar with ``position:absolute; top:<measured>px``.
+    4. The sidebar's ``min-height`` is stretched to fit the lowest figure.
     """
     if not cfg or not cfg.get("enabled"):
         return ""
@@ -602,21 +615,50 @@ def _build_image_column_js(cfg: dict) -> str:
     sel_js = ",".join(selectors)
     return (
         "(function(){"
-        # Find .tei-body — the grid must wrap only this element, not all of <main>.
         "var body=document.querySelector('.tei-body');"
         "if(!body)return;"
-        f"var figs=body.querySelectorAll('{sel_js}');"
+        f"var figs=Array.prototype.slice.call(body.querySelectorAll('{sel_js}'));"
         "if(!figs.length)return;"
-        # Create wrapper, replace .tei-body in DOM, move .tei-body inside wrapper.
+        # Insert zero-size placeholders before each figure while they are still
+        # in the text flow.  Figures are display:none (CSS), so placeholders are
+        # the only elements whose getBoundingClientRect() gives a valid Y.
+        "var anchors=figs.map(function(f){"
+        "var a=document.createElement('span');"
+        "a.style.cssText='display:inline;width:0;height:0;overflow:hidden;pointer-events:none;';"
+        "f.parentNode.insertBefore(a,f);"
+        "return a;"
+        "});"
+        # Build wrapper and sidebar.
         "var wrapper=document.createElement('div');"
         "wrapper.className='col-layout-wrapper';"
         "body.parentNode.insertBefore(wrapper,body);"
         "wrapper.appendChild(body);"
-        # Create sidebar and place it on the correct side.
         "var sb=document.createElement('div');"
         "sb.className='img-sidebar';"
+        "sb.style.position='relative';"
         f"if('{side}'==='right'){{wrapper.appendChild(sb);}}else{{wrapper.insertBefore(sb,body);}}"
-        "figs.forEach(function(f){sb.appendChild(f);f.style.display='block';});"
+        # Force a layout pass so getBoundingClientRect values are current.
+        "void wrapper.offsetHeight;"
+        # Measure each anchor's Y relative to the wrapper top (= sidebar top).
+        # The subtraction cancels scroll offset, so this works regardless of
+        # how far down the page the wrapper sits.
+        "var wTop=wrapper.getBoundingClientRect().top;"
+        "figs.forEach(function(f,i){"
+        "var top=Math.max(0,Math.round(anchors[i].getBoundingClientRect().top-wTop));"
+        "f.style.position='absolute';"
+        "f.style.top=top+'px';"
+        "f.style.left='0';"
+        "f.style.right='0';"
+        "f.style.display='block';"
+        "sb.appendChild(f);"
+        "});"
+        # Stretch the sidebar so absolutely-positioned figures are not clipped.
+        "void sb.offsetHeight;"
+        "var maxBottom=0;"
+        "figs.forEach(function(f){"
+        "maxBottom=Math.max(maxBottom,parseInt(f.style.top,10)+f.offsetHeight);"
+        "});"
+        "sb.style.minHeight=maxBottom+'px';"
         "})();"
     )
 
