@@ -24,6 +24,10 @@ const showNav = computed(() => auth.isAuthenticated && route.name !== "not-found
 // Show footer everywhere except login and 404
 const showFooter = computed(() => route.name !== "login" && route.name !== "not-found");
 
+// Full-bleed views that manage their own scroll: suppress <main> overflow so
+// the view's internal flex layout (not the page body) controls scrolling.
+const clipsOwnScroll = computed(() => route.name === "document-edit");
+
 // Fetch platform settings once as soon as the user is authenticated (login or
 // session restore at boot). Settings are small and needed by multiple views.
 watch(
@@ -62,7 +66,7 @@ const BANNER_HEIGHT = 40;
     class="flex min-h-screen flex-col"
     :class="showNav ? (auth.impersonating ? 'pt-24' : 'pt-14') : ''"
   >
-    <main class="flex-1">
+    <main :class="['flex-1', clipsOwnScroll ? 'overflow-hidden' : '']">
       <RouterView />
     </main>
     <AppFooter v-if="showFooter" />
