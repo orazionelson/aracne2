@@ -20,11 +20,11 @@ const schemaStore = useSchemaStore();
 const settingStore = useSettingStore();
 const aiStore = useAiStore();
 
+// settingStore imported above to keep the store registered; not used directly here.
+void settingStore;
+
 const slug = route.params.slug as string;
 const filename = route.params.filename as string;
-
-// ── Editor mode ────────────────────────────────────────────────────────────────
-const splitMode = computed(() => settingStore.getSetting('document_editor_mode') === 'split');
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const isLoading = ref(true);   // true until XML + schema are both ready
@@ -39,64 +39,25 @@ const hasValidationSchema = ref(false);
 const validationResult = ref<ValidationResult | null>(null);
 const schemaWarning = ref<string | null>(null);
 
-// ── Split-mode state ───────────────────────────────────────────────────────────
-const activeEditorTab = ref<'header' | 'body'>('header');
-// Outer XML context preserved for reassembly
-const outerBefore = ref('');
-/** Whitespace/content that precedes the <facsimile> block (or the full
- *  between-segment when no facsimile is present). */
-const outerBetween = ref('');
-const outerAfter = ref('');
-// False when the document lacks <teiHeader>/<text> — falls back to single editor
-const canSplit = ref(true);
-
-// ── Facsimile state (split mode only) ─────────────────────────────────────────
+// ── Facsimile state ────────────────────────────────────────────────────────────
 interface FacsimileSurface {
   id: string;   // xml:id of the <surface> element
   url: string;  // url attribute of the nested <graphic> element
 }
-/** Raw <facsimile>…</facsimile> XML managed in memory; null = not present. */
-const facsimileXml    = ref<string | null>(null);
-/** Content of outerBetween that follows </facsimile> (usually a newline). */
-const facsimileSuffix = ref('');
+/** The <facsimile>…</facsimile> block extracted on load; kept in sync with the
+ *  editor whenever addSurface / deleteSurface modifies it.  null = not present. */
+const facsimileXml = ref<string | null>(null);
 
-// ── Editor containers ──────────────────────────────────────────────────────────
-// Single-mode (non-split or split-fallback)
+// ── Editor container ───────────────────────────────────────────────────────────
 const editorContainer = ref<HTMLElement | null>(null);
-// Split-mode — two independent CM5 instances, toggled with v-show
-const headerEditorContainer = ref<HTMLElement | null>(null);
-const bodyEditorContainer = ref<HTMLElement | null>(null);
+const initialXml = ref('');
 
-// ── Initial XML values (set before isLoading → false so CM5 gets them at init) ─
-const initialXml = ref('');       // single mode
-const headerInitialXml = ref(''); // split — teiHeader
-const bodyInitialXml = ref('');   // split — text
-
-// ── CM5 instances ──────────────────────────────────────────────────────────────
-// Each instance only initialises if its container ref ever becomes non-null
-// (the watch in useCodeMirror fires only when the element appears in the DOM).
-
+// ── CM5 instance ───────────────────────────────────────────────────────────────
 const singleCm = useCodeMirror(editorContainer, {
   get initialValue() { return initialXml.value; },
   get schema() { return schema.value; },
   onChange: () => { saved.value = false; },
-  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'single'),
-});
-
-const headerCm = useCodeMirror(headerEditorContainer, {
-  get initialValue() { return headerInitialXml.value; },
-  get schema() { return schema.value; },
-  onChange: () => { saved.value = false; },
-  lockBoundaryLines: 1, // locks <teiHeader> and </teiHeader>
-  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'header'),
-});
-
-const bodyCm = useCodeMirror(bodyEditorContainer, {
-  get initialValue() { return bodyInitialXml.value; },
-  get schema() { return schema.value; },
-  onChange: () => { saved.value = false; },
-  lockBoundaryLines: 2, // locks <text><body> and </body></text>
-  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content, 'body'),
+  onRefClick: (noteId, noteType, content) => openNoteEditModal(noteId, noteType, content),
 });
 
 // ── Media panel ───────────────────────────────────────────────────────────────
@@ -168,34 +129,20 @@ function onHelpInputBlur(): void {
   setTimeout(() => { helpDropdownOpen.value = false; }, 150);
 }
 
-// ── Delegate toolbar actions to the active editor ──────────────────────────────
-const isFullscreen = computed(() => {
-  if (!splitMode.value || !canSplit.value) return singleCm.isFullscreen.value;
-  return activeEditorTab.value === 'header'
-    ? headerCm.isFullscreen.value
-    : bodyCm.isFullscreen.value;
-});
+// ── Toolbar actions ────────────────────────────────────────────────────────────
+const isFullscreen = computed(() => singleCm.isFullscreen.value);
 
-function toggleFullscreen(): void {
-  if (!splitMode.value || !canSplit.value) { singleCm.toggleFullscreen(); return; }
-  if (activeEditorTab.value === 'header') headerCm.toggleFullscreen();
-  else bodyCm.toggleFullscreen();
-}
+function toggleFullscreen(): void { singleCm.toggleFullscreen(); }
+function prettyPrint(): void { singleCm.prettyPrint(); }
 
-function prettyPrint(): void {
-  if (!splitMode.value || !canSplit.value) { singleCm.prettyPrint(); return; }
-  if (activeEditorTab.value === 'header') headerCm.prettyPrint();
-  else bodyCm.prettyPrint();
-}
-
-// ── XML split utilities ────────────────────────────────────────────────────────
+// ── XML utilities ──────────────────────────────────────────────────────────────
 
 /**
- * Find the start/end byte offsets of the first <tagName>…</tagName> block.
+ * Find the start/end offsets of the first <tagName>…</tagName> block in xml.
  * Uses depth tracking so nested same-name elements are handled correctly.
  */
 function findBlock(xml: string, tagName: string): { start: number; end: number } | null {
-  const openTag = `<${tagName}`;
+  const openTag  = `<${tagName}`;
   const closeTag = `</${tagName}>`;
 
   let firstOpen = -1;
@@ -227,42 +174,7 @@ function findBlock(xml: string, tagName: string): { start: number; end: number }
       i++;
     }
   }
-  return null; // unbalanced — document is malformed
-}
-
-/** Split a TEI XML string into its structural parts. Returns null if the
- *  document does not contain both <teiHeader> and <text>. */
-function splitXml(xml: string): {
-  header: string;
-  body: string;
-  before: string;
-  between: string;
-  after: string;
-} | null {
-  const hb = findBlock(xml, 'teiHeader');
-  const tb = findBlock(xml, 'text');
-  if (!hb || !tb) return null;
-
-  return {
-    before:   xml.slice(0, hb.start),
-    header:   xml.slice(hb.start, hb.end),
-    between:  xml.slice(hb.end, tb.start),
-    body:     xml.slice(tb.start, tb.end),
-    after:    xml.slice(tb.end),
-  };
-}
-
-/** Return the full between-segment, including the facsimile block if present. */
-function getOuterBetween(): string {
-  if (facsimileXml.value !== null) {
-    return outerBetween.value + facsimileXml.value + facsimileSuffix.value;
-  }
-  return outerBetween.value;
-}
-
-/** Reassemble a full TEI XML string from its parts. */
-function reassembleXml(newHeader: string, newBody: string): string {
-  return outerBefore.value + newHeader + getOuterBetween() + newBody + outerAfter.value;
+  return null;
 }
 
 // ── Surfaces computed from facsimile XML ──────────────────────────────────────
@@ -283,70 +195,78 @@ const surfaces = computed((): FacsimileSurface[] => {
 
 /**
  * Register a new <surface> for mediaUrl in the <facsimile> block.
- * Creates the block from scratch if it does not exist yet.
+ * Creates the block from scratch if it does not exist yet, inserting it after
+ * </teiHeader> in the editor.  Also updates the editor content so that the
+ * editor is always the single source of truth — no reassembly is needed on save.
  * Returns the xml:id of the new (or already existing) surface.
  */
 function addSurface(mediaUrl: string): string {
   const existing = surfaces.value.find((s) => s.url === mediaUrl);
   if (existing) return existing.id;
 
-  const nextId = `s${surfaces.value.length + 1}`;
+  const nextId  = `s${surfaces.value.length + 1}`;
   const surface = `<surface xml:id="${nextId}"><graphic url="${mediaUrl}"/></surface>`;
+  const current = singleCm.getValue();
 
   if (facsimileXml.value === null) {
-    // outerBetween currently holds the full between-segment (no facsimile).
-    // Split it into prefix (kept in outerBetween) and suffix.
-    facsimileXml.value    = `<facsimile>\n    ${surface}\n  </facsimile>`;
-    facsimileSuffix.value = '\n';
-    // outerBetween stays as the prefix (typically '\n')
+    // No facsimile block yet — create one and insert it after </teiHeader>.
+    const newFacs = `<facsimile>\n    ${surface}\n  </facsimile>`;
+    facsimileXml.value = newFacs;
+    const hb = findBlock(current, 'teiHeader');
+    if (hb) {
+      singleCm.setValue(current.slice(0, hb.end) + '\n' + newFacs + current.slice(hb.end));
+    }
   } else {
-    facsimileXml.value = facsimileXml.value.replace(
+    const newFacs = facsimileXml.value.replace(
       /\s*<\/facsimile>/,
       `\n    ${surface}\n  </facsimile>`,
     );
+    facsimileXml.value = newFacs;
+    const fb = findBlock(current, 'facsimile');
+    if (fb) {
+      singleCm.setValue(current.slice(0, fb.start) + newFacs + current.slice(fb.end));
+    }
   }
+  saved.value = false;
   return nextId;
 }
 
 /**
  * Remove a <surface> from the <facsimile> block and strip the corresponding
- * facs="#id" attribute from all <pb> elements in the active editor(s).
- *
- * If the facsimile block becomes empty after removal, it is discarded entirely.
+ * facs="#id" attribute from all <pb> elements.  Both the in-memory ref and
+ * the editor content are updated so they stay in sync.
+ * If the facsimile block becomes empty it is removed from the editor entirely.
  */
 function deleteSurface(surfaceId: string): void {
   if (!facsimileXml.value) return;
 
-  // Remove <surface xml:id="surfaceId">…</surface> (including leading whitespace).
   const surfaceRe = new RegExp(
     `\\s*<surface\\b[^>]*xml:id="${surfaceId}"[^>]*>[\\s\\S]*?<\\/surface>`,
     'g',
   );
-  const newFacs = facsimileXml.value.replace(surfaceRe, '');
+  const newFacs  = facsimileXml.value.replace(surfaceRe, '');
+  const pbFacsRe = new RegExp(`(<pb\\b[^>]*)\\s+facs="#${surfaceId}"`, 'g');
+
+  // Apply both changes (strip facs + update/remove facsimile) in one setValue.
+  let current = singleCm.getValue();
+  current = current.replace(pbFacsRe, '$1');
 
   if (/<facsimile[^>]*>\s*<\/facsimile>/.test(newFacs)) {
-    // Block is now empty — drop it entirely.
-    facsimileXml.value    = null;
-    facsimileSuffix.value = '';
+    // Block is now empty — remove it from the editor entirely.
+    const fb = findBlock(current, 'facsimile');
+    if (fb) {
+      current = current.slice(0, fb.start).trimEnd() + '\n' + current.slice(fb.end).trimStart();
+    }
+    facsimileXml.value = null;
   } else {
     facsimileXml.value = newFacs;
+    const fb = findBlock(current, 'facsimile');
+    if (fb) {
+      current = current.slice(0, fb.start) + newFacs + current.slice(fb.end);
+    }
   }
 
-  // Strip facs="#surfaceId" from <pb> elements in every active editor.
-  // The attribute may appear anywhere in the opening tag, optionally followed by
-  // other attributes, and the tag may be self-closing (/>) or not (>).
-  const pbFacsRe = new RegExp(`(<pb\\b[^>]*)\\s+facs="#${surfaceId}"`, 'g');
-  const strip = (xml: string) => xml.replace(pbFacsRe, '$1');
-
-  if (splitMode.value && canSplit.value) {
-    const newHeader = strip(headerCm.getValue());
-    if (newHeader !== headerCm.getValue()) headerCm.setValue(newHeader);
-    const newBody = strip(bodyCm.getValue());
-    if (newBody !== bodyCm.getValue()) bodyCm.setValue(newBody);
-  } else {
-    const newContent = strip(singleCm.getValue());
-    if (newContent !== singleCm.getValue()) singleCm.setValue(newContent);
-  }
+  singleCm.setValue(current);
   saved.value = false;
 }
 
@@ -370,59 +290,14 @@ async function loadCm5Schema(schemaId: string | null): Promise<CM5Schema | undef
   }
 }
 
-// ── Tab switching ──────────────────────────────────────────────────────────────
-// Both editor containers are always in the layout (absolute-positioned, same
-// slot) so CM5 always has real dimensions and never needs a refresh on switch.
-// Only the CSS visibility/pointer-events change — no measurement is cleared.
-function switchTab(tab: 'header' | 'body'): void {
-  activeEditorTab.value = tab;
-}
+// (split mode removed — editor is always the single source of truth)
 
-// ── Get full XML value (handles both modes) ────────────────────────────────────
-function getFullValue(): string {
-  if (!splitMode.value || !canSplit.value) {
-    // In single-editor mode the facsimile block is managed separately in
-    // memory (facsimileXml). We must inject it back between </teiHeader> and
-    // <text> before saving, otherwise it would be silently dropped.
-    if (facsimileXml.value !== null) {
-      const raw = singleCm.getValue();
-      const parts = splitXml(raw);
-      if (parts) {
-        // Use the in-memory facsimile state (outerBetween + facsimileXml +
-        // facsimileSuffix) rather than whatever was in parts.between, because
-        // addSurface() has been modifying facsimileXml in memory.
-        return outerBefore.value + parts.header + getOuterBetween() + parts.body + outerAfter.value;
-      }
-    }
-    return singleCm.getValue();
-  }
-  return reassembleXml(headerCm.getValue(), bodyCm.getValue());
-}
-
-/** Extract the <facsimile> block from a full XML string and populate the
- *  in-memory refs used by getFullValue() / reassembleXml(). This is called
- *  in every load path (split, split-fallback, and pure single-editor) so that
- *  addSurface() and getFullValue() always have consistent state. */
+/** Populate facsimileXml from the full document XML so the MediaPanel can
+ *  display the surface list.  The editor receives the full unmodified XML —
+ *  facsimileXml is kept in sync via addSurface / deleteSurface. */
 function _extractFacsimileFromXml(xml: string): void {
-  const parts = splitXml(xml);
-  if (!parts) {
-    // Document is not a valid TEI split — nothing to extract.
-    facsimileXml.value    = null;
-    facsimileSuffix.value = '';
-    return;
-  }
-  outerBefore.value = parts.before;
-  outerAfter.value  = parts.after;
-  const fb = findBlock(parts.between, 'facsimile');
-  if (fb) {
-    outerBetween.value    = parts.between.slice(0, fb.start);
-    facsimileXml.value    = parts.between.slice(fb.start, fb.end);
-    facsimileSuffix.value = parts.between.slice(fb.end);
-  } else {
-    outerBetween.value    = parts.between;
-    facsimileXml.value    = null;
-    facsimileSuffix.value = '';
-  }
+  const fb = findBlock(xml, 'facsimile');
+  facsimileXml.value = fb ? xml.slice(fb.start, fb.end) : null;
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
@@ -438,38 +313,8 @@ onMounted(async () => {
 
   if (xmlResult.status === 'fulfilled') {
     const xml = xmlResult.value;
-    if (splitMode.value) {
-      const parts = splitXml(xml);
-      if (parts) {
-        headerInitialXml.value = parts.header;
-        bodyInitialXml.value   = parts.body;
-        outerBefore.value      = parts.before;
-        outerAfter.value       = parts.after;
-        canSplit.value = true;
-
-        // Extract <facsimile> block from between-segment (if present).
-        const fb = findBlock(parts.between, 'facsimile');
-        if (fb) {
-          outerBetween.value    = parts.between.slice(0, fb.start);
-          facsimileXml.value    = parts.between.slice(fb.start, fb.end);
-          facsimileSuffix.value = parts.between.slice(fb.end);
-        } else {
-          outerBetween.value    = parts.between;
-          facsimileXml.value    = null;
-          facsimileSuffix.value = '';
-        }
-      } else {
-        canSplit.value = false;
-        // Extract facsimile from the full XML even in fallback/single mode
-        // so that getFullValue() can inject it back on save.
-        _extractFacsimileFromXml(xml);
-        initialXml.value = xml;
-      }
-    } else {
-      // Pure single-editor mode: extract facsimile for save-time injection.
-      _extractFacsimileFromXml(xml);
-      initialXml.value = xml;
-    }
+    _extractFacsimileFromXml(xml);
+    initialXml.value = xml;
   } else {
     error.value = t('common.error');
   }
@@ -504,15 +349,11 @@ onBeforeUnmount(() => {
 
 // ── Note insertion / editing ───────────────────────────────────────────────────
 
-type CmKey = 'single' | 'header' | 'body';
-
 const showNoteModal = ref(false);
 const pendingNoteType = ref<'alpha' | 'numeric'>('alpha');
 /** null = inserting a new note; non-null = editing the note with this ID */
 const pendingNoteId = ref<string | null>(null);
 const noteModalInitialContent = ref('');
-/** Which CM instance owns the note being edited */
-const editingCmKey = ref<CmKey>('single');
 
 /** Generate a unique note ID matching old-Aracne format: N + 9 base-36 chars. */
 function generateNoteId(): string {
@@ -530,60 +371,35 @@ function openNoteEditModal(
   noteId: string,
   type: 'alpha' | 'numeric',
   content: string,
-  cmKey: CmKey,
+  _cmKey?: string,
 ): void {
   pendingNoteType.value = type;
   pendingNoteId.value = noteId;
   noteModalInitialContent.value = content;
-  editingCmKey.value = cmKey;
   showNoteModal.value = true;
 }
 
 function handleNoteDelete(): void {
   if (!pendingNoteId.value) return;
-  const cmMap = { single: singleCm, header: headerCm, body: bodyCm } as const;
-  cmMap[editingCmKey.value].deleteNote(pendingNoteId.value);
+  singleCm.deleteNote(pendingNoteId.value);
 }
 
 function handleNoteConfirm(content: string): void {
   if (pendingNoteId.value) {
-    // Edit the content of an existing <note> without touching the <ref> marker.
-    const cmMap = { single: singleCm, header: headerCm, body: bodyCm } as const;
-    cmMap[editingCmKey.value].editNote(pendingNoteId.value, content);
+    singleCm.editNote(pendingNoteId.value, content);
   } else {
-    // Insert a brand-new <ref> + <note> pair.
-    const noteId = generateNoteId();
-    if (!splitMode.value || !canSplit.value) {
-      singleCm.insertNote(pendingNoteType.value, noteId, content);
-    } else if (activeEditorTab.value === 'header') {
-      headerCm.insertNote(pendingNoteType.value, noteId, content);
-    } else {
-      bodyCm.insertNote(pendingNoteType.value, noteId, content);
-    }
+    singleCm.insertNote(pendingNoteType.value, generateNoteId(), content);
   }
 }
 
 // ── Figure insertion ──────────────────────────────────────────────────────────
 
 function handleInsertFigure(url: string): void {
-  if (!splitMode.value || !canSplit.value) {
-    singleCm.insertFigure(url);
-  } else if (activeEditorTab.value === 'header') {
-    headerCm.insertFigure(url);
-  } else {
-    bodyCm.insertFigure(url);
-  }
+  singleCm.insertFigure(url);
 }
 
 function handleInsertAsCard(mediaUrl: string): void {
-  const surfaceId = addSurface(mediaUrl);
-  if (!splitMode.value || !canSplit.value) {
-    singleCm.insertPageBreak(surfaceId);
-  } else if (activeEditorTab.value === 'header') {
-    headerCm.insertPageBreak(surfaceId);
-  } else {
-    bodyCm.insertPageBreak(surfaceId);
-  }
+  singleCm.insertPageBreak(addSurface(mediaUrl));
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -592,15 +408,8 @@ async function handleSave(): Promise<void> {
   saved.value = false;
   isSaving.value = true;
   try {
-    const assembled = getFullValue();
-    await store.updateDocument(slug, filename, assembled);
+    await store.updateDocument(slug, filename, singleCm.getValue());
     saved.value = true;
-    // In single-editor mode the facsimile block is kept separately in memory
-    // and injected into `assembled` by getFullValue(). Write the assembled XML
-    // back into the editor so what the user sees matches what was saved.
-    if ((!splitMode.value || !canSplit.value) && facsimileXml.value !== null) {
-      singleCm.setValue(assembled);
-    }
     if (hasValidationSchema.value) runValidation();
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
@@ -618,14 +427,7 @@ const lastAiPrompt = ref<'validate' | 'improve' | null>(null);
 const schemaLabel = ref('TEI P5');
 const aiNoErrors = ref(false);
 
-const activeEditor = computed(() => {
-  if (splitMode.value && canSplit.value) {
-    return activeEditorTab.value === 'header'
-      ? headerCm.editorInstance.value
-      : bodyCm.editorInstance.value;
-  }
-  return singleCm.editorInstance.value;
-});
+const activeEditor = computed(() => singleCm.editorInstance.value);
 
 function openAiPanel(): void {
   showHelpPanel.value = false;
@@ -737,13 +539,6 @@ async function runValidation(): Promise<void> {
           :title="schemaWarning"
         >
           {{ t('documents.schema_error') }}
-        </span>
-        <span
-          v-if="splitMode && !isLoading && !canSplit"
-          class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700"
-          :title="t('documents.split_fallback_title')"
-        >
-          {{ t('documents.split_fallback') }}
         </span>
       </div>
 
@@ -921,70 +716,16 @@ async function runValidation(): Promise<void> {
       Ctrl+Space autocomplete · Ctrl+/ commento · Ctrl+J tag corrispondente · F11 fullscreen · Ctrl+F cerca
     </p>
 
-    <!-- Split-mode tab bar -->
-    <div
-      v-if="splitMode && canSplit && !isLoading && !error"
-      class="mb-2 flex flex-shrink-0 gap-1 border-b border-gray-200 pb-2"
-    >
-      <button
-        :class="[
-          'rounded-t px-4 py-1.5 text-xs font-medium transition-colors',
-          activeEditorTab === 'header'
-            ? 'bg-indigo-600 text-white'
-            : 'border border-gray-200 text-gray-600 hover:bg-gray-50',
-        ]"
-        @click="switchTab('header')"
-      >
-        &lt;teiHeader&gt;
-      </button>
-      <button
-        :class="[
-          'rounded-t px-4 py-1.5 text-xs font-medium transition-colors',
-          activeEditorTab === 'body'
-            ? 'bg-indigo-600 text-white'
-            : 'border border-gray-200 text-gray-600 hover:bg-gray-50',
-        ]"
-        @click="switchTab('body')"
-      >
-        &lt;text&gt;
-      </button>
-    </div>
-
     <!-- Loading / error states -->
     <p v-if="isLoading" class="text-sm text-gray-500">{{ t('common.loading') }}</p>
     <p v-else-if="error" class="text-sm text-red-600">{{ error }}</p>
 
-    <!-- Single-mode editor (non-split or split-fallback) -->
-    <!-- v-if ensures the container has real dimensions when CM5 initialises. -->
+    <!-- Editor — v-if ensures real dimensions when CM5 initialises -->
     <div
-      v-if="(!splitMode || !canSplit) && !isLoading && !error"
+      v-if="!isLoading && !error"
       ref="editorContainer"
       class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
     />
-
-    <!-- Split-mode editors: two independent CM5 instances stacked absolutely   -->
-    <!-- inside a shared flex-1 wrapper. Both always occupy the same real      -->
-    <!-- dimensions — the inactive tab is hidden via visibility:hidden +       -->
-    <!-- pointer-events:none so CM5 can always measure without a refresh().    -->
-    <div
-      v-if="splitMode && canSplit && !isLoading && !error"
-      class="relative min-h-0 flex-1"
-    >
-      <div
-        ref="headerEditorContainer"
-        :class="[
-          'absolute inset-0 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm',
-          activeEditorTab !== 'header' ? 'invisible pointer-events-none' : '',
-        ]"
-      />
-      <div
-        ref="bodyEditorContainer"
-        :class="[
-          'absolute inset-0 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm',
-          activeEditorTab !== 'body' ? 'invisible pointer-events-none' : '',
-        ]"
-      />
-    </div>
 
     <!-- Validation errors panel -->
     <div
