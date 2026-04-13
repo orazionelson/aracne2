@@ -781,6 +781,8 @@
     "facsimile_empty_hint": "Click «Card» on an image to register it in <facsimile>.",
     "facsimile_hint": "These surfaces are stored in the <facsimile> block and will be saved with the document.",
     "facsimile_xml_preview": "View XML",
+    "surface_move_up": "Move up",
+    "surface_move_down": "Move down",
     "surface_delete": "Remove",
     "surface_delete_confirm": "Remove #{{id}} and strip its facs references from <pb> elements?",
     "surface_delete_confirm_btn": "Remove"

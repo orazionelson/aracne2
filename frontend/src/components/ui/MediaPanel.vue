@@ -23,6 +23,8 @@ const emit = defineEmits<{
   (e: 'insertAsCard', url: string): void;
   /** Removes <surface xml:id="id"> from <facsimile> and strips facs="#id" from all <pb>. */
   (e: 'deleteSurface', surfaceId: string): void;
+  /** Moves a surface one position up or down inside <facsimile>. */
+  (e: 'moveSurface', surfaceId: string, direction: 'up' | 'down'): void;
   /**
    * Fired after a media file is successfully deleted from storage.
    * The parent must strip dead <graphic url="mediaUrl"> references from the
@@ -294,10 +296,26 @@ function formatSize(bytes: number): string {
           </p>
           <ul class="divide-y divide-gray-100">
             <li
-              v-for="surface in surfaces"
+              v-for="(surface, idx) in surfaces"
               :key="surface.id"
               class="flex items-center gap-3 px-3 py-2"
             >
+              <!-- Up/Down reorder controls -->
+              <div class="flex flex-shrink-0 flex-col gap-0.5">
+                <button
+                  :disabled="idx === 0"
+                  class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-25"
+                  :title="t('media.surface_move_up')"
+                  @click="emit('moveSurface', surface.id, 'up')"
+                >▲</button>
+                <button
+                  :disabled="idx === surfaces.length - 1"
+                  class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-25"
+                  :title="t('media.surface_move_down')"
+                  @click="emit('moveSurface', surface.id, 'down')"
+                >▼</button>
+              </div>
+
               <!-- Thumbnail -->
               <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50">
                 <img

@@ -403,6 +403,55 @@ function handleInsertAsCard(mediaUrl: string): void {
 }
 
 /**
+ * Move a <surface> one position up or down inside <facsimile>.
+ * The surrounding whitespace of each block is preserved; only the XML
+ * content of the two adjacent blocks is swapped.
+ */
+function handleMoveSurface(surfaceId: string, direction: 'up' | 'down'): void {
+  if (!facsimileXml.value) return;
+
+  const facs = facsimileXml.value;
+
+  // Extract the facsimile opening tag and trailing close tag.
+  const openTagMatch = /^<facsimile\b[^>]*>/.exec(facs);
+  if (!openTagMatch) return;
+  const openTag   = openTagMatch[0];
+  const closeTag  = '</facsimile>';
+  const innerEnd  = facs.lastIndexOf(closeTag);
+  if (innerEnd === -1) return;
+  const inner = facs.slice(openTag.length, innerEnd);
+
+  // Collect all <surface>…</surface> blocks with their leading whitespace.
+  const surfaceRe = /(\s*)(<surface\b[\s\S]*?<\/surface>)/g;
+  const blocks: Array<{ ws: string; text: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = surfaceRe.exec(inner)) !== null) {
+    blocks.push({ ws: m[1], text: m[2] });
+  }
+
+  const idx = blocks.findIndex((b) => b.text.includes(`xml:id="${surfaceId}"`));
+  if (idx === -1) return;
+
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= blocks.length) return;
+
+  // Swap only the XML content; whitespace slots stay in place.
+  const newBlocks = blocks.map((b) => ({ ...b }));
+  [newBlocks[idx].text, newBlocks[swapIdx].text] = [newBlocks[swapIdx].text, newBlocks[idx].text];
+
+  const newFacs = openTag + newBlocks.map((b) => b.ws + b.text).join('') + closeTag;
+  facsimileXml.value = newFacs;
+
+  // Patch the editor in one operation.
+  const current = singleCm.getValue();
+  const fb = findBlock(current, 'facsimile');
+  if (fb) {
+    singleCm.setValue(current.slice(0, fb.start) + newFacs + current.slice(fb.end));
+  }
+  saved.value = false;
+}
+
+/**
  * Called when a media file is deleted from storage.
  * Removes dead references from the editor:
  *   1. The linked <surface> (if any) from <facsimile> + its facs="#id" on <pb>.
@@ -932,6 +981,7 @@ async function runValidation(): Promise<void> {
     @insert-figure="handleInsertFigure"
     @insert-as-card="handleInsertAsCard"
     @delete-surface="deleteSurface"
+    @move-surface="handleMoveSurface"
     @cleanup-media-refs="handleCleanupMediaRefs"
     @close="showMediaPanel = false"
   />
