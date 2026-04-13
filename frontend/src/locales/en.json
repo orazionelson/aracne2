@@ -590,6 +590,8 @@
     "doc_img_layout_inline": "Inline (in text flow)",
     "doc_img_layout_left": "Float left",
     "doc_img_layout_right": "Float right",
+    "doc_img_layout_col_left": "Column left (outside text)",
+    "doc_img_layout_col_right": "Column right (outside text)",
     "doc_img_layout_modal": "Modal on click",
     "doc_img_gallery": "Show facsimile gallery at document top",
     "doc_img_gallery_hint": "Thumbnails of all <pb facs> surfaces, collected before the text.",

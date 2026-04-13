@@ -1694,6 +1694,8 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                     <option value="inline">{{ t("websites.doc_img_layout_inline") }}</option>
                     <option value="left">{{ t("websites.doc_img_layout_left") }}</option>
                     <option value="right">{{ t("websites.doc_img_layout_right") }}</option>
+                    <option value="column-left">{{ t("websites.doc_img_layout_col_left") }}</option>
+                    <option value="column-right">{{ t("websites.doc_img_layout_col_right") }}</option>
                     <option value="modal">{{ t("websites.doc_img_layout_modal") }}</option>
                   </select>
                 </div>
@@ -1734,6 +1736,8 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                       <option value="inline">{{ t("websites.doc_img_layout_inline") }}</option>
                       <option value="left">{{ t("websites.doc_img_layout_left") }}</option>
                       <option value="right">{{ t("websites.doc_img_layout_right") }}</option>
+                      <option value="column-left">{{ t("websites.doc_img_layout_col_left") }}</option>
+                      <option value="column-right">{{ t("websites.doc_img_layout_col_right") }}</option>
                       <option value="modal">{{ t("websites.doc_img_layout_modal") }}</option>
                     </select>
                   </div>

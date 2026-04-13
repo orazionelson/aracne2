@@ -7,7 +7,7 @@ export type BuildStatus = "idle" | "pending" | "building" | "done" | "failed";
 export type XsltSource = "default" | "custom" | "url" | "catalog";
 export type XsltProcessor = "lxml" | "saxon";
 export type ImageSize = "full" | "thumbnail";
-export type ImageLayout = "inline" | "left" | "right" | "modal";
+export type ImageLayout = "inline" | "left" | "right" | "modal" | "column-left" | "column-right";
 
 export interface ImageRenderingConfig {
   enabled: boolean;

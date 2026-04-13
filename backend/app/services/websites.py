@@ -504,6 +504,53 @@ def _build_image_rendering_css(cfg: dict) -> str:
                     "figure.tei-pb-facsimile{max-width:120px;margin:1rem auto;}"
                 )
 
+    # ── dedicated column layout (left / right) ────────────────────────────────
+    # Determine which selectors need a column and which side they go to.
+    # Column layout is applied by JS (_build_image_column_js); here we only emit
+    # the grid CSS and sidebar style rules.
+    col_selectors: list[str] = []
+    col_side: str = "right"  # default; overridden below
+    if fig_layout in ("column-left", "column-right"):
+        col_selectors.append("figure.tei-figure")
+        col_side = "left" if fig_layout == "column-left" else "right"
+    if pb_show and pb_layout in ("column-left", "column-right"):
+        col_selectors.append("figure.tei-pb-facsimile")
+        col_side = "left" if pb_layout == "column-left" else "right"
+
+    if col_selectors:
+        # Override main to a two-column grid.  The sidebar slot is 260px wide;
+        # the text column takes the remaining space.
+        if col_side == "right":
+            lines.append(
+                "main{display:grid;grid-template-columns:1fr 260px;"
+                "gap:2.5rem;align-items:start;max-width:1100px;}"
+            )
+        else:
+            lines.append(
+                "main{display:grid;grid-template-columns:260px 1fr;"
+                "gap:2.5rem;align-items:start;max-width:1100px;}"
+            )
+        lines.append(
+            ".tei-body{min-width:0;}"
+            ".img-sidebar{align-self:start;position:sticky;top:1.5rem;"
+            "overflow-y:auto;max-height:90vh;}"
+            ".img-sidebar figure{margin:0 0 1rem 0;max-width:100%;}"
+            ".img-sidebar figure img{max-width:100%;height:auto;"
+            "border:1px solid #e5e7eb;border-radius:3px;display:block;}"
+            ".img-sidebar figcaption{font-size:.7rem;color:#9ca3af;"
+            "font-family:monospace;margin-top:.25rem;text-align:center;}"
+        )
+        # Prevent the moved elements from showing in their inline position.
+        lines.append(",".join(col_selectors) + "{display:none;}")
+        lines.append(".img-sidebar figure{display:block;}")
+        # Responsive: stack vertically on narrow screens.
+        lines.append(
+            "@media(max-width:700px){"
+            "main{grid-template-columns:1fr!important;}"
+            ".img-sidebar{position:static;max-height:none;}"
+            "}"
+        )
+
     # ── facsimile gallery ─────────────────────────────────────────────────────
     if cfg.get("facsimile_gallery"):
         lines.append(
@@ -520,6 +567,50 @@ def _build_image_rendering_css(cfg: dict) -> str:
         )
 
     return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def _build_image_column_js(cfg: dict) -> str:
+    """Return JS that moves images into a dedicated sidebar column.
+
+    Called only when at least one layout is ``"column-left"`` or
+    ``"column-right"``.  The JS creates an ``.img-sidebar`` div inside
+    ``<main>``, moves matching ``<figure>`` elements into it, then un-hides
+    them (the CSS hides inline figures so nothing renders until JS runs).
+    """
+    if not cfg or not cfg.get("enabled"):
+        return ""
+
+    fig    = cfg.get("figure", {}) or {}
+    pb     = cfg.get("pb", {}) or {}
+    fig_layout = fig.get("layout", "inline")
+    pb_show    = pb.get("show", True)
+    pb_layout  = pb.get("layout", "inline")
+
+    selectors: list[str] = []
+    side: str = "right"
+    if fig_layout in ("column-left", "column-right"):
+        selectors.append("figure.tei-figure")
+        side = "left" if fig_layout == "column-left" else "right"
+    if pb_show and pb_layout in ("column-left", "column-right"):
+        selectors.append("figure.tei-pb-facsimile")
+        side = "left" if pb_layout == "column-left" else "right"
+
+    if not selectors:
+        return ""
+
+    sel_js = ",".join(selectors)
+    return (
+        "(function(){"
+        "var main=document.querySelector('main');"
+        "if(!main)return;"
+        f"var figs=main.querySelectorAll('{sel_js}');"
+        "if(!figs.length)return;"
+        "var sb=document.createElement('div');"
+        "sb.className='img-sidebar';"
+        f"if('{side}'==='right'){{main.appendChild(sb);}}else{{main.insertBefore(sb,main.firstChild);}}"
+        "figs.forEach(function(f){sb.appendChild(f);f.style.display='block';});"
+        "})();"
+    )
 
 
 def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
@@ -1566,12 +1657,29 @@ async def preview_document(
     ir_css = _build_image_rendering_css(ir_cfg)
     ir_style = f"<style>{ir_css}</style>\n" if ir_css else ""
 
-    # Inject modal JS when a modal layout is active.
-    ir_modal = ir_cfg.get("enabled") and (
-        (ir_cfg.get("figure") or {}).get("layout") == "modal"
-        or (ir_cfg.get("pb") or {}).get("layout") == "modal"
+    # Inject modal and/or column JS when those layouts are active.
+    ir_fig_layout = (ir_cfg.get("figure") or {}).get("layout", "inline")
+    ir_pb_layout  = (ir_cfg.get("pb") or {}).get("layout", "inline")
+    ir_modal  = bool(ir_cfg.get("enabled")) and (
+        ir_fig_layout == "modal" or ir_pb_layout == "modal"
     )
-    modal_script = f"<script>{_IMAGE_MODAL_JS}</script>\n" if ir_modal else ""
+    ir_column = bool(ir_cfg.get("enabled")) and (
+        ir_fig_layout in ("column-left", "column-right")
+        or ir_pb_layout in ("column-left", "column-right")
+    )
+    extra_scripts = ""
+    if ir_modal:
+        extra_scripts += f"<script>{_IMAGE_MODAL_JS}</script>\n"
+    if ir_column:
+        extra_scripts += f"<script>{_build_image_column_js(ir_cfg)}</script>\n"
+
+    # For the column preview the preview body needs a <main> wrapper so the
+    # column JS can find document.querySelector('main').
+    body_content = (
+        f'<main><div class="tei-body">{doc_body}</div></main>'
+        if ir_column
+        else f'<div class="tei-body">{doc_body}</div>'
+    )
 
     return (
         "<!DOCTYPE html><html><head>"
@@ -1584,9 +1692,8 @@ async def preview_document(
         "figure.tei-pb-facsimile{border:1px solid #e5e7eb;border-radius:3px;padding:.5rem;background:#fafafa;}"
         "</style>"
         f"{ir_style}"
-        "</head><body>"
-        f'<div class="tei-body">{doc_body}</div>'
-        f"{modal_script}"
+        f"</head><body>{body_content}"
+        f"{extra_scripts}"
         "</body></html>"
     )
 
@@ -2849,18 +2956,25 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     _ir_css: str = _build_image_rendering_css(_ir_cfg)
     _ir_enabled: bool = bool(_ir_cfg.get("enabled"))
     _ir_gallery: bool = _ir_enabled and bool(_ir_cfg.get("facsimile_gallery"))
+    _ir_fig_layout  = (_ir_cfg.get("figure", {}) or {}).get("layout", "inline")
+    _ir_pb_layout   = (_ir_cfg.get("pb", {}) or {}).get("layout", "inline")
     _ir_modal: bool = _ir_enabled and (
-        (_ir_cfg.get("figure", {}) or {}).get("layout") == "modal"
-        or (_ir_cfg.get("pb", {}) or {}).get("layout") == "modal"
+        _ir_fig_layout == "modal" or _ir_pb_layout == "modal"
+    )
+    _ir_column: bool = _ir_enabled and (
+        _ir_fig_layout in ("column-left", "column-right")
+        or _ir_pb_layout in ("column-left", "column-right")
     )
     # Append image-rendering CSS to the per-site style block (doc pages only;
     # non-doc pages share the same style but show no TEI content).
     doc_style = _style_block(theme, website.custom_css, _ir_css if _ir_css else None)
     style = _style_block(theme, website.custom_css)
-    # Append modal JS to site's custom JS when modal layout is active.
+    # Append modal and/or column JS to site's custom JS when active.
     custom_js = website.custom_js
     if _ir_modal:
         custom_js = (custom_js or "") + "\n" + _IMAGE_MODAL_JS
+    if _ir_column:
+        custom_js = (custom_js or "") + "\n" + _build_image_column_js(_ir_cfg)
     include_jquery = website.include_jquery
 
     # Only visible free pages appear in the navigation.
