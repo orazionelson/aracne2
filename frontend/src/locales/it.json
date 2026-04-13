@@ -768,7 +768,10 @@
     "facsimile_empty": "Nessuna surface registrata.",
     "facsimile_empty_hint": "Clicca «Carta» su un'immagine per registrarla in <facsimile>.",
     "facsimile_hint": "Queste surface sono memorizzate nel blocco <facsimile> e verranno salvate con il documento.",
-    "facsimile_xml_preview": "Mostra XML"
+    "facsimile_xml_preview": "Mostra XML",
+    "surface_delete": "Rimuovi",
+    "surface_delete_confirm": "Rimuovi #{{id}} e rimuove i riferimenti facs dai <pb>?",
+    "surface_delete_confirm_btn": "Rimuovi"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

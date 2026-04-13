@@ -308,6 +308,48 @@ function addSurface(mediaUrl: string): string {
   return nextId;
 }
 
+/**
+ * Remove a <surface> from the <facsimile> block and strip the corresponding
+ * facs="#id" attribute from all <pb> elements in the active editor(s).
+ *
+ * If the facsimile block becomes empty after removal, it is discarded entirely.
+ */
+function deleteSurface(surfaceId: string): void {
+  if (!facsimileXml.value) return;
+
+  // Remove <surface xml:id="surfaceId">…</surface> (including leading whitespace).
+  const surfaceRe = new RegExp(
+    `\\s*<surface\\b[^>]*xml:id="${surfaceId}"[^>]*>[\\s\\S]*?<\\/surface>`,
+    'g',
+  );
+  const newFacs = facsimileXml.value.replace(surfaceRe, '');
+
+  if (/<facsimile[^>]*>\s*<\/facsimile>/.test(newFacs)) {
+    // Block is now empty — drop it entirely.
+    facsimileXml.value    = null;
+    facsimileSuffix.value = '';
+  } else {
+    facsimileXml.value = newFacs;
+  }
+
+  // Strip facs="#surfaceId" from <pb> elements in every active editor.
+  // The attribute may appear anywhere in the opening tag, optionally followed by
+  // other attributes, and the tag may be self-closing (/>) or not (>).
+  const pbFacsRe = new RegExp(`(<pb\\b[^>]*)\\s+facs="#${surfaceId}"`, 'g');
+  const strip = (xml: string) => xml.replace(pbFacsRe, '$1');
+
+  if (splitMode.value && canSplit.value) {
+    const newHeader = strip(headerCm.getValue());
+    if (newHeader !== headerCm.getValue()) headerCm.setValue(newHeader);
+    const newBody = strip(bodyCm.getValue());
+    if (newBody !== bodyCm.getValue()) bodyCm.setValue(newBody);
+  } else {
+    const newContent = strip(singleCm.getValue());
+    if (newContent !== singleCm.getValue()) singleCm.setValue(newContent);
+  }
+  saved.value = false;
+}
+
 // ── CM5 schema loader ──────────────────────────────────────────────────────────
 async function loadCm5Schema(schemaId: string | null): Promise<CM5Schema | undefined> {
   if (schemaId) {
@@ -1120,6 +1162,7 @@ async function runValidation(): Promise<void> {
     :style="{ width: panelWidth + 'px' }"
     @insert-figure="handleInsertFigure"
     @insert-as-card="handleInsertAsCard"
+    @delete-surface="deleteSurface"
     @close="showMediaPanel = false"
   />
   </div>

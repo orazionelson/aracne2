@@ -21,6 +21,8 @@ const emit = defineEmits<{
   (e: 'insertFigure', url: string): void;
   /** Adds a <surface> to <facsimile> (if needed) and inserts <pb facs="#id"/>. */
   (e: 'insertAsCard', url: string): void;
+  /** Removes <surface xml:id="id"> from <facsimile> and strips facs="#id" from all <pb>. */
+  (e: 'deleteSurface', surfaceId: string): void;
   (e: 'close'): void;
 }>();
 
@@ -43,6 +45,7 @@ const loadingBlobs = ref<Set<string>>(new Set());
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const confirmDeleteFilename = ref<string | null>(null);
+const confirmDeleteSurfaceId = ref<string | null>(null);
 
 onMounted(async () => {
   await store.fetchMedia(props.slug, props.docFilename);
@@ -301,13 +304,39 @@ function formatSize(bytes: number): string {
                 <p class="mt-0.5 truncate font-mono text-xs text-gray-400" :title="surface.url">
                   {{ filenameFromUrl(surface.url) }}
                 </p>
-                <button
-                  class="mt-1 rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100"
-                  :title="t('media.insert_pb_title', { id: surface.id })"
-                  @click="emit('insertAsCard', surface.url)"
-                >
-                  {{ t('media.insert_pb') }} facs="#{{ surface.id }}"
-                </button>
+                <div class="mt-1 flex flex-wrap gap-1">
+                  <button
+                    class="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100"
+                    :title="t('media.insert_pb_title', { id: surface.id })"
+                    @click="emit('insertAsCard', surface.url)"
+                  >
+                    {{ t('media.insert_pb') }} facs="#{{ surface.id }}"
+                  </button>
+                  <!-- Delete surface with inline confirmation -->
+                  <template v-if="confirmDeleteSurfaceId !== surface.id">
+                    <button
+                      class="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      :title="t('media.surface_delete_confirm', { id: surface.id })"
+                      @click="confirmDeleteSurfaceId = surface.id"
+                    >
+                      {{ t('media.surface_delete') }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      class="rounded bg-red-50 px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
+                      @click="emit('deleteSurface', surface.id); confirmDeleteSurfaceId = null"
+                    >
+                      {{ t('media.surface_delete_confirm_btn') }}
+                    </button>
+                    <button
+                      class="rounded bg-gray-50 px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100"
+                      @click="confirmDeleteSurfaceId = null"
+                    >
+                      {{ t('common.cancel') }}
+                    </button>
+                  </template>
+                </div>
               </div>
             </li>
           </ul>
