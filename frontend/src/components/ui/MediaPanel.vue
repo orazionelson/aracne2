@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMediaStore, type MediaItem } from '@/stores/mediaStore';
 
@@ -13,6 +13,8 @@ const props = defineProps<{
   docFilename: string;
   /** Surfaces currently registered in the document's <facsimile> block. */
   surfaces: FacsimileSurface[];
+  /** Raw <facsimile>…</facsimile> XML managed in memory; null = not present. */
+  facsimileXml: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -22,8 +24,17 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+type PanelTab = 'images' | 'facsimile';
+
 const { t } = useI18n();
 const store = useMediaStore();
+
+const activeTab = ref<PanelTab>('images');
+
+// Switch to facsimile tab automatically when the first surface is added.
+watch(() => props.surfaces.length, (newLen, oldLen) => {
+  if (oldLen === 0 && newLen > 0) activeTab.value = 'facsimile';
+});
 
 // Per-item blob URL cache (revoked on unmount).
 const blobUrls = ref<Record<string, string>>({});
@@ -87,6 +98,11 @@ function surfaceFor(item: MediaItem): FacsimileSurface | undefined {
   return props.surfaces.find((s) => s.url === item.url);
 }
 
+/** Extract the bare filename from a media API URL or any path. */
+function filenameFromUrl(url: string): string {
+  return url.split('/').pop() ?? url;
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -102,6 +118,38 @@ function formatSize(bytes: number): string {
       <button class="text-gray-400 hover:text-gray-700" @click="emit('close')">✕</button>
     </div>
 
+    <!-- Tab bar -->
+    <div class="flex flex-shrink-0 border-b border-gray-200">
+      <button
+        :class="[
+          'flex-1 px-3 py-1.5 text-xs font-medium transition-colors',
+          activeTab === 'images'
+            ? 'border-b-2 border-indigo-500 text-indigo-700'
+            : 'text-gray-500 hover:text-gray-700',
+        ]"
+        @click="activeTab = 'images'"
+      >
+        {{ t('media.tab_images') }}
+      </button>
+      <button
+        :class="[
+          'flex-1 px-3 py-1.5 text-xs font-medium transition-colors',
+          activeTab === 'facsimile'
+            ? 'border-b-2 border-teal-500 text-teal-700'
+            : 'text-gray-500 hover:text-gray-700',
+        ]"
+        @click="activeTab = 'facsimile'"
+      >
+        {{ t('media.tab_facsimile') }}
+        <span
+          v-if="surfaces.length > 0"
+          class="ml-1 rounded-full bg-teal-100 px-1.5 py-0.5 text-xs font-semibold text-teal-700"
+        >{{ surfaces.length }}</span>
+      </button>
+    </div>
+
+    <!-- ── Images tab ──────────────────────────────────────────────────────── -->
+    <template v-if="activeTab === 'images'">
     <!-- Upload button -->
     <div class="flex-shrink-0 border-b border-gray-100 px-3 py-2">
       <input
@@ -213,5 +261,66 @@ function formatSize(bytes: number): string {
         </li>
       </ul>
     </div>
+    </template><!-- end images tab -->
+
+    <!-- ── Facsimile tab ───────────────────────────────────────────────────── -->
+    <template v-if="activeTab === 'facsimile'">
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <!-- Empty state -->
+        <div v-if="surfaces.length === 0" class="px-3 py-6 text-center">
+          <p class="text-xs text-gray-400">{{ t('media.facsimile_empty') }}</p>
+          <p class="mt-1 text-xs text-gray-300">{{ t('media.facsimile_empty_hint') }}</p>
+        </div>
+
+        <!-- Surface list -->
+        <template v-else>
+          <p class="px-3 py-2 text-xs text-gray-400">
+            {{ t('media.facsimile_hint') }}
+          </p>
+          <ul class="divide-y divide-gray-100">
+            <li
+              v-for="surface in surfaces"
+              :key="surface.id"
+              class="flex items-center gap-3 px-3 py-2"
+            >
+              <!-- Thumbnail -->
+              <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50">
+                <img
+                  v-if="blobUrls[filenameFromUrl(surface.url)]"
+                  :src="blobUrls[filenameFromUrl(surface.url)]"
+                  alt=""
+                  class="h-full w-full object-cover"
+                />
+                <div v-else class="flex h-full items-center justify-center">
+                  <span class="text-xs text-gray-300">?</span>
+                </div>
+              </div>
+              <!-- Info -->
+              <div class="min-w-0 flex-1">
+                <p class="font-mono text-xs font-semibold text-teal-700">xml:id="{{ surface.id }}"</p>
+                <p class="mt-0.5 truncate font-mono text-xs text-gray-400" :title="surface.url">
+                  {{ filenameFromUrl(surface.url) }}
+                </p>
+                <button
+                  class="mt-1 rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100"
+                  :title="t('media.insert_pb_title', { id: surface.id })"
+                  @click="emit('insertAsCard', surface.url)"
+                >
+                  {{ t('media.insert_pb') }} facs="#{{ surface.id }}"
+                </button>
+              </div>
+            </li>
+          </ul>
+
+          <!-- Raw XML preview -->
+          <details class="border-t border-gray-100">
+            <summary class="cursor-pointer px-3 py-2 text-xs text-gray-400 hover:text-gray-600">
+              {{ t('media.facsimile_xml_preview') }}
+            </summary>
+            <pre class="overflow-x-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-xs text-gray-500">{{ facsimileXml }}</pre>
+          </details>
+        </template>
+      </div>
+    </template><!-- end facsimile tab -->
   </div>
 </template>

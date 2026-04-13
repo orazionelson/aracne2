@@ -742,7 +742,13 @@
     "insert_pb_title": "Insert <pb facs=\"#{id}\"/> at cursor",
     "surface_registered": "Registered in <facsimile>",
     "confirm_delete": "Delete?",
-    "media_btn": "Images"
+    "media_btn": "Images",
+    "tab_images": "Images",
+    "tab_facsimile": "Facsimile",
+    "facsimile_empty": "No surfaces registered yet.",
+    "facsimile_empty_hint": "Click «Card» on an image to register it in <facsimile>.",
+    "facsimile_hint": "These surfaces are stored in the <facsimile> block and will be saved with the document.",
+    "facsimile_xml_preview": "View XML"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

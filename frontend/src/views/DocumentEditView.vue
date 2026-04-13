@@ -1063,6 +1063,7 @@ async function runValidation(): Promise<void> {
     :slug="slug"
     :doc-filename="filename"
     :surfaces="surfaces"
+    :facsimile-xml="facsimileXml"
     :style="{ width: panelWidth + 'px' }"
     @insert-figure="handleInsertFigure"
     @insert-as-card="handleInsertAsCard"

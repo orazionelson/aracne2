@@ -742,7 +742,13 @@
     "insert_pb_title": "Inserisce <pb facs=\"#{id}\"/> alla posizione del cursore",
     "surface_registered": "Registrata in <facsimile>",
     "confirm_delete": "Elimina?",
-    "media_btn": "Immagini"
+    "media_btn": "Immagini",
+    "tab_images": "Immagini",
+    "tab_facsimile": "Facsimile",
+    "facsimile_empty": "Nessuna surface registrata.",
+    "facsimile_empty_hint": "Clicca «Carta» su un'immagine per registrarla in <facsimile>.",
+    "facsimile_hint": "Queste surface sono memorizzate nel blocco <facsimile> e verranno salvate con il documento.",
+    "facsimile_xml_preview": "Mostra XML"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"
