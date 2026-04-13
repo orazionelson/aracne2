@@ -253,7 +253,11 @@ li { margin-bottom: 0.3rem; }
 .doc-list { list-style: none; margin-left: 0; }
 .doc-list li { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0; }
 .doc-list a { font-weight: 500; }
+.doc-list .doc-title { font-weight: 500; }
 .doc-meta { font-size: 0.85rem; color: #6b7280; margin-top: 0.2rem; }
+.doc-meta .doc-author { display: inline; }
+.doc-meta .doc-filename { display: inline; font-family: monospace; font-size: 0.8rem;
+  color: #9ca3af; margin-left: 0.5rem; }
 .browse-pagination { display:flex; align-items:center; gap:.35rem;
   flex-wrap:wrap; margin-top:1.5rem; }
 .browse-pagination button { padding:.3rem .65rem; font-size:.82rem; border:1px solid #d1d5db;
@@ -1757,11 +1761,19 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
         filename = _html.escape(doc["filename"])
         label = _html.escape(doc.get("title") or doc["filename"])
         author = doc.get("author") or ""
-        filter_text = _html.escape((label + " " + author).lower())
-        author_line = (
-            f'<div class="doc-meta">{_html.escape(author)}</div>'
+        filter_text = _html.escape((label + " " + author + " " + doc["filename"]).lower())
+        author_part = (
+            f'<span class="doc-author">{_html.escape(author)}</span>'
             if author
             else ""
+        )
+        separator = " — " if author else ""
+        meta_line = (
+            f'<div class="doc-meta">'
+            f'{author_part}'
+            f'{separator}'
+            f'<span class="doc-filename">{filename}</span>'
+            f'</div>'
         )
         if site_base_url:
             href = f"{site_base_url}/docs/{filename}"
@@ -1769,7 +1781,8 @@ def _build_browse_content(docs: list[dict], site_base_url: str = "") -> str:
             href = f"docs/{filename}.html"
         items += (
             f'<li data-filter="{filter_text}">'
-            f'<a href="{href}">{label}</a>{author_line}</li>\n'
+            f'<a href="{href}" class="doc-title">{label}</a>'
+            f'{meta_line}</li>\n'
         )
 
     js = f"""\
