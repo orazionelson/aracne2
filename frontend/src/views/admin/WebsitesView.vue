@@ -520,6 +520,7 @@ async function startEdit(website: Website): Promise<void> {
         figure: { size: exIR?.figure?.size ?? "full", layout: exIR?.figure?.layout ?? "inline" },
         pb: { show: exIR?.pb?.show ?? true, size: exIR?.pb?.size ?? "thumbnail", layout: exIR?.pb?.layout ?? "inline" },
         facsimile_gallery: exIR?.facsimile_gallery ?? false,
+        column_connectors: exIR?.column_connectors ?? false,
       };
       const defaults: XsltConfig = { source: "default", content: null, url: null, catalog_id: null, processor: "lxml", image_rendering: ir };
       return { ...defaults, ...ex, image_rendering: ir };
@@ -1755,6 +1756,24 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               {{ t("websites.doc_img_gallery") }}
             </label>
             <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.doc_img_gallery_hint") }}</p>
+
+            <!-- column connectors — only relevant when column layout is active -->
+            <template
+              v-if="
+                ['column-left','column-right'].includes((editForm.xslt_config as XsltConfig).image_rendering!.figure.layout) ||
+                ['column-left','column-right'].includes((editForm.xslt_config as XsltConfig).image_rendering!.pb.layout)
+              "
+            >
+              <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  class="rounded text-indigo-600"
+                  v-model="(editForm.xslt_config as XsltConfig).image_rendering!.column_connectors"
+                />
+                {{ t("websites.doc_img_connectors") }}
+              </label>
+              <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.doc_img_connectors_hint") }}</p>
+            </template>
           </template>
         </div>
 

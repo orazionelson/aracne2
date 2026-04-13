@@ -14,6 +14,7 @@ export interface ImageRenderingConfig {
   figure: { size: ImageSize; layout: ImageLayout };
   pb: { show: boolean; size: ImageSize; layout: ImageLayout };
   facsimile_gallery: boolean;
+  column_connectors: boolean;
 }
 
 export interface XsltConfig {

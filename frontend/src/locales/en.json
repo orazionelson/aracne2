@@ -595,6 +595,8 @@
     "doc_img_layout_modal": "Modal on click",
     "doc_img_gallery": "Show facsimile gallery at document top",
     "doc_img_gallery_hint": "Thumbnails of all <pb facs> surfaces, collected before the text.",
+    "doc_img_connectors": "Connect images to text anchors",
+    "doc_img_connectors_hint": "Draws a dashed bezier line from each sidebar image to its citation point in the text. A toggle button on the page lets the reader show/hide the lines.",
     "doc_preview_section": "Preview",
     "doc_preview_no_collection": "No collection linked — preview not available.",
     "doc_preview_select_doc": "— select a document —",

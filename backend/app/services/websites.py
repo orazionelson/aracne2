@@ -521,15 +521,17 @@ def _build_image_rendering_css(cfg: dict) -> str:
         # Apply the two-column grid to a wrapper div (.col-layout-wrapper) that
         # the JS creates around .tei-body only.  This avoids pulling unrelated
         # siblings of <main> (e.g. breadcrumb <nav>) into the grid.
+        # position:relative is required so the optional SVG connector overlay
+        # (absolutely positioned inside the wrapper) is clipped correctly.
         if col_side == "right":
             lines.append(
-                ".col-layout-wrapper{display:grid;grid-template-columns:1fr 260px;"
-                "gap:2.5rem;align-items:start;}"
+                ".col-layout-wrapper{position:relative;display:grid;"
+                "grid-template-columns:1fr 260px;gap:2.5rem;align-items:start;}"
             )
         else:
             lines.append(
-                ".col-layout-wrapper{display:grid;grid-template-columns:260px 1fr;"
-                "gap:2.5rem;align-items:start;}"
+                ".col-layout-wrapper{position:relative;display:grid;"
+                "grid-template-columns:260px 1fr;gap:2.5rem;align-items:start;}"
             )
         lines.append(
             ".tei-body{min-width:0;}"
@@ -554,6 +556,17 @@ def _build_image_rendering_css(cfg: dict) -> str:
             ".img-sidebar{display:none!important;}"
             "}"
         )
+        # Connector toggle button — only emitted when the feature is enabled.
+        if cfg.get("column_connectors"):
+            lines.append(
+                ".col-connectors-btn{"
+                "position:fixed;bottom:1.25rem;right:1.25rem;z-index:50;"
+                "background:#1e293b;color:#f8fafc;border:none;border-radius:6px;"
+                "padding:.4rem .85rem;font-size:.75rem;cursor:pointer;"
+                "opacity:.8;box-shadow:0 1px 6px rgba(0,0,0,.25);"
+                "}"
+                ".col-connectors-btn:hover{opacity:1;}"
+            )
 
     # ── facsimile gallery ─────────────────────────────────────────────────────
     if cfg.get("facsimile_gallery"):
@@ -590,6 +603,10 @@ def _build_image_column_js(cfg: dict) -> str:
        Y position relative to the wrapper top, then append each figure to the
        sidebar with ``position:absolute; top:<measured>px``.
     4. The sidebar's ``min-height`` is stretched to fit the lowest figure.
+    5. When ``column_connectors`` is enabled, an SVG overlay is drawn inside
+       the wrapper with a dashed bezier curve for each figure connecting its
+       text anchor to the sidebar image.  A fixed toggle button lets the reader
+       show/hide all connectors.
     """
     if not cfg or not cfg.get("enabled"):
         return ""
@@ -612,8 +629,25 @@ def _build_image_column_js(cfg: dict) -> str:
     if not selectors:
         return ""
 
+    connectors: bool = bool(cfg.get("column_connectors"))
     sel_js = ",".join(selectors)
-    return (
+
+    # Side-specific JS expressions for connector endpoints (evaluated at build
+    # time so no branching is needed in the emitted JS).
+    # x1 = edge of the text column facing the sidebar.
+    # x2 = edge of the sidebar facing the text column.
+    if side == "right":
+        x1_js  = "Math.round(bodyRect.right-wRect.left)"
+        x2_js  = "Math.round(sbRect.left-wRect.left)"
+        cp1_js = "x1+dx"
+        cp2_js = "x2-dx"
+    else:
+        x1_js  = "Math.round(bodyRect.left-wRect.left)"
+        x2_js  = "Math.round(sbRect.right-wRect.left)"
+        cp1_js = "x1-dx"
+        cp2_js = "x2+dx"
+
+    js = (
         "(function(){"
         "var body=document.querySelector('.tei-body');"
         "if(!body)return;"
@@ -639,10 +673,11 @@ def _build_image_column_js(cfg: dict) -> str:
         f"if('{side}'==='right'){{wrapper.appendChild(sb);}}else{{wrapper.insertBefore(sb,body);}}"
         # Force a layout pass so getBoundingClientRect values are current.
         "void wrapper.offsetHeight;"
-        # Measure each anchor's Y relative to the wrapper top (= sidebar top).
-        # The subtraction cancels scroll offset, so this works regardless of
-        # how far down the page the wrapper sits.
-        "var wTop=wrapper.getBoundingClientRect().top;"
+        # Capture the wrapper rect once; wRect.top is used for Y anchoring and
+        # wRect.left for X connector endpoints.  Both cancel scroll offset.
+        "var wRect=wrapper.getBoundingClientRect();"
+        "var wTop=wRect.top;"
+        # Place each figure at the Y coordinate of its text anchor.
         "figs.forEach(function(f,i){"
         "var top=Math.max(0,Math.round(anchors[i].getBoundingClientRect().top-wTop));"
         "f.style.position='absolute';"
@@ -659,8 +694,55 @@ def _build_image_column_js(cfg: dict) -> str:
         "maxBottom=Math.max(maxBottom,parseInt(f.style.top,10)+f.offsetHeight);"
         "});"
         "sb.style.minHeight=maxBottom+'px';"
-        "})();"
     )
+
+    if connectors:
+        js += (
+            # Re-measure after layout is stable (figures are now placed).
+            "void wrapper.offsetHeight;"
+            "var bodyRect=body.getBoundingClientRect();"
+            "var sbRect=sb.getBoundingClientRect();"
+            # SVG overlay covers the full wrapper height so curves are never clipped.
+            "var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');"
+            "svg.setAttribute('class','col-connectors');"
+            "svg.style.cssText='position:absolute;top:0;left:0;width:100%;"
+            "overflow:visible;pointer-events:none;';"
+            "svg.style.height=maxBottom+'px';"
+            "wrapper.appendChild(svg);"
+            # Draw a dashed cubic bezier for each anchor → figure pair.
+            "figs.forEach(function(f,i){"
+            "var aY=Math.round(anchors[i].getBoundingClientRect().top-wRect.top);"
+            "var fCY=parseInt(f.style.top,10)+Math.round(f.offsetHeight/2);"
+            f"var x1={x1_js};"
+            f"var x2={x2_js};"
+            "var dx=Math.round(Math.abs(x2-x1)*0.45);"
+            f"var cp1x={cp1_js};"
+            f"var cp2x={cp2_js};"
+            "var d='M'+x1+','+aY+' C'+cp1x+','+aY+' '+cp2x+','+fCY+' '+x2+','+fCY;"
+            "var p=document.createElementNS('http://www.w3.org/2000/svg','path');"
+            "p.setAttribute('d',d);"
+            "p.setAttribute('fill','none');"
+            "p.setAttribute('stroke','#94a3b8');"
+            "p.setAttribute('stroke-width','1.5');"
+            "p.setAttribute('stroke-dasharray','4,3');"
+            "p.setAttribute('opacity','0.75');"
+            "svg.appendChild(p);"
+            "});"
+            # Fixed toggle button — appended to <body> so it sits above all content.
+            "var shown=true;"
+            "var btn=document.createElement('button');"
+            "btn.className='col-connectors-btn';"
+            "btn.textContent='Hide connections';"
+            "document.body.appendChild(btn);"
+            "btn.addEventListener('click',function(){"
+            "shown=!shown;"
+            "svg.style.display=shown?'':'none';"
+            "btn.textContent=shown?'Hide connections':'Show connections';"
+            "});"
+        )
+
+    js += "})();"
+    return js
 
 
 def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
