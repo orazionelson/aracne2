@@ -14,6 +14,7 @@ import hashlib
 import html as _html
 import json
 import re
+import shutil
 import uuid
 from urllib.parse import quote as _url_quote
 from collections.abc import Callable
@@ -2735,7 +2736,28 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     # doc_bodies accumulates plain text for the full-text search index.
     doc_bodies: dict[str, str] = {}
 
+    # API URL prefix for media files of this collection.
+    # Stored in <graphic url="…"> by the editor.  In the static site these
+    # files are served from the copied media/ directory, so the prefix is
+    # replaced with a relative path when rewriting HTML.
+    _media_api_prefix = f"/api/v1/collections/{col.slug if col else ''}/documents/"
+
     if col is not None:
+        # ── Copy media files for all documents ────────────────────────────
+        # Source: <documents_media_root>/<col_slug>/
+        # Destination: <site_dir>/media/  (mirrors the same directory tree)
+        col_media_src = settings.documents_media_root / col.slug
+        col_media_dst = site_dir / "media"
+        if col_media_src.exists():
+            try:
+                if col_media_dst.exists():
+                    shutil.rmtree(col_media_dst)
+                shutil.copytree(col_media_src, col_media_dst)
+            except Exception as exc:
+                logger.warning(
+                    "website_build_media_copy_failed", slug=slug, error=str(exc)
+                )
+
         for doc_info in doc_infos:
             filename = doc_info["filename"]
             try:
@@ -2747,6 +2769,16 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                     "website_build_doc_failed", slug=slug, filename=filename, error=str(exc)
                 )
                 doc_body = f"<p>Could not render document: {_html.escape(str(exc))}</p>"
+
+            # Rewrite API media URLs to relative paths.
+            # Pattern: /api/v1/collections/{slug}/documents/{doc_filename}/media/{file}
+            # becomes: ../media/{doc_filename}/{file}
+            # The generated HTML lives in docs/ so one ../ is needed.
+            doc_body = re.sub(
+                r'src="' + re.escape(_media_api_prefix) + r'([^/]+)/media/([^"]+)"',
+                r'src="../media/\1/\2"',
+                doc_body,
+            )
 
             label = doc_info.get("title") or filename
             if browse_hidden:

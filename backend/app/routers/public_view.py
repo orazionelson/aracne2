@@ -4,16 +4,22 @@ All routes in this router require no authentication.  They expose only
 published, is_public=True collections.
 """
 
+import mimetypes
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_async_session
 from app.schemas.common import DataResponse
 from app.schemas.public_view import PublicCollectionDetail
-from app.services.public_view import get_public_collection_detail, render_document_html
+from app.services import media as media_svc
+from app.services.public_view import (
+    get_public_collection,
+    get_public_collection_detail,
+    render_document_html,
+)
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -41,3 +47,22 @@ async def public_document_render(
     """
     html = await render_document_html(db, slug, filename)
     return HTMLResponse(content=html)
+
+
+@router.get("/collections/{slug}/documents/{doc_filename}/media/{filename}")
+async def public_serve_document_media(
+    slug: str,
+    doc_filename: str,
+    filename: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> FileResponse:
+    """Serve a document media file without authentication.
+
+    Requires the collection to be published and publicly accessible.
+    This endpoint is used by the XSLT-rendered website and static builds
+    to load images embedded via <graphic url="…"/> in TEI documents.
+    """
+    await get_public_collection(db, slug)
+    path = media_svc.get_media_path(slug, doc_filename, filename)
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type)

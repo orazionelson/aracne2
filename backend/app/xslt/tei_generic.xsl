@@ -105,6 +105,32 @@
           /* ── Quote / said ────────────────────────────────────────────────── */
           q.tei-q { quotes: "\201C" "\201D" "\2018" "\2019"; }
           blockquote.tei-quote { margin: 1rem 2rem; font-style: italic; }
+          /* ── Figures / images ────────────────────────────────────────────── */
+          figure.tei-figure {
+            margin: 1.5rem auto;
+            max-width: 100%;
+            text-align: center;
+          }
+          figure.tei-figure img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #e2e2e2;
+            border-radius: 2px;
+          }
+          figcaption.tei-figdesc {
+            margin-top: 0.4rem;
+            font-size: 0.82rem;
+            color: #666;
+            font-style: italic;
+          }
+          img.tei-graphic {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1rem auto;
+          }
         </style>
       </head>
       <body>
@@ -274,6 +300,58 @@
       </xsl:choose>
     </span>
   </xsl:template>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- Figures and images                                                      -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+  <!--
+    <figure>: block container.  Children are processed in order so both
+    <graphic> and <figDesc> (caption) are handled by their own templates.
+  -->
+  <xsl:template match="tei:figure">
+    <figure class="tei-figure">
+      <xsl:apply-templates/>
+    </figure>
+  </xsl:template>
+
+  <!--
+    <graphic url="…"/>: render as <img>.
+    The url attribute may be an API path (/api/v1/…) or a relative path.
+    An empty alt is set so screen readers treat it as decorative when no
+    desc attribute is present; when @desc is present it becomes the alt text.
+  -->
+  <xsl:template match="tei:graphic">
+    <xsl:variable name="alt">
+      <xsl:choose>
+        <xsl:when test="@desc"><xsl:value-of select="@desc"/></xsl:when>
+        <xsl:otherwise></xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:choose>
+      <xsl:when test="parent::tei:figure">
+        <!-- Inside <figure>: no extra wrapper -->
+        <img class="tei-graphic" src="{@url}" alt="{$alt}"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <!-- Standalone <graphic> outside <figure> -->
+        <img class="tei-graphic" src="{@url}" alt="{$alt}"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <!-- <figDesc>: caption text rendered as <figcaption> -->
+  <xsl:template match="tei:figDesc">
+    <figcaption class="tei-figdesc"><xsl:apply-templates/></figcaption>
+  </xsl:template>
+
+  <!--
+    <facsimile> and its children (<surface>, <zone>) live between
+    <teiHeader> and <text>.  The root template does not select them, but
+    an explicit suppress is added here as defensive programming so they
+    are never accidentally rendered if apply-templates is broadened.
+  -->
+  <xsl:template match="tei:facsimile | tei:surface | tei:zone"/>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- Highlighting / formatting                                               -->

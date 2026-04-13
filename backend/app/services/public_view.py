@@ -76,7 +76,7 @@ def _get_transform() -> etree.XSLT:
     return _xslt_transform
 
 
-async def _get_public_collection(db: AsyncSession, slug: str) -> Collection:
+async def get_public_collection(db: AsyncSession, slug: str) -> Collection:
     """Return a published + is_public collection, or raise NotFoundError."""
     col = await db.scalar(
         select(Collection).where(
@@ -129,7 +129,7 @@ async def get_public_collection_detail(
     slug: str,
 ) -> PublicCollectionDetail:
     """Return collection metadata and sorted document list for public view."""
-    col = await _get_public_collection(db, slug)
+    col = await get_public_collection(db, slug)
     documents = await _list_documents_with_titles(slug)
     return PublicCollectionDetail(
         slug=col.slug,
@@ -152,7 +152,7 @@ async def render_document_html(
     Raises NotFoundError if the collection or document is not publicly
     accessible.  Raises DomainValidationError if the XSLT transform fails.
     """
-    await _get_public_collection(db, slug)
+    await get_public_collection(db, slug)
 
     try:
         xml_bytes = await existdb_client.get_document(slug, filename)
