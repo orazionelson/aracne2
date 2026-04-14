@@ -291,6 +291,8 @@
     "search_google": "Search on Google",
     "validation_errors_title": "Validation",
     "validation_valid": "Document is valid.",
+    "save_error_title": "Save failed",
+    "save_error_see_panel": "Save error — see panel",
     "note_btn_alpha": "Note α",
     "note_btn_numeric": "Note #",
     "note_alpha_title": "Insert alphabetic note at cursor",

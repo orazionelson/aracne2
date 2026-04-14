@@ -495,6 +495,11 @@ async function handleSave(): Promise<void> {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
     saveError.value = msg ?? t('common.error');
+    // Open the validation panel so the full save error is readable.
+    showHelpPanel.value = false;
+    showAiPanel.value = false;
+    showMediaPanel.value = false;
+    showValidationPanel.value = true;
   } finally {
     isSaving.value = false;
   }
@@ -798,7 +803,10 @@ function toggleValidationPanel(): void {
           </svg>
           {{ t('documents.saved') }}
         </span>
-        <span v-if="saveError" class="max-w-xs truncate text-xs text-red-600">{{ saveError }}</span>
+        <span v-if="saveError" class="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-red-600 hover:underline" @click="showValidationPanel = true; showHelpPanel = false; showAiPanel = false; showMediaPanel = false;">
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+          {{ t('documents.save_error_see_panel') }}
+        </span>
 
         <!-- ── Save ──────────────────────────────────────────────────────── -->
         <button
@@ -986,7 +994,7 @@ function toggleValidationPanel(): void {
 
   <!-- Validation errors panel -->
   <div
-    v-if="showValidationPanel && validationResult"
+    v-if="showValidationPanel && (validationResult || saveError)"
     class="flex flex-shrink-0 flex-col bg-white"
     :style="{ width: panelWidth + 'px' }"
   >
@@ -1005,8 +1013,19 @@ function toggleValidationPanel(): void {
       <button class="text-gray-400 hover:text-gray-700" @click="showValidationPanel = false">✕</button>
     </div>
 
+    <!-- Save error (shown even without a validationResult) -->
+    <div v-if="saveError" class="flex flex-shrink-0 items-start gap-2 border-b border-red-200 bg-red-50 px-3 py-2.5">
+      <svg class="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+      </svg>
+      <div>
+        <p class="text-xs font-semibold text-red-700">{{ t('documents.save_error_title') }}</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-red-600">{{ saveError }}</p>
+      </div>
+    </div>
+
     <!-- Valid state -->
-    <div v-if="validationResult.valid" class="flex flex-1 items-center justify-center p-6 text-sm text-green-700">
+    <div v-if="validationResult && validationResult.valid" class="flex flex-1 items-center justify-center p-6 text-sm text-green-700">
       <svg class="mr-2 h-5 w-5 flex-shrink-0 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
       </svg>
@@ -1014,7 +1033,7 @@ function toggleValidationPanel(): void {
     </div>
 
     <!-- Error list -->
-    <div v-else class="min-h-0 flex-1 overflow-y-auto">
+    <div v-else-if="validationResult && !validationResult.valid" class="min-h-0 flex-1 overflow-y-auto">
       <div
         v-for="(err, i) in validationResult.errors"
         :key="i"
@@ -1036,8 +1055,8 @@ function toggleValidationPanel(): void {
       </div>
     </div>
 
-    <!-- Re-validate button -->
-    <div class="flex flex-shrink-0 border-t border-gray-100 px-3 py-2">
+    <!-- Re-validate button (only when a schema is available) -->
+    <div v-if="hasValidationSchema" class="flex flex-shrink-0 border-t border-gray-100 px-3 py-2">
       <button
         :disabled="isValidating"
         class="inline-flex w-full items-center justify-center gap-1.5 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
