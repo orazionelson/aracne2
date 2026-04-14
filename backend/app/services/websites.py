@@ -904,9 +904,11 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "imgEl.className='oto-img';"
         "imgEl.alt='';"
         # SVG overlay — drawn on top of the image to highlight zone rectangles.
+        # Use setAttribute('class',...) instead of .className because SVG elements
+        # expose className as SVGAnimatedString, not a plain string.
         "var svgNS='http://www.w3.org/2000/svg';"
         "var svgEl=document.createElementNS(svgNS,'svg');"
-        "svgEl.className='oto-zone-svg';"
+        "svgEl.setAttribute('class','oto-zone-svg');"
         "svgEl.setAttribute('aria-hidden','true');"
         # Wrapper div keeps img and SVG in the same stacking context.
         "var imgWrap=document.createElement('div');"
@@ -940,9 +942,9 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "function showZone(zid){"
         "clearZone();"
         "var z=zoneMap[zid];"
-        "if(!z)return;"
+        "if(!z){console.log('[oto-zones] zone not found:',zid,'keys:',Object.keys(zoneMap));return;}"
         "var nw=imgEl.naturalWidth,nh=imgEl.naturalHeight;"
-        "if(!nw||!nh)return;"
+        "if(!nw||!nh){console.log('[oto-zones] image not loaded yet, nw=',nw,'nh=',nh);return;}"
         "var st=window.getComputedStyle(imgEl);"
         "var pt=parseFloat(st.paddingTop)||0,pr=parseFloat(st.paddingRight)||0;"
         "var pb=parseFloat(st.paddingBottom)||0,pl=parseFloat(st.paddingLeft)||0;"
@@ -977,6 +979,12 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "clearZone();"
         "}"
         "goTo(0);"
+        # If the user hovers before the image finishes loading, naturalWidth/naturalHeight
+        # are 0 and showZone returns early.  Re-draw the active zone once it loads.
+        "imgEl.addEventListener('load',function(){if(activeZone)showZone(activeZone);});"
+        # Debug: log zone map size so the browser console shows whether data arrived.
+        "console.log('[oto-zones]',Object.keys(zoneMap).length,'zones loaded',"
+        "Object.keys(zoneMap).slice(0,5));"
         # Manual prev / next — scroll the corresponding anchor into view.
         "prevBtn.addEventListener('click',function(){"
         "if(cur>0){cur--;goTo(cur);"
