@@ -557,8 +557,13 @@ def _build_image_rendering_css(cfg: dict) -> str:
                 "object-fit:contain;display:block;"
                 "padding:.75rem;box-sizing:border-box;}"
                 # SVG drawn on top of the image; pointer-events:none so clicks pass through.
+                # Explicit left/top/width/height because inset:0 alone is insufficient
+                # for SVG elements in some browsers (SVG retains its intrinsic 300x150
+                # default size unless overridden with CSS width/height).
                 ".oto-zone-svg{"
-                "position:absolute;inset:0;pointer-events:none;}"
+                "position:absolute;left:0;top:0;"
+                "width:100%;height:100%;"
+                "pointer-events:none;overflow:visible;display:block;}"
                 ".oto-nav{"
                 "display:flex;align-items:center;justify-content:center;"
                 "gap:.6rem;padding:.4rem .75rem;flex-shrink:0;"
@@ -929,6 +934,9 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "}"
         # Draw a zone rectangle on the SVG overlay, accounting for object-fit:contain
         # letterboxing and the padding on the <img> element.
+        # Coordinates are computed in the SVG element's own client space (svgEl.clientWidth /
+        # clientHeight) rather than via getBoundingClientRect offsets, so the calculation
+        # works correctly even when the page has CSS transforms or fractional DPR scaling.
         "function showZone(zid){"
         "clearZone();"
         "var z=zoneMap[zid];"
@@ -944,8 +952,9 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "if(ba>ia){rh=ch;rw=rh*ia;ox=(cw-rw)/2;oy=0;}"
         "else{rw=cw;rh=rw/ia;ox=0;oy=(ch-rh)/2;}"
         "var sx=rw/nw,sy=rh/nh;"
-        "var ir=imgEl.getBoundingClientRect(),sr=svgEl.getBoundingClientRect();"
-        "var bx=ir.left-sr.left+pl+ox,by=ir.top-sr.top+pt+oy;"
+        # The SVG covers the same area as the img (both fill imgWrap).
+        # Base offsets: padding + letterboxing offset within the SVG coordinate space.
+        "var bx=pl+ox,by=pt+oy;"
         "var rect=document.createElementNS(svgNS,'rect');"
         "rect.setAttribute('x',bx+z.ulx*sx);"
         "rect.setAttribute('y',by+z.uly*sy);"
