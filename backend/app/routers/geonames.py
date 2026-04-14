@@ -5,7 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from app.config import get_settings
+from app.config import settings
 from app.middleware.acl import require_role
 from app.models.user import User
 from app.schemas.common import DataResponse
@@ -41,7 +41,6 @@ async def geonames_search(
     On any upstream error the endpoint returns an empty list rather than failing,
     so the UI degrades gracefully to a plain text input.
     """
-    settings = get_settings()
     places: list[GeonamesPlace] = []
     async with httpx.AsyncClient(
         timeout=_TIMEOUT, follow_redirects=True, headers=_HEADERS
