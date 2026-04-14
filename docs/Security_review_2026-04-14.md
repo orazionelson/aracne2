@@ -1,11 +1,13 @@
 # Security Review — 2026-04-14
 
 **Previous review:** `Security_review_2026-04-11.md` (last covered commit: `eebbaac`)  
-**Current HEAD:** `57d0c26`  
+**Review HEAD:** `57d0c26`  
+**Fix commit:** `88c497b`  
 **Branch:** `main`  
 **Scope:** Differential review — all commits since `eebbaac` (62 commits)  
 **New features under review:** Media API (Phases 1–4), Direct Publish workflow,
-GeoNames/VIAF proxy endpoints, Facsimile management, Editor improvements.
+GeoNames/VIAF proxy endpoints, Facsimile management, Editor improvements.  
+**Status:** All findings fixed and merged in `88c497b`.
 
 ---
 
@@ -26,7 +28,7 @@ upgrade remains out of scope (dev server only, no production impact).
 
 ---
 
-### 1. ZIP batch upload skips XXE validation — **CRITICAL**
+### 1. ZIP batch upload skips XXE validation — **CRITICAL** ✅ Fixed `88c497b`
 
 **File:** [backend/app/services/xmldb.py](backend/app/services/xmldb.py#L887-L888)  
 **Lines:** 887–888 (ZIP path) vs. 699–703 (single-file path)
@@ -80,7 +82,7 @@ await existdb.put_document(col.slug, basename, xml_bytes)
 
 ---
 
-### 2. `doc_filename` path traversal in media service — **HIGH**
+### 2. `doc_filename` path traversal in media service — **HIGH** ✅ Fixed `88c497b`
 
 **Files:**  
 - [backend/app/services/media.py](backend/app/services/media.py) — `list_media`, `save_media`, `delete_media`, `get_media_path`  
@@ -140,7 +142,7 @@ async def list_media(collection_slug: str, doc_filename: str) -> list[MediaItem]
 
 ---
 
-### 3. ZIP bomb protection based on declared size — **MEDIUM**
+### 3. ZIP bomb protection based on declared size — **MEDIUM** ✅ Fixed `88c497b`
 
 **File:** [backend/app/services/xmldb.py](backend/app/services/xmldb.py#L867-L873)  
 **Lines:** 867–873
@@ -191,7 +193,7 @@ first-pass only, documented as untrusted).
 
 ---
 
-### 4. Missing rate limiting on GeoNames and VIAF proxy endpoints — **MEDIUM**
+### 4. Missing rate limiting on GeoNames and VIAF proxy endpoints — **MEDIUM** ✅ Fixed `88c497b`
 
 **Files:**  
 - [backend/app/routers/geonames.py](backend/app/routers/geonames.py#L32)  
@@ -225,7 +227,7 @@ parameter in the function signature.
 
 ---
 
-### 5. Media upload/delete not written to `audit_log` — **MEDIUM**
+### 5. Media upload/delete not written to `audit_log` — **MEDIUM** ✅ Fixed `88c497b`
 
 **File:** [backend/app/routers/media.py](backend/app/routers/media.py#L100-L108)  
 **Lines:** 100–108 (upload), 126–132 (delete)
@@ -266,7 +268,7 @@ _audit(db, "media.deleted", current_user, col,
 
 ---
 
-### 6. GeoNames and VIAF log raw user queries — **LOW**
+### 6. GeoNames and VIAF log raw user queries — **LOW** ✅ Fixed `88c497b`
 
 **Files:**  
 - [backend/app/routers/geonames.py](backend/app/routers/geonames.py#L59)  
@@ -297,7 +299,7 @@ logger.info("geonames_search_ok", count=len(places), status=resp.status_code)
 
 ---
 
-### 7. Notification string in `direct_publish_collection` in Italian — **LOW (code quality)**
+### 7. Notification string in `direct_publish_collection` in Italian — **LOW (code quality)** ✅ Fixed `88c497b`
 
 **File:** [backend/app/services/xmldb.py](backend/app/services/xmldb.py#L618)  
 **Line:** 618
@@ -330,9 +332,9 @@ f"{_actor_label(actor)} has directly published: {col.title}"
 | ZIP filename validation | `_validate_filename(basename)` applied to each ZIP member before upload |
 | Media extension allowlist | `.jpg .jpeg .png .webp .tif .tiff` enforced at extension and Content-Type levels |
 | Media size limit | Configurable via `system_setting.media_max_upload_size_mb` (fallback 50 MB); enforced by reading `max_bytes + 1` |
-| Media path containment | `_assert_contained()` via `Path.resolve().relative_to(root)` present in `save_media`, `delete_media`, `get_media_path` — **sufficient once issue 2 is fixed** |
+| Media path containment | `_assert_contained()` via `Path.resolve().relative_to(root)` present in `save_media`, `delete_media`, `get_media_path` — sufficient (issue 2 fixed) |
 | `sanitize_filename()` | Unicode normalization → basename extraction → safe-char filter → strip leading dots — adequate |
-| lxml in `websites.py` / `public_view.py` | "Trusted eXist-db source" argument is valid **once issue 1 is fixed** (ZIP upload XXE gap closed) |
+| lxml in `websites.py` / `public_view.py` | "Trusted eXist-db source" argument valid — ZIP upload XXE gap closed by issue 1 fix |
 | Media ACL | `_assert_write_access()` enforced on upload and delete; `_assert_read_access()` on list and serve |
 
 ---
@@ -348,11 +350,16 @@ f"{_actor_label(actor)} has directly published: {col.title}"
 
 ---
 
-## Priority fix order
+## Fix summary
 
-1. **[CRITICAL] Issue 1** — Add `_safe_xml.fromstring()` to ZIP batch upload
-2. **[HIGH] Issue 2** — Apply `_validate_filename(doc_filename)` + `_assert_contained` in `list_media`
-3. **[MEDIUM] Issue 3** — Switch ZIP decompression to streaming with real-time size cap
-4. **[MEDIUM] Issue 4** — Add `@limiter.limit("30/minute")` to GeoNames and VIAF
-5. **[MEDIUM] Issue 5** — Add `_audit()` calls in media upload and delete
-6. **[LOW] Issues 6–7** — Log cleanup and Italian string fix
+All 7 findings resolved in a single commit (`88c497b`).
+
+| # | Severity | Finding | Status |
+|---|---|---|---|
+| 1 | CRITICAL | ZIP batch upload skips XXE validation | ✅ `88c497b` |
+| 2 | HIGH | `doc_filename` path traversal in media service | ✅ `88c497b` |
+| 3 | MEDIUM | ZIP bomb based on declared size | ✅ `88c497b` |
+| 4 | MEDIUM | Missing rate limit on GeoNames / VIAF | ✅ `88c497b` |
+| 5 | MEDIUM | Media upload/delete not in `audit_log` | ✅ `88c497b` |
+| 6 | LOW | GeoNames / VIAF log raw user queries | ✅ `88c497b` |
+| 7 | LOW | Italian string in `direct_publish_collection` | ✅ `88c497b` |
