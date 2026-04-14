@@ -191,7 +191,21 @@ When editing a document (`/collections/{slug}/document/{filename}/edit`):
 
 - If the collection has a schema with a CM5 file, the editor loads it automatically and shows a green **TEI P5** badge in the toolbar.
 - If no collection-specific CM5 file is found, the editor falls back to the global `/cmschemas/tei-p5.xml` static file (place it in `frontend/public/cmschemas/`).
-- If the collection has a schema with a validation file, a **Validate** button appears in the toolbar. Validation also runs automatically after each save. Results appear in a panel below the editor (line · column · message). Validation failure is non-blocking: the document is always saved regardless.
+- If the collection has a schema with a validation file, the **Save** button becomes **Save & Validate**. Clicking it saves the document first; if the save succeeds the schema validator runs automatically on the saved content.
+
+#### Validation and error panel
+
+Results are shown in a resizable side panel that opens automatically whenever an error is detected:
+
+| Trigger | What appears in the panel |
+|---|---|
+| Save fails (malformed XML) | Save error — full message from the server |
+| Save succeeds, schema errors found | Schema validation errors — one row per error with `line:col`, message, XPath, and a "Search on Google" link |
+| Save succeeds, document valid | Green "Document is valid" confirmation |
+
+The panel can be closed with the **✕** button. If schema errors were found, a red badge showing the error count appears next to the **Save & Validate** button; clicking the badge reopens the panel without re-saving.
+
+Validation failure is non-blocking: the document is saved to eXist-db regardless of schema errors. The panel contains a **Save & Validate** shortcut to re-run save and validation without leaving the panel.
 
 ## EVT viewer
 
