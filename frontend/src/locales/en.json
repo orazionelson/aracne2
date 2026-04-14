@@ -23,7 +23,27 @@
   },
   "home": {
     "title": "Aracne2",
-    "welcome": "Welcome, {name}."
+    "welcome": "Welcome, {name}.",
+    "stat_collections": "Collections",
+    "stat_draft": "Draft",
+    "stat_review": "In review",
+    "stat_published": "Published",
+    "stat_users": "Users",
+    "shortcuts_title": "Quick access",
+    "shortcut_collections": "Collections",
+    "shortcut_notifications": "Notifications",
+    "shortcut_users": "Users",
+    "shortcut_websites": "Websites",
+    "shortcut_search_engines": "Search engines",
+    "shortcut_settings": "Settings",
+    "shortcut_plugins": "Plugins",
+    "recent_collections": "Recent collections",
+    "recent_empty": "No collections yet.",
+    "col_status": "Status",
+    "col_created": "Created",
+    "health_title": "System",
+    "health_ok": "ok",
+    "health_error": "error"
   },
   "nav": {
     "home": "Home",
