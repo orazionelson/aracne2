@@ -1213,16 +1213,19 @@ def _reserialise(original_bytes: bytes, root: _stdlib_ET.Element) -> bytes:
     when the original had none (common for documents stored directly in eXist-db
     without a processing instruction).
 
-    ``default_namespace`` is passed explicitly to ``tostring`` so that TEI
-    elements are always serialised without a namespace prefix, regardless of the
-    global ``_namespace_map`` state (which can be modified by other imports in
-    the FastAPI process).
+    ``register_namespace`` is called immediately before ``tostring`` — not just
+    at module load — so the TEI default-namespace mapping is guaranteed to be in
+    effect even if another FastAPI dependency has overwritten the global
+    ``_namespace_map`` between import time and request handling.  This is safe
+    inside an async event loop because all synchronous code runs on a single
+    thread; no other coroutine can interleave during a plain function call.
     """
-    import re as _re
+    _stdlib_ET.register_namespace("", _TEI_NS)
+    _stdlib_ET.register_namespace("xml", _XML_NS)
 
-    m = _re.match(rb"(<\?xml[^?]*\?>)", original_bytes.lstrip())
+    m = re.match(rb"(<\?xml[^?]*\?>)", original_bytes.lstrip())
     decl = (m.group(1).decode("utf-8") + "\n") if m else ""
-    body = _stdlib_ET.tostring(root, encoding="unicode", default_namespace=_TEI_NS)
+    body = _stdlib_ET.tostring(root, encoding="unicode")
     return (decl + body).encode("utf-8")
 
 
