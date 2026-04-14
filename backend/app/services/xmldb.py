@@ -1209,16 +1209,20 @@ async def validate_document(
 def _reserialise(original_bytes: bytes, root: _stdlib_ET.Element) -> bytes:
     """Rebuild an XML byte string from a mutated ElementTree root.
 
-    Preserves the original ``<?xml … ?>`` declaration when present; falls back
-    to a UTF-8 declaration otherwise.  The body is serialised with
-    ``xml.etree.ElementTree.tostring()`` which honours the namespace
-    registrations defined at module level (TEI default NS + xml: prefix).
+    Preserves the original ``<?xml … ?>`` declaration when present; omits it
+    when the original had none (common for documents stored directly in eXist-db
+    without a processing instruction).
+
+    ``default_namespace`` is passed explicitly to ``tostring`` so that TEI
+    elements are always serialised without a namespace prefix, regardless of the
+    global ``_namespace_map`` state (which can be modified by other imports in
+    the FastAPI process).
     """
     import re as _re
 
     m = _re.match(rb"(<\?xml[^?]*\?>)", original_bytes.lstrip())
-    decl = (m.group(1).decode("utf-8") + "\n") if m else '<?xml version="1.0" encoding="UTF-8"?>\n'
-    body = _stdlib_ET.tostring(root, encoding="unicode")
+    decl = (m.group(1).decode("utf-8") + "\n") if m else ""
+    body = _stdlib_ET.tostring(root, encoding="unicode", default_namespace=_TEI_NS)
     return (decl + body).encode("utf-8")
 
 
