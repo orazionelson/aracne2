@@ -549,9 +549,16 @@ def _build_image_rendering_css(cfg: dict) -> str:
                 "position:sticky;top:3.5rem;height:calc(100vh - 3.5rem);"
                 "display:flex;flex-direction:column;"
                 "background:#111827;overflow:hidden;}"
+                # Image wrapper: fills remaining height; holds img + SVG overlay.
+                ".oto-img-wrap{"
+                "position:relative;flex:1;min-height:0;overflow:hidden;}"
                 ".oto-img{"
-                "flex:1;min-height:0;width:100%;height:100%;"
-                "object-fit:contain;display:block;padding:.75rem;}"
+                "width:100%;height:100%;"
+                "object-fit:contain;display:block;"
+                "padding:.75rem;box-sizing:border-box;}"
+                # SVG drawn on top of the image; pointer-events:none so clicks pass through.
+                ".oto-zone-svg{"
+                "position:absolute;inset:0;pointer-events:none;}"
                 ".oto-nav{"
                 "display:flex;align-items:center;justify-content:center;"
                 "gap:.6rem;padding:.4rem .75rem;flex-shrink:0;"
@@ -565,6 +572,16 @@ def _build_image_rendering_css(cfg: dict) -> str:
                 ".oto-nav-counter{font-size:.75rem;color:#9ca3af;font-family:monospace;}"
                 # Text column: padding restores the comfortable reading margin.
                 ".oto-layout>.tei-body{padding:2rem 2.5rem 4rem;}"
+                # Zone-linked word tokens: subtle dotted underline + crosshair cursor.
+                ".tei-w[data-facs]{cursor:crosshair;"
+                "border-bottom:1px dotted rgba(99,102,241,.45);}"
+                ".tei-w[data-facs]:hover{background:rgba(99,102,241,.08);}"
+                # Zone-linked line-break anchors: narrow hoverable inline block.
+                ".tei-lb[data-facs]{"
+                "display:inline-block;width:.8em;height:.6em;"
+                "cursor:crosshair;vertical-align:middle;"
+                "border-bottom:1px dotted rgba(99,102,241,.45);}"
+                ".tei-lb[data-facs]:hover{background:rgba(99,102,241,.08);}"
                 "@media(max-width:720px){"
                 "main:has(.oto-layout){max-width:100%!important;padding:0!important;margin:0!important;}"
                 ".oto-layout{display:block!important;min-height:auto;}"
@@ -854,6 +871,14 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "p.fig.parentNode.insertBefore(a,p.fig);"
         "return a;"
         "});"
+        # Parse zone coordinate data embedded by the XSLT in a JSON script element.
+        # Result is a flat map { zone_id: {ulx,uly,lrx,lry} }.
+        "var zoneMap={};"
+        "var zoneScript=document.getElementById('tei-facsimile-zones');"
+        "if(zoneScript){"
+        "try{zoneMap=JSON.parse(zoneScript.textContent||zoneScript.innerText||'{}');}"
+        "catch(e){}"
+        "}"
         # Capture <main> before moving body — needed for the full-width override.
         "var mainEl=body.parentNode;"
         # Build the two-column wrapper grid.
@@ -873,6 +898,16 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "var imgEl=document.createElement('img');"
         "imgEl.className='oto-img';"
         "imgEl.alt='';"
+        # SVG overlay — drawn on top of the image to highlight zone rectangles.
+        "var svgNS='http://www.w3.org/2000/svg';"
+        "var svgEl=document.createElementNS(svgNS,'svg');"
+        "svgEl.className='oto-zone-svg';"
+        "svgEl.setAttribute('aria-hidden','true');"
+        # Wrapper div keeps img and SVG in the same stacking context.
+        "var imgWrap=document.createElement('div');"
+        "imgWrap.className='oto-img-wrap';"
+        "imgWrap.appendChild(imgEl);"
+        "imgWrap.appendChild(svgEl);"
         # Navigation bar: ← counter →
         "var nav=document.createElement('div');"
         "nav.className='oto-nav';"
@@ -885,9 +920,43 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "nextBtn.className='oto-nav-btn';"
         "nextBtn.innerHTML='&#8594;';"
         "nav.appendChild(prevBtn);nav.appendChild(counter);nav.appendChild(nextBtn);"
-        "panel.appendChild(imgEl);panel.appendChild(nav);"
+        "panel.appendChild(imgWrap);panel.appendChild(nav);"
         # Left panel first, text body second.
         "layout.appendChild(panel);layout.appendChild(body);"
+        # Zone highlight helpers.
+        "function clearZone(){"
+        "while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);"
+        "}"
+        # Draw a zone rectangle on the SVG overlay, accounting for object-fit:contain
+        # letterboxing and the padding on the <img> element.
+        "function showZone(zid){"
+        "clearZone();"
+        "var z=zoneMap[zid];"
+        "if(!z)return;"
+        "var nw=imgEl.naturalWidth,nh=imgEl.naturalHeight;"
+        "if(!nw||!nh)return;"
+        "var st=window.getComputedStyle(imgEl);"
+        "var pt=parseFloat(st.paddingTop)||0,pr=parseFloat(st.paddingRight)||0;"
+        "var pb=parseFloat(st.paddingBottom)||0,pl=parseFloat(st.paddingLeft)||0;"
+        "var cw=imgEl.clientWidth-pl-pr,ch=imgEl.clientHeight-pt-pb;"
+        "if(cw<=0||ch<=0)return;"
+        "var ia=nw/nh,ba=cw/ch,rw,rh,ox,oy;"
+        "if(ba>ia){rh=ch;rw=rh*ia;ox=(cw-rw)/2;oy=0;}"
+        "else{rw=cw;rh=rw/ia;ox=0;oy=(ch-rh)/2;}"
+        "var sx=rw/nw,sy=rh/nh;"
+        "var ir=imgEl.getBoundingClientRect(),sr=svgEl.getBoundingClientRect();"
+        "var bx=ir.left-sr.left+pl+ox,by=ir.top-sr.top+pt+oy;"
+        "var rect=document.createElementNS(svgNS,'rect');"
+        "rect.setAttribute('x',bx+z.ulx*sx);"
+        "rect.setAttribute('y',by+z.uly*sy);"
+        "rect.setAttribute('width',(z.lrx-z.ulx)*sx);"
+        "rect.setAttribute('height',(z.lry-z.uly)*sy);"
+        "rect.setAttribute('fill','rgba(99,102,241,.20)');"
+        "rect.setAttribute('stroke','#6366f1');"
+        "rect.setAttribute('stroke-width','2');"
+        "rect.setAttribute('rx','3');"
+        "svgEl.appendChild(rect);"
+        "}"
         # State.
         "var cur=0;"
         "function goTo(i){"
@@ -896,6 +965,7 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "counter.textContent=(i+1)+' / '+pages.length;"
         "prevBtn.disabled=i===0;"
         "nextBtn.disabled=i===pages.length-1;"
+        "clearZone();"
         "}"
         "goTo(0);"
         # Manual prev / next — scroll the corresponding anchor into view.
@@ -906,6 +976,24 @@ def _build_one_to_one_js(cfg: dict) -> str:
         "nextBtn.addEventListener('click',function(){"
         "if(cur<pages.length-1){cur++;goTo(cur);"
         "anchors[cur].scrollIntoView({behavior:'smooth',block:'start'});}"
+        "});"
+        # Zone hover via event delegation on the text column.
+        # Walks up from the event target to find the nearest [data-facs] ancestor.
+        # Keeps the active zone stable while moving within the same element.
+        "var activeZone=null;"
+        "body.addEventListener('mouseover',function(e){"
+        "var el=e.target;"
+        "while(el&&el!==body){"
+        "if(el.dataset&&el.dataset.facs){"
+        "if(el.dataset.facs!==activeZone){"
+        "activeZone=el.dataset.facs;"
+        "showZone(activeZone);}"
+        "return;}"
+        "el=el.parentElement;}"
+        "if(activeZone){activeZone=null;clearZone();}"
+        "});"
+        "body.addEventListener('mouseleave',function(){"
+        "activeZone=null;clearZone();"
         "});"
         # IntersectionObserver: track which anchors are in the top 60 % of the
         # viewport and show the image for the first (earliest) visible one.

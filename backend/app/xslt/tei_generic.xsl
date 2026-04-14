@@ -227,6 +227,7 @@
       </head>
       <body>
         <xsl:apply-templates select="tei:teiHeader"/>
+        <xsl:apply-templates select="tei:facsimile"/>
         <xsl:apply-templates select="tei:text"/>
       </body>
     </html>
@@ -460,6 +461,25 @@
   <!-- Breaks                                                                  -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
+  <!--
+    <w facs="#zone_id">: wrap in a hoverable span so the one-to-one viewer
+    can highlight the corresponding zone rectangle on the facsimile image.
+    Words without a facs attribute fall through to the default template
+    (text content only, no wrapper element).
+  -->
+  <xsl:template match="tei:w[@facs and starts-with(@facs,'#')]">
+    <span class="tei-w" data-facs="{substring-after(@facs,'#')}"><xsl:apply-templates/></span>
+  </xsl:template>
+
+  <!--
+    <lb facs="#zone_id">: insert a narrow inline anchor before the line break
+    so users can hover over it to trigger the zone highlight.
+    Plain <lb/> (without facs) renders as a bare <br/>.
+  -->
+  <xsl:template match="tei:lb[@facs and starts-with(@facs,'#')]" priority="1">
+    <span class="tei-lb" data-facs="{substring-after(@facs,'#')}"></span><br/>
+  </xsl:template>
+
   <xsl:template match="tei:lb">
     <br/>
   </xsl:template>
@@ -543,12 +563,32 @@
   </xsl:template>
 
   <!--
-    <facsimile> and its children (<surface>, <zone>) live between
-    <teiHeader> and <text>.  The root template does not select them, but
-    an explicit suppress is added here as defensive programming so they
-    are never accidentally rendered if apply-templates is broadened.
+    <facsimile>: emit zone coordinate data as an embedded JSON map that the
+    client-side one-to-one viewer reads to draw highlight rectangles on the
+    facsimile image.  Only emitted when at least one surface has <zone>
+    children; harmless (empty) in all other render modes.
   -->
-  <xsl:template match="tei:facsimile | tei:surface | tei:zone"/>
+  <xsl:template match="tei:facsimile">
+    <xsl:variable name="zoned" select="tei:surface[tei:zone]"/>
+    <xsl:if test="$zoned">
+      <script type="application/json" id="tei-facsimile-zones">
+        <xsl:text>{</xsl:text>
+        <xsl:for-each select="$zoned/tei:zone">
+          <xsl:text>"</xsl:text><xsl:value-of select="@xml:id"/><xsl:text>":{"ulx":</xsl:text>
+          <xsl:value-of select="@ulx"/><xsl:text>,"uly":</xsl:text>
+          <xsl:value-of select="@uly"/><xsl:text>,"lrx":</xsl:text>
+          <xsl:value-of select="@lrx"/><xsl:text>,"lry":</xsl:text>
+          <xsl:value-of select="@lry"/><xsl:text>}</xsl:text>
+          <xsl:if test="position()!=last()"><xsl:text>,</xsl:text></xsl:if>
+        </xsl:for-each>
+        <xsl:text>}</xsl:text>
+      </script>
+    </xsl:if>
+  </xsl:template>
+
+  <!-- Surface and zone elements are not rendered as HTML; surface images
+       come from the <pb facs="#id"> template and zone data from the script above. -->
+  <xsl:template match="tei:surface | tei:zone"/>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- Highlighting / formatting                                               -->
