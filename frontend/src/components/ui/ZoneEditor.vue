@@ -47,6 +47,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  /** Emitted after zones are successfully persisted to eXist-db. */
+  (e: 'zonesSaved'): void
 }>()
 
 // ── Composables ───────────────────────────────────────────────────────────────
@@ -185,7 +187,8 @@ function handleAssociate(): void {
 }
 
 async function handleSave(): Promise<void> {
-  await store.saveZones(props.slug, props.docFilename, props.surface.id, localZones.value)
+  const ok = await store.saveZones(props.slug, props.docFilename, props.surface.id, localZones.value)
+  if (ok) emit('zonesSaved')
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────

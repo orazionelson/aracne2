@@ -513,6 +513,31 @@ function handleZoneAssociate(zoneId: string): boolean {
   return singleCm.insertFacsRef(zoneId);
 }
 
+/**
+ * Called when ZoneEditor successfully persists zones to eXist-db.
+ *
+ * ZoneEditor writes directly to eXist-db via the zones API, so the CodeMirror
+ * buffer becomes stale.  This handler re-fetches the document, extracts the
+ * updated <facsimile> block, and patches only that portion of the editor so
+ * unsaved changes outside <facsimile> are preserved.
+ */
+async function handleZonesSaved(): Promise<void> {
+  try {
+    const freshXml = await store.fetchDocumentRaw(slug, filename);
+    const freshFb  = findBlock(freshXml, 'facsimile');
+    if (!freshFb) return;
+    const newFacs = freshXml.slice(freshFb.start, freshFb.end);
+    facsimileXml.value = newFacs;
+    const current = singleCm.getValue();
+    const edFb = findBlock(current, 'facsimile');
+    if (edFb) {
+      singleCm.setValue(current.slice(0, edFb.start) + newFacs + current.slice(edFb.end));
+    }
+  } catch {
+    // Non-critical: zone data is in eXist-db; the user can reload if needed.
+  }
+}
+
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function handleSave(): Promise<void> {
   saveError.value = null;
@@ -1002,6 +1027,7 @@ async function runValidation(): Promise<void> {
     :surface="currentZoneSurface"
     :on-associate="handleZoneAssociate"
     :style="{ width: panelWidth + 'px' }"
+    @zones-saved="handleZonesSaved"
     @close="showZonePanel = false; currentZoneSurface = null"
   />
 
