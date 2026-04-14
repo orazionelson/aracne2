@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     # Serve via nginx in production: location /search-pages/ { alias /app/search-pages/; }
     search_engines_root: Path = Path("/app/search-pages")
 
+    # GeoNames API — used by /geonames/search to power Place-of-Publication autocomplete.
+    # Register a free account at https://www.geonames.org/login and set this variable.
+    geonames_username: str = "aracne"
+
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"
     admin_email: str = "admin@example.com"

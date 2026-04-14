@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useViafAutocomplete } from "@/composables/useViafAutocomplete";
+import { useGeonamesAutocomplete } from "@/composables/useGeonamesAutocomplete";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
@@ -87,6 +88,11 @@ const viafOpen = ref(false);
 const viafResults = computed(() => viaf.results.value);
 const viafLoading = computed(() => viaf.isLoading.value);
 
+const geonames = useGeonamesAutocomplete();
+const geonamesOpen = ref(false);
+const geonamesResults = computed(() => geonames.results.value);
+const geonamesLoading = computed(() => geonames.isLoading.value);
+
 function onAuthorInput(e: Event): void {
   const val = (e.target as HTMLInputElement).value;
   editAuthor.value = val;
@@ -103,6 +109,24 @@ function selectViafName(name: string): void {
 function closeViafDropdown(): void {
   setTimeout(() => { viafOpen.value = false; }, 150);
 }
+
+function onPubPlaceInput(e: Event): void {
+  const val = (e.target as HTMLInputElement).value;
+  editPubPlace.value = val;
+  geonames.search(val);
+  geonamesOpen.value = true;
+}
+
+function selectGeonamesPlace(name: string): void {
+  editPubPlace.value = name;
+  geonames.clear();
+  geonamesOpen.value = false;
+}
+
+function closeGeonamesDropdown(): void {
+  setTimeout(() => { geonamesOpen.value = false; }, 150);
+}
+
 const editHasSingleSource = ref(false);
 const editMainSource = ref("");
 const editHasMsIdentifier = ref(false);
@@ -870,15 +894,39 @@ function statusClass(s: string): string {
                   class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
               </div>
-              <div>
+              <div class="relative">
                 <label class="mb-1 block text-xs font-medium text-gray-600">
                   {{ t("collections.pub_place_label") }}
                 </label>
-                <input
-                  v-model="editPubPlace"
-                  type="text"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-                />
+                <div class="relative">
+                  <input
+                    :value="editPubPlace"
+                    type="text"
+                    autocomplete="off"
+                    class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                    @input="onPubPlaceInput"
+                    @focus="geonamesOpen = true"
+                    @blur="closeGeonamesDropdown"
+                  />
+                  <span v-if="geonamesLoading" class="absolute right-2 top-1.5 text-xs text-gray-400">…</span>
+                </div>
+                <ul
+                  v-if="geonamesOpen && geonamesResults.length > 0"
+                  class="absolute z-30 mt-1 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-lg"
+                  style="max-height: 14rem;"
+                >
+                  <li
+                    v-for="place in geonamesResults"
+                    :key="place.geonames_id"
+                    class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                    @mousedown.prevent="selectGeonamesPlace(place.name)"
+                  >
+                    <span class="font-medium">{{ place.name }}</span>
+                    <span v-if="place.region || place.country" class="ml-1 text-xs text-gray-400">
+                      {{ [place.region, place.country].filter(Boolean).join(", ") }}
+                    </span>
+                  </li>
+                </ul>
               </div>
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-600">
