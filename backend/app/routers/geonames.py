@@ -2,11 +2,12 @@ from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from app.config import settings
 from app.middleware.acl import require_role
+from app.middleware.rate_limiter import limiter
 from app.models.user import User
 from app.schemas.common import DataResponse
 
@@ -30,7 +31,9 @@ class GeonamesPlace(BaseModel):
 
 
 @router.get("/search")
+@limiter.limit("30/minute")
 async def geonames_search(
+    request: Request,
     q: Annotated[str, Query(min_length=2, max_length=100)],
     current_user: Annotated[User, Depends(require_role(min_role="User"))],
 ) -> DataResponse[list[GeonamesPlace]]:
@@ -56,7 +59,7 @@ async def geonames_search(
                     "username": settings.geonames_username,
                 },
             )
-            logger.info("geonames_search", q=q, status=resp.status_code)
+            logger.info("geonames_search", status=resp.status_code)
             resp.raise_for_status()
             payload = resp.json()
             for item in payload.get("geonames") or []:
@@ -68,11 +71,11 @@ async def geonames_search(
                         geonames_id=int(item.get("geonameId", 0)),
                     )
                 )
-            logger.info("geonames_search_ok", q=q, count=len(places))
+            logger.info("geonames_search_ok", count=len(places))
         except httpx.HTTPStatusError as exc:
-            logger.warning("geonames_search_http_error", q=q, status=exc.response.status_code)
+            logger.warning("geonames_search_http_error", status=exc.response.status_code)
         except httpx.RequestError as exc:
-            logger.warning("geonames_search_request_error", q=q, error=str(exc))
+            logger.warning("geonames_search_request_error", error=str(exc))
         except (KeyError, ValueError, TypeError) as exc:
-            logger.warning("geonames_search_parse_error", q=q, error=str(exc))
+            logger.warning("geonames_search_parse_error", error=str(exc))
     return DataResponse(data=places)

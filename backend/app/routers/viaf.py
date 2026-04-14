@@ -2,9 +2,10 @@ from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.middleware.acl import require_role
+from app.middleware.rate_limiter import limiter
 from app.models.user import User
 from app.schemas.common import DataResponse
 
@@ -21,7 +22,9 @@ logger = structlog.get_logger()
 
 
 @router.get("/autosuggest")
+@limiter.limit("30/minute")
 async def viaf_autosuggest(
+    request: Request,
     query: Annotated[str, Query(min_length=2, max_length=100)],
     current_user: Annotated[User, Depends(require_role(min_role="User"))],
 ) -> DataResponse[list[str]]:
@@ -32,16 +35,16 @@ async def viaf_autosuggest(
     ) as client:
         try:
             resp = await client.get(_VIAF_AUTOSUGGEST, params={"query": query})
-            logger.info("viaf_autosuggest", query=query, status=resp.status_code, url=str(resp.url))
+            logger.info("viaf_autosuggest", status=resp.status_code)
             resp.raise_for_status()
             payload = resp.json()
             results: list[dict] = payload.get("result") or []
             names = [r["displayForm"] for r in results if r.get("displayForm")]
-            logger.info("viaf_autosuggest_ok", query=query, count=len(names))
+            logger.info("viaf_autosuggest_ok", count=len(names))
         except httpx.HTTPStatusError as exc:
-            logger.warning("viaf_autosuggest_http_error", query=query, status=exc.response.status_code)
+            logger.warning("viaf_autosuggest_http_error", status=exc.response.status_code)
         except httpx.RequestError as exc:
-            logger.warning("viaf_autosuggest_request_error", query=query, error=str(exc))
+            logger.warning("viaf_autosuggest_request_error", error=str(exc))
         except (KeyError, ValueError) as exc:
-            logger.warning("viaf_autosuggest_parse_error", query=query, error=str(exc))
+            logger.warning("viaf_autosuggest_parse_error", error=str(exc))
     return DataResponse(data=names)

@@ -17,6 +17,11 @@ from app.config import settings
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.schemas.media import MediaItem
 
+# Imported here (not re-defined) to keep doc_filename validation consistent
+# with the XML document layer.  Raises DomainValidationError on traversal
+# patterns such as "..", ".", or any name that does not end with ".xml".
+from app.services.xmldb import _validate_filename as _validate_doc_filename
+
 # Allowed image formats.  TIFF is included for manuscript scans (common format
 # from digitisation workflows).
 _ALLOWED_EXTENSIONS: frozenset[str] = frozenset(
@@ -120,7 +125,9 @@ async def list_media(collection_slug: str, doc_filename: str) -> list[MediaItem]
 
     Returns an empty list if the directory does not exist yet.
     """
+    _validate_doc_filename(doc_filename)
     media_dir = _media_dir(collection_slug, doc_filename)
+    _assert_contained(media_dir)
     if not media_dir.exists():
         return []
     items: list[MediaItem] = []
@@ -158,6 +165,7 @@ async def save_media(
     6. Resolve name collision by appending a counter suffix.
     7. Write to disk.
     """
+    _validate_doc_filename(doc_filename)
     original_name = file.filename or "upload"
     safe_name = sanitize_filename(original_name)
     mime = _mime_for(safe_name)
@@ -202,6 +210,7 @@ async def delete_media(
 
     Removes the parent directory if it becomes empty after deletion.
     """
+    _validate_doc_filename(doc_filename)
     safe_name = sanitize_filename(filename)
     media_dir = _media_dir(collection_slug, doc_filename)
     dest = media_dir / safe_name
@@ -223,6 +232,7 @@ def get_media_path(
 
     Raises NotFoundError if the file does not exist.
     """
+    _validate_doc_filename(doc_filename)
     safe_name = sanitize_filename(filename)
     media_dir = _media_dir(collection_slug, doc_filename)
     dest = media_dir / safe_name

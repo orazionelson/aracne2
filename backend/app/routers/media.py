@@ -37,6 +37,7 @@ from app.services import media as media_svc
 from app.services.xmldb import (
     _assert_read_access,
     _assert_write_access,
+    _audit,
     _get_or_404,
 )
 
@@ -97,6 +98,13 @@ async def upload_document_media(
     _assert_write_access(col, current_user, request.state.role)
     max_bytes = await _get_max_bytes(db)
     item = await media_svc.save_media(col.slug, doc_filename, file, max_bytes)
+    _audit(
+        db,
+        "media.uploaded",
+        current_user,
+        col,
+        {"doc": doc_filename, "filename": item.filename, "size": item.size},
+    )
     logger.info(
         "media_uploaded",
         collection=col.slug,
@@ -123,6 +131,13 @@ async def delete_document_media(
     col = await _get_or_404(db, slug)
     _assert_write_access(col, current_user, request.state.role)
     await media_svc.delete_media(col.slug, doc_filename, filename)
+    _audit(
+        db,
+        "media.deleted",
+        current_user,
+        col,
+        {"doc": doc_filename, "filename": filename},
+    )
     logger.info(
         "media_deleted",
         collection=col.slug,

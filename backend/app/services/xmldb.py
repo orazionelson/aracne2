@@ -618,7 +618,7 @@ async def direct_publish_collection(
             db,
             col.editor_id,
             "collection.published",
-            f"{_actor_label(actor)} ha pubblicato direttamente: {col.title}",
+            f"{_actor_label(actor)} has directly published: {col.title}",
             body.note,
         )
     _audit(db, "collection.direct_published", actor, col, {"note": body.note})
@@ -864,14 +864,6 @@ async def upload_zip_batch(
                 skipped.append(member.filename)
                 continue
 
-            # Zip-bomb guard: check declared uncompressed size before extracting.
-            total_extracted += member.file_size
-            if total_extracted > max_extracted_mb * 1024 * 1024:
-                raise DomainValidationError(
-                    "ZIP_EXTRACTED_TOO_LARGE",
-                    f"Total uncompressed size exceeds the {max_extracted_mb} MB limit",
-                )
-
             if uploaded + len(errors) >= max_files:
                 raise DomainValidationError(
                     "ZIP_TOO_MANY_FILES",
@@ -884,7 +876,29 @@ async def upload_zip_batch(
                 errors.append(ZipUploadError(filename=basename, error=exc.message))
                 continue
 
-            xml_bytes = zf.read(member.filename)
+            # Zip-bomb guard: stream decompression and measure actual bytes.
+            # member.file_size is the declared size in the ZIP central directory
+            # and can be falsified.  We count real decompressed bytes instead.
+            limit = max_extracted_mb * 1024 * 1024
+            buf = io.BytesIO()
+            with zf.open(member.filename) as f:
+                while True:
+                    chunk = f.read(65536)
+                    if not chunk:
+                        break
+                    buf.write(chunk)
+                    total_extracted += len(chunk)
+                    if total_extracted > limit:
+                        raise DomainValidationError(
+                            "ZIP_EXTRACTED_TOO_LARGE",
+                            f"Total uncompressed size exceeds the {max_extracted_mb} MB limit",
+                        )
+            xml_bytes = buf.getvalue()
+            try:
+                _safe_xml.fromstring(xml_bytes)
+            except Exception as exc:
+                errors.append(ZipUploadError(filename=basename, error=f"Invalid XML: {exc}"))
+                continue
             await existdb.put_document(col.slug, basename, xml_bytes)
             uploaded += 1
 
