@@ -18,7 +18,7 @@ const xsltStore = useXsltTemplateStore();
 
 const editingSlug = ref<string | null>(null);
 const editTab = ref<"general" | "theme" | "pages" | "document" | "indices" | "cssjs">("general");
-const showMetaPanel = ref(false);
+const showMetaPanel = ref(true);
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 const filterName = ref("");
@@ -498,7 +498,7 @@ async function savePages(websiteSlug: string): Promise<void> {
 async function startEdit(website: Website): Promise<void> {
   editingSlug.value = website.slug;
   editTab.value = "general";
-  showMetaPanel.value = false;
+  showMetaPanel.value = true;
   editForm.value = {
     title: website.title,
     description: website.description,
