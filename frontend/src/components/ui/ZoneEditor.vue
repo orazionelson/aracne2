@@ -19,6 +19,10 @@ import { useI18n } from 'vue-i18n'
 import { useZonesStore, type ZoneIn } from '@/stores/zonesStore'
 import { useMediaStore } from '@/stores/mediaStore'
 
+// ── Flash state ───────────────────────────────────────────────────────────────
+// Transient visual feedback after an "associate" attempt.
+type AssociateFlash = 'ok' | 'fail' | null
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Surface {
@@ -37,10 +41,11 @@ const props = defineProps<{
   slug: string
   docFilename: string
   surface: Surface
+  /** Called when the user clicks "Associate"; must return true on success. */
+  onAssociate: (zoneId: string) => boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'associateZone', zoneId: string): void
   (e: 'close'): void
 }>()
 
@@ -67,6 +72,10 @@ const scale = ref(1)
 const isDrawing = ref(false)
 const drawStart = ref<DrawPoint | null>(null)
 const drawCurrent = ref<DrawPoint | null>(null)
+
+// Associate feedback flash (clears after 2 s)
+const associateFlash = ref<AssociateFlash>(null)
+let _flashTimer: ReturnType<typeof setTimeout> | null = null
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 
@@ -169,7 +178,10 @@ function deleteZone(zoneId: string): void {
 
 function handleAssociate(): void {
   if (!selectedZoneId.value) return
-  emit('associateZone', selectedZoneId.value)
+  const ok = props.onAssociate(selectedZoneId.value)
+  if (_flashTimer) clearTimeout(_flashTimer)
+  associateFlash.value = ok ? 'ok' : 'fail'
+  _flashTimer = setTimeout(() => { associateFlash.value = null }, 2000)
 }
 
 async function handleSave(): Promise<void> {
@@ -191,6 +203,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (blobUrl.value) URL.revokeObjectURL(blobUrl.value)
+  if (_flashTimer) clearTimeout(_flashTimer)
   store.reset()
 })
 </script>
@@ -315,12 +328,20 @@ onBeforeUnmount(() => {
     <!-- Footer actions -->
     <div class="flex flex-shrink-0 gap-1.5 border-t border-gray-200 px-3 py-2">
       <button
-        class="flex-1 rounded bg-teal-50 px-2 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-40"
+        :class="[
+          'flex-1 rounded px-2 py-1.5 text-xs font-medium transition-colors duration-150',
+          associateFlash === 'ok'   ? 'bg-green-100 text-green-700' :
+          associateFlash === 'fail' ? 'bg-red-100   text-red-700'   :
+          'bg-teal-50 text-teal-700 hover:bg-teal-100',
+          !selectedZoneId ? 'cursor-not-allowed opacity-40' : '',
+        ]"
         :disabled="!selectedZoneId"
         :title="t('zones.associate_hint')"
         @click="handleAssociate"
       >
-        {{ t('zones.associate_btn') }}
+        <template v-if="associateFlash === 'ok'">{{ t('zones.associate_ok') }}</template>
+        <template v-else-if="associateFlash === 'fail'">{{ t('zones.associate_fail') }}</template>
+        <template v-else>{{ t('zones.associate_btn') }}</template>
       </button>
       <button
         class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"

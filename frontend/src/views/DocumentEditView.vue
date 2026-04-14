@@ -505,12 +505,12 @@ function openZoneEditor(surface: FacsimileSurface): void {
 }
 
 /**
- * Called when the ZoneEditor emits 'associateZone'.
- * Delegates to the CodeMirror composable which inserts/appends the facs attribute
- * on the nearest opening tag at the cursor position.
+ * Passed as the `onAssociate` prop to ZoneEditor.
+ * Delegates to the CodeMirror composable and returns true on success so the
+ * editor can show appropriate visual feedback.
  */
-function handleZoneAssociate(zoneId: string): void {
-  singleCm.insertFacsRef(zoneId);
+function handleZoneAssociate(zoneId: string): boolean {
+  return singleCm.insertFacsRef(zoneId);
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -1000,8 +1000,8 @@ async function runValidation(): Promise<void> {
     :slug="slug"
     :doc-filename="filename"
     :surface="currentZoneSurface"
+    :on-associate="handleZoneAssociate"
     :style="{ width: panelWidth + 'px' }"
-    @associate-zone="handleZoneAssociate"
     @close="showZonePanel = false; currentZoneSurface = null"
   />
 

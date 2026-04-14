@@ -834,6 +834,8 @@
     "edit_btn": "Modifica zone",
     "empty_hint": "Clicca e trascina sull'immagine per disegnare rettangoli di zona.",
     "associate_btn": "Associa al cursore",
+    "associate_ok": "Associato!",
+    "associate_fail": "Nessun tag al cursore",
     "associate_hint": "Seleziona una zona, posiziona il cursore dentro un <w> o <lb>, poi clicca Associa.",
     "save_ok": "Zone salvate.",
     "draw_hint": "Clicca e trascina per disegnare un rettangolo di zona."

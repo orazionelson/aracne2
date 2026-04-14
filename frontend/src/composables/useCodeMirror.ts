@@ -509,13 +509,17 @@ export function useCodeMirror(
     const cursorOffset = cm.indexFromPos(cm.getCursor());
 
     // Scan backwards to find the opening '<' of the nearest opening tag.
-    // Stop if we cross a '>' (we've left the current tag context).
-    // Skip closing tags (</) and processing instructions (<?).
+    // We do NOT break on '>' because the cursor may be inside the text
+    // content of an element (e.g. "<w>tex|t</w>") — in that case the
+    // backwards scan must keep going past the '>' of the opening tag until
+    // it finds the '<'.  We only stop on a closing tag '</': that marks a
+    // true element boundary where there is no enclosing opening tag to attach
+    // the facs attribute to.
+    // Skip processing instructions (<?).
     let tagStart = -1;
     for (let i = cursorOffset - 1; i >= 0; i--) {
-      if (text[i] === '>') break;
       if (text[i] === '<') {
-        if (text[i + 1] === '/' || text[i + 1] === '?') continue;
+        if (text[i + 1] === '/' || text[i + 1] === '?') break; // element boundary
         tagStart = i;
         break;
       }
