@@ -289,6 +289,8 @@
     "tei_help_no_schema": "No schema loaded — assign a CM5 schema to this collection",
     "tei_help_select": "Type a tag name to view its documentation",
     "search_google": "Search on Google",
+    "validation_errors_title": "Validation",
+    "validation_valid": "Document is valid.",
     "note_btn_alpha": "Note α",
     "note_btn_numeric": "Note #",
     "note_alpha_title": "Insert alphabetic note at cursor",

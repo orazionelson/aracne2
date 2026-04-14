@@ -63,6 +63,9 @@ const singleCm = useCodeMirror(editorContainer, {
 // ── Media panel ───────────────────────────────────────────────────────────────
 const showMediaPanel = ref(false);
 
+// ── Validation panel ──────────────────────────────────────────────────────────
+const showValidationPanel = ref(false);
+
 // ── Panel resize ──────────────────────────────────────────────────────────────
 const PANEL_MIN_PX = 240;
 const PANEL_MAX_PX = 720;
@@ -72,7 +75,7 @@ const dragStartX    = ref(0);
 const dragStartW    = ref(0);
 
 const anyPanelOpen = computed(
-  () => showHelpPanel.value || showAiPanel.value || showMediaPanel.value,
+  () => showHelpPanel.value || showAiPanel.value || showMediaPanel.value || showValidationPanel.value,
 );
 
 function startPanelDrag(e: MouseEvent): void {
@@ -509,6 +512,7 @@ const activeEditor = computed(() => singleCm.editorInstance.value);
 function openAiPanel(): void {
   showHelpPanel.value = false;
   showMediaPanel.value = false;
+  showValidationPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -581,6 +585,29 @@ async function runValidation(): Promise<void> {
     };
   } finally {
     isValidating.value = false;
+    // Auto-open the panel whenever validation finds errors.
+    if (validationResult.value && !validationResult.value.valid) {
+      showHelpPanel.value = false;
+      showAiPanel.value = false;
+      showMediaPanel.value = false;
+      showValidationPanel.value = true;
+    }
+  }
+}
+
+function toggleValidationPanel(): void {
+  if (showValidationPanel.value) {
+    showValidationPanel.value = false;
+    return;
+  }
+  // If we already have results just open the panel; otherwise run validation first.
+  if (validationResult.value) {
+    showHelpPanel.value = false;
+    showAiPanel.value = false;
+    showMediaPanel.value = false;
+    showValidationPanel.value = true;
+  } else {
+    runValidation();
   }
 }
 </script>
@@ -691,7 +718,7 @@ async function runValidation(): Promise<void> {
                 ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
                 : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
-          @click="runValidation"
+          @click="toggleValidationPanel"
         >
           <!-- icon: shield-check, or spinner when validating -->
           <svg v-if="!isValidating" class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -721,7 +748,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -755,7 +782,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -804,35 +831,6 @@ async function runValidation(): Promise<void> {
       class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
     />
 
-    <!-- Validation errors panel -->
-    <div
-      v-if="validationResult && !validationResult.valid"
-      class="mt-2 max-h-40 flex-shrink-0 overflow-y-auto rounded border border-red-200 bg-red-50"
-    >
-      <table class="w-full text-xs">
-        <tbody>
-          <tr
-            v-for="(err, i) in validationResult.errors"
-            :key="i"
-            class="border-b border-red-100 last:border-0"
-          >
-            <td class="w-20 whitespace-nowrap px-3 py-1 font-mono text-red-400">
-              {{ err.line }}:{{ err.col }}
-            </td>
-            <td class="px-3 py-1 text-red-700">
-              {{ err.message }}
-              <span v-if="err.path" class="ml-1 font-mono text-red-400">({{ err.path }})</span>
-              <a
-                :href="`https://www.google.com/search?q=${encodeURIComponent(err.message + (err.path ? ' ' + err.path : ''))}`"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="ml-2 whitespace-nowrap text-blue-500 underline hover:text-blue-700"
-              >{{ t('documents.search_google') }}</a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
   </div>
 
   <!-- Panel resize handle — appears between editor and any open panel -->
@@ -985,6 +983,76 @@ async function runValidation(): Promise<void> {
     @cleanup-media-refs="handleCleanupMediaRefs"
     @close="showMediaPanel = false"
   />
+
+  <!-- Validation errors panel -->
+  <div
+    v-if="showValidationPanel && validationResult"
+    class="flex flex-shrink-0 flex-col bg-white"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <!-- Panel header -->
+    <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
+      <div class="flex items-center gap-2">
+        <svg class="h-4 w-4 flex-shrink-0" :class="validationResult.valid ? 'text-green-600' : 'text-red-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
+        </svg>
+        <span class="text-sm font-semibold text-gray-700">{{ t('documents.validation_errors_title') }}</span>
+        <span
+          v-if="!validationResult.valid"
+          class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
+        >{{ validationResult.errors.length }}</span>
+      </div>
+      <button class="text-gray-400 hover:text-gray-700" @click="showValidationPanel = false">✕</button>
+    </div>
+
+    <!-- Valid state -->
+    <div v-if="validationResult.valid" class="flex flex-1 items-center justify-center p-6 text-sm text-green-700">
+      <svg class="mr-2 h-5 w-5 flex-shrink-0 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+      </svg>
+      {{ t('documents.validation_valid') }}
+    </div>
+
+    <!-- Error list -->
+    <div v-else class="min-h-0 flex-1 overflow-y-auto">
+      <div
+        v-for="(err, i) in validationResult.errors"
+        :key="i"
+        class="border-b border-red-100 px-3 py-2.5 last:border-0 hover:bg-red-50"
+      >
+        <div class="mb-1 flex items-center gap-2">
+          <span class="rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs text-red-500">
+            {{ err.line }}:{{ err.col }}
+          </span>
+          <a
+            :href="`https://www.google.com/search?q=${encodeURIComponent(err.message + (err.path ? ' ' + err.path : ''))}`"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ml-auto text-xs text-blue-500 hover:text-blue-700 hover:underline"
+          >{{ t('documents.search_google') }}</a>
+        </div>
+        <p class="text-xs leading-relaxed text-red-700">{{ err.message }}</p>
+        <p v-if="err.path" class="mt-0.5 font-mono text-xs text-red-400">{{ err.path }}</p>
+      </div>
+    </div>
+
+    <!-- Re-validate button -->
+    <div class="flex flex-shrink-0 border-t border-gray-100 px-3 py-2">
+      <button
+        :disabled="isValidating"
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
+        @click="runValidation"
+      >
+        <svg v-if="!isValidating" class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
+        </svg>
+        <svg v-else class="h-3.5 w-3.5 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+        </svg>
+        {{ isValidating ? t('documents.validating') : t('documents.validate') }}
+      </button>
+    </div>
+  </div>
   </div>
 
   <!-- Note insertion / editing modal -->
