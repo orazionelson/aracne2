@@ -1259,83 +1259,77 @@ function statusClass(s: string): string {
 
       <!-- Documents section -->
       <section class="rounded border border-gray-200 p-5">
-        <div class="mb-4 flex items-center justify-between">
+        <div class="mb-4 flex items-start justify-between">
           <h2 class="text-sm font-semibold text-gray-700">
             {{ t("collections.documents") }}
             <span class="ml-1 font-normal text-gray-400">({{ store.documents.length }})</span>
           </h2>
-          <div class="flex gap-2">
-          <!-- Validate all — EiC+ only, collection must have a schema -->
-          <button
-            v-if="isEiC && store.current?.schema_id"
-            :disabled="validationStore.isStarting || validationStore.currentRun?.status === 'pending' || validationStore.currentRun?.status === 'running'"
-            class="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 disabled:opacity-50"
-            @click="handleValidateAll"
-          >
-            <span v-if="validationStore.currentRun?.status === 'running'">
-              {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
-            </span>
-            <span v-else-if="validationStore.currentRun?.status === 'pending'">
-              {{ t("common.loading") }}
-            </span>
-            <span v-else>{{ t("collections.validate_all") }}</span>
-          </button>
-          <div v-if="canWrite" class="flex gap-2">
-            <!-- New document -->
-            <button
-              class="rounded border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100"
-              @click="showNewDocForm = !showNewDocForm; newDocError = null"
-            >
-              {{ t("collections.new_document") }}
-            </button>
-            <button
-              :disabled="isUploading || isUploadingZip"
-              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-              @click="fileInput?.click()"
-            >
-              <span v-if="isUploading && uploadProgress.total > 1">
-                {{ uploadProgress.done }}/{{ uploadProgress.total }}
-              </span>
-              <span v-else-if="isUploading">{{ t("common.loading") }}</span>
-              <span v-else>{{ t("collections.upload") }}</span>
-            </button>
-            <button
-              :disabled="isUploading || isUploadingZip"
-              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-              @click="zipInput?.click()"
-            >
-              {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
-            </button>
-          </div>
-          </div><!-- end outer flex gap-2 -->
+          <!-- Right column: action buttons + new-doc form stacked vertically -->
+          <div class="flex flex-col items-end gap-2">
+            <div class="flex gap-2">
+              <!-- Validate all — EiC+ only, collection must have a schema -->
+              <button
+                v-if="isEiC && store.current?.schema_id"
+                :disabled="validationStore.isStarting || validationStore.currentRun?.status === 'pending' || validationStore.currentRun?.status === 'running'"
+                class="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                @click="handleValidateAll"
+              >
+                <span v-if="validationStore.currentRun?.status === 'running'">
+                  {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+                </span>
+                <span v-else-if="validationStore.currentRun?.status === 'pending'">
+                  {{ t("common.loading") }}
+                </span>
+                <span v-else>{{ t("collections.validate_all") }}</span>
+              </button>
+              <template v-if="canWrite">
+                <button
+                  class="rounded border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100"
+                  @click="showNewDocForm = !showNewDocForm; newDocError = null"
+                >
+                  {{ t("collections.new_document") }}
+                </button>
+                <button
+                  :disabled="isUploading || isUploadingZip"
+                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  @click="fileInput?.click()"
+                >
+                  <span v-if="isUploading && uploadProgress.total > 1">{{ uploadProgress.done }}/{{ uploadProgress.total }}</span>
+                  <span v-else-if="isUploading">{{ t("common.loading") }}</span>
+                  <span v-else>{{ t("collections.upload") }}</span>
+                </button>
+                <button
+                  :disabled="isUploading || isUploadingZip"
+                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  @click="zipInput?.click()"
+                >
+                  {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
+                </button>
+              </template>
+            </div>
 
-          <!-- New document inline form -->
-          <div
-            v-if="showNewDocForm && canWrite"
-            class="mt-3 flex items-center gap-2"
-          >
-            <input
-              v-model="newDocFilename"
-              type="text"
-              :placeholder="t('collections.new_document_placeholder')"
-              class="rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
-              @keydown.enter="handleCreateDocument"
-              @keydown.esc="showNewDocForm = false"
-            />
-            <button
-              :disabled="isCreatingDoc || !newDocFilename.trim()"
-              class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40"
-              @click="handleCreateDocument"
-            >
-              {{ isCreatingDoc ? t("common.loading") : t("collections.new_document_create") }}
-            </button>
-            <button
-              class="text-sm text-gray-400 hover:text-gray-700"
-              @click="showNewDocForm = false"
-            >
-              {{ t("common.cancel") }}
-            </button>
-            <span v-if="newDocError" class="text-xs text-red-600">{{ newDocError }}</span>
+            <!-- New document form — appears below the buttons row -->
+            <div v-if="showNewDocForm && canWrite" class="flex items-center gap-2">
+              <input
+                v-model="newDocFilename"
+                type="text"
+                :placeholder="t('collections.new_document_placeholder')"
+                class="rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                @keydown.enter="handleCreateDocument"
+                @keydown.esc="showNewDocForm = false"
+              />
+              <button
+                :disabled="isCreatingDoc || !newDocFilename.trim()"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-40"
+                @click="handleCreateDocument"
+              >
+                {{ isCreatingDoc ? t("common.loading") : t("collections.new_document_create") }}
+              </button>
+              <button class="text-sm text-gray-400 hover:text-gray-700" @click="showNewDocForm = false">
+                {{ t("common.cancel") }}
+              </button>
+              <span v-if="newDocError" class="text-xs text-red-600">{{ newDocError }}</span>
+            </div>
           </div>
           <input
             ref="fileInput"
