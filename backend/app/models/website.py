@@ -101,6 +101,10 @@ class Website(Base):
     # Used for absolute link generation in dynamic/hybrid mode.
     website_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
+    # When True and the website is published, a link to this site appears on
+    # the public home page alongside its linked collection.
+    show_in_public_home: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=False)
+
     # Per-site custom CSS/JS injected into every generated page.
     custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
     custom_js: Mapped[str | None] = mapped_column(Text(), nullable=True)

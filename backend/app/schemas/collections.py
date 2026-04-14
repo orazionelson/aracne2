@@ -117,6 +117,9 @@ class CollectionResponse(BaseModel):
     evt_enabled: bool
     created_at: datetime
     updated_at: datetime
+    # Populated only on public collection listings when a published website
+    # with show_in_public_home=True is linked to this collection.
+    website_link: str | None = None
 
     model_config = {"from_attributes": True}
 

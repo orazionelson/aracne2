@@ -2815,6 +2815,7 @@ async def create_website(
         nav_config=data.nav_config,
         xslt_schema_id=data.xslt_schema_id,
         is_published=data.is_published,
+        show_in_public_home=data.show_in_public_home,
         created_by=user_id,
     )
     db.add(website)

@@ -46,6 +46,9 @@ export interface Collection {
   evt_enabled: boolean;
   created_at: string;
   updated_at: string;
+  // Set on public collection listings when a published website with
+  // show_in_public_home=True is linked to this collection.
+  website_link: string | null;
 }
 
 export interface DocumentInfo {

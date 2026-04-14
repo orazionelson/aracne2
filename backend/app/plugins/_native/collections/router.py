@@ -92,6 +92,7 @@ async def collections_public(
     """List published + is_public collections. No authentication required."""
     from sqlalchemy import func, or_, select
     from app.models.collection import Collection
+    from app.models.website import Website
 
     stmt = select(Collection).where(
         Collection.status == CollectionStatus.published,
@@ -107,8 +108,39 @@ async def collections_public(
         stmt.order_by(Collection.published_at.desc())
             .offset((page - 1) * per_page).limit(per_page)
     ))
+
+    # For each collection that has a published website with show_in_public_home=True,
+    # compute the link URL: website_url → collection.identifier_url → /sites/{slug}/
+    website_map: dict[uuid.UUID, Website] = {}
+    if rows:
+        col_ids = [r.id for r in rows]
+        websites = list(await db.scalars(
+            select(Website).where(
+                Website.collection_id.in_(col_ids),
+                Website.show_in_public_home.is_(True),
+                Website.is_published.is_(True),
+            )
+        ))
+        for w in websites:
+            if w.collection_id and w.collection_id not in website_map:
+                website_map[w.collection_id] = w
+
+    def _resolve_link(website: Website, identifier_url: str | None) -> str:
+        if website.website_url:
+            return website.website_url
+        if identifier_url:
+            return identifier_url
+        return f"/sites/{website.slug}/"
+
+    items: list[CollectionResponse] = []
+    for r in rows:
+        cr = CollectionResponse.model_validate(r)
+        if r.id in website_map:
+            cr.website_link = _resolve_link(website_map[r.id], r.identifier_url)
+        items.append(cr)
+
     return PaginatedResponse(
-        data=[CollectionResponse.model_validate(r) for r in rows],
+        data=items,
         pagination=PaginationMeta(
             page=page, per_page=per_page, total=total,
             total_pages=math.ceil(total / per_page) if total else 0,

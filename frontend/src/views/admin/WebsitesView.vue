@@ -50,6 +50,7 @@ const newWebsite = ref<WebsiteCreate>({
   collection_id: null,
   rendering_mode: "STATIC",
   is_published: false,
+  show_in_public_home: false,
   theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af", hide_header: false, fixed_header: false },
 });
 
@@ -506,6 +507,7 @@ async function startEdit(website: Website): Promise<void> {
     rendering_mode: website.rendering_mode,
     website_url: website.website_url,
     is_published: website.is_published,
+    show_in_public_home: website.show_in_public_home,
     theme_config: {
       font_family: 'Georgia,"Times New Roman",serif',
       footer_bg: "#ffffff",
@@ -585,6 +587,7 @@ async function saveEdit(slug: string): Promise<void> {
       rendering_mode: editForm.value.rendering_mode,
       website_url: (editForm.value.website_url as string) || null,
       is_published: editForm.value.is_published,
+      show_in_public_home: editForm.value.show_in_public_home as boolean,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
       nav_config: editForm.value.nav_config as AracnePageConfig[],
@@ -614,6 +617,7 @@ async function createWebsite(): Promise<void> {
       collection_id: null,
       rendering_mode: "STATIC",
       is_published: false,
+      show_in_public_home: false,
       theme_config: { primary_color: "#1e293b", text_color: "#1e293b", bg_color: "#ffffff", doc_banner_bg: "#1e293b", doc_banner_text: "#ffffff", logo_url: "", home_layout: "single", col_left: "", col_center: "", col_right: "", font_family: 'Georgia,"Times New Roman",serif', footer_bg: "#ffffff", footer_text: "#9ca3af", hide_header: false, fixed_header: false },
     };
   } catch (err: unknown) {
@@ -886,9 +890,15 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <input id="create-published" v-model="newWebsite.is_published" type="checkbox" class="rounded border-gray-300" />
-          <label for="create-published" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <input id="create-published" v-model="newWebsite.is_published" type="checkbox" class="rounded border-gray-300" />
+            <label for="create-published" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="create-sph" v-model="newWebsite.show_in_public_home" type="checkbox" class="rounded border-gray-300" />
+            <label for="create-sph" class="text-xs text-gray-700">{{ t("websites.field_show_in_public_home") }}</label>
+          </div>
         </div>
       </div>
       <p v-if="createError" class="mt-3 text-xs text-red-600">{{ createError }}</p>
@@ -1169,9 +1179,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               <option value="HYBRID">{{ t("websites.mode_hybrid") }}</option>
             </select>
           </div>
-          <div class="flex items-center gap-2 pt-5">
-            <input :id="`edit-pub-${editingWebsite!.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
-            <label :for="`edit-pub-${editingWebsite!.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+          <div class="flex flex-col gap-2 pt-5">
+            <div class="flex items-center gap-2">
+              <input :id="`edit-pub-${editingWebsite!.slug}`" v-model="editForm.is_published" type="checkbox" class="rounded border-gray-300" />
+              <label :for="`edit-pub-${editingWebsite!.slug}`" class="text-xs text-gray-700">{{ t("websites.field_is_published") }}</label>
+            </div>
+            <div class="flex items-center gap-2">
+              <input :id="`edit-sph-${editingWebsite!.slug}`" v-model="editForm.show_in_public_home" type="checkbox" class="rounded border-gray-300" />
+              <label :for="`edit-sph-${editingWebsite!.slug}`" class="text-xs text-gray-700">{{ t("websites.field_show_in_public_home") }}</label>
+            </div>
+            <p class="text-xs text-gray-400">{{ t("websites.field_show_in_public_home_hint") }}</p>
           </div>
 
           <!-- Metadata foldable panel -->

@@ -155,6 +155,15 @@ onMounted(() => {
                   >
                     {{ t("public.view_in_evt") }}
                   </router-link>
+                  <a
+                    v-if="col.website_link"
+                    :href="col.website_link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="rounded border border-teal-300 px-2.5 py-1 text-xs text-teal-700 hover:bg-teal-50"
+                  >
+                    {{ t("public.visit_website") }}
+                  </a>
                 </div>
               </div>
             </div>
@@ -221,6 +230,15 @@ onMounted(() => {
                 >
                   {{ t("public.view_in_evt") }}
                 </router-link>
+                <a
+                  v-if="col.website_link"
+                  :href="col.website_link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="rounded border border-teal-300 px-3 py-1.5 text-sm text-teal-700 hover:bg-teal-50"
+                >
+                  {{ t("public.visit_website") }}
+                </a>
               </div>
             </li>
           </ul>

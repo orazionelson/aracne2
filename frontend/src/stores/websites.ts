@@ -68,6 +68,7 @@ export interface Website {
   build_error: string | null;
   website_url: string | null;
   is_published: boolean;
+  show_in_public_home: boolean;
   custom_css: string | null;
   custom_js: string | null;
   include_jquery: boolean;
@@ -89,6 +90,7 @@ export interface WebsiteCreate {
   theme_config?: Record<string, string>;
   meta_config?: Record<string, string | string[]>;
   is_published?: boolean;
+  show_in_public_home?: boolean;
 }
 
 export interface WebsiteUpdate {
@@ -102,6 +104,7 @@ export interface WebsiteUpdate {
   nav_config?: AracnePageConfig[];
   xslt_config?: XsltConfig;
   is_published?: boolean;
+  show_in_public_home?: boolean;
   custom_css?: string | null;
   custom_js?: string | null;
   include_jquery?: boolean;
