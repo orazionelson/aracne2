@@ -1512,17 +1512,19 @@ def _emit_meta(lines: list[str], name: str, raw: str | list | None) -> None:
             lines.append(f'  <meta name="{name}" content="{_html.escape(v)}">')
 
 
-def _build_meta_tags(meta: dict) -> str:
+def _build_meta_tags(meta: dict, website_url: str | None = None) -> str:
     """Build HTML <meta> tag strings from a meta_config dict.
 
     Standard HTML meta tags and Dublin Core (DC.*) are emitted only for
     non-empty values.  The DC namespace <link> is prepended automatically
     when at least one DC field has a value.  Repeatable fields may be stored
     as either a plain string or a list of strings.
-    """
-    if not meta:
-        return ""
 
+    When *website_url* is provided it is emitted as a DC.identifier tag with
+    scheme="DCTERMS.URI":
+        <meta name="DC.identifier" scheme="DCTERMS.URI" content="…">
+    The DCTERMS schema link is added automatically alongside the DC link.
+    """
     lines: list[str] = []
 
     _html_fields = [
@@ -1552,8 +1554,18 @@ def _build_meta_tags(meta: dict) -> str:
     dc_lines: list[str] = []
     for key, name in _dc_fields:
         _emit_meta(dc_lines, name, meta.get(key))
+
+    # website_url → DC.identifier with DCTERMS.URI scheme (canonical site URL)
+    if website_url and website_url.strip():
+        escaped = _html.escape(website_url.strip())
+        dc_lines.append(
+            f'  <meta name="DC.identifier" scheme="DCTERMS.URI" content="{escaped}">'
+        )
+
     if dc_lines:
         lines.append('  <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" />')
+        if website_url and website_url.strip():
+            lines.append('  <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" />')
         lines.extend(dc_lines)
 
     return "\n".join(lines)
@@ -2485,7 +2497,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         navbar=navbar,
         footer_note=footer_note,
         identifier_url=identifier_url,
-        meta_tags=_build_meta_tags(website.meta_config or {}),
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
     )
@@ -2529,7 +2541,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
-        meta_tags=_build_meta_tags(website.meta_config or {}),
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
     )
@@ -2609,7 +2621,7 @@ async def render_dynamic_search(
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Search")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
-        meta_tags=_build_meta_tags(website.meta_config or {}),
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
     )
@@ -3198,7 +3210,7 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
         style=style,
         navbar=navbar,
         breadcrumb=breadcrumb,
-        meta_tags=_build_meta_tags(website.meta_config or {}),
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
     )
 
@@ -3245,7 +3257,7 @@ def render_all_indices_html(
             style=style,
             navbar=navbar,
             breadcrumb=breadcrumb,
-            meta_tags=_build_meta_tags(website.meta_config or {}),
+            meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
             custom_js=website.custom_js,
         )
 
@@ -3326,7 +3338,7 @@ def render_all_indices_html(
         style=style,
         navbar=navbar,
         breadcrumb=breadcrumb,
-        meta_tags=_build_meta_tags(website.meta_config or {}),
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
     )
 
@@ -3689,7 +3701,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 doc_infos = []
 
     # Build meta tags string (same on every page of this site).
-    meta_tags: str = _build_meta_tags(website.meta_config or {})
+    meta_tags: str = _build_meta_tags(website.meta_config or {}, website_url=website.website_url)
 
     # Build publisher / year string and identifier URL for every page footer.
     publisher_parts: list[str] = []
@@ -3942,7 +3954,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     )
     doc_infos: list[dict] = await _fetch_doc_infos(col) if col is not None else []
 
-    meta_tags: str = _build_meta_tags(website.meta_config or {})
+    meta_tags: str = _build_meta_tags(website.meta_config or {}, website_url=website.website_url)
     footer_note, identifier_url = _footer_parts(col)
 
     # ── index.html ────────────────────────────────────────────────────────
