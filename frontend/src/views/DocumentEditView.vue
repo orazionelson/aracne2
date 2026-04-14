@@ -1001,12 +1001,12 @@ function toggleValidationPanel(): void {
     <!-- Panel header -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
       <div class="flex items-center gap-2">
-        <svg class="h-4 w-4 flex-shrink-0" :class="validationResult.valid ? 'text-green-600' : 'text-red-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="h-4 w-4 flex-shrink-0" :class="validationResult?.valid ? 'text-green-600' : 'text-red-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
         </svg>
         <span class="text-sm font-semibold text-gray-700">{{ t('documents.validation_errors_title') }}</span>
         <span
-          v-if="!validationResult.valid"
+          v-if="validationResult && !validationResult.valid"
           class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
         >{{ validationResult.errors.length }}</span>
       </div>
