@@ -504,6 +504,7 @@ async function startEdit(website: Website): Promise<void> {
     description: website.description,
     collection_id: website.collection_id,
     rendering_mode: website.rendering_mode,
+    website_url: website.website_url,
     is_published: website.is_published,
     theme_config: {
       font_family: 'Georgia,"Times New Roman",serif',
@@ -582,6 +583,7 @@ async function saveEdit(slug: string): Promise<void> {
       description: editForm.value.description,
       collection_id: editForm.value.collection_id ?? null,
       rendering_mode: editForm.value.rendering_mode,
+      website_url: (editForm.value.website_url as string) || null,
       is_published: editForm.value.is_published,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
@@ -1148,6 +1150,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           <div class="sm:col-span-2">
             <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_description") }}</label>
             <input v-model="editForm.description" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_website_url") }}</label>
+            <input
+              v-model="editForm.website_url"
+              type="url"
+              :placeholder="t('websites.field_website_url_placeholder')"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+            />
+            <p class="mt-0.5 text-xs text-gray-400">{{ t("websites.field_website_url_hint") }}</p>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_rendering_mode") }}</label>

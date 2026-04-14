@@ -66,6 +66,7 @@ export interface Website {
   build_status: BuildStatus;
   last_build_at: string | null;
   build_error: string | null;
+  website_url: string | null;
   is_published: boolean;
   custom_css: string | null;
   custom_js: string | null;
@@ -95,6 +96,7 @@ export interface WebsiteUpdate {
   description?: string | null;
   collection_id?: string | null;
   rendering_mode?: RenderingMode;
+  website_url?: string | null;
   theme_config?: Record<string, string>;
   meta_config?: Record<string, string | string[]>;
   nav_config?: AracnePageConfig[];

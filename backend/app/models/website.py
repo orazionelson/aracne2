@@ -97,6 +97,10 @@ class Website(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
+    # Canonical public URL of the deployed website (e.g. https://example.com).
+    # Used for absolute link generation in dynamic/hybrid mode.
+    website_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     # Per-site custom CSS/JS injected into every generated page.
     custom_css: Mapped[str | None] = mapped_column(Text(), nullable=True)
     custom_js: Mapped[str | None] = mapped_column(Text(), nullable=True)

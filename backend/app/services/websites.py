@@ -2797,6 +2797,7 @@ async def create_website(
         description=data.description,
         collection_id=data.collection_id,
         rendering_mode=data.rendering_mode,
+        website_url=data.website_url,
         theme_config=data.theme_config,
         meta_config=data.meta_config,
         nav_config=data.nav_config,
