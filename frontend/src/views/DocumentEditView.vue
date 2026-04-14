@@ -600,21 +600,6 @@ async function runValidation(): Promise<void> {
   }
 }
 
-function toggleValidationPanel(): void {
-  if (showValidationPanel.value) {
-    showValidationPanel.value = false;
-    return;
-  }
-  // If we already have results just open the panel; otherwise run validation first.
-  if (validationResult.value) {
-    showHelpPanel.value = false;
-    showAiPanel.value = false;
-    showMediaPanel.value = false;
-    showValidationPanel.value = true;
-  } else {
-    runValidation();
-  }
-}
 </script>
 
 <template>
@@ -709,39 +694,6 @@ function toggleValidationPanel(): void {
           {{ t('documents.note_btn_numeric') }}
         </button>
 
-        <span v-if="hasValidationSchema" class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
-
-        <!-- ── Validate ────────────────────────────────────────────────────── -->
-        <button
-          v-if="hasValidationSchema"
-          :disabled="isValidating || isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            validationResult?.valid === true
-              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
-              : validationResult?.valid === false
-                ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
-                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
-          ]"
-          @click="toggleValidationPanel"
-        >
-          <!-- icon: shield-check, or spinner when validating -->
-          <svg v-if="!isValidating" class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
-          </svg>
-          <svg v-else class="h-3.5 w-3.5 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
-          </svg>
-          <span>
-            {{ isValidating ? t('documents.validating') : t('documents.validate') }}
-          </span>
-          <span
-            v-if="validationResult && !validationResult.valid"
-            class="ml-0.5 rounded-full bg-red-200 px-1.5 py-0.5 text-xs font-semibold leading-none text-red-800"
-          >
-            {{ validationResult.errors.length }}
-          </span>
-        </button>
 
         <span class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
 
@@ -808,17 +760,35 @@ function toggleValidationPanel(): void {
           {{ t('documents.save_error_see_panel') }}
         </span>
 
-        <!-- ── Save ──────────────────────────────────────────────────────── -->
+        <!-- ── Validation error re-open badge ───────────────────────────── -->
         <button
-          :disabled="isSaving || isLoading"
+          v-if="validationResult && !validationResult.valid && !showValidationPanel"
+          class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200"
+          :title="t('documents.validation_errors_title')"
+          @click="showValidationPanel = true; showHelpPanel = false; showAiPanel = false; showMediaPanel = false;"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
+          </svg>
+          {{ validationResult.errors.length }}
+        </button>
+
+        <!-- ── Save (& Validate) ─────────────────────────────────────────── -->
+        <button
+          :disabled="isSaving || isValidating || isLoading"
           class="ml-1 inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
           @click="handleSave"
         >
-          <!-- icon: arrow-down-tray (save) -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- spinner while saving or validating, save icon otherwise -->
+          <svg v-if="isSaving || isValidating" class="h-3.5 w-3.5 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
+          </svg>
+          <svg v-else class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
           </svg>
-          {{ isSaving ? t('common.saving') : t('common.save') }}
+          <span v-if="isSaving">{{ t('common.saving') }}</span>
+          <span v-else-if="isValidating">{{ t('documents.validating') }}</span>
+          <span v-else>{{ hasValidationSchema ? t('documents.save_and_validate') : t('common.save') }}</span>
         </button>
       </div>
     </div>
