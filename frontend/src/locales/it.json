@@ -420,7 +420,14 @@
     "no_collections": "Nessuna collezione pubblica disponibile.",
     "published": "Pubblicata",
     "browse": "Sfoglia",
-    "view_in_evt": "Visualizza in EVT"
+    "view_in_evt": "Visualizza in EVT",
+    "stat_collections": "{n} collezioni disponibili",
+    "recent_title": "Ultime aggiunte",
+    "all_collections": "Tutte le collezioni",
+    "search_results": "{n} risultati",
+    "page_prev": "Precedente",
+    "page_next": "Successiva",
+    "pagination_label": "Navigazione pagine"
   },
   "entities": {
     "title": "Indice entità nominate",

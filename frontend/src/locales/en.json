@@ -420,7 +420,14 @@
     "no_collections": "No public collections available.",
     "published": "Published",
     "browse": "Browse",
-    "view_in_evt": "View in EVT"
+    "view_in_evt": "View in EVT",
+    "stat_collections": "{n} collections available",
+    "recent_title": "Latest additions",
+    "all_collections": "All collections",
+    "search_results": "{n} results",
+    "page_prev": "Previous",
+    "page_next": "Next",
+    "pagination_label": "Page navigation"
   },
   "entities": {
     "title": "Named Entity Index",

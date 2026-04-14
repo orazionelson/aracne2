@@ -1,29 +1,57 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { usePublicCollections } from "@/composables/usePublicCollections";
 
 const { t } = useI18n();
 const uiConfig = useUiConfigStore();
-const { collections, isLoading, fetchCollections } = usePublicCollections();
+const { collections, total, page, totalPages, isLoading, fetchCollections } =
+  usePublicCollections();
 
 const searchInput = ref("");
 const activeSearch = ref("");
 
 const showCollections = computed(() => uiConfig.config.home_show_collections);
 const showSearch = computed(() => uiConfig.config.home_show_search);
+const isSearching = computed(() => activeSearch.value !== "");
+
+/** First 3 items from page 1, used as the "recent additions" feature row. */
+const recentItems = computed(() =>
+  !isSearching.value && page.value === 1 ? collections.value.slice(0, 3) : [],
+);
 
 function handleSearch(): void {
   activeSearch.value = searchInput.value.trim();
-  fetchCollections(activeSearch.value);
+  fetchCollections(activeSearch.value, 1);
 }
 
 function clearSearch(): void {
   searchInput.value = "";
   activeSearch.value = "";
-  fetchCollections();
+  fetchCollections("", 1);
 }
+
+function goToPage(p: number): void {
+  if (p < 1 || p > totalPages.value) return;
+  fetchCollections("", p);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/** Compact page number list: always show first, last, current ±1, with ellipsis. */
+const pageNumbers = computed<Array<number | "…">>(() => {
+  const n = totalPages.value;
+  if (n <= 7) return Array.from({ length: n }, (_, i) => i + 1);
+  const cur = page.value;
+  const set = new Set([1, n, cur - 1, cur, cur + 1].filter((x) => x >= 1 && x <= n));
+  const sorted = [...set].sort((a, b) => a - b);
+  const result: Array<number | "…"> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && (sorted[i] as number) - (sorted[i - 1] as number) > 1) result.push("…");
+    result.push(sorted[i]);
+  }
+  return result;
+});
 
 onMounted(() => {
   if (showCollections.value) fetchCollections();
@@ -80,68 +108,168 @@ onMounted(() => {
         </form>
       </div>
 
-      <!-- Collection list -->
       <template v-if="showCollections">
+        <!-- Stats bar -->
+        <p
+          v-if="!isLoading && total > 0 && !isSearching"
+          class="mb-6 text-sm text-gray-500"
+        >
+          {{ t("public.stat_collections", { n: total }) }}
+        </p>
+
         <p v-if="isLoading" class="text-gray-400 text-sm">{{ t("common.loading") }}</p>
 
-        <p v-else-if="collections.length === 0 && activeSearch" class="text-gray-500 text-sm">
+        <template v-else-if="collections.length > 0">
+          <!-- Ultime aggiunte (only on page 1 when not searching) -->
+          <section v-if="recentItems.length > 0" class="mb-10">
+            <h2 class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {{ t("public.recent_title") }}
+            </h2>
+            <div class="grid gap-4 sm:grid-cols-3">
+              <div
+                v-for="col in recentItems"
+                :key="col.id"
+                class="rounded-xl border border-indigo-100 bg-white p-4 shadow-sm transition hover:shadow-md"
+              >
+                <h3 class="font-semibold text-gray-900 line-clamp-2 text-sm leading-snug">
+                  {{ col.title }}
+                </h3>
+                <p v-if="col.description" class="mt-1 text-xs text-gray-500 line-clamp-2">
+                  {{ col.description }}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
+                  <span v-if="col.author">{{ col.author }}</span>
+                  <span v-if="col.pub_year">{{ col.pub_year }}</span>
+                </div>
+                <div class="mt-3 flex gap-2">
+                  <router-link
+                    :to="{ name: 'public-collection', params: { slug: col.slug } }"
+                    class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    {{ t("public.browse") }}
+                  </router-link>
+                  <router-link
+                    v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
+                    :to="{ name: 'collection-read', params: { slug: col.slug } }"
+                    class="rounded border border-indigo-300 px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                  >
+                    {{ t("public.view_in_evt") }}
+                  </router-link>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Full collection list -->
+          <h2
+            v-if="isSearching"
+            class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
+          >
+            {{ t("public.search_results", { n: total }) }}
+          </h2>
+          <h2
+            v-else-if="recentItems.length > 0"
+            class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
+          >
+            {{ t("public.all_collections") }}
+          </h2>
+
+          <ul class="space-y-4">
+            <li
+              v-for="col in collections"
+              :key="col.id"
+              class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+            >
+              <h2 class="text-lg font-semibold text-gray-900">{{ col.title }}</h2>
+              <p v-if="col.description" class="mt-1 text-sm text-gray-500 line-clamp-2">
+                {{ col.description }}
+              </p>
+              <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
+                <span v-if="col.author">{{ col.author }}</span>
+                <span v-if="col.publisher">{{ col.publisher }}</span>
+                <span v-if="col.pub_year">{{ col.pub_year }}</span>
+                <span v-if="col.published_at">
+                  {{ t("public.published") }}
+                  {{ new Date(col.published_at).toLocaleDateString() }}
+                </span>
+              </div>
+              <!-- Document snippets (only shown when search matched document content) -->
+              <ul v-if="col.doc_hits.length > 0" class="mt-3 space-y-1">
+                <li v-for="hit in col.doc_hits" :key="hit.filename">
+                  <router-link
+                    :to="{ name: 'public-document', params: { slug: col.slug, filename: hit.filename } }"
+                    class="block rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700 hover:bg-yellow-100"
+                  >
+                    <span class="font-medium text-gray-500">{{ hit.filename }}</span>
+                    <span class="mx-1 text-gray-300">—</span>
+                    <span class="italic">…{{ hit.snippet }}…</span>
+                  </router-link>
+                </li>
+              </ul>
+
+              <div class="mt-4 flex gap-2">
+                <router-link
+                  :to="{ name: 'public-collection', params: { slug: col.slug } }"
+                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {{ t("public.browse") }}
+                </router-link>
+                <router-link
+                  v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
+                  :to="{ name: 'collection-read', params: { slug: col.slug } }"
+                  class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+                >
+                  {{ t("public.view_in_evt") }}
+                </router-link>
+              </div>
+            </li>
+          </ul>
+
+          <!-- Pagination (hidden during search — search has no server pagination) -->
+          <nav
+            v-if="!isSearching && totalPages > 1"
+            class="mt-10 flex items-center justify-center gap-1"
+            :aria-label="t('public.pagination_label')"
+          >
+            <button
+              class="rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
+              :disabled="page === 1"
+              @click="goToPage(page - 1)"
+            >
+              {{ t("public.page_prev") }}
+            </button>
+
+            <template v-for="(num, idx) in pageNumbers" :key="idx">
+              <span v-if="num === '…'" class="px-2 text-gray-400 select-none">…</span>
+              <button
+                v-else
+                class="min-w-[2rem] rounded border px-2 py-1.5 text-sm transition"
+                :class="num === page
+                  ? 'bg-indigo-600 border-indigo-600 text-white font-semibold'
+                  : 'hover:bg-gray-100'"
+                @click="goToPage(num as number)"
+              >
+                {{ num }}
+              </button>
+            </template>
+
+            <button
+              class="rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
+              :disabled="page === totalPages"
+              @click="goToPage(page + 1)"
+            >
+              {{ t("public.page_next") }}
+            </button>
+          </nav>
+        </template>
+
+        <p v-else-if="activeSearch" class="text-gray-500 text-sm">
           {{ t("collections.no_results", { q: activeSearch }) }}
         </p>
 
-        <p v-else-if="collections.length === 0" class="text-gray-500 text-sm">
+        <p v-else class="text-gray-500 text-sm">
           {{ t("public.no_collections") }}
         </p>
-
-        <ul v-else class="space-y-4">
-          <li
-            v-for="col in collections"
-            :key="col.id"
-            class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
-          >
-            <h2 class="text-lg font-semibold text-gray-900">{{ col.title }}</h2>
-            <p v-if="col.description" class="mt-1 text-sm text-gray-500 line-clamp-2">
-              {{ col.description }}
-            </p>
-            <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
-              <span v-if="col.author">{{ col.author }}</span>
-              <span v-if="col.publisher">{{ col.publisher }}</span>
-              <span v-if="col.pub_year">{{ col.pub_year }}</span>
-              <span v-if="col.published_at">
-                {{ t("public.published") }}
-                {{ new Date(col.published_at).toLocaleDateString() }}
-              </span>
-            </div>
-            <!-- Document snippets (only shown when search matched document content) -->
-            <ul v-if="col.doc_hits.length > 0" class="mt-3 space-y-1">
-              <li v-for="hit in col.doc_hits" :key="hit.filename">
-                <router-link
-                  :to="{ name: 'public-document', params: { slug: col.slug, filename: hit.filename } }"
-                  class="block rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700 hover:bg-yellow-100"
-                >
-                  <span class="font-medium text-gray-500">{{ hit.filename }}</span>
-                  <span class="mx-1 text-gray-300">—</span>
-                  <span class="italic">…{{ hit.snippet }}…</span>
-                </router-link>
-              </li>
-            </ul>
-
-            <div class="mt-4 flex gap-2">
-              <router-link
-                :to="{ name: 'public-collection', params: { slug: col.slug } }"
-                class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {{ t("public.browse") }}
-              </router-link>
-              <router-link
-                v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
-                :to="{ name: 'collection-read', params: { slug: col.slug } }"
-                class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
-              >
-                {{ t("public.view_in_evt") }}
-              </router-link>
-            </div>
-          </li>
-        </ul>
       </template>
     </main>
   </div>
