@@ -11,6 +11,7 @@ import { useCodeMirror } from '@/composables/useCodeMirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
+import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -63,6 +64,10 @@ const singleCm = useCodeMirror(editorContainer, {
 // ── Media panel ───────────────────────────────────────────────────────────────
 const showMediaPanel = ref(false);
 
+// ── Zone editor panel ─────────────────────────────────────────────────────────
+const showZonePanel = ref(false);
+const currentZoneSurface = ref<FacsimileSurface | null>(null);
+
 // ── Validation panel ──────────────────────────────────────────────────────────
 const showValidationPanel = ref(false);
 
@@ -75,7 +80,12 @@ const dragStartX    = ref(0);
 const dragStartW    = ref(0);
 
 const anyPanelOpen = computed(
-  () => showHelpPanel.value || showAiPanel.value || showMediaPanel.value || showValidationPanel.value,
+  () =>
+    showHelpPanel.value ||
+    showAiPanel.value ||
+    showMediaPanel.value ||
+    showValidationPanel.value ||
+    showZonePanel.value,
 );
 
 function startPanelDrag(e: MouseEvent): void {
@@ -480,6 +490,27 @@ function handleCleanupMediaRefs(mediaUrl: string): void {
     singleCm.setValue(cleaned);
     saved.value = false;
   }
+}
+
+// ── Zone editor ────────────────────────────────────────────────────────────────
+
+/** Open the ZoneEditor panel for a specific surface. Closes other panels. */
+function openZoneEditor(surface: FacsimileSurface): void {
+  currentZoneSurface.value = surface;
+  showZonePanel.value = true;
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+}
+
+/**
+ * Called when the ZoneEditor emits 'associateZone'.
+ * Delegates to the CodeMirror composable which inserts/appends the facs attribute
+ * on the nearest opening tag at the cursor position.
+ */
+function handleZoneAssociate(zoneId: string): void {
+  singleCm.insertFacsRef(zoneId);
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -959,7 +990,19 @@ async function runValidation(): Promise<void> {
     @delete-surface="deleteSurface"
     @move-surface="handleMoveSurface"
     @cleanup-media-refs="handleCleanupMediaRefs"
+    @edit-zones="(sid) => { const s = surfaces.find(x => x.id === sid); if (s) openZoneEditor(s); }"
     @close="showMediaPanel = false"
+  />
+
+  <!-- Zone editor panel -->
+  <ZoneEditor
+    v-if="showZonePanel && currentZoneSurface && !isLoading"
+    :slug="slug"
+    :doc-filename="filename"
+    :surface="currentZoneSurface"
+    :style="{ width: panelWidth + 'px' }"
+    @associate-zone="handleZoneAssociate"
+    @close="showZonePanel = false; currentZoneSurface = null"
   />
 
   <!-- Validation errors panel -->

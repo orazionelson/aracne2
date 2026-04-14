@@ -20,6 +20,7 @@ from app.middleware.request_logger import RequestLoggerMiddleware
 from app.routers import auth, body_templates as body_templates_router, health
 from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import media as media_router
+from app.routers import zones as zones_router
 from app.routers import public_view as public_view_router
 from app.routers import schemas as schemas_router, settings as settings_router, users
 from app.routers import viaf as viaf_router
@@ -252,3 +253,4 @@ app.include_router(websites_router.router, prefix="/api/v1")
 app.include_router(xslt_templates_router.router, prefix="/api/v1")
 app.include_router(search_engines_router.router, prefix="/api/v1")
 app.include_router(media_router.router, prefix="/api/v1")
+app.include_router(zones_router.router, prefix="/api/v1")

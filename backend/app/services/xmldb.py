@@ -21,7 +21,18 @@ import zipfile
 from datetime import UTC, datetime
 from typing import Union
 
+import xml.etree.ElementTree as _stdlib_ET
+
 import defusedxml.ElementTree as _safe_xml
+
+# Register TEI and xml: namespace prefixes so that ET.tostring() emits them
+# correctly and never falls back to the ugly ns0:/ns1: fallback form.
+_TEI_NS = "http://www.tei-c.org/ns/1.0"
+_XML_NS = "http://www.w3.org/XML/1998/namespace"
+_XML_ID = f"{{{_XML_NS}}}id"
+
+_stdlib_ET.register_namespace("", _TEI_NS)
+_stdlib_ET.register_namespace("xml", _XML_NS)
 import structlog
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1190,3 +1201,156 @@ async def validate_document(
     xml_bytes = await existdb.get_document(col.slug, filename)
 
     return validate_xml(xml_bytes, schema)
+
+
+# ── Zone helpers ───────────────────────────────────────────────────────────────
+
+
+def _reserialise(original_bytes: bytes, root: _stdlib_ET.Element) -> bytes:
+    """Rebuild an XML byte string from a mutated ElementTree root.
+
+    Preserves the original ``<?xml … ?>`` declaration when present; falls back
+    to a UTF-8 declaration otherwise.  The body is serialised with
+    ``xml.etree.ElementTree.tostring()`` which honours the namespace
+    registrations defined at module level (TEI default NS + xml: prefix).
+    """
+    import re as _re
+
+    m = _re.match(rb"(<\?xml[^?]*\?>)", original_bytes.lstrip())
+    decl = (m.group(1).decode("utf-8") + "\n") if m else '<?xml version="1.0" encoding="UTF-8"?>\n'
+    body = _stdlib_ET.tostring(root, encoding="unicode")
+    return (decl + body).encode("utf-8")
+
+
+def _find_surface(
+    root: _stdlib_ET.Element, surface_id: str
+) -> _stdlib_ET.Element | None:
+    """Return the ``<surface xml:id='{surface_id}'>`` element or *None*."""
+    facs = root.find(f"{{{_TEI_NS}}}facsimile")
+    if facs is None:
+        return None
+    for surface in facs.findall(f"{{{_TEI_NS}}}surface"):
+        if surface.get(_XML_ID) == surface_id:
+            return surface
+    return None
+
+
+# ── Zone service functions ─────────────────────────────────────────────────────
+
+
+async def get_surface_zones(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    surface_id: str,
+    actor: User,
+    role: str,
+) -> "SurfaceZonesResponse":
+    """Return all ``<zone>`` elements for a ``<surface>`` in a TEI document.
+
+    Returns an empty zone list when the document has no ``<facsimile>`` block.
+    Raises ``NotFoundError`` when the surface ``xml:id`` does not exist.
+    """
+    from app.schemas.facsimile import SurfaceZonesResponse, ZoneOut
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+
+    xml_bytes = await existdb.get_document(col.slug, filename)
+
+    try:
+        root = _safe_xml.fromstring(xml_bytes)
+    except Exception as exc:
+        raise DomainValidationError("INVALID_XML", "Document is not well-formed XML") from exc
+
+    facs = root.find(f"{{{_TEI_NS}}}facsimile")
+    if facs is None:
+        # No facsimile block — treat as zero zones rather than 404.
+        return SurfaceZonesResponse(surface_id=surface_id, zones=[])
+
+    surface = _find_surface(root, surface_id)
+    if surface is None:
+        raise NotFoundError(f"Surface '{surface_id}' not found in document facsimile")
+
+    zones: list[ZoneOut] = []
+    for zone_el in surface.findall(f"{{{_TEI_NS}}}zone"):
+        z_id = zone_el.get(_XML_ID, "")
+        try:
+            zones.append(
+                ZoneOut(
+                    xml_id=z_id,
+                    ulx=int(zone_el.get("ulx", 0)),
+                    uly=int(zone_el.get("uly", 0)),
+                    lrx=int(zone_el.get("lrx", 0)),
+                    lry=int(zone_el.get("lry", 0)),
+                )
+            )
+        except (ValueError, TypeError):
+            # Skip malformed zone elements rather than crashing.
+            logger.warning("zone.malformed", surface_id=surface_id, zone_id=z_id)
+
+    return SurfaceZonesResponse(surface_id=surface_id, zones=zones)
+
+
+async def update_surface_zones(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    surface_id: str,
+    zones: list["ZoneIn"],
+    actor: User,
+    role: str,
+) -> "SurfaceZonesResponse":
+    """Replace all ``<zone>`` children of a ``<surface>`` atomically.
+
+    Sending an empty *zones* list removes all existing zones.
+    Raises ``NotFoundError`` when the surface does not exist (creating surfaces
+    is the responsibility of the media/facsimile panel, not this endpoint).
+    """
+    from app.schemas.facsimile import SurfaceZonesResponse, ZoneOut
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+
+    xml_bytes = await existdb.get_document(col.slug, filename)
+
+    try:
+        root = _safe_xml.fromstring(xml_bytes)
+    except Exception as exc:
+        raise DomainValidationError("INVALID_XML", "Document is not well-formed XML") from exc
+
+    surface = _find_surface(root, surface_id)
+    if surface is None:
+        raise NotFoundError(f"Surface '{surface_id}' not found in document facsimile")
+
+    # Remove all existing <zone> children.
+    for zone_el in surface.findall(f"{{{_TEI_NS}}}zone"):
+        surface.remove(zone_el)
+
+    # Append new zones in the order provided by the caller.
+    zone_outs: list[ZoneOut] = []
+    for z in zones:
+        zone_el = _stdlib_ET.SubElement(surface, f"{{{_TEI_NS}}}zone")
+        zone_el.set(_XML_ID, z.xml_id)
+        zone_el.set("ulx", str(z.ulx))
+        zone_el.set("uly", str(z.uly))
+        zone_el.set("lrx", str(z.lrx))
+        zone_el.set("lry", str(z.lry))
+        zone_outs.append(ZoneOut(xml_id=z.xml_id, ulx=z.ulx, uly=z.uly, lrx=z.lrx, lry=z.lry))
+
+    new_bytes = _reserialise(xml_bytes, root)
+    await existdb.put_document(col.slug, filename, new_bytes)
+
+    _audit(
+        db,
+        "document.zones_updated",
+        actor,
+        col,
+        {"filename": filename, "surface_id": surface_id, "zone_count": len(zones)},
+    )
+
+    return SurfaceZonesResponse(surface_id=surface_id, zones=zone_outs)

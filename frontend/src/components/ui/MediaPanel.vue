@@ -31,6 +31,8 @@ const emit = defineEmits<{
    * editor and remove the linked <surface> (if any) from <facsimile>.
    */
   (e: 'cleanupMediaRefs', mediaUrl: string): void;
+  /** Open the ZoneEditor panel for the given surface. */
+  (e: 'editZones', surfaceId: string): void;
   (e: 'close'): void;
 }>();
 
@@ -341,6 +343,12 @@ function formatSize(bytes: number): string {
                     @click="emit('insertAsCard', surface.url)"
                   >
                     {{ t('media.insert_pb') }} facs="#{{ surface.id }}"
+                  </button>
+                  <button
+                    class="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-100"
+                    @click="emit('editZones', surface.id)"
+                  >
+                    {{ t('zones.edit_btn') }}
                   </button>
                   <!-- Delete surface with inline confirmation -->
                   <template v-if="confirmDeleteSurfaceId !== surface.id">

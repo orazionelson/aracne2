@@ -489,6 +489,68 @@ export function useCodeMirror(
     cm.focus();
   }
 
+  /**
+   * Insert or append a ``facs="#zoneId"`` attribute on the nearest opening tag
+   * relative to the cursor position.
+   *
+   * The algorithm scans backwards from the cursor to find the opening ``<`` of
+   * the enclosing tag, then inserts the facs attribute before the closing ``>``.
+   * If the tag already has a ``facs`` attribute (multi-zone case), the new id
+   * is appended space-separated — matching the TEI spec for ``facs="#z1 #z2"``.
+   *
+   * Returns ``true`` on success, ``false`` when no suitable tag is found at the
+   * cursor position.
+   */
+  function insertFacsRef(zoneId: string): boolean {
+    const cm = editorInstance.value;
+    if (!cm) return false;
+
+    const text = cm.getValue();
+    const cursorOffset = cm.indexFromPos(cm.getCursor());
+
+    // Scan backwards to find the opening '<' of the nearest opening tag.
+    // Stop if we cross a '>' (we've left the current tag context).
+    // Skip closing tags (</) and processing instructions (<?).
+    let tagStart = -1;
+    for (let i = cursorOffset - 1; i >= 0; i--) {
+      if (text[i] === '>') break;
+      if (text[i] === '<') {
+        if (text[i + 1] === '/' || text[i + 1] === '?') continue;
+        tagStart = i;
+        break;
+      }
+    }
+    if (tagStart === -1) return false;
+
+    // Find the closing '>' of this opening tag.
+    const tagEnd = text.indexOf('>', tagStart);
+    if (tagEnd === -1) return false;
+
+    const tagText = text.slice(tagStart, tagEnd + 1);
+    const existingMatch = /\bfacs="([^"]*)"/.exec(tagText);
+    let newTag: string;
+
+    if (existingMatch) {
+      // Multi-zone: append the new id if it is not already present.
+      const existingRefs = existingMatch[1].split(' ');
+      const newRef = `#${zoneId}`;
+      if (existingRefs.includes(newRef)) return true; // idempotent
+      const newVal = `${existingMatch[1]} ${newRef}`;
+      newTag = tagText.replace(/\bfacs="[^"]*"/, `facs="${newVal}"`);
+    } else {
+      // Insert facs attribute before the closing '>' or '/>'.
+      if (tagText.endsWith('/>')) {
+        newTag = tagText.slice(0, -2) + ` facs="#${zoneId}"/>`;
+      } else {
+        newTag = tagText.slice(0, -1) + ` facs="#${zoneId}">`;
+      }
+    }
+
+    cm.replaceRange(newTag, cm.posFromIndex(tagStart), cm.posFromIndex(tagEnd + 1), '+programmatic');
+    cm.focus();
+    return true;
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -733,5 +795,6 @@ export function useCodeMirror(
     deleteNote,
     insertFigure,
     insertPageBreak,
+    insertFacsRef,
   };
 }

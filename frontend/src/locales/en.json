@@ -829,6 +829,15 @@
     "surface_delete_confirm": "Remove #{{id}} and strip its facs references from <pb> elements?",
     "surface_delete_confirm_btn": "Remove"
   },
+  "zones": {
+    "panel_title": "Zone editor",
+    "edit_btn": "Edit zones",
+    "empty_hint": "Click and drag on the image to draw zone rectangles.",
+    "associate_btn": "Associate to cursor",
+    "associate_hint": "Select a zone, place the cursor inside a <w> or <lb> tag, then click Associate.",
+    "save_ok": "Zones saved.",
+    "draw_hint": "Click and drag to draw a zone rectangle."
+  },
   "footer": {
     "powered_by": "Powered by Aracne2"
   },
