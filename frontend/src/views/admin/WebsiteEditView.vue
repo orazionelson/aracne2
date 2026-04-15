@@ -1227,8 +1227,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Tab: XSLT Edit (active only when source=custom) -->
-      <div v-if="editTab === 'xslt_edit'" class="bg-indigo-50 p-4 space-y-2">
+      <!-- Tab: XSLT Edit (active only when source=custom).
+           v-show keeps CM5 alive across tab switches — v-if would destroy/recreate
+           the container, making the composable's reinit logic race against Vue's
+           scheduler deduplication and produce a blank editor on return. -->
+      <div v-show="editTab === 'xslt_edit'" class="bg-indigo-50 p-4 space-y-2">
         <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
         <div class="flex items-center gap-2">
           <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
