@@ -1,205 +1,574 @@
-# Websites — Reference Architecture
+# Websites — Technical Reference
 
-Design notes, open questions and implementation decisions for the Websites module.
-Updated as decisions are taken. For deferred items see `docs/DEFERRED.md`.
+Design decisions, implementation details and architectural notes for the
+Websites module.  Read `BIBLIOGRAPHY.md` for the bibliography system page
+specifically.
 
 ---
 
 ## Rendering modes
 
-The `Website` model supports three rendering modes (`rendering_mode` field):
+The `Website` model has a `rendering_mode` field (`RenderingMode` enum):
 
 | Mode | Description |
 |---|---|
-| `STATIC` | Full build generates HTML files on disk; served via `FileResponse`. Build is triggered explicitly by the designer. |
+| `STATIC` | Full build generates HTML files on disk; served via `FileResponse`. Build is triggered explicitly by the Designer. |
 | `DYNAMIC` | No files on disk. Every request fetches data live from eXist-db, applies XSLT in real-time and returns HTML. |
-| `HYBRID` | `index.html`, `browse.html`, `search.html` and `pages/*.html` are built statically. Individual document pages (`/docs/{filename}`) are rendered dynamically on every request. Best for collections that change frequently without a full rebuild. |
+| `HYBRID` | `index.html`, `browse.html`, `bibliography.html` and `pages/*.html` are written to disk. Document pages (`/docs/{filename}`) and search are rendered dynamically on every request. Best for collections that change frequently without a full rebuild. |
 
 ---
 
-## URL structure (all modes share the same routes)
+## URL structure
 
-The router detects `website.rendering_mode` at request time and routes accordingly.
-No separate URL namespace per mode.
+All three modes share the same routes.  The router detects `rendering_mode` at
+request time and branches accordingly.
 
 ```
-GET /api/v1/sites/{slug}/                  → cover / index page
-GET /api/v1/sites/{slug}/browse            → document list
-GET /api/v1/sites/{slug}/browse.html       → alias (backward-compat with static links)
-GET /api/v1/sites/{slug}/search            → search page (or search results)
-GET /api/v1/sites/{slug}/docs/{filename}   → single document (XSLT applied)
-GET /api/v1/sites/{slug}/pages/{page_slug} → free Markdown pages
+GET /api/v1/sites/{slug}/                    → cover / index page
+GET /api/v1/sites/{slug}/browse              → document list
+GET /api/v1/sites/{slug}/browse.html         → 301 redirect → /browse
+GET /api/v1/sites/{slug}/search?q=term       → search page / results
+GET /api/v1/sites/{slug}/bibliography        → bibliography page
+GET /api/v1/sites/{slug}/bibliography.html   → same (static-link compat)
+GET /api/v1/sites/{slug}/docs/{filename}     → single document (XSLT applied)
+GET /api/v1/sites/{slug}/pages/{page_slug}   → free Markdown / WYSIWYG page
+GET /api/v1/sites/{slug}/indices/            → all indices aggregated page
+GET /api/v1/sites/{slug}/index/{label}/      → single index page
+GET /api/v1/sites/{slug}/{path:path}         → catch-all for static assets
+                                               (CSS, images, media, etc.)
 ```
 
-Static mode also serves arbitrary files (`CSS`, `JS`, `images`) via the existing
-catch-all `/{path:path}` handler, which falls through to `FileResponse`.
-Dynamic/Hybrid handlers intercept the semantic paths above before the catch-all.
+Dynamic/Hybrid handlers intercept the semantic paths above.  The catch-all
+falls through to `FileResponse` for everything else (static mode).
 
 ---
 
-## Service layer — render functions (DYNAMIC / HYBRID)
+## Admin endpoints
 
-All existing HTML helper functions (`_render_page`, `_style_block`,
-`_build_cover_content`, `_build_browse_content`, `_build_search_content`, etc.)
-are **pure functions** that do not touch the filesystem. They are reused unchanged
-by the dynamic path.
+```
+GET    /api/v1/websites                                → list all websites [D+]
+POST   /api/v1/websites                                → create [D+]
+GET    /api/v1/websites/{slug}                         → get [D+]
+GET    /api/v1/websites/{slug}/meta-suggestions        → Dublin Core suggestions [D+]
+PUT    /api/v1/websites/{slug}                         → update (invalidates cache) [D+]
+DELETE /api/v1/websites/{slug}                         → delete [D+]
+POST   /api/v1/websites/{slug}/build                   → trigger async build [D+]
+GET    /api/v1/websites/{slug}/download                → zip download of built site [D+]
+POST   /api/v1/websites/{slug}/clear-cache             → invalidate page+XSLT cache [D+]
+POST   /api/v1/websites/{slug}/preview-doc/{filename}  → render one doc live [D+]
+POST   /api/v1/websites/{slug}/pages                   → create free page [D+]
+PUT    /api/v1/websites/{slug}/pages/{page_slug}       → update free page [D+]
+DELETE /api/v1/websites/{slug}/pages/{page_slug}       → delete free page [D+]
+GET    /api/v1/websites/{slug}/tags                    → list extracted index tags [D+]
+POST   /api/v1/websites/{slug}/tags/refresh            → re-extract tags from eXist-db [D+]
+GET    /api/v1/websites/{slug}/indices                 → list indices [D+]
+POST   /api/v1/websites/{slug}/indices                 → create index [D+]
+PUT    /api/v1/websites/{slug}/indices/{index_id}      → update index [D+]
+DELETE /api/v1/websites/{slug}/indices/{index_id}      → delete index [D+]
+POST   /api/v1/websites/{slug}/indices/rebuild-all     → rebuild all indices [D+]
+POST   /api/v1/websites/{slug}/indices/{index_id}/rebuild → rebuild one index [D+]
+```
 
-New async wrappers to add in `app/services/websites.py`:
+`[D+]` = Designer or EditorInChief or Admin.
+
+---
+
+## Service layer — render functions
+
+**File**: `backend/app/services/websites.py`
+
+### Dynamic / Hybrid render functions
+
+All render functions follow the same pattern:
+1. Check `_page_cache` — return cached HTML if valid.
+2. Fetch data from PostgreSQL and/or eXist-db.
+3. Build content via a pure `_build_*` helper.
+4. Call `_render_page()` and store in cache.
+
+| Function | Path key | Notes |
+|---|---|---|
+| `render_dynamic_index(db, website)` | `"index"` | Loads collection + doc list |
+| `render_dynamic_browse(db, website)` | `"browse"` | Same doc list |
+| `render_dynamic_search(db, website, q)` | `"search:{q}"` | Runs XQuery; empty `q` returns search form uncached |
+| `render_dynamic_bibliography(db, website)` | `"bibliography"` | Fetches `is_public=True` row from `collection_bibliographies` |
+| `render_dynamic_doc(db, website, filename)` | `"doc:{filename}"` | Applies XSLT (transform cached separately) |
+| `render_dynamic_page(db, website, page_slug)` | `"page:{page_slug}"` | 404 if page is hidden |
+
+### Build functions
+
+| Function | Called when |
+|---|---|
+| `_build_static_site(db, website)` | `rendering_mode == STATIC` |
+| `_build_hybrid_site(db, website)` | `rendering_mode == HYBRID` |
+
+`run_build(slug)` is a background task (owns its own `AsyncSession`) called
+after `trigger_build()` marks the site `BuildStatus.pending`.  DYNAMIC mode
+resolves immediately to `BuildStatus.done` without writing any files.
+
+---
+
+## Pages and system navigation
+
+### Aracne system pages
+
+Five fixed system pages are managed via `_parse_aracne_nav(nav_config)`.
+The function merges stored `nav_config` entries with defaults, always
+returning all five:
+
+| id | Default sort_order | Default is_hidden |
+|---|---|---|
+| `home` | 0 | False |
+| `browse` | 1 | False |
+| `search` | 2 | False |
+| `indices` | 3 | False |
+| `bibliography` | 4 | False |
+
+`nav_config` is stored as a JSONB list on the `Website` model.  Each entry
+is `{ "id": "<id>", "sort_order": <int>, "is_hidden": <bool> }`.  Missing
+entries fall back to defaults.
+
+Hidden system pages are excluded from the navbar and (for STATIC/HYBRID)
+their corresponding HTML file is not generated.
+
+The `indices` link is additionally suppressed when no index has a
+`last_built_at` value — i.e. the navbar only shows Indices after at least
+one index has been built.
+
+### Free pages
+
+Created via `POST /websites/{slug}/pages`.  Each `WebsitePage` has:
+- `slug` — URL segment (`/pages/{slug}`)
+- `title` — shown in navbar and as `<h1>`
+- `content_md` — body (Tiptap WYSIWYG HTML output, or legacy Markdown)
+- `sort_order` — controls position in navbar relative to system pages
+- `is_hidden` — excluded from navbar and build when true
+
+`_md_to_html()` detects Tiptap output (starts with `<`) and returns it
+as-is; otherwise applies a minimal Markdown → HTML converter.
+
+---
+
+## XSLT pipeline
+
+### XSLT sources
+
+`website.xslt_config` is a JSONB object.  The `source` key selects the
+stylesheet:
+
+| `source` | Description |
+|---|---|
+| `"default"` | Built-in `backend/app/xslt/tei_generic.xsl` (fallback) |
+| `"custom"` | Inline XSLT text stored in `xslt_config["content"]` |
+| `"url"` | XSLT fetched at build time from `xslt_config["url"]` (SSRF-checked) |
+| `"catalog"` | XSLT loaded from the `xslt_templates` table by `xslt_config["catalog_id"]` (UUID) |
+
+Resolution is handled by `_resolve_transform(xslt_config)`.  Any source that
+fails to load (empty content, unreachable URL, unknown catalog_id) falls back
+silently to the default transform.
+
+`xslt_config["processor"]` selects the engine: `"lxml"` (default) or `"saxon"`
+(not yet active).
+
+### XSLT transform cache
+
+`_site_xslt_cache: dict[str, tuple[Callable, datetime]]` — keyed by slug.
+
+Populated lazily on first dynamic request via `_resolve_transform_cached()`.
+Invalidated by `invalidate_cache(slug)` (called on `PUT /websites/{slug}` and
+`POST /websites/{slug}/clear-cache`).
+
+The cached value is a synchronous callable; it is invoked via
+`asyncio.to_thread()` so it never blocks the event loop.
+
+---
+
+## Image rendering
+
+Configured in `xslt_config["image_rendering"]` (JSONB sub-object).
+
+| Key | Values | Effect |
+|---|---|---|
+| `enabled` | bool | Master switch; all image rendering is off when false |
+| `figure.size` | `"small"`, `"medium"`, `"large"` | CSS size class on `<figure>` |
+| `figure.layout` | `"inline"`, `"modal"`, `"column-left"`, `"column-right"` | Placement of `<tei:figure>` images |
+| `pb.show` | bool | Whether page-break images (`<tei:pb facs="…">`) are rendered |
+| `pb.size` | `"small"`, `"medium"`, `"large"` | CSS size class for pb thumbnails |
+| `pb.layout` | `"inline"`, `"modal"`, `"column-left"`, `"column-right"`, `"one-to-one"` | Placement of pb images |
+| `facsimile_gallery` | bool | Renders a horizontal gallery of all `<tei:graphic>` at the top of the doc |
+| `column_connectors` | bool | Draws SVG connecting lines between column images and their text anchors |
+
+CSS and JavaScript helpers generated from this config:
+
+| Helper | When generated | Purpose |
+|---|---|---|
+| `_build_image_rendering_css(cfg)` | Always | CSS for figure/pb sizes and layouts |
+| `_IMAGE_MODAL_JS` | When any layout is `modal`, or gallery/OTO active | Lightbox click-to-expand |
+| `_build_image_column_js(cfg)` | When any layout is `column-left` or `column-right` | Positions column images next to their anchors |
+| `_build_one_to_one_js(cfg)` | When `pb.layout == "one-to-one"` | Synchronized text/image scroll |
+| `_inject_facsimile_gallery(doc_body, xml_bytes)` | When `facsimile_gallery=True` | Prepends gallery HTML to document body |
+
+Image rendering CSS is added to `doc_style` (document pages only) and does
+**not** appear on non-document pages (index, browse, bibliography, etc.).
+
+---
+
+## Note rendering
+
+Configured in `xslt_config["note_rendering"]` (JSONB sub-object).
+
+| Key | Values | Effect |
+|---|---|---|
+| `enabled` | bool | Master switch |
+| `mode` | `"end-of-text"`, `"tooltip"`, `"frame"` | How `<tei:note>` elements are rendered |
+
+Helpers:
+
+| Helper | Purpose |
+|---|---|
+| `_build_note_rendering_css(cfg)` | CSS for the chosen note mode |
+| `_build_note_rendering_js(cfg)` | JS (tooltip show/hide, frame toggling) |
+
+---
+
+## Document-only JS and the `base_custom_js` split
+
+Image and note rendering scripts require TEI document HTML structure.  They
+must not appear on non-document pages (index, browse, search, bibliography,
+free pages).
+
+The static builder resolves this by splitting the JS before iterating:
 
 ```python
-async def render_dynamic_index(db, website)              -> str  # full HTML
-async def render_dynamic_browse(db, website)             -> str
-async def render_dynamic_search(db, website, q: str)     -> str
-async def render_dynamic_doc(db, website, filename: str) -> str
-async def render_dynamic_page(db, website, page_slug)    -> str
+base_custom_js = website.custom_js          # un-enhanced designer JS
+custom_js = base_custom_js
+if _ir_modal:   custom_js += "\n" + _IMAGE_MODAL_JS
+if _ir_column:  custom_js += "\n" + _build_image_column_js(_ir_cfg)
+if _ir_oto:     custom_js += "\n" + _build_one_to_one_js(_ir_cfg)
+if _nr_js:      custom_js += "\n" + _nr_js
 ```
 
-Each wrapper:
-1. Loads the linked `Collection` from PostgreSQL (single `db.get()`).
-2. Calls eXist-db (XQuery or REST) for the required data.
-3. Applies XSLT via `_resolve_transform()` (cached — see below).
-4. Calls `_render_page()` and returns the HTML string.
+- `doc_style` / `custom_js` → used for `docs/*.html`
+- `style` / `base_custom_js` → used for `index.html`, `browse.html`,
+  `bibliography.html`, `search.html`, `pages/*.html`
+
+The hybrid builder uses the same split.  Dynamic render functions always use
+`website.custom_js` directly (no document-specific JS is appended, because
+each page has its own render function).
+
+---
+
+## `_render_page` — shared HTML assembler
+
+```python
+def _render_page(
+    *,
+    site_title: str,
+    page_title: str,
+    content: str,
+    style: str,
+    navbar: str,
+    breadcrumb: str = "",
+    footer_note: str = "",
+    identifier_url: str = "",
+    meta_tags: str = "",
+    custom_js: str | None = None,
+    include_jquery: bool = False,
+) -> str:
+```
+
+Produces a complete `<!DOCTYPE html>` page.  Notable details:
+
+- `style` — inserted as a `<style>` block in `<head>`.
+- `meta_tags` — raw HTML string of `<meta>` tags (from `_build_meta_tags`).
+- `footer_note` — publisher + year string from the linked collection.
+- `identifier_url` — persistent identifier (DOI/Handle/URN) shown as a
+  footer link; the label (DOI / Handle / URN / ID) is derived from the URL
+  prefix by `_identifier_label()`.
+- `include_jquery` — injects jQuery 3.7.1 from CDN via a `<script>` tag;
+  used when note rendering mode requires it.
+- `custom_js` — injected as an inline `<script>` tag.  `</script>` is
+  stripped from the content to prevent tag breakage (Designer input is
+  trusted but sanitized against this one case).
+- `_PREVIEW_PROPAGATOR_SCRIPT` and `_HIGHLIGHT_SCRIPT` are always included
+  (syntax highlighting for XML code blocks).
+
+---
+
+## Meta config and Dublin Core
+
+`website.meta_config` is a JSONB dict.  `_build_meta_tags(meta, website_url)`
+emits HTML `<meta>` tags from it.
+
+Supported fields: `keywords`, `description`, `subject`, `copyright`,
+`author`, `designer`, `url`, `dc_title`, `dc_creator`, `dc_subject`,
+`dc_description`, `dc_publisher`, `dc_contributor`, `dc_date`, `dc_type`,
+`dc_format`, `dc_identifier`.
+
+Repeatable fields (`subject`, `author`, `designer`, `dc_creator`, etc.)
+can be stored as a string or a list of strings — one `<meta>` tag per value.
+
+When at least one `dc_*` field has a value, the Dublin Core namespace
+`<link>` is prepended automatically.
+
+`GET /websites/{slug}/meta-suggestions` queries eXist-db and the collection
+metadata to suggest pre-filled values for the form fields.
+
+---
+
+## Theme config
+
+`website.theme_config` is a JSONB dict.  Keys used by the service layer:
+
+| Key | Type | Effect |
+|---|---|---|
+| `logo_url` | string | URL of the logo image in the navbar |
+| `hide_header` | bool | Omits the entire `<header>/<nav>` block from every page |
+| `cache_ttl_seconds` | int | Per-site page cache TTL (overrides default 300 s) |
+| `home_layout` | `"single"`, `"two_left"`, `"two_right"`, `"three"` | Cover page column grid |
+| `col_left` | string (HTML/Markdown) | Left column body on the cover page |
+| `col_right` | string (HTML/Markdown) | Right column body on the cover page |
+| `col_center` | string (HTML/Markdown) | Center column body on the cover page |
+
+Additional theme keys (colours, fonts, etc.) are consumed by `_style_block()`
+and emitted as CSS custom properties in the `<style>` block.
 
 ---
 
 ## Caching strategy
 
-### a) XSLT transform cache
+### Page cache
 
-`_xslt_cache: dict[str, Callable[[bytes], str]]` keyed by `website.slug`.
-
-- Populated on first request (or on build trigger for STATIC/HYBRID).
-- Invalidated when `PUT /websites/{slug}` updates `xslt_config`.
-- Thread-safe: the dict stores immutable callables compiled once by lxml.
-
-### b) Rendered-page cache (HTML)
-
-`_page_cache: dict[tuple[str, str], tuple[str, datetime]]`
-Key: `(slug, path_key)` where `path_key` is e.g. `"index"`, `"browse"`,
-`"doc:filename.xml"`, `"page:about"`, `"search:query_string"`.
-Value: `(html, computed_at)`.
-
-- TTL: configurable, default **5 minutes**.
-  Stored in `website.theme_config["cache_ttl_seconds"]` or globally in
-  `system_settings["dynamic_cache_ttl"]`. **Decision pending** (see §Open questions).
-- Invalidated explicitly by `POST /websites/{slug}/clear-cache` [D+].
-- Also invalidated automatically when `PUT /websites/{slug}` is called
-  (any metadata or XSLT change).
-
-### c) HTTP caching — ETag / Last-Modified
-
-ETag computed as `sha256(slug + website.updated_at.isoformat())[:16]`.
-Returned as `ETag` response header. If the request carries `If-None-Match`
-matching the current ETag, return `304 Not Modified` with empty body.
-**Decision: implement from day one** — low effort, significant CDN benefit.
-
----
-
-## Search — by rendering mode
-
-The search strategy differs fundamentally between STATIC and DYNAMIC/HYBRID,
-because the data residency differs.
-
-### STATIC — client-side search on a metadata snapshot
-
-The build step produces `search.json` (title + author of every document) and
-`search.html` (JavaScript that downloads the JSON and filters locally in the browser).
-The collection data is **copied** into the snapshot for portability: the static site
-works without eXist-db at runtime.
-
-### DYNAMIC / HYBRID — eXist-db native full-text search
-
-The collection stays in eXist-db. There is no `search.json` and no client-side JS.
-
-`GET /sites/{slug}/search?q=term` is handled server-side:
-
-1. The backend runs an XQuery using eXist-db's **Lucene full-text index**
-   (`ft:query()`) against the entire XML content of every document in the collection
-   — not just title and author.
-2. The XQuery returns hits with **KWIC snippets** (Key Word In Context) so the
-   user sees the matching passage highlighted in context.
-3. The backend renders the results as an HTML page via `_render_page()` and returns
-   it directly — no client JavaScript needed.
-
-This delivers true full-text search from the first release of DYNAMIC mode, leveraging
-the index that eXist-db already maintains for the collection.
-
-**XQuery file**: `app/xqueries/search/fulltext_search.xq` (new — to be written).
-The query receives `$collection_path` and `$q` as external variables and returns
-an XML result set with `<hit filename="" score="">...<kwic>...</kwic></hit>` elements.
-
-**Prerequisite**: the eXist-db collection must have a Lucene index configured.
-For collections without a Lucene index, the query falls back to a `contains()`
-scan (slower but always works). The fallback is transparent to the user.
-
-**Empty query (`q` absent or blank)**: render the same document-list page as
-`/browse` (no search box with empty results — redirect or render browse instead).
-
----
-
-## HYBRID mode — precise boundary
-
-- **Built statically** (require explicit build trigger): `index.html`, `browse.html`,
-  `search.html`, `pages/*.html`.
-- **Always dynamic** (no file on disk, rendered on every request):
-  `/docs/{filename}` — regardless of whether a static file exists at that path.
-
-The document handler checks `rendering_mode` first; if `HYBRID` or `DYNAMIC` it
-goes to the live render path without looking at the filesystem.
-
----
-
-## Admin UI changes by mode
-
-| UI element | STATIC | DYNAMIC | HYBRID |
-|---|---|---|---|
-| "Build" button | ✅ | ❌ hidden | ✅ (builds pages, not docs) |
-| Build status badge | ✅ | ❌ | ✅ partial (`pages built`) |
-| "Clear cache" button | ❌ | ✅ | ✅ |
-| Preview in Document tab | ✅ via endpoint | ✅ via endpoint | ✅ via endpoint |
-| Last-build timestamp | ✅ | ❌ | ✅ |
-
-"Clear cache" triggers `POST /api/v1/websites/{slug}/clear-cache` [D+].
-
----
-
-## New endpoint: `POST /websites/{slug}/clear-cache`
-
-```
-POST /api/v1/websites/{slug}/clear-cache   [D+]
-→ 200 { "data": { "cleared": true } }
+```python
+_page_cache: dict[tuple[str, str], tuple[str, datetime]] = {}
+# Key: (slug, path_key)
+# Value: (html, computed_at)
 ```
 
-Drops all entries from `_page_cache` and `_xslt_cache` for the given slug.
-Does **not** trigger a build. Safe to call at any time.
+`path_key` examples: `"index"`, `"browse"`, `"doc:file.xml"`,
+`"page:about"`, `"search:query_string"`, `"bibliography"`.
 
-Whether `PUT /websites/{slug}` should also call this automatically:
-**yes** — any metadata or XSLT change must invalidate the rendered-page cache
-immediately, otherwise stale HTML is served.
+TTL precedence (highest first):
+1. `website.theme_config["cache_ttl_seconds"]` (per-site override)
+2. Hard-coded default: **300 seconds**
+
+`_get_cached_page(slug, path_key, ttl)` returns `None` when the entry is
+absent or expired (deletes the stale entry in-place).
+
+Search results (`search:{q}`) are cached.  An empty `q` is never cached
+(the search form is rendered fresh every time).
+
+### XSLT transform cache
+
+```python
+_site_xslt_cache: dict[str, tuple[Callable, datetime]] = {}
+# Key: slug
+# Value: (transform_callable, cached_at)
+```
+
+Populated lazily by `_resolve_transform_cached()`.  The callable is a closure
+over the compiled XSLT text; it takes `xml_bytes: bytes` and returns `str`.
+
+### Cache invalidation
+
+`invalidate_cache(slug)` drops all `_page_cache` entries for the slug and
+removes the XSLT transform entry.  Called automatically by:
+- `update_website()` — any `PUT /websites/{slug}`
+- `POST /websites/{slug}/clear-cache` (explicit Designer action)
+
+### HTTP caching — ETag
+
+`compute_etag(website)` returns `sha256("{slug}|{updated_at.isoformat()}")[:16]`.
+Returned as an `ETag` response header on every dynamic page.
+If the request carries a matching `If-None-Match`, the handler returns
+`304 Not Modified`.
 
 ---
 
-## Open questions (decisions pending before implementation)
+## Search
 
-| # | Question | Options | Status |
-|---|---|---|---|
-| 1 | **Cache TTL storage** | Per-site in `theme_config["cache_ttl_seconds"]` vs. global `system_settings["dynamic_cache_ttl"]` | ❓ Pending |
-| 2 | **HYBRID doc boundary** | Always dynamic vs. dynamic only if no static file on disk | ✅ Decided: always dynamic |
-| 3 | **Search in DYNAMIC** | Option A (on-demand JSON, metadata only) vs. Option B (eXist-db Lucene FT, full document) | ✅ Decided: Option B — full-text on eXist-db from day one. STATIC retains portable JSON snapshot. |
-| 4 | **Cache invalidation on PUT** | Auto-invalidate on every `PUT /websites/{slug}` vs. manual `clear-cache` only | ✅ Decided: auto on PUT + manual endpoint |
-| 5 | **ETag** | Implement from day one vs. later optimisation | ✅ Decided: day one |
+### STATIC — client-side search
+
+The build step produces `search.json.gz` (gzip-compressed JSON, typically
+70–80 % smaller than plain JSON, decompressed natively by the browser via
+`DecompressionStream`).
+
+Each entry:
+```json
+{ "filename": "doc001.xml", "title": "…", "author": "…", "url": "docs/doc001.xml.html", "body": "…" }
+```
+
+`body` contains the full plain-text of the document (extracted by
+`_extract_plain_text(xml_bytes)` via `lxml`), enabling full-text matching
+in the browser.
+
+`search.html` delivers the JavaScript search client that fetches
+`search.json.gz` and filters locally (AND matching across title, author,
+body).  No server component at query time.
+
+### DYNAMIC / HYBRID — eXist-db full-text search
+
+`render_dynamic_search(db, website, q)` runs
+`xqueries/search/fulltext_search.xq` via eXist-db.
+
+The XQuery uses `ft:query()` (eXist-db Lucene full-text index) with a
+`contains()` fallback for collections without a Lucene index.
+
+External variables: `$collection_path`, `$query`, `$max_results` (default 50).
+
+XQuery result format:
+```xml
+<results>
+  <hit filename="doc001.xml" score="1.0">
+    <kwic>…matching passage with context…</kwic>
+  </hit>
+</results>
+```
+
+KWIC highlighting in `_build_dynamic_search_content(hits, q, base)` wraps
+matched terms in `<mark>` tags via `_kwic_highlight(text, q)`.
 
 ---
 
-## Implementation order (proposed)
+## Static build — output structure
 
-1. `app/xqueries/search/fulltext_search.xq` — XQuery with `ft:query()` + `contains()` fallback.
-2. `_page_cache` / `_xslt_cache` data structures + eviction helpers in `app/services/websites.py`.
-3. `POST /websites/{slug}/clear-cache` endpoint [D+].
-4. `render_dynamic_*` functions in `app/services/websites.py` (index, browse, doc, page, search).
-5. Router: update existing `/sites/{slug}/` handlers to branch on `rendering_mode`.
-6. HYBRID doc handler (always dynamic regardless of file presence on disk).
-7. Admin UI: hide/show Build button, add Clear Cache button, by mode.
-8. ETag response headers.
+Generated by `_build_static_site`:
 
-*Created: 2026-04-09 — Search decision revised: full-text eXist-db Lucene for DYNAMIC/HYBRID, portable JSON snapshot for STATIC.*
+```
+{websites_root}/{slug}/
+├── index.html
+├── browse.html           (skipped when browse is hidden)
+├── bibliography.html     (skipped when bibliography is hidden)
+├── search.html           (skipped when search is hidden)
+├── search.json.gz        (full-text index)
+├── indices.html          (skipped when indices hidden or none built)
+├── media/                (copy of documents_media_root/{col_slug}/)
+│   └── {doc_filename}/
+│       └── {image_file}
+├── docs/
+│   └── {filename}.html   (one per document, XSLT applied)
+└── pages/
+    └── {page_slug}.html  (one per visible free page)
+```
+
+Media files are copied from `settings.documents_media_root / col.slug` to
+`site_dir / "media"` at build time (the destination is wiped before copy).
+API URLs in document HTML (`/api/v1/collections/{slug}/documents/{doc}/media/{file}`)
+are rewritten to relative paths (`../media/{doc}/{file}`) via a `re.sub`.
+
+---
+
+## Hybrid build — output structure
+
+Generated by `_build_hybrid_site`:
+
+```
+{websites_root}/{slug}/
+├── index.html
+├── browse.html           (skipped when browse is hidden)
+├── bibliography.html     (skipped when bibliography is hidden)
+└── pages/
+    └── {page_slug}.html
+```
+
+Not built — always served dynamically:
+- `docs/{filename}` (via `render_dynamic_doc`)
+- `search` (via `render_dynamic_search`)
+- `indices/` and `index/{label}/` (via `render_website_index_html` / `render_all_indices_html`)
+
+All hrefs inside the built pages use absolute paths rooted at
+`/api/v1/sites/{slug}/` so that navbar and content links resolve correctly.
+
+---
+
+## Indices
+
+Defined on the `WebsiteIndex` model.  Each index:
+- Has a `label` (free text, used as nav slug)
+- Contains a `cached_data` JSONB blob populated by `rebuild_website_index()`
+- Tracks `last_built_at` and `last_error`
+
+`rebuild_website_index(db, slug, index_id)` runs an XQuery against eXist-db
+to collect index occurrences, parses the XML result and stores it in
+`cached_data`.
+
+`render_website_index_html(website, index)` and
+`render_all_indices_html(website)` generate HTML from `cached_data` — no
+live eXist-db call at render time.
+
+For DYNAMIC mode the same `render_*_html` functions are called at request
+time (no on-disk copy).  The navbar shows the Indices link only when at
+least one index has `last_built_at` set.
+
+Tags (`POST /websites/{slug}/tags/refresh`) extract unique attribute values
+from the collection XML and store them in `website.tags` (JSONB array) for
+use as index-building aids.
+
+---
+
+## Bibliography system page
+
+See `BIBLIOGRAPHY.md` for the full specification.
+
+Summary of website-side behaviour:
+- System page id: `"bibliography"`, default `sort_order: 4`.
+- Content: fetched from `collection_bibliographies` where `is_public=True`.
+- Rendered by `_build_bibliography_content(content_xml)` → `<ul class="bibl-list">`.
+- Dynamic/Hybrid: `render_dynamic_bibliography(db, website)`, cached.
+- Static/Hybrid build: `bibliography.html` written to disk using `base_custom_js`
+  (not the document-enhanced `custom_js`).
+
+---
+
+## Footer
+
+Every page footer includes:
+- **Publisher note**: `{col.publisher}, {col.pub_year}` (both optional).
+- **Identifier link**: `col.identifier_url` (DOI, Handle, URN, or any URL).
+  `_identifier_label(url)` derives the display label from the URL prefix:
+  `doi.org` → "DOI", `hdl.handle.net` → "Handle", `urn:` → "URN",
+  otherwise "ID".
+- **"Built with Aracne2"** link (always present).
+
+Footer data is computed once per build/render by `_footer_parts(col)`.
+
+---
+
+## `include_jquery` / `custom_js`
+
+`website.include_jquery: bool` injects jQuery 3.7.1 (CDN) into every page.
+Required by note rendering modes that use jQuery selectors.
+
+`website.custom_js: str | None` is a Designer-provided JavaScript block
+injected inline.  The only sanitization applied is stripping `</script>`
+occurrences (to prevent breaking the surrounding tag).  All other content
+is trusted Designer input.
+
+---
+
+## Preview endpoint
+
+```
+POST /api/v1/websites/{slug}/preview-doc/{filename}
+Body: { "xml_content": "<xml>…</xml>" }   (optional)
+```
+
+Calls `preview_document(db, website, filename, xml_content)`.
+When `xml_content` is provided, it is used directly (live editor buffer).
+Otherwise the document is fetched from eXist-db.
+
+Returns rendered HTML as `text/html`.  Never cached.  Used by the
+document editor to preview XSLT output without triggering a full build.
+
+---
+
+## Design decisions (recorded)
+
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | **Cache TTL storage** | Per-site `theme_config["cache_ttl_seconds"]`, default 300 s |
+| 2 | **HYBRID doc boundary** | Always dynamic — HYBRID never writes `docs/` to disk |
+| 3 | **Search in DYNAMIC** | eXist-db Lucene `ft:query()` with `contains()` fallback; STATIC retains portable `search.json.gz` |
+| 4 | **Cache invalidation on PUT** | Auto-invalidate on every `PUT /websites/{slug}` + manual `clear-cache` endpoint |
+| 5 | **ETag** | Implemented: `sha256(slug + updated_at)[:16]` |
+| 6 | **JS split for non-doc pages** | `base_custom_js` saved before document rendering scripts are appended; non-doc pages (index, browse, bibliography…) receive only `base_custom_js` |
+| 7 | **HYBRID bibliography** | `bibliography.html` is built statically (like index/browse) because its content comes from PostgreSQL, not from eXist-db live rendering |
