@@ -1623,7 +1623,6 @@ onMounted(async () => {
             />
           </button>
         </div>
-      </div>
 
         <!-- home_propagate_css -->
         <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
