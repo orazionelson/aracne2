@@ -55,9 +55,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Seed default data (idempotent — safe to run on every startup)
     try:
         from app.db.postgres import AsyncSessionLocal
-        from app.db.seed import seed_ai_prompts, seed_body_templates, seed_licenses
+        from app.db.seed import seed_ai_prompts, seed_body_templates, seed_licenses, seed_settings
 
         async with AsyncSessionLocal() as db:
+            await seed_settings(db)
             await seed_licenses(db)
             await seed_body_templates(db)
             await seed_ai_prompts(db)
