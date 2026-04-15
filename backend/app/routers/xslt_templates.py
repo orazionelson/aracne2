@@ -7,9 +7,11 @@ The detail endpoint returns the full XsltTemplateResponse including content.
 """
 
 import uuid
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
@@ -34,6 +36,8 @@ from app.services.xslt_templates import (
 
 router = APIRouter(prefix="/xslt-templates", tags=["xslt-templates"])
 
+_DEFAULT_XSLT_PATH = Path(__file__).parent.parent / "xslt" / "tei_generic.xsl"
+
 
 async def _designer_plus(
     user: Annotated[User, Depends(get_current_user)],
@@ -57,6 +61,18 @@ async def xslt_templates_list(
     """Return all XSLT templates (summary — no content body)."""
     templates = await list_xslt_templates(db)
     return DataResponse(data=[XsltTemplateSummary.model_validate(t) for t in templates])
+
+
+@router.get("/default/download")
+async def xslt_template_default_download(
+    current_user: Annotated[User, _D],
+) -> FileResponse:
+    """Download the built-in TEI→HTML stylesheet (tei_generic.xsl) as a file."""
+    return FileResponse(
+        path=str(_DEFAULT_XSLT_PATH),
+        media_type="application/xml",
+        filename="tei_generic.xsl",
+    )
 
 
 @router.get("/{template_id}")

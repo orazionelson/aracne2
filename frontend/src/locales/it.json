@@ -613,6 +613,7 @@
     "page_indices": "Indici",
     "doc_xslt_section": "Foglio di stile XSLT",
     "doc_xslt_source_default": "Predefinito (trasformazione TEI integrata)",
+    "doc_xslt_default_download": "Scarica foglio di stile predefinito",
     "doc_xslt_source_custom": "Carica foglio di stile",
     "doc_xslt_source_url": "URL esterno",
     "doc_xslt_filename": "File",

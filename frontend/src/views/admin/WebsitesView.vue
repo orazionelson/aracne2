@@ -1590,6 +1590,17 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             <label class="flex items-center gap-2 text-xs text-gray-600">
               <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="default" class="text-indigo-600" />
               {{ t("websites.doc_xslt_source_default") }}
+              <button
+                type="button"
+                class="ml-1 inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline"
+                :title="t('websites.doc_xslt_default_download')"
+                @click.prevent="store.downloadDefaultXslt()"
+              >
+                <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {{ t("websites.doc_xslt_default_download") }}
+              </button>
             </label>
             <label class="flex items-center gap-2 text-xs text-gray-600">
               <input type="radio" v-model="(editForm.xslt_config as XsltConfig).source" value="custom" class="text-indigo-600" />

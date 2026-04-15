@@ -287,6 +287,17 @@ export const useWebsiteStore = defineStore("websites", () => {
     URL.revokeObjectURL(url);
   }
 
+  /** Download the built-in tei_generic.xsl stylesheet so Designers can study it. */
+  async function downloadDefaultXslt(): Promise<void> {
+    const res = await api.get("/xslt-templates/default/download", { responseType: "blob" });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tei_generic.xsl";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ── Tag discovery ────────────────────────────────────────────────────────
 
   async function refreshTags(slug: string): Promise<{ distinct_tags: Record<string, string[]> | null; tags_refreshed_at: string | null }> {
@@ -363,6 +374,7 @@ export const useWebsiteStore = defineStore("websites", () => {
     previewDocument,
     clearCache,
     downloadSite,
+    downloadDefaultXslt,
     refreshTags,
     createIndex,
     updateIndex,
