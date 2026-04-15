@@ -441,10 +441,11 @@ function updateMetaArrayItem(field: string, idx: number, value: string): void {
 // ── Unified pages list ────────────────────────────────────────────────────────
 
 const _DEFAULT_ARACNE_PAGES: AracnePageConfig[] = [
-  { id: "home",    sort_order: 0, is_hidden: false },
-  { id: "browse",  sort_order: 1, is_hidden: false },
-  { id: "search",  sort_order: 2, is_hidden: false },
-  { id: "indices", sort_order: 3, is_hidden: false },
+  { id: "home",         sort_order: 0, is_hidden: false },
+  { id: "browse",       sort_order: 1, is_hidden: false },
+  { id: "search",       sort_order: 2, is_hidden: false },
+  { id: "indices",      sort_order: 3, is_hidden: false },
+  { id: "bibliography", sort_order: 4, is_hidden: false },
 ];
 
 function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
@@ -457,7 +458,9 @@ function normaliseNavConfig(raw: AracnePageConfig[]): AracnePageConfig[] {
 function buildUnifiedList(site: Website): UnifiedPageEntry[] {
   const navCfg = normaliseNavConfig((site.nav_config ?? []) as AracnePageConfig[]);
   const _labels: Record<string, string> = {
-    home: "Home", browse: "Browse", search: "Search", indices: t("websites.page_indices"),
+    home: "Home", browse: "Browse", search: "Search",
+    indices: t("websites.page_indices"),
+    bibliography: t("websites.page_bibliography"),
   };
   const system: UnifiedPageEntry[] = navCfg.map((ap) => ({
     kind: "system", systemId: ap.id, title: _labels[ap.id] ?? ap.id,

@@ -620,6 +620,7 @@
     "indices_not_built": "Non ancora costruito",
     "indices_rebuild": "Ricostruisci",
     "page_indices": "Indici",
+    "page_bibliography": "Bibliografia",
     "doc_xslt_section": "Foglio di stile XSLT",
     "doc_xslt_source_default": "Predefinito (trasformazione TEI integrata)",
     "doc_xslt_default_download": "Scarica foglio di stile predefinito",

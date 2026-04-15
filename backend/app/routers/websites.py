@@ -560,6 +560,30 @@ async def serve_site_search(
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 
 
+@router.get("/sites/{slug}/bibliography", include_in_schema=False)
+@router.get("/sites/{slug}/bibliography.html", include_in_schema=False)
+async def serve_site_bibliography(
+    slug: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> Response:
+    """Serve the bibliography page.
+
+    STATIC: serves pre-built bibliography.html from disk.
+    DYNAMIC/HYBRID: renders live from the linked collection's public bibliography.
+    """
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
+    if website.rendering_mode == RenderingMode.STATIC:
+        path = _resolve_site_file(slug, "bibliography.html")
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="Page not found.")
+        return FileResponse(path, media_type="text/html")
+    html = await svc.render_dynamic_bibliography(db, website)
+    return _dynamic_html_response(html, svc.compute_etag(website), request)
+
+
 @router.get("/sites/{slug}/docs/{filename:path}", include_in_schema=False)
 async def serve_site_doc(
     slug: str,

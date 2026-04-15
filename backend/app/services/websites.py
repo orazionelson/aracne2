@@ -1507,10 +1507,11 @@ def _parse_aracne_nav(nav_config: list) -> list[dict]:
     indices sorted by their stored ``sort_order``.
     """
     _defaults: dict[str, dict] = {
-        "home":    {"id": "home",    "sort_order": 0, "is_hidden": False},
-        "browse":  {"id": "browse",  "sort_order": 1, "is_hidden": False},
-        "search":  {"id": "search",  "sort_order": 2, "is_hidden": False},
-        "indices": {"id": "indices", "sort_order": 3, "is_hidden": False},
+        "home":          {"id": "home",          "sort_order": 0, "is_hidden": False},
+        "browse":        {"id": "browse",        "sort_order": 1, "is_hidden": False},
+        "search":        {"id": "search",        "sort_order": 2, "is_hidden": False},
+        "indices":       {"id": "indices",       "sort_order": 3, "is_hidden": False},
+        "bibliography":  {"id": "bibliography",  "sort_order": 4, "is_hidden": False},
     }
     merged: dict[str, dict] = {}
     for page_id, default in _defaults.items():
@@ -1518,7 +1519,7 @@ def _parse_aracne_nav(nav_config: list) -> list[dict]:
         merged[page_id] = {**default, **(saved or {})}
 
     rest = sorted(
-        [merged["browse"], merged["search"], merged["indices"]],
+        [merged["browse"], merged["search"], merged["indices"], merged["bibliography"]],
         key=lambda p: p["sort_order"],
     )
     return [merged["home"], *rest]
@@ -1553,10 +1554,12 @@ def _render_navbar(
         home_href = f"{site_base_url}/"
         browse_href = f"{site_base_url}/browse"
         search_href = f"{site_base_url}/search"
+        bibliography_href = f"{site_base_url}/bibliography"
     else:
         home_href = f"{path_prefix}index.html"
         browse_href = f"{path_prefix}browse.html"
         search_href = f"{path_prefix}search.html"
+        bibliography_href = f"{path_prefix}bibliography.html"
 
     # Merge system links and free-page links into a single list sorted by the
     # global sort_order (system pages from nav_config, free pages from sort_order).
@@ -1582,6 +1585,8 @@ def _render_navbar(
                 else:
                     indices_href = f"{path_prefix}indices.html"
                 nav_items.append((so, f'<a href="{indices_href}">Indices</a>'))
+        elif pid == "bibliography":
+            nav_items.append((so, f'<a href="{bibliography_href}">Bibliography</a>'))
 
     for page in pages:  # already filtered for visibility
         if site_base_url:
@@ -2207,6 +2212,60 @@ def _extract_plain_text(xml_bytes: bytes) -> str:
         return ""
 
 
+def _build_bibliography_content(content_xml: str | None) -> str:
+    """Return the bibliography page HTML from a TEI <listBibl> XML string.
+
+    Parses ``content_xml`` with defusedxml, extracts each ``<bibl>`` or
+    ``<biblStruct>`` child, and renders a numbered list with descriptive
+    CSS classes.  When ``content_xml`` is None, returns an empty-state
+    message.
+
+    CSS classes used:
+    - ``bibl-section``    — outer <section> wrapper
+    - ``bibl-list``       — the <ol> element
+    - ``bibl-entry``      — each <li>
+    - ``bibl-number``     — the entry number span
+    - ``bibl-text``       — the bibliographic text span
+    - ``bibl-empty``      — <p> shown when no entries are available
+    """
+    import defusedxml.ElementTree as ET  # mandatory: no xml.etree.ElementTree
+
+    if not content_xml:
+        return '<section class="bibl-section"><p class="bibl-empty">No bibliography available.</p></section>'
+
+    tei_ns = "http://www.tei-c.org/ns/1.0"
+    entries: list[str] = []
+    try:
+        root = ET.fromstring(content_xml.encode())
+        for tag in ("bibl", "biblStruct"):
+            # Try namespaced elements first; fall back to no-namespace.
+            nodes = root.findall(f".//{{{tei_ns}}}{tag}")
+            if not nodes:
+                nodes = root.findall(f".//{tag}")
+            for node in nodes:
+                text = " ".join("".join(node.itertext()).split()).strip()
+                if text:
+                    entries.append(_html.escape(text))
+    except Exception:
+        return '<section class="bibl-section"><p class="bibl-empty">Could not render bibliography.</p></section>'
+
+    if not entries:
+        return '<section class="bibl-section"><p class="bibl-empty">No bibliography entries found.</p></section>'
+
+    items = "".join(
+        f'<li class="bibl-entry">'
+        f'<span class="bibl-number">{i + 1}.</span>'
+        f'<span class="bibl-text">{text}</span>'
+        f'</li>\n'
+        for i, text in enumerate(entries)
+    )
+    return (
+        f'<section class="bibl-section">'
+        f'<ol class="bibl-list">\n{items}</ol>'
+        f'</section>'
+    )
+
+
 def _build_search_content() -> str:
     """Return the search page HTML with inline full-text client-side search.
 
@@ -2732,6 +2791,68 @@ async def render_dynamic_search(
     )
     if q:
         _set_cached_page(website.slug, path_key, html)
+    return html
+
+
+async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str:
+    """Render the bibliography page for a DYNAMIC or HYBRID website.
+
+    Fetches the public bibliography of the linked collection from PostgreSQL
+    and renders it as a numbered HTML list.  Results are cached with the
+    website's effective TTL.
+    """
+    from app.models.collection_bibliography import CollectionBibliography
+
+    ttl = _get_cache_ttl(website)
+    cached = _get_cached_page(website.slug, "bibliography", ttl)
+    if cached is not None:
+        return cached
+
+    theme = website.theme_config or {}
+    base = f"/api/v1/sites/{website.slug}"
+    visible_pages = [p for p in website.pages if not p.is_hidden]
+    hide_header: bool = bool(theme.get("hide_header", False))
+
+    navbar = "" if hide_header else _render_navbar(
+        site_title=website.title,
+        logo_url=theme.get("logo_url") or None,
+        pages=visible_pages,
+        nav_config=website.nav_config or [],
+        site_base_url=base,
+        indices=website.indices,
+    )
+
+    content_xml: str | None = None
+    if website.collection_id is not None:
+        row = await db.scalar(
+            select(CollectionBibliography).where(
+                CollectionBibliography.collection_id == website.collection_id,
+                CollectionBibliography.is_public.is_(True),
+            )
+        )
+        if row is not None:
+            content_xml = row.content
+
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id else None
+    )
+    footer_note, identifier_url = _footer_parts(col)
+
+    html = _render_page(
+        site_title=website.title,
+        page_title="Bibliography",
+        content=_build_bibliography_content(content_xml),
+        style=_style_block(theme, website.custom_css),
+        navbar=navbar,
+        breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),
+        footer_note=footer_note,
+        identifier_url=identifier_url,
+        meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
+        custom_js=website.custom_js,
+        include_jquery=website.include_jquery,
+    )
+    _set_cached_page(website.slug, "bibliography", html)
     return html
 
 
@@ -3752,6 +3873,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
     search_hidden: bool = bool(_nav_map.get("search", {}).get("is_hidden", False))
     indices_hidden: bool = bool(_nav_map.get("indices", {}).get("is_hidden", False))
+    bibliography_hidden: bool = bool(_nav_map.get("bibliography", {}).get("is_hidden", False))
 
     # When hide_header is set, every page is rendered without a navbar.
     hide_header: bool = bool(theme.get("hide_header", False))
@@ -3860,6 +3982,34 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             include_jquery=include_jquery,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
+
+    # ── bibliography.html — public bibliography (skipped when hidden) ────────
+    if not bibliography_hidden:
+        from app.models.collection_bibliography import CollectionBibliography as _CB
+        bib_xml: str | None = None
+        if website.collection_id is not None:
+            bib_row = await db.scalar(
+                select(_CB).where(
+                    _CB.collection_id == website.collection_id,
+                    _CB.is_public.is_(True),
+                )
+            )
+            if bib_row is not None:
+                bib_xml = bib_row.content
+        bibliography_html = _render_page(
+            site_title=website.title,
+            page_title="Bibliography",
+            content=_build_bibliography_content(bib_xml),
+            style=style,
+            navbar=navbar(),
+            breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Bibliography")]),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+            meta_tags=meta_tags,
+            custom_js=custom_js,
+            include_jquery=include_jquery,
+        )
+        (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
 
     # ── docs/{filename}.html — individual documents ────────────────────────
     # doc_bodies accumulates plain text for the full-text search index.
@@ -4039,6 +4189,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     _nav_map = {ap["id"]: ap for ap in aracne_nav}
     browse_hidden: bool = bool(_nav_map.get("browse", {}).get("is_hidden", False))
     indices_hidden: bool = bool(_nav_map.get("indices", {}).get("is_hidden", False))
+    bibliography_hidden: bool = bool(_nav_map.get("bibliography", {}).get("is_hidden", False))
     hide_header: bool = bool(theme.get("hide_header", False))
 
     def _navbar() -> str:
@@ -4103,6 +4254,34 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             include_jquery=include_jquery,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
+
+    # ── bibliography.html — public bibliography (skipped when hidden) ────────
+    if not bibliography_hidden:
+        from app.models.collection_bibliography import CollectionBibliography as _CB
+        bib_xml_h: str | None = None
+        if website.collection_id is not None:
+            bib_row_h = await db.scalar(
+                select(_CB).where(
+                    _CB.collection_id == website.collection_id,
+                    _CB.is_public.is_(True),
+                )
+            )
+            if bib_row_h is not None:
+                bib_xml_h = bib_row_h.content
+        bibliography_html = _render_page(
+            site_title=website.title,
+            page_title="Bibliography",
+            content=_build_bibliography_content(bib_xml_h),
+            style=style,
+            navbar=_navbar(),
+            breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),
+            footer_note=footer_note,
+            identifier_url=identifier_url,
+            meta_tags=meta_tags,
+            custom_js=custom_js,
+            include_jquery=include_jquery,
+        )
+        (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
 
     # ── pages/{slug}.html — free Markdown pages ───────────────────────────
     for page in visible_pages:

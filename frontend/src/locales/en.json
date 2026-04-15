@@ -620,6 +620,7 @@
     "indices_not_built": "Not built yet",
     "indices_rebuild": "Rebuild",
     "page_indices": "Indices",
+    "page_bibliography": "Bibliography",
     "doc_xslt_section": "XSLT Stylesheet",
     "doc_xslt_source_default": "Default (built-in TEI transform)",
     "doc_xslt_default_download": "Download default stylesheet",
