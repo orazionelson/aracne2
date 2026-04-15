@@ -504,6 +504,7 @@
   "websites": {
     "title": "Siti web",
     "subtitle": "Gestisci i siti statici generati dalle tue collezioni.",
+    "back_to_list": "Torna ai siti web",
     "create": "Nuovo sito",
     "create_title": "Nuovo sito",
     "create_submit": "Crea",

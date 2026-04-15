@@ -126,6 +126,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/admin/websites/:slug/edit",
+      name: "admin-website-edit",
+      component: () => import("@/views/admin/WebsiteEditView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin/search-engines",
       name: "admin-search-engines",
       component: () => import("@/views/admin/SearchEnginesView.vue"),

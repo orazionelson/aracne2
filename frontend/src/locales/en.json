@@ -504,6 +504,7 @@
   "websites": {
     "title": "Websites",
     "subtitle": "Manage static websites built from your collections.",
+    "back_to_list": "Back to websites",
     "create": "New website",
     "create_title": "New website",
     "create_submit": "Create",
