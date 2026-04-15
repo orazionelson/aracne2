@@ -119,6 +119,12 @@ export function useCodeMirror(
   function setValue(content: string): void {
     if (!editorInstance.value) return;
     editorInstance.value.setValue(content);
+    // Reset scroll and cursor to the top after a full document swap.
+    // CM5's setValue resets the cursor to {line:0,ch:0} but does NOT reliably
+    // reset the pixel scroll offset when the container is hidden (v-show:false).
+    // Without this, a subsequent autoRefresh repaint starts at the old scroll
+    // position and the first N lines appear missing.
+    editorInstance.value.scrollTo(0, 0);
     // Force a synchronous display update after a full document swap.
     // Without this, CM5's internal line-measure cache is stale and
     // click events crash with "Cannot read properties of undefined (reading 'map')".
@@ -625,6 +631,11 @@ export function useCodeMirror(
           instance.indentLine(i, 'smart');
         }
       });
+      // Reset scroll and cursor to the top of the document.
+      // The indentLine loop leaves the cursor at the last processed line; without
+      // this reset the viewport starts there when the container first becomes visible.
+      instance.scrollTo(0, 0);
+      instance.setCursor({ line: 0, ch: 0 });
       // Mark any <ref> tags already present in the initial content.
       markRefTagsOnInstance(instance);
     }
