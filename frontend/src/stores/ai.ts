@@ -22,12 +22,18 @@ export interface AiConfig {
   privacy_warning: boolean;
 }
 
+export interface AiChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export const useAiStore = defineStore("ai", () => {
   const prompts = ref<AiPrompt[]>([]);
   const config = ref<AiConfig | null>(null);
   const isStreaming = ref(false);
   const response = ref("");
   const streamError = ref<string | null>(null);
+  const chatHistory = ref<AiChatMessage[]>([]);
 
   let _abortController: AbortController | null = null;
 
@@ -104,8 +110,10 @@ export const useAiStore = defineStore("ai", () => {
   ): Promise<void> {
     if (isStreaming.value) stopStream();
 
+    // Reset everything — each new preset prompt starts a fresh conversation.
     response.value = "";
     streamError.value = null;
+    chatHistory.value = [];
     isStreaming.value = true;
     _abortController = new AbortController();
 
@@ -120,7 +128,7 @@ export const useAiStore = defineStore("ai", () => {
             : {}),
           "X-Request-ID": crypto.randomUUID(),
         },
-        body: JSON.stringify({ prompt_slug: promptSlug, context }),
+        body: JSON.stringify({ prompt_slug: promptSlug, context, history: [] }),
         signal: _abortController.signal,
         credentials: "include",
       });
@@ -162,6 +170,95 @@ export const useAiStore = defineStore("ai", () => {
     } finally {
       isStreaming.value = false;
       _abortController = null;
+      // Archive the completed response into chat history.
+      if (response.value && !streamError.value) {
+        chatHistory.value.push({ role: "assistant", content: response.value });
+      }
+    }
+  }
+
+  /**
+   * Send a follow-up user message using the existing conversation context.
+   * The full history (including the new user message) is sent to the backend
+   * so it can prepend the resolved template and reconstruct the full turn list.
+   */
+  async function continueChat(
+    promptSlug: string,
+    context: Record<string, string>,
+    userMessage: string,
+  ): Promise<void> {
+    if (isStreaming.value) return;
+
+    // Append the user turn before the request so the backend receives
+    // the full history including this new message.
+    chatHistory.value.push({ role: "user", content: userMessage });
+
+    response.value = "";
+    streamError.value = null;
+    isStreaming.value = true;
+    _abortController = new AbortController();
+
+    try {
+      const auth = useAuthStore();
+      const res = await fetch("/api/v1/ai/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(auth.accessToken
+            ? { Authorization: `Bearer ${auth.accessToken}` }
+            : {}),
+          "X-Request-ID": crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          prompt_slug: promptSlug,
+          context,
+          history: chatHistory.value,
+        }),
+        signal: _abortController.signal,
+        credentials: "include",
+      });
+
+      if (!res.ok || !res.body) {
+        streamError.value = `HTTP ${res.status}`;
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") return;
+          try {
+            const obj = JSON.parse(data) as { chunk?: string; error?: string };
+            if (obj.error) {
+              streamError.value = obj.error;
+              return;
+            }
+            if (obj.chunk) response.value += obj.chunk;
+          } catch {
+            // malformed SSE line — skip
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      streamError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+      isStreaming.value = false;
+      _abortController = null;
+      // Archive the completed response into chat history.
+      if (response.value && !streamError.value) {
+        chatHistory.value.push({ role: "assistant", content: response.value });
+      }
     }
   }
 
@@ -175,6 +272,13 @@ export const useAiStore = defineStore("ai", () => {
     response.value = "";
     streamError.value = null;
     isStreaming.value = false;
+  }
+
+  function resetChat(): void {
+    stopStream();
+    response.value = "";
+    streamError.value = null;
+    chatHistory.value = [];
   }
 
   // ── Internal fetch helper (adds Bearer token) ───────────────────────────────
@@ -201,13 +305,16 @@ export const useAiStore = defineStore("ai", () => {
     isStreaming,
     response,
     streamError,
+    chatHistory,
     fetchPrompts,
     fetchConfig,
     createPrompt,
     updatePrompt,
     deletePrompt,
     startStream,
+    continueChat,
     stopStream,
     clearResponse,
+    resetChat,
   };
 });

@@ -17,7 +17,7 @@ class AnthropicProvider(BaseAiProvider):
         self._api_key = api_key
         self._model = model
 
-    async def stream(self, prompt: str) -> AsyncGenerator[str, None]:
+    async def stream(self, messages: list[dict[str, str]]) -> AsyncGenerator[str, None]:
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": _API_VERSION,
@@ -27,7 +27,7 @@ class AnthropicProvider(BaseAiProvider):
             "model": self._model,
             "max_tokens": _MAX_TOKENS,
             "stream": True,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream("POST", _API_URL, headers=headers, json=payload) as resp:

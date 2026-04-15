@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -51,9 +52,15 @@ class AiPromptUpdate(BaseModel):
     target_context: str | None = None
 
 
+class AiChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class AiCompleteRequest(BaseModel):
     prompt_slug: str
     context: dict[str, str]
+    history: list[AiChatMessage] = []
 
 
 class AiConfigResponse(BaseModel):

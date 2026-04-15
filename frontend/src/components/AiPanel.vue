@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAiStore } from "@/stores/ai";
 import { useUiConfigStore } from "@/stores/ui_config";
@@ -11,6 +11,8 @@ const props = defineProps<{
   title?: string;
   /** When true the panel fills its parent container (sidebar mode). */
   sidebar?: boolean;
+  /** When true the panel operates in multi-turn chat mode. */
+  chat?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -24,22 +26,18 @@ const { t } = useI18n();
 const ai = useAiStore();
 const uiConfig = useUiConfigStore();
 
-const privacyWarning = computed(() => uiConfig.config.home_show_search); // placeholder — real check below
-const showPrivacyWarning = computed(
-  // The actual flag comes from the AI config; we check it here without a store
-  // fetch because the panel is mounted after the user has already navigated into
-  // the view. In practice this is set via the AI tab in Settings.
-  () => false, // overridden in watcher below
-);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const privacyWarning = computed(() => uiConfig.config.home_show_search);
 
-// Reactive privacy warning flag — fetched from the AI config store.
 let _privacyAccepted = false;
 
+// Chat mode local state
+const chatInput = ref("");
+const chatContainer = ref<HTMLElement | null>(null);
+
 async function run(): Promise<void> {
-  // If the server-side privacy warning is enabled and the user hasn't
-  // accepted yet in this panel instance, show it before streaming.
   if (ai.config?.privacy_warning && !_privacyAccepted) {
-    _privacyAccepted = true; // panel already shows the warning — proceed
+    _privacyAccepted = true;
   }
   await ai.startStream(props.promptSlug, props.context);
 }
@@ -49,14 +47,62 @@ function stop(): void {
 }
 
 function applyResponse(): void {
-  emit("apply", ai.response);
+  if (props.chat) {
+    // In chat mode, apply the last completed assistant message from history.
+    const lastAssistant = [...ai.chatHistory]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    if (lastAssistant) emit("apply", lastAssistant.content);
+  } else {
+    emit("apply", ai.response);
+  }
 }
 
 function close(): void {
-  ai.stopStream();
-  ai.clearResponse();
+  ai.resetChat();
   emit("close");
 }
+
+async function sendChatMessage(): Promise<void> {
+  const msg = chatInput.value.trim();
+  if (!msg || ai.isStreaming) return;
+  chatInput.value = "";
+  await ai.continueChat(props.promptSlug, props.context, msg);
+}
+
+function onChatKeydown(event: KeyboardEvent): void {
+  // Ctrl+Enter or Cmd+Enter sends the message.
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    sendChatMessage();
+  }
+}
+
+// Auto-scroll the chat container as new chunks arrive.
+watch(
+  () => ai.response,
+  () => {
+    if (!props.chat) return;
+    nextTick(() => {
+      if (chatContainer.value) {
+        chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+      }
+    });
+  },
+);
+
+// Auto-scroll when a new history entry is appended.
+watch(
+  () => ai.chatHistory.length,
+  () => {
+    if (!props.chat) return;
+    nextTick(() => {
+      if (chatContainer.value) {
+        chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+      }
+    });
+  },
+);
 
 // Auto-start when the panel mounts.
 run();
@@ -65,7 +111,8 @@ run();
 watch(
   () => props.context,
   () => {
-    ai.clearResponse();
+    ai.resetChat();
+    chatInput.value = "";
     run();
   },
   { deep: true },
@@ -73,6 +120,15 @@ watch(
 
 onUnmounted(() => {
   ai.stopStream();
+});
+
+// Derived: whether the Apply button should be shown.
+const canApply = computed(() => {
+  if (ai.isStreaming) return false;
+  if (props.chat) {
+    return ai.chatHistory.some((m) => m.role === "assistant");
+  }
+  return !!ai.response && !ai.streamError;
 });
 </script>
 
@@ -110,19 +166,107 @@ onUnmounted(() => {
       {{ t("ai.privacy_warning", { provider: ai.config?.provider ?? "" }) }}
     </div>
 
-    <!-- Response area -->
-    <div
-      :class="sidebar
-        ? 'min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'
-        : 'min-h-32 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'"
-      :style="sidebar ? undefined : 'max-height: 380px;'"
-    >
-      <span v-if="!ai.response && ai.isStreaming" class="animate-pulse text-gray-400">
-        {{ t("ai.thinking") }}
-      </span>
-      <span v-else-if="ai.streamError" class="text-red-600">{{ ai.streamError }}</span>
-      <span v-else>{{ ai.response }}</span>
-    </div>
+    <!-- ── Chat mode ── -->
+    <template v-if="chat">
+      <!-- Message history + live stream -->
+      <div
+        ref="chatContainer"
+        :class="sidebar
+          ? 'min-h-0 flex-1 overflow-y-auto px-4 py-3'
+          : 'flex-1 overflow-y-auto px-4 py-3'"
+        :style="sidebar ? undefined : 'max-height: 380px;'"
+      >
+        <!-- Thinking indicator (before first chunk arrives) -->
+        <span
+          v-if="!ai.response && !ai.chatHistory.length && ai.isStreaming"
+          class="animate-pulse text-sm text-gray-400"
+        >
+          {{ t("ai.thinking") }}
+        </span>
+
+        <!-- Finalized history entries -->
+        <div
+          v-for="(msg, idx) in ai.chatHistory"
+          :key="idx"
+          :class="[
+            'mb-3',
+            msg.role === 'user' ? 'text-right' : 'text-left',
+          ]"
+        >
+          <span
+            class="mb-1 block text-xs font-semibold uppercase tracking-wide"
+            :class="msg.role === 'user' ? 'text-indigo-500' : 'text-gray-500'"
+          >
+            {{ msg.role === "user" ? t("ai.you") : t("ai.assistant") }}
+          </span>
+          <span
+            :class="[
+              'inline-block rounded-xl px-3 py-2 text-sm',
+              msg.role === 'user'
+                ? 'bg-indigo-50 text-gray-800'
+                : 'bg-gray-100 whitespace-pre-wrap font-mono text-gray-800',
+            ]"
+          >
+            {{ msg.content }}
+          </span>
+        </div>
+
+        <!-- Live streaming assistant message -->
+        <div v-if="ai.response" class="mb-3 text-left">
+          <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            {{ t("ai.assistant") }}
+          </span>
+          <span class="inline-block whitespace-pre-wrap rounded-xl bg-gray-100 px-3 py-2 font-mono text-sm text-gray-800">
+            {{ ai.response }}
+          </span>
+        </div>
+
+        <!-- Error display -->
+        <p v-if="ai.streamError" class="text-sm text-red-600">
+          {{ ai.streamError }}
+        </p>
+      </div>
+
+      <!-- Chat input area (shown after first response or on error) -->
+      <div
+        v-if="!ai.isStreaming && (ai.chatHistory.length > 0 || ai.streamError)"
+        class="border-t border-gray-100 px-4 py-3"
+      >
+        <textarea
+          v-model="chatInput"
+          :placeholder="t('ai.chat_input_placeholder')"
+          rows="2"
+          class="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+          @keydown="onChatKeydown"
+        />
+        <div class="mt-2 flex items-center justify-between">
+          <span class="text-xs text-gray-400">⌘↵ {{ t("ai.send") }}</span>
+          <button
+            :disabled="!chatInput.trim()"
+            class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="sendChatMessage"
+          >
+            {{ t("ai.send") }}
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Single-shot mode (default) ── -->
+    <template v-else>
+      <div
+        :class="sidebar
+          ? 'min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'
+          : 'min-h-32 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800'"
+        :style="sidebar ? undefined : 'max-height: 380px;'"
+      >
+        <span v-if="!ai.response && ai.isStreaming" class="animate-pulse text-gray-400">
+          {{ t("ai.thinking") }}
+        </span>
+        <span v-else-if="ai.streamError" class="text-red-600">{{ ai.streamError }}</span>
+        <span v-else>{{ ai.response }}</span>
+      </div>
+    </template>
 
     <!-- Footer actions -->
     <div class="flex items-center justify-between border-t border-gray-100 px-4 py-2">
@@ -138,7 +282,7 @@ onUnmounted(() => {
       </span>
 
       <button
-        v-if="!ai.isStreaming && ai.response && !ai.streamError"
+        v-if="canApply"
         class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
         @click="applyResponse"
       >

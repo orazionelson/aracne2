@@ -15,7 +15,7 @@ from app.models.ai_request_log import AiRequestLog
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.plugins._native.ai.providers.base import BaseAiProvider
-from app.schemas.ai import AiConfigResponse, AiPromptResponse
+from app.schemas.ai import AiChatMessage, AiConfigResponse, AiPromptResponse
 from app.services.settings import get_decrypted_setting
 
 logger = structlog.get_logger()
@@ -189,12 +189,23 @@ async def stream_completion(
     prompt_slug: str,
     context: dict[str, str],
     user: User,
+    history: list[AiChatMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Rate-limit, fill the prompt template, call the provider, yield chunks."""
+    """Rate-limit, fill the prompt template, call the provider, yield chunks.
+
+    ``history`` carries the conversation so far (after the initial template
+    turn) for multi-turn chat.  Each entry alternates assistant/user roles.
+    When empty or None this is the first turn.
+    """
     await _check_rate_limit(db, user)
 
     prompt = await get_prompt(db, prompt_slug)
     filled = _fill_template(prompt.template, context)
+
+    # Build the messages list: resolved template always comes first.
+    messages: list[dict[str, str]] = [{"role": "user", "content": filled}]
+    if history:
+        messages.extend(h.model_dump() for h in history)
 
     provider_row = await db.get(SystemSetting, "ai_provider")
     provider_name: str = provider_row.value if provider_row else "disabled"
@@ -216,10 +227,11 @@ async def stream_completion(
         user_id=str(user.id),
         prompt_slug=prompt_slug,
         provider=provider_name,
+        turn=len(messages),
     )
 
     try:
-        async for chunk in provider.stream(filled):
+        async for chunk in provider.stream(messages):
             yield chunk
     except httpx.HTTPStatusError as exc:
         # Providers pre-read error responses with aread() so .text is safe here.

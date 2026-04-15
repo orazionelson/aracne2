@@ -408,7 +408,11 @@
     "create_submit": "Create prompt",
     "edit_prompt": "Edit",
     "delete_prompt": "Delete",
-    "confirm_delete_prompt": "Delete this prompt? This cannot be undone."
+    "confirm_delete_prompt": "Delete this prompt? This cannot be undone.",
+    "chat_input_placeholder": "Ask a follow-up question...",
+    "send": "Send",
+    "you": "You",
+    "assistant": "AI"
   },
   "evt": {
     "read_button": "Read in EVT",

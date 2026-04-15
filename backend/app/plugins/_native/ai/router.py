@@ -109,7 +109,7 @@ async def ai_complete(
     async def event_stream() -> AsyncGenerator[str, None]:
         try:
             async for chunk in service.stream_completion(
-                db, body.prompt_slug, body.context, current_user
+                db, body.prompt_slug, body.context, current_user, body.history or None
             ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
         except (AiDisabledError, AiRateLimitError) as exc:

@@ -15,10 +15,18 @@ class GeminiProvider(BaseAiProvider):
         self._api_key = api_key
         self._model = model
 
-    async def stream(self, prompt: str) -> AsyncGenerator[str, None]:
+    async def stream(self, messages: list[dict[str, str]]) -> AsyncGenerator[str, None]:
         url = f"{_BASE_URL}/{self._model}:streamGenerateContent"
+        # Gemini uses "model" as the assistant role name and wraps content in "parts".
+        contents = [
+            {
+                "role": "model" if msg["role"] == "assistant" else msg["role"],
+                "parts": [{"text": msg["content"]}],
+            }
+            for msg in messages
+        ]
         payload = {
-            "contents": [{"parts": [{"text": prompt}], "role": "user"}],
+            "contents": contents,
         }
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(

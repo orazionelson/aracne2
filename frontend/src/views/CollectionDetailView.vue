@@ -1690,6 +1690,7 @@ function statusClass(s: string): string {
                   prompt-slug="validate_errors_explain"
                   :context="buildAiValidationContext(doc.filename)"
                   :title="t('ai.panel_validation_title')"
+                  :chat="true"
                   @close="aiDocFilename = null"
                 />
               </div>
