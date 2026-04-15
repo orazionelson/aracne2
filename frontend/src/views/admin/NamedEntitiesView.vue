@@ -253,7 +253,7 @@ async function fetchCollections(): Promise<void> {
   collectionsLoadError.value = false;
   try {
     const res = await apiClient.getPaginated<CollectionOption>("/collections", {
-      params: { per_page: 200 },
+      params: { per_page: 100 },
     });
     collections.value = (res.data as CollectionOption[]).map((c) => ({
       id: c.id,
