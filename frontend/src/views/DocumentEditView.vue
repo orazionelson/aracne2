@@ -1016,15 +1016,21 @@ async function runValidation(): Promise<void> {
         >
           {{ t('ai.improve') }}
         </button>
+      </div>
+      <div class="flex items-center gap-2">
         <button
           :disabled="aiStore.isStreaming"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          class="inline-flex items-center gap-1.5 rounded border border-violet-300 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
           @click="runDiscussAi"
         >
+          <!-- Chat bubble icon -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
           {{ t('ai.discuss') }}
         </button>
+        <button class="text-gray-400 hover:text-gray-700" @click="closeAiPanel">✕</button>
       </div>
-      <button class="text-gray-400 hover:text-gray-700" @click="closeAiPanel">✕</button>
     </div>
 
     <!-- Response area -->
