@@ -20,6 +20,7 @@ class UiConfigResponse(BaseModel):
     public_home_enabled: bool
     home_show_collections: bool
     home_show_search: bool
+    home_show_login_button: bool
     evt_enabled: bool
 
 

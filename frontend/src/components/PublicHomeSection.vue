@@ -14,6 +14,7 @@ const activeSearch = ref("");
 
 const showCollections = computed(() => uiConfig.config.home_show_collections);
 const showSearch = computed(() => uiConfig.config.home_show_search);
+const showLoginButton = computed(() => uiConfig.config.home_show_login_button);
 const isSearching = computed(() => activeSearch.value !== "");
 
 /** First 3 items from page 1, used as the "recent additions" feature row. */
@@ -84,7 +85,7 @@ onMounted(() => {
         />
         <span>{{ uiConfig.config.platform_name }}</span>
       </router-link>
-      <span class="ml-auto text-sm opacity-80">
+      <span v-if="showLoginButton" class="ml-auto text-sm opacity-80">
         <router-link to="/login" class="hover:underline">
           {{ t("auth.sign_in") }}
         </router-link>
