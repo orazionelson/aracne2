@@ -513,7 +513,10 @@
     "config_save_error": "Salvataggio della configurazione non riuscito.",
     "config_load_error": "Caricamento della configurazione non riuscito.",
     "config_stale_warning": "Configurazione modificata — esegui il re-index di tutte le collezioni per applicare il nuovo elenco di tag.",
-    "config_remove": "Rimuovi"
+    "config_remove": "Rimuovi",
+    "config_help_btn": "Aiuto",
+    "config_help_title": "Principali tag TEI per le entità nominate",
+    "config_help_body": "**Persone e Organizzazioni**\n`persName` — Nomi di persone reali o fittizie.\n`orgName` — Nomi di istituzioni, gruppi o società.\n`name` — Tag generico per nomi propri (usabile con @type=\"person\", \"place\", ecc.).\n\n**Oggetti e Materiali**\n`objectName` — Nomi propri di oggetti (es. \"la lancia di Achille\").\n`object` — Descrizione o menzione di un oggetto fisico.\n`material` — Sostanze e materiali (oro, seta, legno).\n\n**Misure e Quantità**\n`measure` — Qualsiasi tipo di misura (peso, lunghezza, valuta). Usa @unit e @quantity.\n`num` — Numeri in cifre o in lettere (usa @value per la normalizzazione).\n`dim` — Dimensioni generiche non standard.\n`height` / `width` / `depth` — Dimensioni specifiche (spesso dentro `dimensions`).\n\n**Monete e Valuta**\n`measure` con @type=\"currency\" — Il modo standard per marcare somme di denaro.\n`unit` — Può essere usato dentro `measure` per definire la specifica moneta.\n\n**Luoghi**\n`placeName` — Nomi di città, stati, fiumi o località geografiche.\n`geogName` — Nomi di formazioni geografiche (es. \"Monte Bianco\")."
   },
   "webhooks": {
     "title": "Webhook",
