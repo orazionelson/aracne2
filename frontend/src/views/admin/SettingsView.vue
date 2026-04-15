@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { apiClient } from "@/services/api";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
@@ -430,6 +431,52 @@ async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
     await uiConfigStore.fetchConfig();
   } finally {
     togglingHomeSetting.value[key] = false;
+  }
+}
+
+// ── Custom CSS upload ──────────────────────────────────────────────────────────
+
+const cssFileInput   = ref<HTMLInputElement | null>(null)
+const selectedCssFile = ref<File | null>(null)
+const isUploadingCss  = ref(false)
+const cssUploadError  = ref<string | null>(null)
+const cssUploadOk     = ref(false)
+
+function onCssFileChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  selectedCssFile.value = input.files?.[0] ?? null
+  cssUploadError.value  = null
+  cssUploadOk.value     = false
+}
+
+async function uploadCustomCss(): Promise<void> {
+  if (!selectedCssFile.value) return
+  isUploadingCss.value = true
+  cssUploadError.value = null
+  cssUploadOk.value    = false
+  try {
+    const form = new FormData()
+    form.append("file", selectedCssFile.value)
+    await apiClient.upload<{ url: string }>("/settings/homepage-css", form)
+    await uiConfigStore.fetchConfig()
+    cssUploadOk.value     = true
+    selectedCssFile.value = null
+    if (cssFileInput.value) cssFileInput.value.value = ""
+  } catch (err) {
+    cssUploadError.value = (err as Error).message ?? t("common.error")
+  } finally {
+    isUploadingCss.value = false
+  }
+}
+
+async function deleteCustomCss(): Promise<void> {
+  if (!confirm(t("settings.homepage_css_confirm_delete"))) return
+  try {
+    await apiClient.delete("/settings/homepage-css")
+    await uiConfigStore.fetchConfig()
+    cssUploadOk.value = false
+  } catch (err) {
+    cssUploadError.value = (err as Error).message ?? t("common.error")
   }
 }
 
@@ -1575,25 +1622,70 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Download CSS template -->
-      <div class="mt-6 flex items-center justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_download_css") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_download_css_hint") }}
-          </p>
+      <!-- Custom CSS tools -->
+      <div class="mt-6 space-y-3 rounded border border-gray-200 bg-white p-4">
+        <p class="text-sm font-semibold text-gray-800">{{ t("settings.homepage_css_title") }}</p>
+        <p class="text-xs text-gray-500">{{ t("settings.homepage_css_hint") }}</p>
+
+        <!-- Status badge -->
+        <div class="flex items-center gap-2">
+          <span
+            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+            :class="uiConfigStore.config.has_custom_homepage_css
+              ? 'bg-green-100 text-green-700'
+              : 'bg-gray-100 text-gray-500'"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="uiConfigStore.config.has_custom_homepage_css ? 'bg-green-500' : 'bg-gray-400'"
+            />
+            {{ uiConfigStore.config.has_custom_homepage_css
+                ? t("settings.homepage_css_status_active")
+                : t("settings.homepage_css_status_none") }}
+          </span>
+          <button
+            v-if="uiConfigStore.config.has_custom_homepage_css"
+            class="text-xs text-red-500 hover:underline"
+            @click="deleteCustomCss"
+          >
+            {{ t("settings.homepage_css_remove") }}
+          </button>
         </div>
-        <button
-          class="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          @click="downloadHomepageCss"
-        >
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          {{ t("settings.homepage_download_css_btn") }}
-        </button>
+
+        <!-- Upload form -->
+        <div class="flex items-center gap-2">
+          <input
+            ref="cssFileInput"
+            type="file"
+            accept=".css"
+            class="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 file:mr-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-0.5 file:text-xs file:font-medium"
+            @change="onCssFileChange"
+          />
+          <button
+            :disabled="!selectedCssFile || isUploadingCss"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            @click="uploadCustomCss"
+          >
+            {{ isUploadingCss ? t("common.saving") : t("settings.homepage_css_upload_btn") }}
+          </button>
+        </div>
+
+        <p v-if="cssUploadOk"    class="text-xs text-green-600">{{ t("settings.homepage_css_upload_ok") }}</p>
+        <p v-if="cssUploadError" class="text-xs text-red-600">{{ cssUploadError }}</p>
+
+        <!-- Download template -->
+        <div class="flex items-center justify-between border-t border-gray-100 pt-3">
+          <p class="text-xs text-gray-500">{{ t("settings.homepage_download_css_hint") }}</p>
+          <button
+            class="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            @click="downloadHomepageCss"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {{ t("settings.homepage_download_css_btn") }}
+          </button>
+        </div>
       </div>
     </template>
 

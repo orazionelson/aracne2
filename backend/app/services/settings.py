@@ -9,11 +9,14 @@ from app.core.encryption import SENSITIVE_KEYS, decrypt_value, encrypt_value, ma
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.schemas.settings import LogoUploadResponse, SettingResponse, SettingUpdate, UiConfigResponse
+from app.schemas.settings import HomepageCssUploadResponse, LogoUploadResponse, SettingResponse, SettingUpdate, UiConfigResponse
 
 # Allowed MIME types / extensions for logo upload.
 _LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 _LOGO_URL = "/api/v1/settings/logo/file"
+
+_CSS_FILENAME = "custom_homepage.css"
+_CSS_URL = "/api/v1/settings/homepage-css/file"
 
 
 def _validate_value(key: str, value: str, type_: str) -> None:
@@ -67,6 +70,12 @@ async def get_decrypted_setting(db: AsyncSession, key: str) -> str:
     return row.value
 
 
+def get_homepage_css_path() -> Path | None:
+    """Return the path of the uploaded custom homepage CSS, or None if absent."""
+    p = app_settings.media_dir / _CSS_FILENAME
+    return p if p.exists() else None
+
+
 def get_logo_path() -> Path | None:
     """Return the path of the uploaded logo file, or None if no file is present."""
     media = app_settings.media_dir
@@ -96,8 +105,40 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         home_show_collections=values.get("home_show_collections", "true") == "true",
         home_show_search=values.get("home_show_search", "true") == "true",
         home_show_login_button=values.get("home_show_login_button", "true") == "true",
+        has_custom_homepage_css=get_homepage_css_path() is not None,
         evt_enabled=values.get("evt_enabled", "false") == "true",
     )
+
+
+async def upload_homepage_css(
+    content: bytes,
+    filename: str,
+    actor: User,
+) -> HomepageCssUploadResponse:
+    """Save a custom homepage CSS file, replacing any previous one.
+
+    Only ``.css`` files are accepted.  The file is stored as
+    ``custom_homepage.css`` in MEDIA_DIR and served via the public
+    ``/settings/homepage-css/file`` endpoint.
+    """
+    ext = Path(filename).suffix.lower()
+    if ext != ".css":
+        raise DomainValidationError(
+            "INVALID_FILE_TYPE",
+            "Only .css files are accepted for the custom homepage stylesheet",
+        )
+    media = app_settings.media_dir
+    media.mkdir(parents=True, exist_ok=True)
+    (media / _CSS_FILENAME).write_bytes(content)
+    return HomepageCssUploadResponse(url=_CSS_URL)
+
+
+async def delete_homepage_css(actor: User) -> None:
+    """Remove the custom homepage CSS file if present."""
+    path = get_homepage_css_path()
+    if path is None:
+        raise NotFoundError("No custom homepage CSS has been uploaded")
+    path.unlink()
 
 
 async def upload_logo(

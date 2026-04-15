@@ -21,10 +21,15 @@ class UiConfigResponse(BaseModel):
     home_show_collections: bool
     home_show_search: bool
     home_show_login_button: bool
+    has_custom_homepage_css: bool
     evt_enabled: bool
 
 
 class LogoUploadResponse(BaseModel):
+    url: str
+
+
+class HomepageCssUploadResponse(BaseModel):
     url: str
 
 

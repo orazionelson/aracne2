@@ -10,6 +10,7 @@ export interface UiConfig {
   home_show_collections: boolean;
   home_show_search: boolean;
   home_show_login_button: boolean;
+  has_custom_homepage_css: boolean;
   evt_enabled: boolean;
 }
 
@@ -21,6 +22,7 @@ const DEFAULTS: UiConfig = {
   home_show_collections: true,
   home_show_search: true,
   home_show_login_button: true,
+  has_custom_homepage_css: false,
   evt_enabled: false,
 };
 

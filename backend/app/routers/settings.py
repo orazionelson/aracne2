@@ -10,17 +10,21 @@ from app.middleware.acl import require_role
 from app.models.user import User
 from app.schemas.common import DataResponse
 from app.schemas.settings import (
+    HomepageCssUploadResponse,
     LogoUploadResponse,
     SettingResponse,
     SettingUpdate,
     UiConfigResponse,
 )
 from app.services.settings import (
+    delete_homepage_css,
+    get_homepage_css_path,
     get_logo_path,
     get_public_config,
     get_setting,
     list_settings,
     update_setting,
+    upload_homepage_css,
     upload_logo,
 )
 
@@ -74,6 +78,45 @@ async def settings_logo_file() -> FileResponse:
         raise HTTPException(status_code=404, detail="No custom logo uploaded")
     media_type, _ = mimetypes.guess_type(path.name)
     return FileResponse(str(path), media_type=media_type or "image/png")
+
+
+# ── Homepage CSS upload / serve / delete ──────────────────────────────────────
+
+@router.post("/homepage-css")
+async def settings_homepage_css_upload(
+    file: UploadFile,
+    current_user: Annotated[User, _admin],
+) -> DataResponse[HomepageCssUploadResponse]:
+    """Upload a custom homepage CSS file [Admin].
+
+    The uploaded ``.css`` file is stored in MEDIA_DIR and served via the
+    public ``GET /settings/homepage-css/file`` endpoint, which the public
+    homepage injects as its last stylesheet.
+    """
+    content = await file.read()
+    data = await upload_homepage_css(content, file.filename or "custom_homepage.css", current_user)
+    return DataResponse(data=data)
+
+
+@router.get("/homepage-css/file")
+async def settings_homepage_css_file() -> FileResponse:
+    """Serve the uploaded custom homepage CSS (public, no authentication).
+
+    Returns 404 if no custom CSS has been uploaded yet.
+    """
+    path = get_homepage_css_path()
+    if path is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="No custom homepage CSS uploaded")
+    return FileResponse(str(path), media_type="text/css")
+
+
+@router.delete("/homepage-css", status_code=204)
+async def settings_homepage_css_delete(
+    current_user: Annotated[User, _admin],
+) -> None:
+    """Remove the custom homepage CSS file [Admin]."""
+    await delete_homepage_css(current_user)
 
 
 # ── Authenticated settings CRUD ────────────────────────────────────────────────

@@ -329,5 +329,13 @@ onMounted(() => {
         </p>
       </template>
     </main>
+
+    <!-- Custom homepage CSS — loaded last to allow overriding all previous styles -->
+    <component
+      :is="'link'"
+      v-if="uiConfig.config.has_custom_homepage_css"
+      rel="stylesheet"
+      href="/api/v1/settings/homepage-css/file"
+    />
   </div>
 </template>
