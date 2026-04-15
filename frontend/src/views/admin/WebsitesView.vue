@@ -1651,26 +1651,27 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 {{ t("websites.doc_xslt_clear") }}
               </button>
             </div>
-          </div>
 
-          <!-- Inline CM5 editor — visible only when content exists.
-               v-show keeps the instance alive; the watch on source calls
-               refresh() when the section transitions from display:none. -->
-          <div v-show="xsltHasContent" class="mt-3 space-y-1">
-            <div class="flex justify-end">
-              <button
-                type="button"
-                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                @click="xsltCm.toggleFullscreen()"
-              >
-                {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
-              </button>
+            <!-- Inline CM5 editor — always shown when source=custom so CM5
+                 initialises in a visible, measured container. The watch on
+                 source still calls refresh() when transitioning from another
+                 source back to custom. -->
+            <div class="mt-3 space-y-1">
+              <div class="flex justify-end">
+                <button
+                  type="button"
+                  class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                  @click="xsltCm.toggleFullscreen()"
+                >
+                  {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
+                </button>
+              </div>
+              <div
+                :ref="onXsltEditorRef"
+                class="overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:text-sm"
+                style="height: 320px;"
+              />
             </div>
-            <div
-              :ref="onXsltEditorRef"
-              class="overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:text-sm"
-              style="height: 320px;"
-            />
           </div>
 
           <!-- Catalog -->
