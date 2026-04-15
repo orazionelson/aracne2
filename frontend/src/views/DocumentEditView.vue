@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useCollectionStore } from '@/stores/collections';
@@ -8,6 +8,7 @@ import { useSettingStore } from '@/stores/settings';
 import { useAiStore } from '@/stores/ai';
 import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
+import CodeMirror, { type Editor as CM5Editor } from 'codemirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
@@ -661,6 +662,40 @@ const improveDisplayResponse = computed(() =>
     .trim()
 );
 
+// ── Improve XML — read-only CM5 syntax-highlighted viewer ─────────────────────
+// Shown only after streaming completes (isStreaming=false). The container ref
+// is bound via v-else-if so it mounts/unmounts with each improve run.
+const improveViewContainer = ref<HTMLElement | null>(null);
+let improveViewInstance: CM5Editor | null = null;
+
+watch(
+  improveViewContainer,
+  (el) => {
+    if (el) {
+      // XML mode is already registered by the main editor's useCodeMirror import.
+      improveViewInstance = CodeMirror(el, {
+        mode: 'application/xml',
+        value: improveDisplayResponse.value,
+        readOnly: true,
+        lineNumbers: false,
+        lineWrapping: true,
+        theme: 'default',
+      });
+      // Expand to full content height so the outer overflow-y-auto div scrolls.
+      improveViewInstance.setSize(null, 'auto');
+    } else {
+      improveViewInstance = null;
+    }
+  },
+  { flush: 'post' },
+);
+
+watch(improveDisplayResponse, (val) => {
+  if (improveViewInstance) {
+    improveViewInstance.setValue(val);
+  }
+});
+
 function applyAiResponse(): void {
   const cm = activeEditor.value;
   if (!cm) return;
@@ -1043,16 +1078,23 @@ async function runValidation(): Promise<void> {
     </div>
 
     <!-- Response area -->
-    <div class="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800">
-      <span v-if="aiNoErrors" class="text-green-700">{{ t('ai.no_errors_to_explain') }}</span>
-      <span v-else-if="!aiStore.response && !aiStore.streamError && !aiStore.isStreaming" class="text-xs text-gray-400">
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <span v-if="aiNoErrors" class="block px-4 py-3 font-mono text-sm text-green-700">{{ t('ai.no_errors_to_explain') }}</span>
+      <span v-else-if="!aiStore.response && !aiStore.streamError && !aiStore.isStreaming" class="block px-4 py-3 text-xs text-gray-400">
         {{ t('ai.idle_hint') }}
       </span>
-      <span v-else-if="!aiStore.response && aiStore.isStreaming" class="animate-pulse text-gray-400">
+      <span v-else-if="!aiStore.response && aiStore.isStreaming" class="block animate-pulse px-4 py-3 text-gray-400">
         {{ t('ai.thinking') }}
       </span>
-      <span v-else-if="aiStore.streamError" class="text-red-600">{{ aiStore.streamError }}</span>
-      <span v-else>{{ lastAiPrompt === 'improve' ? improveDisplayResponse : aiStore.response }}</span>
+      <span v-else-if="aiStore.streamError" class="block px-4 py-3 font-mono text-sm text-red-600">{{ aiStore.streamError }}</span>
+      <!-- Improve XML: read-only CM5 with syntax highlighting (only when stream done) -->
+      <div
+        v-else-if="lastAiPrompt === 'improve' && !aiStore.isStreaming"
+        ref="improveViewContainer"
+        class="[&_.CodeMirror]:border-x-0 [&_.CodeMirror]:border-b-0 [&_.CodeMirror]:text-sm"
+      />
+      <!-- Improve XML during streaming / other prompts: plain pre-formatted text -->
+      <span v-else class="block whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800">{{ aiStore.response }}</span>
     </div>
 
     <!-- Footer -->
