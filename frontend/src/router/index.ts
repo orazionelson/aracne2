@@ -33,6 +33,11 @@ const router = createRouter({
       component: () => import("@/views/PublicBibliographyView.vue"),
     },
     {
+      path: "/browse/:slug/entities",
+      name: "public-entities",
+      component: () => import("@/views/PublicEntitiesView.vue"),
+    },
+    {
       path: "/browse/:slug/:filename",
       name: "public-document",
       component: () => import("@/views/PublicDocumentView.vue"),

@@ -370,15 +370,24 @@ async def get_public_entities(
     q: str | None,
     page: int,
     per_page: int,
+    collection_slug: str | None = None,
 ) -> tuple[list[NamedEntity], int]:
-    """Return entities that appear in at least one published public collection."""
+    """Return entities that appear in at least one published public collection.
+
+    When *collection_slug* is provided, restrict to entities that have at least
+    one occurrence in that specific collection (which must also be published+public).
+    """
+    occ_filter = [
+        Collection.status == CollectionStatus.published,
+        Collection.is_public.is_(True),
+    ]
+    if collection_slug:
+        occ_filter.append(Collection.slug == collection_slug)
+
     public_ids_subq = (
         select(EntityOccurrence.entity_id)
         .join(Collection, EntityOccurrence.collection_id == Collection.id)
-        .where(
-            Collection.status == CollectionStatus.published,
-            Collection.is_public.is_(True),
-        )
+        .where(*occ_filter)
         .distinct()
         .subquery()
     )

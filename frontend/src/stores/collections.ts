@@ -51,6 +51,8 @@ export interface Collection {
   website_link: string | null;
   // True when at least one saved bibliography version is marked is_public.
   has_public_bibliography?: boolean;
+  // Number of named entity occurrences indexed for this collection (public listings only).
+  entity_count?: number;
 }
 
 export interface DocumentInfo {

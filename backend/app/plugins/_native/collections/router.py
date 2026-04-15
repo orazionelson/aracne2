@@ -148,6 +148,18 @@ async def collections_public(
         )
         public_bib_set = {row[0] for row in pub_bib_rows}
 
+        # One-query batch: entity occurrence counts per collection.
+        from app.plugins._native.named_entities.models import EntityOccurrence
+        entity_count_rows = await db.execute(
+            select(
+                EntityOccurrence.collection_id,
+                func.count().label("cnt"),
+            )
+            .where(EntityOccurrence.collection_id.in_(col_ids))
+            .group_by(EntityOccurrence.collection_id)
+        )
+        entity_count_map: dict[uuid.UUID, int] = {row[0]: row[1] for row in entity_count_rows}
+
     def _resolve_link(website: Website, identifier_url: str | None) -> str:
         if website.website_url:
             return website.website_url
@@ -162,6 +174,7 @@ async def collections_public(
             cr.website_link = _resolve_link(website_map[r.id], r.identifier_url)
         if r.id in public_bib_set:
             cr.has_public_bibliography = True
+        cr.entity_count = entity_count_map.get(r.id, 0)
         items.append(cr)
 
     return PaginatedResponse(

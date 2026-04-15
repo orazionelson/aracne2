@@ -151,7 +151,7 @@ onMounted(() => {
                   <span v-if="col.author">{{ col.author }}</span>
                   <span v-if="col.pub_year">{{ col.pub_year }}</span>
                 </div>
-                <div class="mt-3 flex gap-2">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <router-link
                     :to="{ name: 'public-collection', params: { slug: col.slug } }"
                     class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
@@ -171,6 +171,13 @@ onMounted(() => {
                     class="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50"
                   >
                     {{ t("public.bibliography_btn") }}
+                  </router-link>
+                  <router-link
+                    v-if="col.entity_count && col.entity_count > 0"
+                    :to="{ name: 'public-entities', params: { slug: col.slug } }"
+                    class="rounded border border-violet-300 px-2.5 py-1 text-xs text-violet-700 hover:bg-violet-50"
+                  >
+                    {{ t("public.entities_btn") }}
                   </router-link>
                   <a
                     v-if="isSafeUrl(col.website_link)"
@@ -233,7 +240,7 @@ onMounted(() => {
                 </li>
               </ul>
 
-              <div class="mt-4 flex gap-2">
+              <div class="mt-4 flex flex-wrap gap-2">
                 <router-link
                   :to="{ name: 'public-collection', params: { slug: col.slug } }"
                   class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
@@ -253,6 +260,13 @@ onMounted(() => {
                   class="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50"
                 >
                   {{ t("public.bibliography_btn") }}
+                </router-link>
+                <router-link
+                  v-if="col.entity_count && col.entity_count > 0"
+                  :to="{ name: 'public-entities', params: { slug: col.slug } }"
+                  class="rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
+                >
+                  {{ t("public.entities_btn") }}
                 </router-link>
                 <a
                   v-if="isSafeUrl(col.website_link)"

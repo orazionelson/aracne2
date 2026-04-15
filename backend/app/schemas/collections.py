@@ -122,6 +122,9 @@ class CollectionResponse(BaseModel):
     website_link: str | None = None
     # True when at least one saved bibliography version is marked is_public.
     has_public_bibliography: bool = False
+    # Number of named entity occurrences indexed for this collection.
+    # Populated on public collection listings; 0 means not yet indexed.
+    entity_count: int = 0
 
     model_config = {"from_attributes": True}
 

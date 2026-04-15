@@ -141,11 +141,18 @@ async def list_entities(
     db: _DbDep,
     entity_type: Annotated[EntityType | None, Query(alias="type")] = None,
     q: str | None = None,
+    collection_slug: str | None = Query(default=None, alias="collection_slug"),
     page: int = 1,
     per_page: int = 30,
 ) -> PaginatedResponse:
-    """Public: paginated list of named entities from published public collections."""
-    rows, total = await service.get_public_entities(db, entity_type, q, page, per_page)
+    """Public: paginated list of named entities from published public collections.
+
+    When *collection_slug* is provided, only entities indexed for that collection
+    are returned.
+    """
+    rows, total = await service.get_public_entities(
+        db, entity_type, q, page, per_page, collection_slug
+    )
     return _paginate([NamedEntityResponse.model_validate(r) for r in rows], total, page, per_page)
 
 

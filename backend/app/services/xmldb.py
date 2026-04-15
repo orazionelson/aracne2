@@ -1099,6 +1099,22 @@ async def search_public_collections(
     )
     rows = list(await db.scalars(stmt))
 
+    # Batch entity count so each search result card knows whether entities are indexed.
+    entity_count_map: dict[uuid.UUID, int] = {}
+    if rows:
+        from app.plugins._native.named_entities.models import EntityOccurrence
+        from sqlalchemy import func as _func
+        col_ids = [r.id for r in rows]
+        ec_rows = await db.execute(
+            select(
+                EntityOccurrence.collection_id,
+                _func.count().label("cnt"),
+            )
+            .where(EntityOccurrence.collection_id.in_(col_ids))
+            .group_by(EntityOccurrence.collection_id)
+        )
+        entity_count_map = {row[0]: row[1] for row in ec_rows}
+
     async def _search_col(col: Collection) -> tuple[Collection, list[PublicDocHit]]:
         try:
             raw = await existdb.xquery(
@@ -1123,9 +1139,11 @@ async def search_public_collections(
     for col, hits in pairs:
         title_match = q_lower in col.title.lower() or q_lower in col.slug.lower()
         if title_match or hits:
+            cr = CollectionResponse.model_validate(col)
+            cr.entity_count = entity_count_map.get(col.id, 0)
             results.append(
                 PublicCollectionSearchResult(
-                    collection=CollectionResponse.model_validate(col),
+                    collection=cr,
                     doc_hits=hits,
                 )
             )
