@@ -284,10 +284,10 @@ async function submitReindex(): Promise<void> {
   reindexResult.value = null;
   reindexError.value = null;
   try {
-    const res = await apiClient.post<{ data: { occurrences_indexed: number } }>(
+    const res = await apiClient.post<{ occurrences_indexed: number }>(
       `/entities/admin/reindex/${reindexSlug.value}`
     );
-    reindexResult.value = t("entities.reindex_success", { n: res.data.occurrences_indexed });
+    reindexResult.value = t("entities.reindex_success", { n: res.occurrences_indexed });
     await fetchEntities(1);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
@@ -309,10 +309,10 @@ async function submitReindexAll(): Promise<void> {
     for (const col of collections.value) {
       reindexAllProgress.value.current += 1;
       try {
-        const res = await apiClient.post<{ data: { occurrences_indexed: number } }>(
+        const res = await apiClient.post<{ occurrences_indexed: number }>(
           `/entities/admin/reindex/${col.slug}`
         );
-        totalOccurrences += res.data.occurrences_indexed;
+        totalOccurrences += res.occurrences_indexed;
       } catch {
         // log and continue — don't abort the whole batch for one failure
       }
