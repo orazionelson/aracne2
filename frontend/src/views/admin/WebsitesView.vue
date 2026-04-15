@@ -93,6 +93,12 @@ const xsltEditorContainer = ref<HTMLElement | null>(null);
 const xsltEditorInitialContent = ref<string>("");
 const showXsltModal = ref<boolean>(false);
 
+/** True when the custom XSLT slot has content — either freshly uploaded or
+ *  restored from the server on form load (filename is not persisted). */
+const xsltHasContent = computed<boolean>(
+  () => !!((editForm.value.xslt_config as XsltConfig | undefined)?.content),
+);
+
 function openXsltModal(): void {
   showXsltModal.value = true;
   nextTick(() => xsltCm.refresh());
@@ -545,6 +551,9 @@ async function startEdit(website: Website): Promise<void> {
   xsltFileName.value = "";
   resetXsltFileInput();
   xsltEditorInitialContent.value = (website.xslt_config as XsltConfig)?.content ?? "";
+  // If the CM5 instance is already alive (e.g. switching between websites
+  // without unmounting the panel), sync the editor content immediately.
+  xsltCm.setValue(xsltEditorInitialContent.value);
   // Reset preview state for the new website being edited.
   previewDocFilename.value = "";
   previewError.value = null;
@@ -1633,10 +1642,16 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 {{ t("websites.doc_xslt_filename") }}…
               </label>
               <span class="text-xs text-gray-500">
-                {{ xsltFileName || t("websites.doc_xslt_no_file") }}
+                {{
+                  xsltFileName
+                    ? xsltFileName
+                    : xsltHasContent
+                      ? t("websites.doc_xslt_saved")
+                      : t("websites.doc_xslt_no_file")
+                }}
               </span>
               <button
-                v-if="xsltFileName"
+                v-if="xsltHasContent"
                 type="button"
                 class="text-xs text-red-500 hover:text-red-700"
                 @click="clearXsltFile"
@@ -1644,7 +1659,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
                 {{ t("websites.doc_xslt_clear") }}
               </button>
               <button
-                v-if="xsltFileName"
+                v-if="xsltHasContent"
                 type="button"
                 class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 hover:bg-indigo-100"
                 @click="openXsltModal"

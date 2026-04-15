@@ -623,6 +623,7 @@
     "doc_xslt_processor_lxml": "lxml (XSLT 1.0)",
     "doc_xslt_processor_saxon": "Saxon (XSLT 2.0/3.0) — not yet available",
     "doc_xslt_clear": "Clear",
+    "doc_xslt_saved": "Custom stylesheet (saved)",
     "doc_xslt_edit_file": "Edit file",
     "doc_xslt_modal_title": "Edit XSLT stylesheet",
     "doc_xslt_modal_close": "Close",
