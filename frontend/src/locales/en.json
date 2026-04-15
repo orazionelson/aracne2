@@ -576,6 +576,7 @@
     "tab_theme": "Theme",
     "tab_pages": "Pages",
     "tab_document": "Document",
+    "tab_xslt_edit": "XSLT Edit",
     "tab_indices": "Indices",
     "tab_cssjs": "CSS/JS",
     "cssjs_custom_css": "Custom CSS",

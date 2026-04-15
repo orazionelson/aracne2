@@ -40,7 +40,7 @@ const website = computed<Website | null>(
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
 
-const editTab = ref<"general" | "theme" | "pages" | "document" | "indices" | "cssjs">("general");
+const editTab = ref<"general" | "theme" | "pages" | "document" | "xslt_edit" | "indices" | "cssjs">("general");
 const showMetaPanel = ref(true);
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -117,7 +117,17 @@ const xsltHasContent = computed<boolean>(
 
 watch(
   () => (editForm.value.xslt_config as XsltConfig | undefined)?.source,
-  (src) => { if (src === "custom") nextTick(() => xsltCm.refresh()); },
+  (src) => {
+    if (src === "custom") {
+      nextTick(() => xsltCm.refresh());
+    } else if (editTab.value === "xslt_edit") {
+      editTab.value = "document";
+    }
+  },
+);
+
+const isCustomSource = computed(
+  () => (editForm.value.xslt_config as XsltConfig | undefined)?.source === "custom",
 );
 
 function onXsltFileChange(event: Event): void {
@@ -644,12 +654,16 @@ onBeforeUnmount(() => {
     <!-- Tab bar -->
     <div class="flex shrink-0 overflow-x-auto border-b border-gray-200 bg-white px-4">
       <button
-        v-for="tab in (['general', 'theme', 'pages', 'document', 'indices', 'cssjs'] as const)"
+        v-for="tab in (['general', 'theme', 'pages', 'document', 'xslt_edit', 'indices', 'cssjs'] as const)"
         :key="tab"
+        :disabled="tab === 'xslt_edit' && !isCustomSource"
         class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
-        :class="editTab === tab
-          ? 'border-indigo-600 text-indigo-700'
-          : 'border-transparent text-gray-500 hover:text-gray-700'"
+        :class="[
+          editTab === tab
+            ? 'border-indigo-600 text-indigo-700'
+            : 'border-transparent text-gray-500 hover:text-gray-700',
+          tab === 'xslt_edit' && !isCustomSource ? 'cursor-not-allowed opacity-40' : '',
+        ]"
         @click="editTab = tab"
       >
         {{ t(`websites.tab_${tab}`) }}
@@ -1039,40 +1053,6 @@ onBeforeUnmount(() => {
             </label>
           </div>
 
-          <!-- Custom XSLT: file picker + inline CM5 editor -->
-          <div v-show="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
-            <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
-            <div class="flex items-center gap-2">
-              <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-                {{ t("websites.doc_xslt_filename") }}…
-              </label>
-              <span class="text-xs text-gray-500">{{
-                xsltFileName ? xsltFileName
-                  : xsltHasContent ? t("websites.doc_xslt_saved")
-                  : t("websites.doc_xslt_no_file")
-              }}</span>
-              <button v-if="xsltHasContent" type="button" class="text-xs text-red-500 hover:text-red-700" @click="clearXsltFile">
-                {{ t("websites.doc_xslt_clear") }}
-              </button>
-            </div>
-
-            <!-- Inline CM5 editor: always present when source=custom so it
-                 initialises in a visible, measured container the moment the
-                 Document tab opens. -->
-            <div class="mt-3 space-y-1">
-              <div class="flex justify-end">
-                <button type="button" class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50" @click="xsltCm.toggleFullscreen()">
-                  {{ xsltCm.isFullscreen.value ? t("documents.exit_fullscreen") : t("documents.fullscreen") }}
-                </button>
-              </div>
-              <div
-                :ref="onXsltEditorRef"
-                class="overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:text-sm"
-                style="height: 320px;"
-              />
-            </div>
-          </div>
-
           <!-- Catalog -->
           <div v-if="(editForm.xslt_config as XsltConfig).source === 'catalog'" class="mt-3">
             <div class="flex items-center gap-2">
@@ -1247,6 +1227,37 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- Tab: XSLT Edit (active only when source=custom) -->
+      <div v-if="editTab === 'xslt_edit'" class="bg-indigo-50 p-4 space-y-2">
+        <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
+        <div class="flex items-center gap-2">
+          <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+            {{ t("websites.doc_xslt_filename") }}…
+          </label>
+          <span class="text-xs text-gray-500">{{
+            xsltFileName ? xsltFileName
+              : xsltHasContent ? t("websites.doc_xslt_saved")
+              : t("websites.doc_xslt_no_file")
+          }}</span>
+          <button v-if="xsltHasContent" type="button" class="text-xs text-red-500 hover:text-red-700" @click="clearXsltFile">
+            {{ t("websites.doc_xslt_clear") }}
+          </button>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex justify-end">
+            <button type="button" class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50" @click="xsltCm.toggleFullscreen()">
+              {{ xsltCm.isFullscreen.value ? t("documents.exit_fullscreen") : t("documents.fullscreen") }}
+            </button>
+          </div>
+          <div
+            :ref="onXsltEditorRef"
+            class="overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:text-sm"
+            style="height: 320px;"
+          />
+        </div>
+      </div>
+
       <!-- Tab: Indices -->
       <div v-if="editTab === 'indices'" class="bg-gray-50 p-4 space-y-4">
         <!-- Tags section -->
@@ -1371,7 +1382,7 @@ onBeforeUnmount(() => {
 
     <!-- Action bar -->
     <div class="shrink-0 border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
-      <template v-if="editTab !== 'pages' && editTab !== 'indices'">
+      <template v-if="editTab !== 'pages' && editTab !== 'indices' && editTab !== 'xslt_edit'">
         <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
         <button :disabled="isEditing" class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50" @click="saveEdit">
           {{ isEditing ? t("common.saving") : t("common.save") }}
