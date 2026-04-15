@@ -1066,7 +1066,7 @@ function statusClass(s: string): string {
         </form>
       </section>
 
-      <!-- Action buttons (EVT viewer + Edit) -->
+      <!-- Action buttons (EVT viewer + Edit + Bibliobuilder) -->
       <div v-if="evtEnabled || (isEiC && !editing)" class="mb-4 flex gap-2">
         <RouterLink
           v-if="evtEnabled"
@@ -1082,6 +1082,13 @@ function statusClass(s: string): string {
         >
           {{ t("collections.edit") }}
         </button>
+        <RouterLink
+          v-if="isEiC && !editing"
+          :to="{ name: 'collection-bibliobuilder', params: { slug } }"
+          class="rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
+        >
+          {{ t("collections.bibliobuilder_btn") }}
+        </RouterLink>
       </div>
 
       <!-- Workflow section -->

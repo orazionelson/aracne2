@@ -285,7 +285,8 @@
     "validate_all_previous": "Previous run:",
     "validate_all_confirm": "Validating the full collection can slow down the application significantly, especially on large collections. Proceed?",
     "validate_all_cancel": "Stop validation",
-    "validate_all_cancelled": "Cancelled ({n} / {total} validated)"
+    "validate_all_cancelled": "Cancelled ({n} / {total} validated)",
+    "bibliobuilder_btn": "Bibliobuilder"
   },
   "documents": {
     "action_view": "view",
@@ -857,6 +858,20 @@
     "associate_hint": "Select a zone, place the cursor inside a <w> or <lb> tag, then click Associate.",
     "save_ok": "Zones saved.",
     "draw_hint": "Click and drag to draw a zone rectangle."
+  },
+  "bibliobuilder": {
+    "title": "Bibliobuilder",
+    "extract_btn": "Extract bibliographies",
+    "extracting": "Extracting…",
+    "entries_found": "{count} entries extracted",
+    "raw_entries_label": "Extracted entries (raw XML)",
+    "show_raw": "Show raw XML",
+    "hide_raw": "Hide",
+    "run_btn": "Run Bibliobuilder",
+    "no_entries": "No <bibl> or <biblStruct> elements found in this collection.",
+    "extract_error": "Extraction failed",
+    "chat_placeholder": "Send the next batch or ask a follow-up…",
+    "copy_btn": "Copy result"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

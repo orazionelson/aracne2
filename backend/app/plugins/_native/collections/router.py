@@ -493,6 +493,30 @@ async def document_metadata(
     return DataResponse(data=meta)
 
 
+@router.get("/{collection_id}/extract-bibl")
+async def extract_bibl(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> Response:
+    """Extract all <bibl> and <biblStruct> elements from the collection [EiC+].
+
+    Returns a namespace-free <entries> XML document suitable for feeding to
+    the bibliobuilder AI prompt.  Each entry carries @source (document filename)
+    and @n (sequence number within that document).
+    """
+    role: str = request.state.role
+    col = await get_collection(db, collection_id, current_user, role)
+    col_path = existdb.col_path(col.slug)
+    xml_bytes = await existdb.xquery(
+        "collections/extract_bibl.xq",
+        {"collection_path": col_path},
+    )
+    return Response(content=xml_bytes, media_type="application/xml")
+
+
 # ── Permission management ─────────────────────────────────────────────────────
 
 @router.get("/{collection_id}/permissions")

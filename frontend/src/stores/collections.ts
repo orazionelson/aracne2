@@ -402,6 +402,16 @@ export const useCollectionStore = defineStore("collections", () => {
     });
   }
 
+  async function extractBibl(collectionId: string): Promise<string> {
+    // Endpoint returns raw XML (not the standard JSON envelope), so bypass
+    // apiClient and use the underlying axios instance with responseType:'text'.
+    const res = await api.get<string>(
+      `/collections/${collectionId}/extract-bibl`,
+      { responseType: "text" },
+    );
+    return res.data;
+  }
+
   return {
     collections,
     current,
@@ -430,5 +440,6 @@ export const useCollectionStore = defineStore("collections", () => {
     fetchDocumentRaw,
     deleteDocument,
     searchDocuments,
+    extractBibl,
   };
 });
