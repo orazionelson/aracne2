@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,13 +106,20 @@ async def ai_complete(
     Error event: ``data: {"error": "..."}\\n\\n`` followed by ``[DONE]``
     """
 
+    # Check rate limit before the StreamingResponse is created so we can return
+    # a proper 429 status code instead of embedding the error in an SSE body.
+    try:
+        await service._check_rate_limit(db, current_user)
+    except AiRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=exc.message)
+
     async def event_stream() -> AsyncGenerator[str, None]:
         try:
             async for chunk in service.stream_completion(
                 db, body.prompt_slug, body.context, current_user, body.history or None
             ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-        except (AiDisabledError, AiRateLimitError) as exc:
+        except AiDisabledError as exc:
             yield f"data: {json.dumps({'error': exc.message})}\n\n"
         except ExternalServiceError as exc:
             detail: str = exc.details.get("detail") or exc.message  # type: ignore[assignment]

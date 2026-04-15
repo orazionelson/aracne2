@@ -13,6 +13,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, UploadFile
+from app.middleware.rate_limiter import limiter
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,7 +92,9 @@ _admin = Depends(require_role(min_role="Admin"))
 # ── Public endpoint (no auth) ─────────────────────────────────────────────────
 
 @router.get("/public")
+@limiter.limit("60/minute")
 async def collections_public(
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),

@@ -26,9 +26,14 @@ class XsltTemplateCreate(BaseModel):
     @field_validator("content")
     @classmethod
     def content_strip(cls, v: str) -> str:
+        import defusedxml.ElementTree as ET
         v = v.strip()
         if not v:
             raise ValueError("content cannot be blank")
+        try:
+            ET.fromstring(v)
+        except Exception as exc:
+            raise ValueError(f"XSLT content is not valid XML: {exc}")
         return v
 
     @field_validator("processor")

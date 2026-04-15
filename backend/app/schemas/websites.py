@@ -2,8 +2,9 @@
 
 import uuid
 from datetime import datetime
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.website import BuildStatus, RenderingMode
 
@@ -41,6 +42,19 @@ class WebsitePageResponse(BaseModel):
 
 # ── Websites ──────────────────────────────────────────────────────────────────
 
+def _validate_url_scheme(v: str | None) -> str | None:
+    """Reject non-http/https schemes to prevent javascript: stored XSS."""
+    if not v:
+        return v
+    v = v.strip()
+    parsed = urlparse(v)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("website_url must start with http:// or https://")
+    if not parsed.netloc:
+        raise ValueError("website_url must include a valid hostname")
+    return v
+
+
 class WebsiteCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$")
     title: str = Field(..., min_length=1, max_length=256)
@@ -59,6 +73,11 @@ class WebsiteCreate(BaseModel):
     custom_js: str | None = None
     include_jquery: bool = False
 
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def validate_website_url(cls, v: str | None) -> str | None:
+        return _validate_url_scheme(v)
+
 
 class WebsiteUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=256)
@@ -66,6 +85,11 @@ class WebsiteUpdate(BaseModel):
     collection_id: uuid.UUID | None = None
     rendering_mode: RenderingMode | None = None
     website_url: str | None = Field(None, max_length=512)
+
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def validate_website_url(cls, v: str | None) -> str | None:
+        return _validate_url_scheme(v)
     theme_config: dict | None = None
     meta_config: dict | None = None
     nav_config: list | None = None

@@ -54,13 +54,13 @@ class AiPromptUpdate(BaseModel):
 
 class AiChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: str = Field(..., max_length=32_000)
 
 
 class AiCompleteRequest(BaseModel):
     prompt_slug: str
-    context: dict[str, str]
-    history: list[AiChatMessage] = []
+    context: dict[str, str] = Field(default_factory=dict, max_length=20)
+    history: list[AiChatMessage] = Field(default=[], max_length=40)
 
 
 class AiConfigResponse(BaseModel):

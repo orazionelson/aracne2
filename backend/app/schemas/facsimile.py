@@ -1,6 +1,6 @@
 """Pydantic v2 schemas for TEI <zone> text-image alignment."""
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ZoneIn(BaseModel):
@@ -12,10 +12,10 @@ class ZoneIn(BaseModel):
     """
 
     xml_id: str
-    ulx: int
-    uly: int
-    lrx: int
-    lry: int
+    ulx: int = Field(..., ge=0)
+    uly: int = Field(..., ge=0)
+    lrx: int = Field(..., ge=0)
+    lry: int = Field(..., ge=0)
 
     @field_validator("xml_id")
     @classmethod
@@ -26,6 +26,14 @@ class ZoneIn(BaseModel):
         if v.startswith("#"):
             raise ValueError("xml_id must not include the '#' prefix")
         return v
+
+    @model_validator(mode="after")
+    def check_geometry(self) -> "ZoneIn":
+        if self.lrx <= self.ulx:
+            raise ValueError("lrx must be greater than ulx")
+        if self.lry <= self.uly:
+            raise ValueError("lry must be greater than uly")
+        return self
 
 
 class ZoneOut(BaseModel):

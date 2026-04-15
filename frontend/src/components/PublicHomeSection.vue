@@ -32,6 +32,16 @@ function clearSearch(): void {
   fetchCollections("", 1);
 }
 
+function isSafeUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
 function goToPage(p: number): void {
   if (p < 1 || p > totalPages.value) return;
   fetchCollections("", p);
@@ -163,7 +173,7 @@ onMounted(() => {
                     {{ t("public.bibliography_btn") }}
                   </router-link>
                   <a
-                    v-if="col.website_link"
+                    v-if="isSafeUrl(col.website_link)"
                     :href="col.website_link"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -245,7 +255,7 @@ onMounted(() => {
                   {{ t("public.bibliography_btn") }}
                 </router-link>
                 <a
-                  v-if="col.website_link"
+                  v-if="isSafeUrl(col.website_link)"
                   :href="col.website_link"
                   target="_blank"
                   rel="noopener noreferrer"
