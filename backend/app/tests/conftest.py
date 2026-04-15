@@ -22,6 +22,14 @@ from app.models import Role, User, UserRole  # noqa: F401 — required for metad
 from app.models.role import Role as _Role
 from app.models.user import User as _User
 
+# The collections plugin router is loaded dynamically at runtime via
+# plugin_loader.load_active(), which uses AsyncSessionLocal (real Postgres).
+# In tests, Postgres is replaced with in-memory SQLite, so plugin_loader
+# never runs and the collections router is never mounted.
+# Register it directly here so that all collection endpoints are reachable.
+from app.plugins._native.collections.router import router as _collections_router
+app.include_router(_collections_router, prefix="/api/v1")
+
 
 # slowapi 0.1.9 has no built-in "enabled" flag.
 # _check_request_limit is synchronous in this version; after it returns,
