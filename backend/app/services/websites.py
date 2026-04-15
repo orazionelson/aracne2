@@ -2222,7 +2222,7 @@ def _build_bibliography_content(content_xml: str | None) -> str:
 
     CSS classes used:
     - ``bibl-section``    — outer <section> wrapper
-    - ``bibl-list``       — the <ol> element
+    - ``bibl-list``       — the <ul> element
     - ``bibl-entry``      — each <li>
     - ``bibl-number``     — the entry number span
     - ``bibl-text``       — the bibliographic text span
@@ -2261,7 +2261,7 @@ def _build_bibliography_content(content_xml: str | None) -> str:
     )
     return (
         f'<section class="bibl-section">'
-        f'<ol class="bibl-list">\n{items}</ol>'
+        f'<ul class="bibl-list">\n{items}</ul>'
         f'</section>'
     )
 
@@ -3853,7 +3853,10 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     doc_style = _style_block(theme, website.custom_css, _doc_extra_css)
     style = _style_block(theme, website.custom_css)
     # Append modal, column, OTO and note-rendering JS to site's custom JS when active.
-    custom_js = website.custom_js
+    # base_custom_js is the un-enhanced value used for non-document pages (e.g. bibliography)
+    # so that image/note rendering scripts do not appear on pages with no documents.
+    base_custom_js = website.custom_js
+    custom_js = base_custom_js
     if _ir_modal:
         custom_js = (custom_js or "") + "\n" + _IMAGE_MODAL_JS
     if _ir_column:
@@ -4006,7 +4009,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             footer_note=footer_note,
             identifier_url=identifier_url,
             meta_tags=meta_tags,
-            custom_js=custom_js,
+            custom_js=base_custom_js,
             include_jquery=include_jquery,
         )
         (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
