@@ -744,31 +744,21 @@ function typeLabel(type: string): string {
     </div>
 
     <!-- ── Config tab ───────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'config'" class="max-w-xl space-y-6">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h2 class="mb-1 text-base font-semibold text-gray-900">{{ t("entities.config_title") }}</h2>
-          <p class="text-sm text-gray-500">{{ t("entities.config_description") }}</p>
+    <div v-else-if="activeTab === 'config'" class="flex gap-8">
+      <!-- Left column: form -->
+      <div class="min-w-0 flex-1 space-y-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="mb-1 text-base font-semibold text-gray-900">{{ t("entities.config_title") }}</h2>
+            <p class="text-sm text-gray-500">{{ t("entities.config_description") }}</p>
+          </div>
+          <button
+            class="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50"
+            @click="showHelp = !showHelp"
+          >
+            {{ showHelp ? "✕" : "?" }} {{ t("entities.config_help_btn") }}
+          </button>
         </div>
-        <button
-          class="shrink-0 rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50"
-          @click="showHelp = !showHelp"
-        >
-          {{ showHelp ? "✕" : "?" }} {{ t("entities.config_help_btn") }}
-        </button>
-      </div>
-
-      <!-- Help panel -->
-      <div
-        v-if="showHelp"
-        class="rounded-lg border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-gray-700"
-      >
-        <p class="mb-3 font-semibold text-blue-800">{{ t("entities.config_help_title") }}</p>
-        <div
-          class="leading-relaxed"
-          v-html="'<p class=\'mt-3\'>' + renderHelpHtml(t('entities.config_help_body')) + '</p>'"
-        />
-      </div>
 
       <p v-if="isLoadingConfig" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
       <div v-else-if="configLoadError" class="text-sm text-red-600">
@@ -830,6 +820,18 @@ function typeLabel(type: string): string {
           <span v-if="configSaveError" class="text-sm text-red-600">{{ configSaveError }}</span>
         </div>
       </template>
+      </div><!-- end left column -->
+
+      <!-- Right column: help panel -->
+      <div v-if="showHelp" class="w-72 shrink-0">
+        <div class="rounded-lg border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-gray-700">
+          <p class="mb-3 font-semibold text-blue-800">{{ t("entities.config_help_title") }}</p>
+          <div
+            class="leading-relaxed"
+            v-html="'<p class=\'mt-3\'>' + renderHelpHtml(t('entities.config_help_body')) + '</p>'"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- ── Edit modal ─────────────────────────────────────────────────────── -->
