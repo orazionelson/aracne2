@@ -1,11 +1,9 @@
 """SQLAlchemy models for the Named Entity Index plugin."""
 
-import enum
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,22 +14,14 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class EntityType(str, enum.Enum):
-    person = "person"
-    place = "place"
-    org = "org"
-
-
 class NamedEntity(Base):
     __tablename__ = "named_entities"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    type: Mapped[EntityType] = mapped_column(
-        SAEnum(EntityType, name="entity_type", create_type=False),
-        nullable=False,
-    )
+    # Open string — any TEI local-name() value, e.g. "persName", "objectName", "measure".
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
     # Canonical display form — the "standard" label for this entity.
     # First occurrence's text is used; can be corrected by an admin.
     canonical_form: Mapped[str] = mapped_column(String(512), nullable=False)

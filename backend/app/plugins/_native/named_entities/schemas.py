@@ -5,12 +5,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from app.plugins._native.named_entities.models import EntityType
-
 
 class NamedEntityResponse(BaseModel):
     id: uuid.UUID
-    type: EntityType
+    type: str
     canonical_form: str
     authority_ref: str | None
     occurrence_count: int
@@ -47,3 +45,29 @@ class EntityMergeRequest(BaseModel):
     """Merge source_id into target_id: all occurrences are reassigned, source is deleted."""
     source_id: uuid.UUID
     target_id: uuid.UUID
+
+
+class EntityTagEntry(BaseModel):
+    """One configured TEI tag → entity type mapping."""
+    tag: str
+    type: str
+
+    @field_validator("tag", "type")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Field cannot be empty")
+        return v
+
+
+class EntityTagConfig(BaseModel):
+    """Full tag configuration payload for PUT /entities/admin/tag-config."""
+    tags: list[EntityTagEntry]
+
+    @field_validator("tags")
+    @classmethod
+    def not_empty_list(cls, v: list[EntityTagEntry]) -> list[EntityTagEntry]:
+        if not v:
+            raise ValueError("At least one tag must be configured")
+        return v

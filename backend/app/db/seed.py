@@ -58,6 +58,12 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("ai_privacy_warning_enabled", "false", "bool"),
     # Dynamic/Hybrid website caching
     ("dynamic_cache_ttl", "300", "int"),
+    # Named entity index: TEI tags to extract (JSON array of {tag, type} objects).
+    (
+        "entity_index_tags",
+        '[{"tag":"persName","type":"persName"},{"tag":"placeName","type":"placeName"},{"tag":"orgName","type":"orgName"}]',
+        "string",
+    ),
 ]
 
 # Default Creative Commons licenses (name, target).

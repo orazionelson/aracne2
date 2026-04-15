@@ -31,12 +31,18 @@ def _schedule_index(collection: Collection, filename: str) -> None:
     """Fire-and-forget: index one document in a background task."""
     from app.db.existdb import existdb_client
     from app.db.postgres import AsyncSessionLocal
-    from app.plugins._native.named_entities.service import index_document
+    from app.plugins._native.named_entities.service import (
+        _tags_param,
+        get_tag_config,
+        index_document,
+    )
 
     async def _run() -> None:
         async with AsyncSessionLocal() as db:
             try:
-                await index_document(db, existdb_client, collection, filename)
+                config = await get_tag_config(db)
+                tags = _tags_param(config)
+                await index_document(db, existdb_client, collection, filename, tags=tags)
                 await db.commit()
             except Exception as exc:
                 logger.error(

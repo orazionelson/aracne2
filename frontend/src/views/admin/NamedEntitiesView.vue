@@ -37,7 +37,7 @@ interface Pagination {
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
-type Tab = "browse" | "admin" | "reindex";
+type Tab = "admin" | "reindex" | "config";
 const activeTab = ref<Tab>("admin");
 
 // ── State — entity list ───────────────────────────────────────────────────────
@@ -89,6 +89,21 @@ const reindexError = ref<string | null>(null);
 const collections = ref<CollectionOption[]>([]);
 const isLoadingCollections = ref(false);
 const collectionsLoadError = ref(false);
+
+// ── State — tag config ────────────────────────────────────────────────────────
+
+interface TagEntry {
+  tag: string;
+  type: string;
+}
+
+const tagConfig = ref<TagEntry[]>([]);
+const isLoadingConfig = ref(false);
+const configLoadError = ref(false);
+const isSavingConfig = ref(false);
+const configSaveError = ref<string | null>(null);
+const configSaved = ref(false);
+const configDirty = ref(false);
 
 // Reindex-all state
 const isReindexingAll = ref(false);
@@ -321,6 +336,66 @@ async function submitReindexAll(): Promise<void> {
   }
 }
 
+// ── Tag config ────────────────────────────────────────────────────────────────
+
+async function fetchTagConfig(): Promise<void> {
+  isLoadingConfig.value = true;
+  configLoadError.value = false;
+  try {
+    const res = await apiClient.get<TagEntry[]>("/entities/admin/tag-config");
+    tagConfig.value = res.map((e) => ({ tag: e.tag, type: e.type }));
+    configDirty.value = false;
+  } catch {
+    configLoadError.value = true;
+  } finally {
+    isLoadingConfig.value = false;
+  }
+}
+
+function addTagRow(): void {
+  tagConfig.value.push({ tag: "", type: "" });
+  configDirty.value = true;
+}
+
+function removeTagRow(idx: number): void {
+  tagConfig.value.splice(idx, 1);
+  configDirty.value = true;
+}
+
+function onTagConfigChange(): void {
+  configDirty.value = true;
+  configSaved.value = false;
+}
+
+async function saveTagConfig(): Promise<void> {
+  const invalid = tagConfig.value.some((e) => !e.tag.trim() || !e.type.trim());
+  if (invalid) {
+    configSaveError.value = t("entities.config_save_error");
+    return;
+  }
+  isSavingConfig.value = true;
+  configSaveError.value = null;
+  configSaved.value = false;
+  try {
+    await apiClient.put("/entities/admin/tag-config", { tags: tagConfig.value });
+    configDirty.value = false;
+    configSaved.value = true;
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    configSaveError.value = msg ?? t("entities.config_save_error");
+  } finally {
+    isSavingConfig.value = false;
+  }
+}
+
+// Load config when tab is activated
+watch(activeTab, (tab) => {
+  if (tab === "config" && tagConfig.value.length === 0 && !isLoadingConfig.value) {
+    fetchTagConfig();
+  }
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function typeBadgeClass(type: EntityType): string {
@@ -347,7 +422,7 @@ function typeLabel(type: EntityType): string {
     <!-- Tabs -->
     <div class="mb-6 flex gap-4 border-b border-gray-200">
       <button
-        v-for="tab in (['admin', 'reindex'] as Tab[])"
+        v-for="tab in (['admin', 'reindex', 'config'] as Tab[])"
         :key="tab"
         class="pb-2 text-sm font-medium transition-colors"
         :class="activeTab === tab
@@ -635,6 +710,95 @@ function typeLabel(type: EntityType): string {
         </button>
       </div>
 
+    </div>
+
+    <!-- ── Config tab ───────────────────────────────────────────────────── -->
+    <div v-else-if="activeTab === 'config'" class="max-w-xl space-y-6">
+      <div>
+        <h2 class="mb-1 text-base font-semibold text-gray-900">{{ t("entities.config_title") }}</h2>
+        <p class="text-sm text-gray-500">{{ t("entities.config_description") }}</p>
+      </div>
+
+      <p v-if="isLoadingConfig" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
+      <div v-else-if="configLoadError" class="text-sm text-red-600">
+        {{ t("entities.config_load_error") }}
+        <button class="ml-2 text-indigo-600 hover:underline text-xs" @click="fetchTagConfig">
+          {{ t("entities.reindex_retry_load") }}
+        </button>
+      </div>
+
+      <template v-else>
+        <!-- Stale warning shown after a successful save -->
+        <div
+          v-if="configSaved"
+          class="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700"
+        >
+          {{ t("entities.config_stale_warning") }}
+        </div>
+
+        <!-- Tag table -->
+        <div class="overflow-hidden rounded border border-gray-200">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th class="px-3 py-2 text-left">{{ t("entities.config_col_tag") }}</th>
+                <th class="px-3 py-2 text-left">{{ t("entities.config_col_type") }}</th>
+                <th class="w-10 px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(row, idx) in tagConfig"
+                :key="idx"
+                class="border-t border-gray-100"
+              >
+                <td class="px-3 py-1.5">
+                  <input
+                    v-model="row.tag"
+                    :placeholder="t('entities.config_tag_placeholder')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+                    @input="onTagConfigChange"
+                  />
+                </td>
+                <td class="px-3 py-1.5">
+                  <input
+                    v-model="row.type"
+                    :placeholder="t('entities.config_type_placeholder')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+                    @input="onTagConfigChange"
+                  />
+                </td>
+                <td class="px-3 py-1.5 text-center">
+                  <button
+                    class="text-xs text-red-500 hover:text-red-700"
+                    :title="t('entities.config_remove')"
+                    @click="removeTagRow(idx)"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            @click="addTagRow"
+          >
+            + {{ t("entities.config_add_row") }}
+          </button>
+          <button
+            :disabled="isSavingConfig || !configDirty"
+            class="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            @click="saveTagConfig"
+          >
+            {{ isSavingConfig ? t("common.loading") : t("entities.config_save") }}
+          </button>
+          <span v-if="configSaveError" class="text-sm text-red-600">{{ configSaveError }}</span>
+        </div>
+      </template>
     </div>
 
     <!-- ── Edit modal ─────────────────────────────────────────────────────── -->

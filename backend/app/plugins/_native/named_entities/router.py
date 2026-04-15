@@ -27,10 +27,10 @@ from app.db.postgres import get_async_session
 from app.middleware.acl import require_role
 from app.models.collection import Collection
 from app.plugins._native.named_entities import service
-from app.plugins._native.named_entities.models import EntityType
 from app.plugins._native.named_entities.schemas import (
     EntityMergeRequest,
     EntityOccurrenceResponse,
+    EntityTagConfig,
     NamedEntityResponse,
     NamedEntityUpdate,
 )
@@ -41,6 +41,7 @@ router = APIRouter(prefix="/entities", tags=["named-entities"])
 _DbDep = Annotated[AsyncSession, Depends(get_async_session)]
 _ExistDep = Annotated[ExistDBClient, Depends(get_existdb)]
 _AdminDep = Annotated[None, Depends(require_role(min_role="Admin"))]
+_EicDep = Annotated[None, Depends(require_role(min_role="EditorInChief"))]
 
 
 def _paginate(items: list, total: int, page: int, per_page: int) -> PaginatedResponse:
@@ -62,7 +63,7 @@ def _paginate(items: list, total: int, page: int, per_page: int) -> PaginatedRes
 async def admin_list_entities(
     _: _AdminDep,
     db: _DbDep,
-    entity_type: Annotated[EntityType | None, Query(alias="type")] = None,
+    entity_type: Annotated[str | None, Query(alias="type")] = None,
     q: str | None = None,
     unlinked: bool = False,
     page: int = 1,
@@ -73,6 +74,41 @@ async def admin_list_entities(
         db, entity_type, q, unlinked, page, per_page
     )
     return _paginate([NamedEntityResponse.model_validate(r) for r in rows], total, page, per_page)
+
+
+@router.get("/admin/tag-config")
+async def admin_get_tag_config(
+    _: _EicDep,
+    db: _DbDep,
+) -> DataResponse[list[dict]]:
+    """EiC+: return the current entity tag configuration."""
+    config = await service.get_tag_config(db)
+    return DataResponse(data=config)
+
+
+@router.put("/admin/tag-config")
+async def admin_put_tag_config(
+    body: EntityTagConfig,
+    _: _EicDep,
+    db: _DbDep,
+) -> DataResponse[list[dict]]:
+    """EiC+: replace the entity tag configuration.
+
+    After saving, all collection re-indexes will use the new tag list.
+    Existing index data is NOT automatically refreshed — trigger a re-index
+    for each collection to apply the new configuration.
+    """
+    import json
+    from app.models.system_setting import SystemSetting
+
+    payload = [{"tag": e.tag, "type": e.type} for e in body.tags]
+    row = await db.get(SystemSetting, "entity_index_tags")
+    if row:
+        row.value = json.dumps(payload)
+    else:
+        db.add(SystemSetting(key="entity_index_tags", value=json.dumps(payload), type="string"))
+    await db.commit()
+    return DataResponse(data=payload)
 
 
 @router.post("/admin/merge")
@@ -139,7 +175,7 @@ async def admin_delete_entity(
 @router.get("")
 async def list_entities(
     db: _DbDep,
-    entity_type: Annotated[EntityType | None, Query(alias="type")] = None,
+    entity_type: Annotated[str | None, Query(alias="type")] = None,
     q: str | None = None,
     collection_slug: str | None = Query(default=None, alias="collection_slug"),
     page: int = 1,

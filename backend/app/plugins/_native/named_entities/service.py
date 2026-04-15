@@ -34,7 +34,6 @@ from app.db.existdb import ExistDBClient
 from app.models.collection import Collection, CollectionStatus
 from app.plugins._native.named_entities.models import (
     EntityOccurrence,
-    EntityType,
     NamedEntity,
 )
 from app.plugins._native.named_entities.schemas import (
@@ -43,19 +42,6 @@ from app.plugins._native.named_entities.schemas import (
 )
 
 logger = structlog.get_logger()
-
-
-# ── Entity type mapping ───────────────────────────────────────────────────────
-
-_TAG_TO_TYPE: dict[str, EntityType] = {
-    "persName": EntityType.person,
-    "placeName": EntityType.place,
-    "orgName":   EntityType.org,
-}
-
-
-def _parse_entity_type(tag: str) -> EntityType | None:
-    return _TAG_TO_TYPE.get(tag)
 
 
 def _clean_authority_ref(ref: str) -> str | None:
@@ -76,7 +62,7 @@ def _clean_authority_ref(ref: str) -> str | None:
 
 async def _upsert_entity(
     db: AsyncSession,
-    entity_type: EntityType,
+    entity_type: str,
     canonical_form: str,
     authority_ref: str | None,
 ) -> NamedEntity:
@@ -141,8 +127,12 @@ async def index_document(
     existdb: ExistDBClient,
     col: Collection,
     filename: str,
+    tags: str = "persName placeName orgName",
 ) -> int:
     """Extract and store named entities from one document. Returns count inserted.
+
+    *tags* is a whitespace-separated list of TEI local element names to extract,
+    e.g. ``"persName placeName orgName objectName measure"``.
 
     Does NOT commit — the caller is responsible for the transaction boundary.
     """
@@ -150,7 +140,8 @@ async def index_document(
 
     try:
         raw = await existdb.xquery(
-            "named_entities/extract_document.xq", {"doc_path": doc_path}
+            "named_entities/extract_document.xq",
+            {"doc_path": doc_path, "tags": tags},
         )
     except Exception:
         logger.warning("named_entities_xquery_failed", slug=col.slug, filename=filename)
@@ -182,9 +173,8 @@ async def index_document(
 
     new_entity_ids: list[uuid.UUID] = []
     for elem in root:
-        tag_name = elem.get("type", "")
-        entity_type = _parse_entity_type(tag_name)
-        if entity_type is None:
+        tag_name = elem.get("type", "").strip()
+        if not tag_name:
             continue
 
         ref_attr = elem.get("ref", "")
@@ -254,6 +244,36 @@ async def deindex_document(
     )
 
 
+async def get_tag_config(db: AsyncSession) -> list[dict[str, str]]:
+    """Return the current entity tag configuration from SystemSetting.
+
+    Falls back to the default three TEI names if the setting is absent or invalid.
+    """
+    import json
+    from app.models.system_setting import SystemSetting
+
+    row = await db.get(SystemSetting, "entity_index_tags")
+    if row and row.value:
+        try:
+            cfg = json.loads(row.value)
+            if isinstance(cfg, list) and all(
+                isinstance(e, dict) and "tag" in e and "type" in e for e in cfg
+            ):
+                return cfg
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return [
+        {"tag": "persName",  "type": "persName"},
+        {"tag": "placeName", "type": "placeName"},
+        {"tag": "orgName",   "type": "orgName"},
+    ]
+
+
+def _tags_param(config: list[dict[str, str]]) -> str:
+    """Convert tag config to a whitespace-separated tag list for the XQuery."""
+    return " ".join(entry["tag"] for entry in config)
+
+
 async def reindex_collection(
     db: AsyncSession,
     existdb: ExistDBClient,
@@ -261,10 +281,15 @@ async def reindex_collection(
 ) -> int:
     """Full re-index of a collection. Wipes existing occurrences and rebuilds.
 
-    Commits after each document so partial results are preserved on failure.
-    Returns the total number of entity occurrences indexed.
+    Reads the current entity_index_tags SystemSetting to determine which TEI
+    elements to extract.  Commits after each document so partial results are
+    preserved on failure.  Returns the total number of entity occurrences indexed.
     """
     from app.db.postgres import AsyncSessionLocal
+
+    # Read tag config once for the whole batch
+    config = await get_tag_config(db)
+    tags = _tags_param(config)
 
     # Collect entity IDs that currently have occurrences in this collection
     old_entity_ids = list(
@@ -287,7 +312,7 @@ async def reindex_collection(
     for filename in filenames:
         async with AsyncSessionLocal() as doc_db:
             try:
-                count = await index_document(doc_db, existdb, col, filename)
+                count = await index_document(doc_db, existdb, col, filename, tags=tags)
                 await doc_db.commit()
                 total += count
             except Exception as exc:
@@ -366,7 +391,7 @@ async def delete_entity(db: AsyncSession, entity_id: uuid.UUID) -> bool:
 
 async def get_public_entities(
     db: AsyncSession,
-    entity_type: EntityType | None,
+    entity_type: str | None,
     q: str | None,
     page: int,
     per_page: int,
@@ -466,7 +491,7 @@ async def get_entity_occurrences(
 
 async def get_admin_entities(
     db: AsyncSession,
-    entity_type: EntityType | None,
+    entity_type: str | None,
     q: str | None,
     unlinked_only: bool,
     page: int,

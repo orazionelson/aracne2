@@ -499,7 +499,21 @@
     "reindex_all_running": "Reindicizzazione in corso…",
     "reindex_all_progress": "Elaborazione collezione {current} di {total}…",
     "reindex_all_done": "Completato. {total} collezione/i reindicizzata/e, {n} occorrenza/e totali.",
-    "admin_panel_btn": "Pannello admin"
+    "admin_panel_btn": "Pannello admin",
+    "tab_config": "Configurazione tag",
+    "config_title": "Configurazione tag indicizzati",
+    "config_description": "Definisce quali elementi TEI vengono estratti durante l'indicizzazione. Ogni riga associa un tag TEI (es. persName) a un identificatore di tipo salvato nel database. Le modifiche hanno effetto al prossimo re-index.",
+    "config_col_tag": "Tag TEI",
+    "config_col_type": "Tipo (valore salvato)",
+    "config_tag_placeholder": "es. persName",
+    "config_type_placeholder": "es. persName",
+    "config_add_row": "Aggiungi riga",
+    "config_save": "Salva configurazione",
+    "config_saved": "Configurazione salvata.",
+    "config_save_error": "Salvataggio della configurazione non riuscito.",
+    "config_load_error": "Caricamento della configurazione non riuscito.",
+    "config_stale_warning": "Configurazione modificata — esegui il re-index di tutte le collezioni per applicare il nuovo elenco di tag.",
+    "config_remove": "Rimuovi"
   },
   "webhooks": {
     "title": "Webhook",
