@@ -245,6 +245,30 @@ const rejectNote = ref("");
 
 const isEiC = computed(() => auth.hasMinRole("EditorInChief"));
 const isAdmin = computed(() => auth.hasMinRole("Admin"));
+
+// ── Saved bibliographies panel ────────────────────────────────────────────────
+const biblioOpen = ref(false);
+const expandedBiblioVersion = ref<number | null>(null);
+const biblioDeleteError = ref<string | null>(null);
+
+function toggleBiblioRow(version: number): void {
+  expandedBiblioVersion.value = expandedBiblioVersion.value === version ? null : version;
+}
+
+async function handleDeleteBiblio(version: number): Promise<void> {
+  if (!store.current) return;
+  if (!window.confirm(t("bibliobuilder.delete_version_confirm", { version }))) return;
+  biblioDeleteError.value = null;
+  try {
+    await store.deleteBibliography(store.current.id, version);
+  } catch (err) {
+    biblioDeleteError.value = err instanceof Error ? err.message : t("common.error");
+  }
+}
+
+async function copyBiblio(content: string): Promise<void> {
+  await navigator.clipboard.writeText(content);
+}
 const evtEnabled = computed(
   () =>
     settingStore.getSetting("evt_enabled") === "true" &&
@@ -599,6 +623,7 @@ onMounted(async () => {
       tasks.push(store.fetchEditors());
       tasks.push(validationStore.fetchLatest(slug));
       tasks.push(aiStore.fetchConfig().catch(() => { /* non-fatal */ }));
+      tasks.push(store.listBibliographies(slug).catch(() => { /* non-fatal */ }));
     }
     await Promise.all(tasks);
   } catch {
@@ -1700,6 +1725,81 @@ function statusClass(s: string): string {
                   :chat="true"
                   :show-apply="false"
                   @close="aiDocFilename = null"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Saved bibliographies panel (EiC+) -->
+      <section v-if="isEiC" class="mb-6 rounded border border-gray-200">
+        <button
+          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50"
+          @click="biblioOpen = !biblioOpen"
+        >
+          <span class="text-sm font-semibold text-gray-700">
+            {{ t("bibliobuilder.panel_title") }}
+            <span
+              v-if="store.bibliographies.length"
+              class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700"
+            >{{ store.bibliographies.length }}</span>
+          </span>
+          <span class="text-xs text-gray-400">{{ biblioOpen ? "▲" : "▼" }}</span>
+        </button>
+
+        <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4">
+          <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600">{{ biblioDeleteError }}</p>
+
+          <p v-if="!store.bibliographies.length" class="text-sm text-gray-400">
+            {{ t("bibliobuilder.panel_empty") }}
+          </p>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="bib in store.bibliographies"
+              :key="bib.version"
+              class="rounded border border-gray-100"
+            >
+              <!-- Row header -->
+              <div class="flex items-center justify-between px-3 py-2">
+                <button
+                  class="flex items-center gap-2 text-left"
+                  @click="toggleBiblioRow(bib.version)"
+                >
+                  <span class="rounded bg-violet-100 px-2 py-0.5 text-xs font-mono font-medium text-violet-700">
+                    v{{ bib.version }}
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    {{ new Date(bib.created_at).toLocaleString() }}
+                  </span>
+                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    class="text-xs text-gray-400 hover:text-indigo-600"
+                    @click="copyBiblio(bib.content)"
+                  >
+                    {{ t("bibliobuilder.copy_btn") }}
+                  </button>
+                  <button
+                    class="text-xs text-gray-400 hover:text-red-600"
+                    @click="handleDeleteBiblio(bib.version)"
+                  >
+                    {{ t("common.delete") }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Expanded content -->
+              <div
+                v-if="expandedBiblioVersion === bib.version"
+                class="border-t border-gray-100 px-3 pb-3 pt-2"
+              >
+                <textarea
+                  :value="bib.content"
+                  readonly
+                  rows="10"
+                  class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800"
                 />
               </div>
             </div>

@@ -14,10 +14,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from fastapi.responses import Response
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import get_async_session
+from app.models.collection_bibliography import CollectionBibliography
 from app.core.constants import ROLE_LEVEL
 from app.middleware.acl import get_current_user, require_role
 from app.models.collection import CollectionStatus
@@ -39,6 +41,10 @@ from app.schemas.collections import (
     ZipUploadResult,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
+from app.schemas.collection_bibliography import (
+    CollectionBibliographyResponse,
+    CollectionBibliographySave,
+)
 from app.schemas.collection_validation import CollectionValidationRunResponse
 from app.schemas.tei_schemas import ValidationResult
 from app.services.collection_validation import (
@@ -515,6 +521,89 @@ async def extract_bibl(
         {"collection_path": col_path},
     )
     return Response(content=xml_bytes, media_type="application/xml")
+
+
+@router.post("/{collection_id}/bibliographies", status_code=201)
+async def bibliography_save(
+    collection_id: str,
+    body: CollectionBibliographySave,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionBibliographyResponse]:
+    """Save a new versioned bibliography snapshot for the collection [EiC+].
+
+    The version number is assigned automatically as MAX(version) + 1 for the
+    collection, starting at 1 for the first saved version.
+    """
+    role: str = request.state.role
+    col = await get_collection(db, collection_id, current_user, role)
+    col_uuid = col.id
+
+    next_version_row = await db.execute(
+        select(func.coalesce(func.max(CollectionBibliography.version), 0) + 1).where(
+            CollectionBibliography.collection_id == col_uuid
+        )
+    )
+    next_version: int = next_version_row.scalar_one()
+
+    entry = CollectionBibliography(
+        collection_id=col_uuid,
+        version=next_version,
+        content=body.content,
+        created_by_id=current_user.id,
+    )
+    db.add(entry)
+    await db.flush()
+    await db.refresh(entry)
+    return DataResponse(data=CollectionBibliographyResponse.model_validate(entry))
+
+
+@router.get("/{collection_id}/bibliographies")
+async def bibliography_list(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[list[CollectionBibliographyResponse]]:
+    """List all saved bibliography versions for the collection [EiC+], newest first."""
+    role: str = request.state.role
+    col = await get_collection(db, collection_id, current_user, role)
+
+    rows = await db.execute(
+        select(CollectionBibliography)
+        .where(CollectionBibliography.collection_id == col.id)
+        .order_by(CollectionBibliography.version.desc())
+    )
+    entries = rows.scalars().all()
+    return DataResponse(
+        data=[CollectionBibliographyResponse.model_validate(e) for e in entries]
+    )
+
+
+@router.delete("/{collection_id}/bibliographies/{version}", status_code=204)
+async def bibliography_delete(
+    collection_id: str,
+    version: int,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> None:
+    """Delete a specific bibliography version [EiC+]."""
+    role: str = request.state.role
+    col = await get_collection(db, collection_id, current_user, role)
+
+    row = await db.scalar(
+        select(CollectionBibliography).where(
+            CollectionBibliography.collection_id == col.id,
+            CollectionBibliography.version == version,
+        )
+    )
+    if row is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Bibliography version not found")
+    await db.delete(row)
+    await db.flush()
 
 
 # ── Permission management ─────────────────────────────────────────────────────

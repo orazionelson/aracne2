@@ -65,6 +65,15 @@ export interface ZipUploadError {
   error: string;
 }
 
+export interface CollectionBibliography {
+  id: string;
+  collection_id: string;
+  version: number;
+  content: string;
+  created_at: string;
+  created_by_id: string | null;
+}
+
 export interface ZipUploadResult {
   uploaded: number;
   skipped: string[];
@@ -185,6 +194,7 @@ export const useCollectionStore = defineStore("collections", () => {
   const current = ref<Collection | null>(null);
   const documents = ref<DocumentInfo[]>([]);
   const editors = ref<EditorOption[]>([]);
+  const bibliographies = ref<CollectionBibliography[]>([]);
   const pagination = ref<Pagination | null>(null);
   const isLoading = ref(false);
 
@@ -412,6 +422,36 @@ export const useCollectionStore = defineStore("collections", () => {
     return res.data;
   }
 
+  // ── Bibliographies ───────────────────────────────────────────────────────────
+
+  async function saveBibliography(
+    collectionId: string,
+    content: string,
+  ): Promise<CollectionBibliography> {
+    return await apiClient.post<CollectionBibliography>(
+      `/collections/${collectionId}/bibliographies`,
+      { content },
+    );
+  }
+
+  async function listBibliographies(collectionId: string): Promise<void> {
+    bibliographies.value = await apiClient.get<CollectionBibliography[]>(
+      `/collections/${collectionId}/bibliographies`,
+    );
+  }
+
+  async function deleteBibliography(
+    collectionId: string,
+    version: number,
+  ): Promise<void> {
+    await apiClient.delete<void>(
+      `/collections/${collectionId}/bibliographies/${version}`,
+    );
+    bibliographies.value = bibliographies.value.filter(
+      (b) => b.version !== version,
+    );
+  }
+
   return {
     collections,
     current,
@@ -441,5 +481,9 @@ export const useCollectionStore = defineStore("collections", () => {
     deleteDocument,
     searchDocuments,
     extractBibl,
+    bibliographies,
+    saveBibliography,
+    listBibliographies,
+    deleteBibliography,
   };
 });

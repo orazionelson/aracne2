@@ -871,7 +871,12 @@
     "no_entries": "No <bibl> or <biblStruct> elements found in this collection.",
     "extract_error": "Extraction failed",
     "chat_placeholder": "Send the next batch or ask a follow-up…",
-    "copy_btn": "Copy result"
+    "copy_btn": "Copy result",
+    "save_btn": "Save",
+    "saved_version": "Saved as v{version}",
+    "panel_title": "Saved bibliographies",
+    "panel_empty": "No saved bibliographies yet.",
+    "delete_version_confirm": "Delete version {version}? This cannot be undone."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

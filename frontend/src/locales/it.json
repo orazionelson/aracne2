@@ -871,7 +871,12 @@
     "no_entries": "Nessuna voce <bibl> o <biblStruct> trovata in questa collezione.",
     "extract_error": "Estrazione fallita",
     "chat_placeholder": "Invia il batch successivo o una domanda di follow-up…",
-    "copy_btn": "Copia risultato"
+    "copy_btn": "Copia risultato",
+    "save_btn": "Salva",
+    "saved_version": "Salvato come v{version}",
+    "panel_title": "Bibliografie salvate",
+    "panel_empty": "Nessuna bibliografia salvata.",
+    "delete_version_confirm": "Eliminare la versione {version}? L'operazione non può essere annullata."
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

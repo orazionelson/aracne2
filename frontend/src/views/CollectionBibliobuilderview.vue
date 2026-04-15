@@ -112,6 +112,30 @@ async function copyResult(): Promise<void> {
   if (!lastAssistantResponse.value) return;
   await navigator.clipboard.writeText(lastAssistantResponse.value);
 }
+
+// ── Save ─────────────────────────────────────────────────────────────────────
+
+const isSaving = ref(false);
+const saveError = ref<string | null>(null);
+const savedVersion = ref<number | null>(null);
+
+async function saveResult(): Promise<void> {
+  if (!collection.value || !lastAssistantResponse.value || isSaving.value) return;
+  isSaving.value = true;
+  saveError.value = null;
+  savedVersion.value = null;
+  try {
+    const entry = await collectionsStore.saveBibliography(
+      collection.value.id,
+      lastAssistantResponse.value,
+    );
+    savedVersion.value = entry.version;
+  } catch (err) {
+    saveError.value = err instanceof Error ? err.message : t("common.error");
+  } finally {
+    isSaving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -262,13 +286,27 @@ async function copyResult(): Promise<void> {
             </template>
           </div>
 
-          <!-- Copy result -->
-          <div v-if="lastAssistantResponse && !aiStore.isStreaming" class="mt-2 flex justify-end">
+          <!-- Copy + Save result -->
+          <div v-if="lastAssistantResponse && !aiStore.isStreaming" class="mt-2 flex items-center justify-end gap-3">
+            <p v-if="saveError" class="text-xs text-red-600">{{ saveError }}</p>
+            <span
+              v-if="savedVersion !== null"
+              class="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700"
+            >
+              {{ t("bibliobuilder.saved_version", { version: savedVersion }) }}
+            </span>
             <button
               class="text-xs text-gray-400 hover:text-indigo-600"
               @click="copyResult"
             >
               {{ t("bibliobuilder.copy_btn") }}
+            </button>
+            <button
+              :disabled="isSaving"
+              class="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              @click="saveResult"
+            >
+              {{ isSaving ? t("common.saving") : t("bibliobuilder.save_btn") }}
             </button>
           </div>
         </section>
