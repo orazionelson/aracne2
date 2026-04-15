@@ -212,6 +212,250 @@ Image rendering CSS is added to `doc_style` (document pages only) and does
 
 ---
 
+## One-to-One viewer
+
+The **One-to-One** (OTO) mode is the most sophisticated document rendering
+layout in Aracne2.  It presents a two-column full-viewport page: the
+facsimile image is pinned in a sticky dark panel on the left; the transcription
+text scrolls on the right.  As the reader scrolls, the panel automatically
+advances to the correct facsimile page.  Hovering over a tagged word or line
+highlights the corresponding zone rectangle on the image.
+
+### TEI document prerequisites
+
+For OTO to work, the XML document must use standard TEI facsimile linking.
+
+**Minimum requirement** — page-level linking only:
+
+```xml
+<TEI>
+  <facsimile>
+    <surface xml:id="f1">
+      <graphic url="/api/v1/collections/{slug}/documents/{file}/media/f1.jpg"/>
+    </surface>
+    <surface xml:id="f2">
+      <graphic url="…/f2.jpg"/>
+    </surface>
+  </facsimile>
+
+  <text>
+    <body>
+      <pb facs="#f1" n="1"/>
+      <!-- text of page 1 -->
+      <pb facs="#f2" n="2"/>
+      <!-- text of page 2 -->
+    </body>
+  </text>
+</TEI>
+```
+
+Each `<pb facs="#id">` is linked to a `<surface xml:id="id">`.  The XSLT
+resolves the reference and emits a `<figure class="tei-pb-facsimile">` with
+the image URL from `<surface>/tei:graphic/@url`.
+
+**Full requirement** — word/line zone highlighting (optional):
+
+```xml
+<facsimile>
+  <surface xml:id="f1">
+    <graphic url="…/f1.jpg"/>
+    <!-- Zone coordinates are in the image's natural pixel space -->
+    <zone xml:id="z1_001" ulx="110" uly="204" lrx="680" lry="248"/>
+    <zone xml:id="z1_002" ulx="110" uly="252" lrx="720" lry="296"/>
+    <!-- … -->
+  </surface>
+</facsimile>
+
+<body>
+  <pb facs="#f1" n="1"/>
+  <p>
+    <w facs="#z1_001">Lorem</w>
+    <w facs="#z1_002">ipsum</w>
+    <!-- or at line level: -->
+    <lb facs="#z1_003"/>
+  </p>
+</body>
+```
+
+- `<w facs="#zone_id">` — word-level link (space-granularity alignment)
+- `<lb facs="#zone_id">` — line-break anchor (line-level alignment)
+- Both require a `#` prefix; plain `facs` values without `#` are ignored
+
+### XSLT output (tei_generic.xsl)
+
+The generic stylesheet handles all OTO-relevant TEI elements:
+
+| TEI element | HTML output | Purpose |
+|---|---|---|
+| `<pb facs="#id">` | `<figure class="tei-pb-facsimile"><img…></figure>` | Page image placeholder (hidden by CSS, src read by JS) |
+| `<pb n="…">` (no facs) | `<span class="tei-pb">[p. N]</span>` | Page marker without image |
+| `<w facs="#zone_id">` | `<span class="tei-w" data-facs="zone_id">…</span>` | Hoverable word token |
+| `<lb facs="#zone_id">` | `<span class="tei-lb" data-facs="zone_id"></span><br/>` | Hoverable line anchor |
+| `<facsimile>` (with zones) | `<script type="application/json" id="tei-facsimile-zones">{…}</script>` | Zone coordinate map |
+| `<surface>`, `<zone>` | _(suppressed)_ | Data consumed by XSLT, not rendered directly |
+
+The `tei-facsimile-zones` script block is a flat JSON object:
+```json
+{ "z1_001": {"ulx": 110, "uly": 204, "lrx": 680, "lry": 248}, … }
+```
+
+It is only emitted when at least one `<surface>` has `<zone>` children.
+In documents without zones the script block is absent and the viewer
+operates in page-flip mode only (no zone highlighting).
+
+### Configuration
+
+In `xslt_config["image_rendering"]`:
+
+```json
+{
+  "enabled": true,
+  "figure": {
+    "layout": "modal"
+  },
+  "pb": {
+    "show": true,
+    "layout": "one-to-one"
+  }
+}
+```
+
+`pb.layout = "one-to-one"` is the only required change from the defaults.
+Setting `figure.layout = "modal"` is recommended so inline figures (not
+page-break facsimiles) open in the lightbox overlay rather than sitting in
+the text flow.
+
+When `pb.layout == "one-to-one"`, the builder automatically sets
+`_ir_modal = True` and `_ir_oto = True`, which causes all three JS blocks
+to be injected: `_IMAGE_MODAL_JS`, `_build_image_column_js` (skipped —
+no column selectors in OTO), and `_build_one_to_one_js`.
+
+### Layout structure (runtime DOM)
+
+After the JS runs, the page DOM becomes:
+
+```
+<main>                          ← max-width cleared to 100 %
+  <div class="oto-layout">      ← display:grid; 1fr 1fr
+    <div class="oto-panel">     ← sticky, top:3.5rem, height:calc(100vh-3.5rem), dark bg
+      <div class="oto-img-wrap">
+        <img class="oto-img" object-fit:contain />
+        <svg class="oto-zone-svg" />   ← zone highlight overlay
+      </div>
+      <div class="oto-nav">
+        <button class="oto-nav-btn">←</button>
+        <span class="oto-nav-counter">1 / N</span>
+        <button class="oto-nav-btn">→</button>
+      </div>
+    </div>
+    <div class="tei-body">      ← right column, scrollable
+      …transcription text…
+      <span data-oto-idx="0" />  ← zero-height anchor (inserted by JS)
+      <figure class="tei-pb-facsimile" />   ← hidden by CSS
+      …
+    </div>
+  </div>
+</main>
+```
+
+`figure.tei-pb-facsimile` elements are never shown in the text column
+(`display:none !important`).  The JS extracts their `img.src` before they
+are moved, builds the `pages[]` array, then leaves them in place (hidden).
+
+### Scroll synchronisation
+
+Zero-height `<span data-oto-idx="N">` anchors are inserted immediately
+before each `figure.tei-pb-facsimile` while still in the normal document
+flow (before the layout grid is built).  Because `display:none` elements
+have no layout box, these anchors are the only elements that report a
+valid `getBoundingClientRect()` position — they are the scroll targets for
+the prev/next buttons and the observations targets for `IntersectionObserver`.
+
+```
+IntersectionObserver({
+  rootMargin: '0px 0px -40% 0px',  // anchor counts as visible only above 60 % of viewport
+  threshold: 0
+})
+```
+
+When the earliest (lowest index) visible anchor changes, `goTo(first)`
+is called: the panel image switches to the new page and the counter updates.
+Manual prev/next buttons call `anchors[i].scrollIntoView({behavior:'smooth'})`.
+
+`IntersectionObserver` is used with a graceful absence check
+(`typeof IntersectionObserver !== 'undefined'`); older browsers get manual
+navigation only.
+
+### Zone highlighting
+
+On `mouseover` of `.tei-body`, the handler walks up the DOM from
+`event.target` looking for the nearest `[data-facs]` ancestor.  When found:
+
+1. `showZone(zoneId)` looks up the coordinates in `zoneMap`.
+2. Computes the rendered size of the image accounting for `object-fit:contain`
+   letterboxing and CSS padding:
+   ```
+   scale_x = rendered_width  / naturalWidth
+   scale_y = rendered_height / naturalHeight
+   offset_x = (container_width  - rendered_width)  / 2  + padding_left
+   offset_y = (container_height - rendered_height) / 2  + padding_top
+   ```
+3. Draws an SVG `<rect>` on `.oto-zone-svg`:
+   - fill: `rgba(99,102,241,.20)` (semi-transparent indigo)
+   - stroke: `#6366f1`, stroke-width: `2`, rx: `3`
+
+The SVG coordinate system covers the full `oto-img-wrap` area (same size
+as the `<img>`), so the letterbox offset calculation is done in the same
+space as the image padding.
+
+When the image has not finished loading when the hover fires,
+`naturalWidth / naturalHeight` are 0 and `showZone` returns early.
+An `imgEl.load` event listener re-draws the active zone once the image loads.
+
+`mouseleave` on `.tei-body` clears the active zone and the SVG rectangle.
+
+### Responsive behaviour
+
+```css
+@media (max-width: 720px) {
+  .oto-layout { display: block !important; }      /* single column */
+  .oto-panel  { position: static; height: 60vw; } /* image above text */
+  .oto-layout > .tei-body { padding: 1rem 1.5rem 2rem; }
+}
+```
+
+On narrow screens the grid collapses to a single column: image panel on top
+(fixed 60vw height), transcription below.  The panel is no longer sticky.
+
+### CSS classes reference
+
+| Class | Element | Description |
+|---|---|---|
+| `.oto-layout` | `<div>` (wrapper) | Two-column grid, `1fr 1fr`, `min-height:100vh` |
+| `.oto-panel` | `<div>` (left column) | Sticky facsimile panel, dark background |
+| `.oto-img-wrap` | `<div>` | Flex container for img + SVG, fills panel height |
+| `.oto-img` | `<img>` | Facsimile image, `object-fit:contain`, padded |
+| `.oto-zone-svg` | `<svg>` | Zone highlight overlay, `pointer-events:none` |
+| `.oto-nav` | `<div>` | Navigation bar at the bottom of the panel |
+| `.oto-nav-btn` | `<button>` | Prev / next arrow buttons |
+| `.oto-nav-counter` | `<span>` | "N / total" monospace counter |
+| `.tei-pb-facsimile` | `<figure>` | Page-break image (hidden by CSS in OTO mode) |
+| `.tei-w[data-facs]` | `<span>` | Hoverable word token, dotted indigo underline |
+| `.tei-lb[data-facs]` | `<span>` | Hoverable line anchor, narrow inline block |
+
+### Interaction with other image rendering options
+
+- **`facsimile_gallery`**: compatible with OTO.  The gallery is prepended
+  at the top of the text column and all gallery images are modal-clickable
+  (the modal JS is always present in OTO mode).
+- **`figure.layout = "modal"`**: recommended.  Inline `<figure>` images open
+  in the lightbox.  The `cursor:zoom-in` CSS is applied by the OTO CSS block.
+- **`figure.layout = "column-left/right"`**: not recommended with OTO; the
+  column JS would conflict with the OTO grid layout.
+- **`column_connectors`**: not applicable in OTO mode (there is no sidebar).
+
+---
+
 ## Note rendering
 
 Configured in `xslt_config["note_rendering"]` (JSONB sub-object).
