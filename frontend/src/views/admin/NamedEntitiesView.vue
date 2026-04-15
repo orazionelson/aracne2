@@ -75,10 +75,25 @@ const mergeError = ref<string | null>(null);
 
 // ── State — re-index ──────────────────────────────────────────────────────────
 
+interface CollectionOption {
+  id: string;
+  slug: string;
+  title: string;
+}
+
 const reindexSlug = ref("");
 const isReindexing = ref(false);
 const reindexResult = ref<string | null>(null);
 const reindexError = ref<string | null>(null);
+
+const collections = ref<CollectionOption[]>([]);
+const isLoadingCollections = ref(false);
+
+// Reindex-all state
+const isReindexingAll = ref(false);
+const reindexAllProgress = ref<{ current: number; total: number } | null>(null);
+const reindexAllResult = ref<string | null>(null);
+const reindexAllError = ref<string | null>(null);
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
@@ -117,7 +132,10 @@ async function fetchOccurrences(entityId: string, page = 1): Promise<void> {
   }
 }
 
-onMounted(() => fetchEntities());
+onMounted(() => {
+  fetchEntities();
+  fetchCollections();
+});
 
 watch([filterType, filterUnlinked], () => fetchEntities(1));
 
@@ -229,14 +247,32 @@ async function submitMerge(): Promise<void> {
 
 // ── Re-index ──────────────────────────────────────────────────────────────────
 
+async function fetchCollections(): Promise<void> {
+  isLoadingCollections.value = true;
+  try {
+    const res = await apiClient.getPaginated<CollectionOption>("/collections", {
+      params: { per_page: 200 },
+    });
+    collections.value = (res.data as CollectionOption[]).map((c) => ({
+      id: c.id,
+      slug: c.slug,
+      title: c.title,
+    }));
+  } catch {
+    // non-fatal — user can still type the slug
+  } finally {
+    isLoadingCollections.value = false;
+  }
+}
+
 async function submitReindex(): Promise<void> {
-  if (!reindexSlug.value.trim()) return;
+  if (!reindexSlug.value) return;
   isReindexing.value = true;
   reindexResult.value = null;
   reindexError.value = null;
   try {
     const res = await apiClient.post<{ data: { occurrences_indexed: number } }>(
-      `/entities/admin/reindex/${reindexSlug.value.trim()}`
+      `/entities/admin/reindex/${reindexSlug.value}`
     );
     reindexResult.value = t("entities.reindex_success", { n: res.data.occurrences_indexed });
     await fetchEntities(1);
@@ -246,6 +282,40 @@ async function submitReindex(): Promise<void> {
     reindexError.value = msg ?? t("common.error");
   } finally {
     isReindexing.value = false;
+  }
+}
+
+async function submitReindexAll(): Promise<void> {
+  if (!confirm(t("entities.reindex_all_confirm"))) return;
+  isReindexingAll.value = true;
+  reindexAllProgress.value = { current: 0, total: collections.value.length };
+  reindexAllResult.value = null;
+  reindexAllError.value = null;
+  let totalOccurrences = 0;
+  try {
+    for (const col of collections.value) {
+      reindexAllProgress.value.current += 1;
+      try {
+        const res = await apiClient.post<{ data: { occurrences_indexed: number } }>(
+          `/entities/admin/reindex/${col.slug}`
+        );
+        totalOccurrences += res.data.occurrences_indexed;
+      } catch {
+        // log and continue — don't abort the whole batch for one failure
+      }
+    }
+    reindexAllResult.value = t("entities.reindex_all_done", {
+      total: collections.value.length,
+      n: totalOccurrences,
+    });
+    await fetchEntities(1);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    reindexAllError.value = msg ?? t("common.error");
+  } finally {
+    isReindexingAll.value = false;
+    reindexAllProgress.value = null;
   }
 }
 
@@ -466,33 +536,94 @@ function typeLabel(type: EntityType): string {
     </div>
 
     <!-- ── Re-index tab ───────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'reindex'" class="max-w-md">
-      <h2 class="mb-4 text-base font-semibold text-gray-900">{{ t("entities.reindex_title") }}</h2>
-      <p class="mb-4 text-sm text-gray-500">
-        Wipes all existing entity occurrences for the collection and rebuilds the
-        index by re-running the XQuery extractor on every document.
-      </p>
-      <div class="space-y-3">
-        <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600">
-            {{ t("entities.reindex_collection_label") }}
-          </label>
-          <input
-            v-model="reindexSlug"
-            :placeholder="t('entities.reindex_collection_placeholder')"
-            class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
-          />
+    <div v-else-if="activeTab === 'reindex'" class="max-w-lg space-y-8">
+
+      <!-- Single collection -->
+      <div>
+        <h2 class="mb-1 text-base font-semibold text-gray-900">{{ t("entities.reindex_title") }}</h2>
+        <p class="mb-4 text-sm text-gray-500">{{ t("entities.reindex_description") }}</p>
+        <div class="space-y-3">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">
+              {{ t("entities.reindex_collection_label") }}
+            </label>
+            <select
+              v-if="collections.length > 0"
+              v-model="reindexSlug"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="">{{ t("entities.reindex_select_placeholder") }}</option>
+              <option v-for="col in collections" :key="col.slug" :value="col.slug">
+                {{ col.title }} ({{ col.slug }})
+              </option>
+            </select>
+            <p v-else-if="isLoadingCollections" class="text-xs text-gray-400">
+              {{ t("common.loading") }}
+            </p>
+            <input
+              v-else
+              v-model="reindexSlug"
+              :placeholder="t('entities.reindex_collection_placeholder')"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <p v-if="reindexError" class="text-sm text-red-600">{{ reindexError }}</p>
+          <p v-if="reindexResult" class="text-sm font-medium text-green-700">{{ reindexResult }}</p>
+          <button
+            :disabled="isReindexing || !reindexSlug"
+            class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            @click="submitReindex"
+          >
+            <span v-if="isReindexing" class="flex items-center gap-2">
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              {{ t("common.loading") }}
+            </span>
+            <span v-else>{{ t("entities.reindex_submit") }}</span>
+          </button>
         </div>
-        <p v-if="reindexError" class="text-sm text-red-600">{{ reindexError }}</p>
-        <p v-if="reindexResult" class="text-sm text-green-700">{{ reindexResult }}</p>
+      </div>
+
+      <!-- Reindex all -->
+      <div class="border-t border-gray-200 pt-6">
+        <h2 class="mb-1 text-base font-semibold text-gray-900">{{ t("entities.reindex_all_title") }}</h2>
+        <p class="mb-4 text-sm text-gray-500">{{ t("entities.reindex_all_description") }}</p>
+
+        <!-- Progress bar -->
+        <div v-if="isReindexingAll && reindexAllProgress" class="mb-4">
+          <div class="mb-1 flex items-center justify-between text-xs text-gray-500">
+            <span>{{ t("entities.reindex_all_progress", reindexAllProgress) }}</span>
+            <span>{{ reindexAllProgress.current }}/{{ reindexAllProgress.total }}</span>
+          </div>
+          <div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div
+              class="h-2 rounded-full bg-indigo-600 transition-all duration-300"
+              :style="{ width: `${(reindexAllProgress.current / reindexAllProgress.total) * 100}%` }"
+            />
+          </div>
+        </div>
+
+        <p v-if="reindexAllError" class="mb-3 text-sm text-red-600">{{ reindexAllError }}</p>
+        <p v-if="reindexAllResult" class="mb-3 text-sm font-medium text-green-700">{{ reindexAllResult }}</p>
+
         <button
-          :disabled="isReindexing || !reindexSlug.trim()"
-          class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          @click="submitReindex"
+          :disabled="isReindexingAll || isReindexing || collections.length === 0"
+          class="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+          @click="submitReindexAll"
         >
-          {{ isReindexing ? t("common.loading") : t("entities.reindex_submit") }}
+          <span v-if="isReindexingAll" class="flex items-center gap-2">
+            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            {{ t("entities.reindex_all_running") }}
+          </span>
+          <span v-else>{{ t("entities.reindex_all_submit", { total: collections.length }) }}</span>
         </button>
       </div>
+
     </div>
 
     <!-- ── Edit modal ─────────────────────────────────────────────────────── -->

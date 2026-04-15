@@ -482,7 +482,16 @@
     "occurrences_empty": "No occurrences found.",
     "occurrences_in": "in {collection} / {filename}",
     "occurrences_close": "Close",
-    "view_in_doc": "Open document"
+    "view_in_doc": "Open document",
+    "reindex_description": "Wipes all existing entity occurrences for the selected collection and rebuilds the index by re-running the XQuery extractor on every document.",
+    "reindex_select_placeholder": "— Select a collection —",
+    "reindex_all_title": "Re-index all collections",
+    "reindex_all_description": "Runs a full re-index on every collection in sequence. This may take several minutes for large corpora.",
+    "reindex_all_confirm": "Re-index all collections? This will wipe and rebuild the entity index for every collection. The operation may take several minutes.",
+    "reindex_all_submit": "Re-index all ({total} collections)",
+    "reindex_all_running": "Re-indexing…",
+    "reindex_all_progress": "Processing collection {current} of {total}…",
+    "reindex_all_done": "Done. {total} collection(s) re-indexed, {n} occurrence(s) total."
   },
   "webhooks": {
     "title": "Webhooks",

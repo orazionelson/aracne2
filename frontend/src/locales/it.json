@@ -482,7 +482,16 @@
     "occurrences_empty": "Nessuna occorrenza trovata.",
     "occurrences_in": "in {collection} / {filename}",
     "occurrences_close": "Chiudi",
-    "view_in_doc": "Apri documento"
+    "view_in_doc": "Apri documento",
+    "reindex_description": "Cancella tutte le occorrenze esistenti per la collezione selezionata e ricostruisce l'indice rieseguendo l'estrattore XQuery su ogni documento.",
+    "reindex_select_placeholder": "— Seleziona una collezione —",
+    "reindex_all_title": "Reindicizza tutte le collezioni",
+    "reindex_all_description": "Esegue un re-index completo su ogni collezione in sequenza. Può richiedere diversi minuti per corpora di grandi dimensioni.",
+    "reindex_all_confirm": "Reindicizzare tutte le collezioni? L'operazione azzera e ricostruisce l'indice delle entità per ogni collezione e può richiedere diversi minuti.",
+    "reindex_all_submit": "Reindicizza tutto ({total} collezioni)",
+    "reindex_all_running": "Reindicizzazione in corso…",
+    "reindex_all_progress": "Elaborazione collezione {current} di {total}…",
+    "reindex_all_done": "Completato. {total} collezione/i reindicizzata/e, {n} occorrenza/e totali."
   },
   "webhooks": {
     "title": "Webhook",
