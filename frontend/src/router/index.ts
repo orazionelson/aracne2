@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import("@/views/PublicCollectionView.vue"),
     },
     {
+      path: "/browse/:slug/bibliography",
+      name: "public-bibliography",
+      component: () => import("@/views/PublicBibliographyView.vue"),
+    },
+    {
       path: "/browse/:slug/:filename",
       name: "public-document",
       component: () => import("@/views/PublicDocumentView.vue"),

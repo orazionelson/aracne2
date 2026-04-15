@@ -250,6 +250,7 @@ const isAdmin = computed(() => auth.hasMinRole("Admin"));
 const biblioOpen = ref(false);
 const expandedBiblioVersion = ref<number | null>(null);
 const biblioDeleteError = ref<string | null>(null);
+const biblioPublicError = ref<string | null>(null);
 
 function toggleBiblioRow(version: number): void {
   expandedBiblioVersion.value = expandedBiblioVersion.value === version ? null : version;
@@ -263,6 +264,16 @@ async function handleDeleteBiblio(version: number): Promise<void> {
     await store.deleteBibliography(store.current.id, version);
   } catch (err) {
     biblioDeleteError.value = err instanceof Error ? err.message : t("common.error");
+  }
+}
+
+async function handleSetPublic(version: number, isPublic: boolean): Promise<void> {
+  if (!store.current) return;
+  biblioPublicError.value = null;
+  try {
+    await store.setBibliographyPublic(store.current.id, version, isPublic);
+  } catch (err) {
+    biblioPublicError.value = err instanceof Error ? err.message : t("common.error");
   }
 }
 
@@ -1750,60 +1761,97 @@ function statusClass(s: string): string {
 
         <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4">
           <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600">{{ biblioDeleteError }}</p>
+          <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600">{{ biblioPublicError }}</p>
 
           <p v-if="!store.bibliographies.length" class="text-sm text-gray-400">
             {{ t("bibliobuilder.panel_empty") }}
           </p>
 
-          <div v-else class="space-y-2">
-            <div
-              v-for="bib in store.bibliographies"
-              :key="bib.version"
-              class="rounded border border-gray-100"
-            >
-              <!-- Row header -->
-              <div class="flex items-center justify-between px-3 py-2">
-                <button
-                  class="flex items-center gap-2 text-left"
-                  @click="toggleBiblioRow(bib.version)"
+          <template v-else>
+            <!-- Column headers -->
+            <div class="mb-1 flex items-center gap-2 px-3 text-xs font-medium text-gray-400">
+              <span class="w-6 text-center">{{ t("bibliobuilder.col_public") }}</span>
+              <span class="flex-1">{{ t("bibliobuilder.col_version") }}</span>
+              <span class="w-32 text-right">{{ t("bibliobuilder.col_actions") }}</span>
+            </div>
+
+            <div class="space-y-1">
+              <div
+                v-for="bib in store.bibliographies"
+                :key="bib.version"
+                class="rounded border"
+                :class="bib.is_public ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white'"
+              >
+                <!-- Row header -->
+                <div class="flex items-center gap-2 px-3 py-2">
+                  <!-- Radio button: public selector -->
+                  <input
+                    type="radio"
+                    :name="`bib-public-${store.current?.id}`"
+                    :checked="bib.is_public"
+                    class="h-4 w-4 cursor-pointer accent-green-600"
+                    @change="handleSetPublic(bib.version, true)"
+                  />
+
+                  <!-- Version + date (click to expand) -->
+                  <button
+                    class="flex flex-1 items-center gap-2 text-left"
+                    @click="toggleBiblioRow(bib.version)"
+                  >
+                    <span
+                      class="rounded px-2 py-0.5 text-xs font-mono font-medium"
+                      :class="bib.is_public ? 'bg-green-200 text-green-800' : 'bg-violet-100 text-violet-700'"
+                    >
+                      v{{ bib.version }}
+                    </span>
+                    <span v-if="bib.is_public" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                      {{ t("bibliobuilder.is_public_label") }}
+                    </span>
+                    <span class="text-xs text-gray-500">
+                      {{ new Date(bib.created_at).toLocaleString() }}
+                    </span>
+                  </button>
+
+                  <!-- Actions -->
+                  <div class="flex shrink-0 items-center gap-2">
+                    <RouterLink
+                      v-if="bib.is_public && store.current"
+                      :to="{ name: 'public-bibliography', params: { slug: store.current.slug } }"
+                      target="_blank"
+                      class="text-xs text-green-600 hover:text-green-800"
+                    >
+                      {{ t("bibliobuilder.view_public") }}
+                    </RouterLink>
+                    <button
+                      class="text-xs text-gray-400 hover:text-indigo-600"
+                      @click="copyBiblio(bib.content)"
+                    >
+                      {{ t("bibliobuilder.copy_btn") }}
+                    </button>
+                    <button
+                      class="text-xs text-gray-400 hover:text-red-600"
+                      @click="handleDeleteBiblio(bib.version)"
+                    >
+                      {{ t("common.delete") }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Expanded content -->
+                <div
+                  v-if="expandedBiblioVersion === bib.version"
+                  class="border-t border-gray-100 px-3 pb-3 pt-2"
                 >
-                  <span class="rounded bg-violet-100 px-2 py-0.5 text-xs font-mono font-medium text-violet-700">
-                    v{{ bib.version }}
-                  </span>
-                  <span class="text-xs text-gray-500">
-                    {{ new Date(bib.created_at).toLocaleString() }}
-                  </span>
-                </button>
-                <div class="flex items-center gap-2">
-                  <button
-                    class="text-xs text-gray-400 hover:text-indigo-600"
-                    @click="copyBiblio(bib.content)"
-                  >
-                    {{ t("bibliobuilder.copy_btn") }}
-                  </button>
-                  <button
-                    class="text-xs text-gray-400 hover:text-red-600"
-                    @click="handleDeleteBiblio(bib.version)"
-                  >
-                    {{ t("common.delete") }}
-                  </button>
+                  <textarea
+                    :value="bib.content"
+                    readonly
+                    rows="10"
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800"
+                  />
                 </div>
               </div>
-
-              <!-- Expanded content -->
-              <div
-                v-if="expandedBiblioVersion === bib.version"
-                class="border-t border-gray-100 px-3 pb-3 pt-2"
-              >
-                <textarea
-                  :value="bib.content"
-                  readonly
-                  rows="10"
-                  class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800"
-                />
-              </div>
             </div>
-          </div>
+          </template>
         </div>
       </section>
     </template>

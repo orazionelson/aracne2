@@ -430,6 +430,11 @@
     "browse": "Browse",
     "view_in_evt": "View in EVT",
     "visit_website": "Visit the site",
+    "bibliography_btn": "Bibliography",
+    "bibliography_title": "Bibliography",
+    "bibliography_empty": "No bibliography entries found.",
+    "bibliography_not_found": "No public bibliography available for this collection.",
+    "back_to_collection": "Back to collection",
     "stat_collections": "{n} collections available",
     "recent_title": "Latest additions",
     "all_collections": "All collections",
@@ -878,7 +883,12 @@
     "edit_cancel": "Cancel edit",
     "panel_title": "Saved bibliographies",
     "panel_empty": "No saved bibliographies yet.",
-    "delete_version_confirm": "Delete version {version}? This cannot be undone."
+    "delete_version_confirm": "Delete version {version}? This cannot be undone.",
+    "col_public": "Pub.",
+    "col_version": "Version",
+    "col_actions": "Actions",
+    "is_public_label": "Public",
+    "view_public": "View public page"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"

@@ -155,6 +155,13 @@ onMounted(() => {
                   >
                     {{ t("public.view_in_evt") }}
                   </router-link>
+                  <router-link
+                    v-if="col.has_public_bibliography"
+                    :to="{ name: 'public-bibliography', params: { slug: col.slug } }"
+                    class="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50"
+                  >
+                    {{ t("public.bibliography_btn") }}
+                  </router-link>
                   <a
                     v-if="col.website_link"
                     :href="col.website_link"
@@ -229,6 +236,13 @@ onMounted(() => {
                   class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
                 >
                   {{ t("public.view_in_evt") }}
+                </router-link>
+                <router-link
+                  v-if="col.has_public_bibliography"
+                  :to="{ name: 'public-bibliography', params: { slug: col.slug } }"
+                  class="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50"
+                >
+                  {{ t("public.bibliography_btn") }}
                 </router-link>
                 <a
                   v-if="col.website_link"

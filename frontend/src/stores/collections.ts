@@ -49,6 +49,8 @@ export interface Collection {
   // Set on public collection listings when a published website with
   // show_in_public_home=True is linked to this collection.
   website_link: string | null;
+  // True when at least one saved bibliography version is marked is_public.
+  has_public_bibliography?: boolean;
 }
 
 export interface DocumentInfo {
@@ -72,6 +74,7 @@ export interface CollectionBibliography {
   content: string;
   created_at: string;
   created_by_id: string | null;
+  is_public: boolean;
 }
 
 export interface ZipUploadResult {
@@ -452,6 +455,29 @@ export const useCollectionStore = defineStore("collections", () => {
     );
   }
 
+  async function setBibliographyPublic(
+    collectionId: string,
+    version: number,
+    isPublic: boolean,
+  ): Promise<void> {
+    const updated = await apiClient.patch<CollectionBibliography>(
+      `/collections/${collectionId}/bibliographies/${version}`,
+      { is_public: isPublic },
+    );
+    // When setting one public, the backend un-publishes all others.
+    bibliographies.value = bibliographies.value.map((b) =>
+      b.version === version ? updated : { ...b, is_public: false },
+    );
+  }
+
+  async function fetchPublicBibliography(
+    slug: string,
+  ): Promise<CollectionBibliography> {
+    return await apiClient.get<CollectionBibliography>(
+      `/collections/${slug}/public-bibliography`,
+    );
+  }
+
   return {
     collections,
     current,
@@ -485,5 +511,7 @@ export const useCollectionStore = defineStore("collections", () => {
     saveBibliography,
     listBibliographies,
     deleteBibliography,
+    setBibliographyPublic,
+    fetchPublicBibliography,
   };
 });

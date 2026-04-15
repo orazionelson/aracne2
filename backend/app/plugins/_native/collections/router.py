@@ -44,6 +44,7 @@ from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.schemas.collection_bibliography import (
     CollectionBibliographyResponse,
     CollectionBibliographySave,
+    CollectionBibliographySetPublic,
 )
 from app.schemas.collection_validation import CollectionValidationRunResponse
 from app.schemas.tei_schemas import ValidationResult
@@ -119,6 +120,7 @@ async def collections_public(
     # For each collection that has a published website with show_in_public_home=True,
     # compute the link URL: website_url → collection.identifier_url → /sites/{slug}/
     website_map: dict[uuid.UUID, Website] = {}
+    public_bib_set: set[uuid.UUID] = set()
     if rows:
         col_ids = [r.id for r in rows]
         websites = list(await db.scalars(
@@ -132,6 +134,17 @@ async def collections_public(
             if w.collection_id and w.collection_id not in website_map:
                 website_map[w.collection_id] = w
 
+        # One-query batch check: which collections have a public bibliography?
+        pub_bib_rows = await db.execute(
+            select(CollectionBibliography.collection_id)
+            .where(
+                CollectionBibliography.collection_id.in_(col_ids),
+                CollectionBibliography.is_public.is_(True),
+            )
+            .distinct()
+        )
+        public_bib_set = {row[0] for row in pub_bib_rows}
+
     def _resolve_link(website: Website, identifier_url: str | None) -> str:
         if website.website_url:
             return website.website_url
@@ -144,6 +157,8 @@ async def collections_public(
         cr = CollectionResponse.model_validate(r)
         if r.id in website_map:
             cr.website_link = _resolve_link(website_map[r.id], r.identifier_url)
+        if r.id in public_bib_set:
+            cr.has_public_bibliography = True
         items.append(cr)
 
     return PaginatedResponse(
@@ -604,6 +619,85 @@ async def bibliography_delete(
         raise HTTPException(status_code=404, detail="Bibliography version not found")
     await db.delete(row)
     await db.flush()
+
+
+@router.patch("/{collection_id}/bibliographies/{version}")
+async def bibliography_set_public(
+    collection_id: str,
+    version: int,
+    body: CollectionBibliographySetPublic,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionBibliographyResponse]:
+    """Set or unset the public flag on a bibliography version [EiC+].
+
+    When is_public=True, all other versions for this collection are
+    automatically set to is_public=False (only one can be public at a time).
+    """
+    from fastapi import HTTPException
+    from sqlalchemy import update as sa_update
+
+    role: str = request.state.role
+    col = await get_collection(db, collection_id, current_user, role)
+
+    row = await db.scalar(
+        select(CollectionBibliography).where(
+            CollectionBibliography.collection_id == col.id,
+            CollectionBibliography.version == version,
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Bibliography version not found")
+
+    if body.is_public:
+        # Un-publish all other versions for this collection first.
+        await db.execute(
+            sa_update(CollectionBibliography)
+            .where(
+                CollectionBibliography.collection_id == col.id,
+                CollectionBibliography.version != version,
+            )
+            .values(is_public=False)
+        )
+
+    row.is_public = body.is_public
+    await db.flush()
+    await db.refresh(row)
+    return DataResponse(data=CollectionBibliographyResponse.model_validate(row))
+
+
+@router.get("/{collection_id}/public-bibliography")
+async def bibliography_public_get(
+    collection_id: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CollectionBibliographyResponse]:
+    """Return the public bibliography for a collection. No authentication required.
+
+    Only exposed for collections that are published and is_public=True.
+    """
+    from fastapi import HTTPException
+    from app.models.collection import Collection
+
+    # Resolve slug or UUID.
+    try:
+        cid = uuid.UUID(collection_id)
+        col = await db.get(Collection, cid)
+    except ValueError:
+        col = await db.scalar(select(Collection).where(Collection.slug == collection_id))
+
+    if col is None or not col.is_public or col.status != CollectionStatus.published:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    row = await db.scalar(
+        select(CollectionBibliography).where(
+            CollectionBibliography.collection_id == col.id,
+            CollectionBibliography.is_public.is_(True),
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="No public bibliography for this collection")
+    return DataResponse(data=CollectionBibliographyResponse.model_validate(row))
 
 
 # ── Permission management ─────────────────────────────────────────────────────

@@ -8,6 +8,10 @@ class CollectionBibliographySave(BaseModel):
     content: str
 
 
+class CollectionBibliographySetPublic(BaseModel):
+    is_public: bool
+
+
 class CollectionBibliographyResponse(BaseModel):
     id: uuid.UUID
     collection_id: uuid.UUID
@@ -15,5 +19,6 @@ class CollectionBibliographyResponse(BaseModel):
     content: str
     created_at: datetime
     created_by_id: uuid.UUID | None
+    is_public: bool
 
     model_config = {"from_attributes": True}

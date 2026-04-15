@@ -120,6 +120,8 @@ class CollectionResponse(BaseModel):
     # Populated only on public collection listings when a published website
     # with show_in_public_home=True is linked to this collection.
     website_link: str | None = None
+    # True when at least one saved bibliography version is marked is_public.
+    has_public_bibliography: bool = False
 
     model_config = {"from_attributes": True}
 

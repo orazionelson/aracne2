@@ -430,6 +430,11 @@
     "browse": "Sfoglia",
     "view_in_evt": "Visualizza in EVT",
     "visit_website": "Visita il sito",
+    "bibliography_btn": "Bibliografia",
+    "bibliography_title": "Bibliografia",
+    "bibliography_empty": "Nessuna voce bibliografica trovata.",
+    "bibliography_not_found": "Nessuna bibliografia pubblica disponibile per questa collezione.",
+    "back_to_collection": "Torna alla collezione",
     "stat_collections": "{n} collezioni disponibili",
     "recent_title": "Ultime aggiunte",
     "all_collections": "Tutte le collezioni",
@@ -878,7 +883,12 @@
     "edit_cancel": "Annulla modifica",
     "panel_title": "Bibliografie salvate",
     "panel_empty": "Nessuna bibliografia salvata.",
-    "delete_version_confirm": "Eliminare la versione {version}? L'operazione non può essere annullata."
+    "delete_version_confirm": "Eliminare la versione {version}? L'operazione non può essere annullata.",
+    "col_public": "Pub.",
+    "col_version": "Versione",
+    "col_actions": "Azioni",
+    "is_public_label": "Pubblica",
+    "view_public": "Vedi pagina pubblica"
   },
   "footer": {
     "powered_by": "Powered by Aracne2"
