@@ -135,6 +135,7 @@ function onXsltFileChange(event: Event): void {
   const file = input.files?.[0];
   if (!file) return;
   xsltFileName.value = file.name;
+  sessionStorage.setItem(`xslt_filename_${slug.value}`, file.name);
   const reader = new FileReader();
   reader.onload = (e) => {
     const content = e.target?.result as string;
@@ -148,6 +149,7 @@ function onXsltFileChange(event: Event): void {
 
 function clearXsltFile(): void {
   xsltFileName.value = "";
+  sessionStorage.removeItem(`xslt_filename_${slug.value}`);
   resetXsltFileInput();
   if (editForm.value.xslt_config) {
     (editForm.value.xslt_config as XsltConfig).content = null;
@@ -540,7 +542,7 @@ function initForm(site: Website): void {
     include_jquery: site.include_jquery ?? false,
   };
   unifiedPages.value = buildUnifiedList(site);
-  xsltFileName.value = "";
+  xsltFileName.value = sessionStorage.getItem(`xslt_filename_${site.slug}`) ?? "";
   resetXsltFileInput();
   xsltCm.setValue((site.xslt_config as XsltConfig)?.content ?? "");
   previewDocFilename.value = "";
