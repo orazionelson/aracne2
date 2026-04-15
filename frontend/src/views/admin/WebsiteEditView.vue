@@ -3,6 +3,8 @@ import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick, type Compon
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useCodeMirror } from "@/composables/useCodeMirror";
+import AiPanel from "@/components/AiPanel.vue";
+import { useAiStore } from "@/stores/ai";
 import {
   useWebsiteStore,
   type Website,
@@ -28,6 +30,7 @@ const router = useRouter();
 const store = useWebsiteStore();
 const collectionStore = useCollectionStore();
 const xsltStore = useXsltTemplateStore();
+const aiStore = useAiStore();
 
 // ── Route param ───────────────────────────────────────────────────────────────
 
@@ -42,6 +45,70 @@ const website = computed<Website | null>(
 
 const editTab = ref<"general" | "theme" | "pages" | "document" | "xslt_edit" | "indices" | "cssjs">("general");
 const showMetaPanel = ref(true);
+
+// ── XSLT AI panel ─────────────────────────────────────────────────────────────
+
+const aiEnabled = computed(
+  () => aiStore.config !== null && aiStore.config.provider !== "disabled",
+);
+
+const XSLT_PANEL_MIN = 240;
+const XSLT_PANEL_MAX = 720;
+const xsltAiOpen = ref(false);
+const xsltAiMode = ref<"debug" | "discuss" | null>(null);
+const xsltAiPanelWidth = ref(384);
+const xsltIsDragging = ref(false);
+const xsltDragStartX = ref(0);
+const xsltDragStartW = ref(0);
+const xsltDebugError = ref("");
+const xsltDiscussContext = ref<Record<string, string> | null>(null);
+
+function startXsltDrag(e: MouseEvent): void {
+  xsltIsDragging.value = true;
+  xsltDragStartX.value = e.clientX;
+  xsltDragStartW.value = xsltAiPanelWidth.value;
+  e.preventDefault();
+}
+
+function onXsltDragMove(e: MouseEvent): void {
+  if (!xsltIsDragging.value) return;
+  const delta = xsltDragStartX.value - e.clientX;
+  xsltAiPanelWidth.value = Math.max(
+    XSLT_PANEL_MIN,
+    Math.min(XSLT_PANEL_MAX, xsltDragStartW.value + delta),
+  );
+}
+
+function onXsltDragEnd(): void {
+  xsltIsDragging.value = false;
+}
+
+function openXsltAiPanel(): void {
+  xsltAiOpen.value = true;
+  if (!xsltAiMode.value) xsltAiMode.value = "debug";
+}
+
+function closeXsltAiPanel(): void {
+  aiStore.resetChat();
+  xsltAiOpen.value = false;
+  xsltAiMode.value = null;
+  xsltDiscussContext.value = null;
+}
+
+async function runXsltDebug(): Promise<void> {
+  xsltAiMode.value = "debug";
+  aiStore.clearResponse();
+  await aiStore.startStream("xslt_debug", {
+    error_msg: xsltDebugError.value,
+    xslt_source: xsltCm.getValue(),
+  });
+}
+
+function runXsltDiscuss(): void {
+  aiStore.resetChat();
+  xsltDiscussContext.value = { xslt_source: xsltCm.getValue() };
+  xsltAiMode.value = "discuss";
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -608,10 +675,13 @@ watch(editTab, async (tab) => {
 });
 
 onMounted(async () => {
+  document.addEventListener("mousemove", onXsltDragMove);
+  document.addEventListener("mouseup", onXsltDragEnd);
   await Promise.all([
     store.fetchWebsites(),
     collectionStore.fetchCollections(),
     xsltStore.fetchTemplates().catch(() => { /* non-blocking for non-Designer roles */ }),
+    aiStore.fetchConfig().catch(() => { /* non-fatal if AI is not configured */ }),
   ]);
   const site = store.websites.find((w) => w.slug === slug.value);
   if (!site) {
@@ -623,6 +693,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener("mousemove", onXsltDragMove);
+  document.removeEventListener("mouseup", onXsltDragEnd);
   if (previewBlobUrl.value) URL.revokeObjectURL(previewBlobUrl.value);
 });
 </script>
@@ -1230,32 +1302,141 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Tab: XSLT Edit (active only when source=custom).
-           v-show keeps CM5 alive across tab switches — v-if would destroy/recreate
-           the container, making the composable's reinit logic race against Vue's
-           scheduler deduplication and produce a blank editor on return.
-           h-full + flex-col makes the editor grow to fill the space between the
-           tab bar and the action bar. -->
-      <div v-show="editTab === 'xslt_edit'" class="flex h-full flex-col bg-indigo-50 p-4">
-        <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
-        <div class="flex shrink-0 items-center gap-2 pb-2">
-          <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-            {{ t("websites.doc_xslt_filename") }}…
-          </label>
-          <span class="text-xs text-gray-500">
-            {{ xsltHasContent ? t("websites.doc_xslt_saved") : t("websites.doc_xslt_no_file") }}
-            <span v-if="xsltFileName" class="ml-1 font-mono">{{ xsltFileName }}</span>
-          </span>
-          <button v-if="xsltHasContent" type="button" class="text-xs text-red-500 hover:text-red-700" @click="clearXsltFile">
-            {{ t("websites.doc_xslt_clear") }}
-          </button>
+           v-show keeps CM5 alive across tab switches. The outer div is a flex
+           row: editor pane on the left, optional AI side panel on the right. -->
+      <div v-show="editTab === 'xslt_edit'" class="flex h-full" :class="xsltIsDragging ? 'select-none' : ''">
+
+        <!-- Editor pane -->
+        <div class="flex min-w-0 flex-1 flex-col bg-indigo-50 p-4">
+          <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
+          <div class="flex shrink-0 items-center gap-2 pb-2">
+            <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+              {{ t("websites.doc_xslt_filename") }}…
+            </label>
+            <span class="text-xs text-gray-500">
+              {{ xsltHasContent ? t("websites.doc_xslt_saved") : t("websites.doc_xslt_no_file") }}
+              <span v-if="xsltFileName" class="ml-1 font-mono">{{ xsltFileName }}</span>
+            </span>
+            <button v-if="xsltHasContent" type="button" class="text-xs text-red-500 hover:text-red-700" @click="clearXsltFile">
+              {{ t("websites.doc_xslt_clear") }}
+            </button>
+            <!-- AI button -->
+            <button
+              v-if="aiEnabled"
+              class="ml-auto inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors"
+              :class="xsltAiOpen
+                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100'"
+              @click="xsltAiOpen ? closeXsltAiPanel() : openXsltAiPanel()"
+            >
+              <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/>
+              </svg>
+              {{ t("ai.button_editor") }}
+            </button>
+          </div>
+
+          <div class="flex min-h-0 flex-1 flex-col">
+            <div
+              :ref="onXsltEditorRef"
+              class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
+            />
+          </div>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col">
-          <div
-            :ref="onXsltEditorRef"
-            class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
-          />
+        <!-- Resize handle -->
+        <div
+          v-if="xsltAiOpen"
+          class="group relative z-10 flex w-[5px] shrink-0 cursor-col-resize select-none items-center justify-center transition-colors"
+          :class="xsltIsDragging ? 'bg-indigo-400' : 'bg-gray-200 hover:bg-indigo-400'"
+          @mousedown="startXsltDrag"
+        >
+          <div class="pointer-events-none flex flex-col gap-[3px]">
+            <span v-for="i in 5" :key="i" class="h-[3px] w-[3px] rounded-full transition-colors" :class="xsltIsDragging ? 'bg-white' : 'bg-gray-400 group-hover:bg-white'" />
+          </div>
         </div>
+
+        <!-- AI side panel -->
+        <div
+          v-if="xsltAiOpen"
+          class="flex shrink-0 flex-col border-l border-gray-200 bg-white"
+          :style="{ width: xsltAiPanelWidth + 'px' }"
+        >
+          <!-- Discuss mode: AiPanel component handles full sidebar -->
+          <AiPanel
+            v-if="xsltAiMode === 'discuss' && xsltDiscussContext"
+            prompt-slug="xslt_discuss"
+            :context="xsltDiscussContext"
+            :title="t('ai.panel_xslt_discuss_title')"
+            :chat="true"
+            :show-apply="false"
+            :sidebar="true"
+            @close="closeXsltAiPanel"
+          />
+
+          <!-- Debug mode: one-shot custom panel -->
+          <template v-else>
+            <!-- Header: Debug / Discuss buttons + close -->
+            <div class="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
+              <div class="flex gap-1.5">
+                <button
+                  :disabled="aiStore.isStreaming"
+                  class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  @click="runXsltDebug"
+                >
+                  {{ t("websites.xslt_debug") }}
+                </button>
+                <button
+                  :disabled="aiStore.isStreaming"
+                  class="inline-flex items-center gap-1.5 rounded border border-violet-300 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  @click="runXsltDiscuss"
+                >
+                  <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  {{ t("ai.discuss") }}
+                </button>
+              </div>
+              <button class="text-gray-400 hover:text-gray-700" @click="closeXsltAiPanel">✕</button>
+            </div>
+
+            <!-- Error message textarea (optional context for Debug) -->
+            <div class="shrink-0 border-b border-gray-100 px-3 py-2">
+              <label class="mb-1 block text-xs font-medium text-gray-500">{{ t("websites.xslt_debug_error_label") }}</label>
+              <textarea
+                v-model="xsltDebugError"
+                :placeholder="t('websites.xslt_debug_error_placeholder')"
+                rows="3"
+                class="w-full resize-none rounded border border-gray-200 px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+
+            <!-- Response area -->
+            <div class="min-h-0 flex-1 overflow-y-auto">
+              <span v-if="!aiStore.response && !aiStore.streamError && !aiStore.isStreaming" class="block px-4 py-3 text-xs text-gray-400">
+                {{ t("ai.idle_hint") }}
+              </span>
+              <span v-else-if="!aiStore.response && aiStore.isStreaming" class="block animate-pulse px-4 py-3 text-gray-400">
+                {{ t("ai.thinking") }}
+              </span>
+              <span v-else-if="aiStore.streamError" class="block px-4 py-3 font-mono text-sm text-red-600">{{ aiStore.streamError }}</span>
+              <span v-else class="block whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800">{{ aiStore.response }}</span>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center border-t border-gray-100 px-4 py-2">
+              <button
+                v-if="aiStore.isStreaming"
+                class="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+                @click="aiStore.stopStream()"
+              >
+                {{ t("ai.stop") }}
+              </button>
+              <span v-else class="text-xs text-gray-400">{{ aiStore.config?.provider ?? "" }}</span>
+            </div>
+          </template>
+        </div>
+
       </div>
 
       <!-- Tab: Indices -->

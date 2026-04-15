@@ -414,7 +414,8 @@
     "chat_input_placeholder": "Scrivi una domanda di approfondimento...",
     "send": "Invia",
     "you": "Tu",
-    "assistant": "AI"
+    "assistant": "AI",
+    "panel_xslt_discuss_title": "AI · Discussione XSLT"
   },
   "evt": {
     "read_button": "Leggi in EVT",
@@ -698,7 +699,10 @@
     "page_create_title": "Nuova pagina",
     "page_edit_title": "Modifica pagina",
     "page_content": "Contenuto (Markdown)",
-    "page_content_hint": "# Titolo\n\nTesto del paragrafo..."
+    "page_content_hint": "# Titolo\n\nTesto del paragrafo...",
+    "xslt_debug": "Debug",
+    "xslt_debug_error_label": "Messaggio di errore (opzionale)",
+    "xslt_debug_error_placeholder": "Incolla qui il messaggio di errore, o lascia vuoto per analizzare l'intero foglio di stile..."
   },
   "search_engines": {
     "title": "Motori di ricerca",

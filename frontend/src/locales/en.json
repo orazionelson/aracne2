@@ -414,7 +414,8 @@
     "chat_input_placeholder": "Ask a follow-up question...",
     "send": "Send",
     "you": "You",
-    "assistant": "AI"
+    "assistant": "AI",
+    "panel_xslt_discuss_title": "AI · Discuss XSLT"
   },
   "evt": {
     "read_button": "Read in EVT",
@@ -698,7 +699,10 @@
     "page_create_title": "New page",
     "page_edit_title": "Edit page",
     "page_content": "Content (Markdown)",
-    "page_content_hint": "# Heading\n\nParagraph text..."
+    "page_content_hint": "# Heading\n\nParagraph text...",
+    "xslt_debug": "Debug",
+    "xslt_debug_error_label": "Error message (optional)",
+    "xslt_debug_error_placeholder": "Paste the error message here, or leave blank to analyze the whole stylesheet..."
   },
   "search_engines": {
     "title": "Search Engines",

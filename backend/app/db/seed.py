@@ -216,6 +216,20 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
         ["error_msg", "xslt_source"],
         "xslt",
     ),
+    (
+        "xslt_discuss",
+        "Discuss XSLT stylesheet",
+        "Opens a free multi-turn conversation about an XSLT 1.0 stylesheet.",
+        (
+            "You are an XSLT 1.0 expert. The user wants to discuss the following "
+            "XSLT stylesheet.\n"
+            "Answer in clear, natural language. You may include corrected XSLT "
+            "snippets when helpful, but focus on explaining and guiding.\n\n"
+            "Stylesheet:\n{xslt_source}"
+        ),
+        ["xslt_source"],
+        "xslt",
+    ),
 ]
 
 
