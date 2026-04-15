@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { apiClient } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 
 const { t } = useI18n();
+const router = useRouter();
+const auth = useAuthStore();
+const isAdmin = auth.hasMinRole("Admin");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -130,9 +135,18 @@ function typeLabel(type: EntityType): string {
 <template>
   <div class="mx-auto max-w-4xl p-6">
     <!-- Header -->
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">{{ t("entities.title") }}</h1>
-      <p class="mt-1 text-sm text-gray-500">{{ t("entities.subtitle") }}</p>
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">{{ t("entities.title") }}</h1>
+        <p class="mt-1 text-sm text-gray-500">{{ t("entities.subtitle") }}</p>
+      </div>
+      <button
+        v-if="isAdmin"
+        class="shrink-0 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+        @click="router.push({ name: 'admin-entities' })"
+      >
+        {{ t("entities.admin_panel_btn") }}
+      </button>
     </div>
 
     <!-- Filters -->

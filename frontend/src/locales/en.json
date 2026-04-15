@@ -491,7 +491,8 @@
     "reindex_all_submit": "Re-index all ({total} collections)",
     "reindex_all_running": "Re-indexing…",
     "reindex_all_progress": "Processing collection {current} of {total}…",
-    "reindex_all_done": "Done. {total} collection(s) re-indexed, {n} occurrence(s) total."
+    "reindex_all_done": "Done. {total} collection(s) re-indexed, {n} occurrence(s) total.",
+    "admin_panel_btn": "Admin panel"
   },
   "webhooks": {
     "title": "Webhooks",

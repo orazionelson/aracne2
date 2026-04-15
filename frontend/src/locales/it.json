@@ -491,7 +491,8 @@
     "reindex_all_submit": "Reindicizza tutto ({total} collezioni)",
     "reindex_all_running": "Reindicizzazione in corso…",
     "reindex_all_progress": "Elaborazione collezione {current} di {total}…",
-    "reindex_all_done": "Completato. {total} collezione/i reindicizzata/e, {n} occorrenza/e totali."
+    "reindex_all_done": "Completato. {total} collezione/i reindicizzata/e, {n} occorrenza/e totali.",
+    "admin_panel_btn": "Pannello admin"
   },
   "webhooks": {
     "title": "Webhook",
