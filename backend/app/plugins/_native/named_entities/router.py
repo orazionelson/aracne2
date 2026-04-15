@@ -80,8 +80,8 @@ async def admin_list_entities(
 async def admin_get_tag_config(
     _: _EicDep,
     db: _DbDep,
-) -> DataResponse[list[dict]]:
-    """EiC+: return the current entity tag configuration."""
+) -> DataResponse[list[str]]:
+    """EiC+: return the current list of TEI tag names to index."""
     config = await service.get_tag_config(db)
     return DataResponse(data=config)
 
@@ -91,8 +91,8 @@ async def admin_put_tag_config(
     body: EntityTagConfig,
     _: _EicDep,
     db: _DbDep,
-) -> DataResponse[list[dict]]:
-    """EiC+: replace the entity tag configuration.
+) -> DataResponse[list[str]]:
+    """EiC+: replace the list of TEI tag names to index.
 
     After saving, all collection re-indexes will use the new tag list.
     Existing index data is NOT automatically refreshed — trigger a re-index
@@ -101,14 +101,13 @@ async def admin_put_tag_config(
     import json
     from app.models.system_setting import SystemSetting
 
-    payload = [{"tag": e.tag, "type": e.type} for e in body.tags]
     row = await db.get(SystemSetting, "entity_index_tags")
     if row:
-        row.value = json.dumps(payload)
+        row.value = json.dumps(body.tags)
     else:
-        db.add(SystemSetting(key="entity_index_tags", value=json.dumps(payload), type="string"))
+        db.add(SystemSetting(key="entity_index_tags", value=json.dumps(body.tags), type="string"))
     await db.commit()
-    return DataResponse(data=payload)
+    return DataResponse(data=body.tags)
 
 
 @router.post("/admin/merge")

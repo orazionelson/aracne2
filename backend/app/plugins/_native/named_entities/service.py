@@ -244,10 +244,11 @@ async def deindex_document(
     )
 
 
-async def get_tag_config(db: AsyncSession) -> list[dict[str, str]]:
-    """Return the current entity tag configuration from SystemSetting.
+async def get_tag_config(db: AsyncSession) -> list[str]:
+    """Return the list of TEI tag names to extract, from SystemSetting.
 
     Falls back to the default three TEI names if the setting is absent or invalid.
+    The tag name IS the entity type stored in the DB.
     """
     import json
     from app.models.system_setting import SystemSetting
@@ -256,22 +257,16 @@ async def get_tag_config(db: AsyncSession) -> list[dict[str, str]]:
     if row and row.value:
         try:
             cfg = json.loads(row.value)
-            if isinstance(cfg, list) and all(
-                isinstance(e, dict) and "tag" in e and "type" in e for e in cfg
-            ):
+            if isinstance(cfg, list) and all(isinstance(e, str) and e.strip() for e in cfg):
                 return cfg
         except (json.JSONDecodeError, TypeError):
             pass
-    return [
-        {"tag": "persName",  "type": "persName"},
-        {"tag": "placeName", "type": "placeName"},
-        {"tag": "orgName",   "type": "orgName"},
-    ]
+    return ["persName", "placeName", "orgName"]
 
 
-def _tags_param(config: list[dict[str, str]]) -> str:
-    """Convert tag config to a whitespace-separated tag list for the XQuery."""
-    return " ".join(entry["tag"] for entry in config)
+def _tags_param(config: list[str]) -> str:
+    """Convert tag list to a whitespace-separated string for the XQuery."""
+    return " ".join(config)
 
 
 async def reindex_collection(

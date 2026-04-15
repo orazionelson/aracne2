@@ -92,12 +92,7 @@ const collectionsLoadError = ref(false);
 
 // ── State — tag config ────────────────────────────────────────────────────────
 
-interface TagEntry {
-  tag: string;
-  type: string;
-}
-
-const tagConfig = ref<TagEntry[]>([]);
+const tagConfig = ref<string[]>([]);
 const isLoadingConfig = ref(false);
 const configLoadError = ref(false);
 const isSavingConfig = ref(false);
@@ -343,8 +338,8 @@ async function fetchTagConfig(): Promise<void> {
   isLoadingConfig.value = true;
   configLoadError.value = false;
   try {
-    const res = await apiClient.get<TagEntry[]>("/entities/admin/tag-config");
-    tagConfig.value = res.map((e) => ({ tag: e.tag, type: e.type }));
+    const res = await apiClient.get<string[]>("/entities/admin/tag-config");
+    tagConfig.value = [...res];
     configDirty.value = false;
   } catch {
     configLoadError.value = true;
@@ -354,7 +349,7 @@ async function fetchTagConfig(): Promise<void> {
 }
 
 function addTagRow(): void {
-  tagConfig.value.push({ tag: "", type: "" });
+  tagConfig.value.push("");
   configDirty.value = true;
 }
 
@@ -369,8 +364,8 @@ function onTagConfigChange(): void {
 }
 
 async function saveTagConfig(): Promise<void> {
-  const invalid = tagConfig.value.some((e) => !e.tag.trim() || !e.type.trim());
-  if (invalid) {
+  const cleaned = tagConfig.value.map((t) => t.trim()).filter((t) => t !== "");
+  if (cleaned.length === 0) {
     configSaveError.value = t("entities.config_save_error");
     return;
   }
@@ -378,7 +373,8 @@ async function saveTagConfig(): Promise<void> {
   configSaveError.value = null;
   configSaved.value = false;
   try {
-    await apiClient.put("/entities/admin/tag-config", { tags: tagConfig.value });
+    await apiClient.put("/entities/admin/tag-config", { tags: cleaned });
+    tagConfig.value = cleaned;
     configDirty.value = false;
     configSaved.value = true;
   } catch (err) {
@@ -771,50 +767,30 @@ function typeLabel(type: EntityType): string {
           {{ t("entities.config_stale_warning") }}
         </div>
 
-        <!-- Tag table -->
-        <div class="overflow-hidden rounded border border-gray-200">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <tr>
-                <th class="px-3 py-2 text-left">{{ t("entities.config_col_tag") }}</th>
-                <th class="px-3 py-2 text-left">{{ t("entities.config_col_type") }}</th>
-                <th class="w-10 px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, idx) in tagConfig"
-                :key="idx"
-                class="border-t border-gray-100"
-              >
-                <td class="px-3 py-1.5">
-                  <input
-                    v-model="row.tag"
-                    :placeholder="t('entities.config_tag_placeholder')"
-                    class="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm focus:border-indigo-500 focus:outline-none"
-                    @input="onTagConfigChange"
-                  />
-                </td>
-                <td class="px-3 py-1.5">
-                  <input
-                    v-model="row.type"
-                    :placeholder="t('entities.config_type_placeholder')"
-                    class="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm focus:border-indigo-500 focus:outline-none"
-                    @input="onTagConfigChange"
-                  />
-                </td>
-                <td class="px-3 py-1.5 text-center">
-                  <button
-                    class="text-xs text-red-500 hover:text-red-700"
-                    :title="t('entities.config_remove')"
-                    @click="removeTagRow(idx)"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Tag list -->
+        <div class="space-y-2">
+          <div
+            v-for="(tag, idx) in tagConfig"
+            :key="idx"
+            class="flex items-center gap-2"
+          >
+            <input
+              :value="tag"
+              :placeholder="t('entities.config_tag_placeholder')"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+              @input="tagConfig[idx] = ($event.target as HTMLInputElement).value; onTagConfigChange()"
+            />
+            <button
+              class="text-xs text-red-500 hover:text-red-700"
+              :title="t('entities.config_remove')"
+              @click="removeTagRow(idx)"
+            >
+              ✕
+            </button>
+          </div>
+          <p v-if="tagConfig.length === 0" class="text-sm text-gray-400 italic">
+            {{ t("entities.config_tag_placeholder") }}…
+          </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">

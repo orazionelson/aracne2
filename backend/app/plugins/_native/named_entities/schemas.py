@@ -47,27 +47,21 @@ class EntityMergeRequest(BaseModel):
     target_id: uuid.UUID
 
 
-class EntityTagEntry(BaseModel):
-    """One configured TEI tag → entity type mapping."""
-    tag: str
-    type: str
-
-    @field_validator("tag", "type")
-    @classmethod
-    def not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Field cannot be empty")
-        return v
-
-
 class EntityTagConfig(BaseModel):
-    """Full tag configuration payload for PUT /entities/admin/tag-config."""
-    tags: list[EntityTagEntry]
+    """Full tag configuration payload for PUT /entities/admin/tag-config.
+
+    *tags* is a list of TEI local element names to extract, e.g.
+    ``["persName", "placeName", "orgName", "objectName"]``.
+    The tag name is used directly as the entity type stored in the DB.
+    """
+    tags: list[str]
 
     @field_validator("tags")
     @classmethod
-    def not_empty_list(cls, v: list[EntityTagEntry]) -> list[EntityTagEntry]:
+    def validate_tags(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("At least one tag must be configured")
-        return v
+        cleaned = [t.strip() for t in v]
+        if any(not t for t in cleaned):
+            raise ValueError("Tag names cannot be empty")
+        return cleaned
