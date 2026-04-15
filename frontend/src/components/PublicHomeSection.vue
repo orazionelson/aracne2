@@ -70,48 +70,48 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="ph-page min-h-screen bg-gray-50">
     <!-- Public header -->
     <header
-      class="flex h-14 items-center gap-3 px-6 text-white shadow"
+      class="ph-header flex h-14 items-center gap-3 px-6 text-white shadow"
       :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
     >
-      <router-link to="/" class="flex items-center gap-2 font-bold text-lg hover:opacity-80">
+      <router-link to="/" class="ph-logo flex items-center gap-2 font-bold text-lg hover:opacity-80">
         <img
           v-if="uiConfig.config.platform_logo_url"
           :src="uiConfig.config.platform_logo_url"
           alt="Logo"
-          class="h-8 w-auto object-contain"
+          class="ph-logo-img h-8 w-auto object-contain"
         />
-        <span>{{ uiConfig.config.platform_name }}</span>
+        <span class="ph-site-name">{{ uiConfig.config.platform_name }}</span>
       </router-link>
-      <span v-if="showLoginButton" class="ml-auto text-sm opacity-80">
+      <span v-if="showLoginButton" class="ph-login ml-auto text-sm opacity-80">
         <router-link to="/login" class="hover:underline">
           {{ t("auth.sign_in") }}
         </router-link>
       </span>
     </header>
 
-    <main class="mx-auto max-w-4xl px-4 py-10">
+    <main class="ph-main mx-auto max-w-4xl px-4 py-10">
       <!-- Search bar -->
-      <div v-if="showSearch" class="mb-8">
-        <form class="flex gap-2" @submit.prevent="handleSearch">
+      <div v-if="showSearch" class="ph-search mb-8">
+        <form class="ph-search-form flex gap-2" @submit.prevent="handleSearch">
           <input
             v-model="searchInput"
             type="search"
             :placeholder="t('public.search_placeholder')"
-            class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none"
+            class="ph-search-input flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none"
           />
           <button
             type="submit"
-            class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            class="ph-search-btn rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
           >
             {{ t("collections.search_button") }}
           </button>
           <button
             v-if="activeSearch"
             type="button"
-            class="rounded-lg border px-4 py-2.5 text-sm hover:bg-gray-100"
+            class="ph-search-reset rounded-lg border px-4 py-2.5 text-sm hover:bg-gray-100"
             @click="clearSearch"
           >
             {{ t("collections.search_reset") }}
@@ -123,60 +123,60 @@ onMounted(() => {
         <!-- Stats bar -->
         <p
           v-if="!isLoading && total > 0 && !isSearching"
-          class="mb-6 text-sm text-gray-500"
+          class="ph-stats mb-6 text-sm text-gray-500"
         >
           {{ t("public.stat_collections", { n: total }) }}
         </p>
 
-        <p v-if="isLoading" class="text-gray-400 text-sm">{{ t("common.loading") }}</p>
+        <p v-if="isLoading" class="ph-loading text-gray-400 text-sm">{{ t("common.loading") }}</p>
 
         <template v-else-if="collections.length > 0">
           <!-- Ultime aggiunte (only on page 1 when not searching) -->
-          <section v-if="recentItems.length > 0" class="mb-10">
-            <h2 class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <section v-if="recentItems.length > 0" class="last-add mb-10">
+            <h2 class="last-add-title mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {{ t("public.recent_title") }}
             </h2>
-            <div class="grid gap-4 sm:grid-cols-3">
+            <div class="last-add-grid grid gap-4 sm:grid-cols-3">
               <div
                 v-for="col in recentItems"
                 :key="col.id"
-                class="rounded-xl border border-indigo-100 bg-white p-4 shadow-sm transition hover:shadow-md"
+                class="last-add-card rounded-xl border border-indigo-100 bg-white p-4 shadow-sm transition hover:shadow-md"
               >
-                <h3 class="font-semibold text-gray-900 line-clamp-2 text-sm leading-snug">
+                <h3 class="col-title font-semibold text-gray-900 line-clamp-2 text-sm leading-snug">
                   {{ col.title }}
                 </h3>
-                <p v-if="col.description" class="mt-1 text-xs text-gray-500 line-clamp-2">
+                <p v-if="col.description" class="col-desc mt-1 text-xs text-gray-500 line-clamp-2">
                   {{ col.description }}
                 </p>
-                <div class="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
-                  <span v-if="col.author">{{ col.author }}</span>
-                  <span v-if="col.pub_year">{{ col.pub_year }}</span>
+                <div class="col-meta mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
+                  <span class="col-author" v-if="col.author">{{ col.author }}</span>
+                  <span class="col-year" v-if="col.pub_year">{{ col.pub_year }}</span>
                 </div>
-                <div class="mt-3 flex flex-wrap gap-2">
+                <div class="col-actions mt-3 flex flex-wrap gap-2">
                   <router-link
                     :to="{ name: 'public-collection', params: { slug: col.slug } }"
-                    class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                    class="btn-browse rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
                   >
                     {{ t("public.browse") }}
                   </router-link>
                   <router-link
                     v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
                     :to="{ name: 'collection-read', params: { slug: col.slug } }"
-                    class="rounded border border-indigo-300 px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
+                    class="btn-evt rounded border border-indigo-300 px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
                   >
                     {{ t("public.view_in_evt") }}
                   </router-link>
                   <router-link
                     v-if="col.has_public_bibliography"
                     :to="{ name: 'public-bibliography', params: { slug: col.slug } }"
-                    class="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50"
+                    class="btn-bibliography rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-700 hover:bg-amber-50"
                   >
                     {{ t("public.bibliography_btn") }}
                   </router-link>
                   <router-link
                     v-if="col.entity_count && col.entity_count > 0"
                     :to="{ name: 'public-entities', params: { slug: col.slug } }"
-                    class="rounded border border-violet-300 px-2.5 py-1 text-xs text-violet-700 hover:bg-violet-50"
+                    class="btn-entities rounded border border-violet-300 px-2.5 py-1 text-xs text-violet-700 hover:bg-violet-50"
                   >
                     {{ t("public.entities_btn") }}
                   </router-link>
@@ -185,7 +185,7 @@ onMounted(() => {
                     :href="col.website_link"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="rounded border border-teal-300 px-2.5 py-1 text-xs text-teal-700 hover:bg-teal-50"
+                    class="btn-website rounded border border-teal-300 px-2.5 py-1 text-xs text-teal-700 hover:bg-teal-50"
                   >
                     {{ t("public.visit_website") }}
                   </a>
@@ -197,75 +197,75 @@ onMounted(() => {
           <!-- Full collection list -->
           <h2
             v-if="isSearching"
-            class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
+            class="search-results-title mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
           >
             {{ t("public.search_results", { n: total }) }}
           </h2>
           <h2
             v-else-if="recentItems.length > 0"
-            class="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
+            class="all-collections-title mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500"
           >
             {{ t("public.all_collections") }}
           </h2>
 
-          <ul class="space-y-4">
+          <ul class="collection-list space-y-4">
             <li
               v-for="col in collections"
               :key="col.id"
-              class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+              class="collection-item rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
             >
-              <h2 class="text-lg font-semibold text-gray-900">{{ col.title }}</h2>
-              <p v-if="col.description" class="mt-1 text-sm text-gray-500 line-clamp-2">
+              <h2 class="col-title text-lg font-semibold text-gray-900">{{ col.title }}</h2>
+              <p v-if="col.description" class="col-desc mt-1 text-sm text-gray-500 line-clamp-2">
                 {{ col.description }}
               </p>
-              <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
-                <span v-if="col.author">{{ col.author }}</span>
-                <span v-if="col.publisher">{{ col.publisher }}</span>
-                <span v-if="col.pub_year">{{ col.pub_year }}</span>
-                <span v-if="col.published_at">
+              <div class="col-meta mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
+                <span class="col-author" v-if="col.author">{{ col.author }}</span>
+                <span class="col-publisher" v-if="col.publisher">{{ col.publisher }}</span>
+                <span class="col-year" v-if="col.pub_year">{{ col.pub_year }}</span>
+                <span class="col-date" v-if="col.published_at">
                   {{ t("public.published") }}
                   {{ new Date(col.published_at).toLocaleDateString() }}
                 </span>
               </div>
               <!-- Document snippets (only shown when search matched document content) -->
-              <ul v-if="col.doc_hits.length > 0" class="mt-3 space-y-1">
-                <li v-for="hit in col.doc_hits" :key="hit.filename">
+              <ul v-if="col.doc_hits.length > 0" class="doc-hits mt-3 space-y-1">
+                <li v-for="hit in col.doc_hits" :key="hit.filename" class="doc-hit">
                   <router-link
                     :to="{ name: 'public-document', params: { slug: col.slug, filename: hit.filename } }"
-                    class="block rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700 hover:bg-yellow-100"
+                    class="doc-hit-link block rounded bg-yellow-50 px-3 py-1.5 text-xs text-gray-700 hover:bg-yellow-100"
                   >
-                    <span class="font-medium text-gray-500">{{ hit.filename }}</span>
+                    <span class="hit-filename font-medium text-gray-500">{{ hit.filename }}</span>
                     <span class="mx-1 text-gray-300">—</span>
-                    <span class="italic">…{{ hit.snippet }}…</span>
+                    <span class="hit-snippet italic">…{{ hit.snippet }}…</span>
                   </router-link>
                 </li>
               </ul>
 
-              <div class="mt-4 flex flex-wrap gap-2">
+              <div class="col-actions mt-4 flex flex-wrap gap-2">
                 <router-link
                   :to="{ name: 'public-collection', params: { slug: col.slug } }"
-                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  class="btn-browse rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   {{ t("public.browse") }}
                 </router-link>
                 <router-link
                   v-if="uiConfig.config.evt_enabled && col.doc_count === 1 && col.evt_enabled"
                   :to="{ name: 'collection-read', params: { slug: col.slug } }"
-                  class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+                  class="btn-evt rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
                 >
                   {{ t("public.view_in_evt") }}
                 </router-link>
                 <router-link
                   v-if="col.has_public_bibliography"
                   :to="{ name: 'public-bibliography', params: { slug: col.slug } }"
-                  class="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50"
+                  class="btn-bibliography rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50"
                 >
                   {{ t("public.bibliography_btn") }}
                 </router-link>
                 <router-link
                   v-if="col.entity_count && col.entity_count > 0"
                   :to="{ name: 'public-entities', params: { slug: col.slug } }"
-                  class="rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
+                  class="btn-entities rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
                 >
                   {{ t("public.entities_btn") }}
                 </router-link>
@@ -274,7 +274,7 @@ onMounted(() => {
                   :href="col.website_link"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="rounded border border-teal-300 px-3 py-1.5 text-sm text-teal-700 hover:bg-teal-50"
+                  class="btn-website rounded border border-teal-300 px-3 py-1.5 text-sm text-teal-700 hover:bg-teal-50"
                 >
                   {{ t("public.visit_website") }}
                 </a>
@@ -285,11 +285,11 @@ onMounted(() => {
           <!-- Pagination (hidden during search — search has no server pagination) -->
           <nav
             v-if="!isSearching && totalPages > 1"
-            class="mt-10 flex items-center justify-center gap-1"
+            class="ph-pagination mt-10 flex items-center justify-center gap-1"
             :aria-label="t('public.pagination_label')"
           >
             <button
-              class="rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
+              class="pagination-prev rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
               :disabled="page === 1"
               @click="goToPage(page - 1)"
             >
@@ -297,10 +297,10 @@ onMounted(() => {
             </button>
 
             <template v-for="(num, idx) in pageNumbers" :key="idx">
-              <span v-if="num === '…'" class="px-2 text-gray-400 select-none">…</span>
+              <span v-if="num === '…'" class="pagination-ellipsis px-2 text-gray-400 select-none">…</span>
               <button
                 v-else
-                class="min-w-[2rem] rounded border px-2 py-1.5 text-sm transition"
+                class="pagination-page min-w-[2rem] rounded border px-2 py-1.5 text-sm transition"
                 :class="num === page
                   ? 'bg-indigo-600 border-indigo-600 text-white font-semibold'
                   : 'hover:bg-gray-100'"
@@ -311,7 +311,7 @@ onMounted(() => {
             </template>
 
             <button
-              class="rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
+              class="pagination-next rounded border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-100"
               :disabled="page === totalPages"
               @click="goToPage(page + 1)"
             >
@@ -320,11 +320,11 @@ onMounted(() => {
           </nav>
         </template>
 
-        <p v-else-if="activeSearch" class="text-gray-500 text-sm">
+        <p v-else-if="activeSearch" class="ph-no-results text-gray-500 text-sm">
           {{ t("collections.no_results", { q: activeSearch }) }}
         </p>
 
-        <p v-else class="text-gray-500 text-sm">
+        <p v-else class="ph-empty text-gray-500 text-sm">
           {{ t("public.no_collections") }}
         </p>
       </template>
