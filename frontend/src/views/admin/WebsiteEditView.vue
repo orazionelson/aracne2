@@ -1385,7 +1385,7 @@ onBeforeUnmount(() => {
 
     <!-- Action bar -->
     <div class="shrink-0 border-t border-gray-200 bg-white px-4 py-3 flex items-center gap-2">
-      <template v-if="editTab !== 'pages' && editTab !== 'indices' && editTab !== 'xslt_edit'">
+      <template v-if="editTab !== 'pages' && editTab !== 'indices'">
         <p v-if="editError" class="mr-auto text-xs text-red-600">{{ editError }}</p>
         <button :disabled="isEditing" class="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50" @click="saveEdit">
           {{ isEditing ? t("common.saving") : t("common.save") }}
