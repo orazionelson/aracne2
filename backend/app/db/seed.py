@@ -230,6 +230,56 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
         ["xslt_source"],
         "xslt",
     ),
+    (
+        "bibliobuilder",
+        "Bibliography Normalizer",
+        (
+            "Normalizes raw TEI <bibl>/<biblStruct> entries into a deduplicated, "
+            "normalized <listBibl>. Feed the AI a flat XML file of extracted entries."
+        ),
+        (
+            "You normalize bibliographic entries into TEI <biblStruct>.\n\n"
+            "INPUT: an XML file with raw <bibl> and <biblStruct> elements, each carrying\n"
+            "a @source attribute (original document id) and an optional @n (sequence number).\n\n"
+            "OUTPUT: a single <listBibl> with deduplicated, normalized <biblStruct> entries.\n\n"
+            "RULES:\n\n"
+            "1. CLASSIFY each entry as: journalArticle | book | bookSection | webpage | manuscript | other\n\n"
+            "2. NORMALIZE to <biblStruct> using this minimal structure:\n\n"
+            "   <biblStruct xml:id=\"ID\" type=\"TYPE\">\n"
+            "     <analytic>          <!-- only for articles/chapters -->\n"
+            "       <author><persName><surname/><forename/></persName></author>\n"
+            "       <title level=\"a\"/>\n"
+            "     </analytic>\n"
+            "     <monogr>\n"
+            "       <author/>         <!-- only for monographs -->\n"
+            "       <editor/>         <!-- if applicable -->\n"
+            "       <title level=\"m|j|s\"/>\n"
+            "       <imprint>\n"
+            "         <pubPlace/>\n"
+            "         <publisher/>\n"
+            "         <date when=\"ISO\"/>\n"
+            "       </imprint>\n"
+            "       <biblScope unit=\"volume|issue|page\"/>\n"
+            "     </monogr>\n"
+            "     <idno type=\"DOI|URL|ISBN\"/>\n"
+            "   </biblStruct>\n\n"
+            "   Omit empty elements. Keep only what is present or safely inferable.\n\n"
+            "3. xml:id FORMAT: bib_<surname>_<year>[a-z] (ASCII lowercase, disambiguate as needed).\n"
+            "   No author → bib_<first_3_title_words>_<year>. Manuscripts → ms_<repo>_<shelfmark>.\n\n"
+            "4. DEDUPLICATE: match on ≥2 of {author, title, date, identifier}.\n"
+            "   Keep the richest entry, merge missing fields from others.\n"
+            "   Record source documents in <note type=\"sources\">source1, source2</note>.\n\n"
+            "5. PARSE FREE TEXT in <bibl> without child elements:\n"
+            "   \"Smith 1998, pp. 45-67\" → extract author, date, pages.\n"
+            "   Flag anything ambiguous in <note type=\"editorNote\"/>.\n\n"
+            "6. Do NOT invent data. Uncertain dates → @notBefore/@notAfter. Missing fields → omit.\n\n"
+            "7. SORT output: author A-Z, then date ascending.\n\n"
+            "Respond ONLY with the <listBibl> XML block. No commentary.\n"
+            "If entries exceed 80, process in batches of 80 and say NEXT to continue."
+        ),
+        [],
+        None,
+    ),
 ]
 
 
