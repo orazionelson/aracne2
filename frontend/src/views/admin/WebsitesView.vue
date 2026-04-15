@@ -91,6 +91,16 @@ function resetXsltFileInput(): void {
 // Document tab — CodeMirror editor for custom XSLT source
 const xsltEditorContainer = ref<HTMLElement | null>(null);
 const xsltEditorInitialContent = ref<string>("");
+const showXsltModal = ref<boolean>(false);
+
+function openXsltModal(): void {
+  showXsltModal.value = true;
+  nextTick(() => xsltCm.refresh());
+}
+
+function closeXsltModal(): void {
+  showXsltModal.value = false;
+}
 
 /**
  * Callback ref for the CM5 container div. Vue does not reliably update a
@@ -110,16 +120,6 @@ const xsltCm = useCodeMirror(xsltEditorContainer, {
     }
   },
 });
-
-// When the user switches to 'custom' source, CM5 transitions from display:none
-// to visible. Call refresh() after the DOM update so CM5 re-measures correctly.
-// (autoRefresh:true would also catch it via 250ms polling, but this is instant.)
-watch(
-  () => (editForm.value.xslt_config as XsltConfig | undefined)?.source,
-  (src) => {
-    if (src === 'custom') nextTick(() => xsltCm.refresh());
-  },
-);
 
 // Document tab — preview state
 const previewDocFilename = ref<string>("");
@@ -1616,10 +1616,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </label>
           </div>
 
-          <!-- Upload + inline CodeMirror editor.
-               v-show (not v-if) keeps the container in the DOM whenever the
-               Document tab is open, so CM5 can initialise once at tab-open
-               time. autoRefresh:true re-measures when display:none is lifted. -->
+          <!-- Upload section for custom XSLT (file picker + Edit button). -->
           <div v-show="(editForm.xslt_config as XsltConfig).source === 'custom'" class="mt-3 space-y-2">
             <input
               id="xslt-file-input"
@@ -1646,26 +1643,63 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
               >
                 {{ t("websites.doc_xslt_clear") }}
               </button>
-            </div>
-            <!-- Toolbar row: fullscreen toggle -->
-            <div class="flex justify-end">
               <button
+                v-if="xsltFileName"
                 type="button"
-                class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                @click="xsltCm.toggleFullscreen()"
+                class="ml-auto inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 hover:bg-indigo-100"
+                @click="openXsltModal"
               >
-                {{ xsltCm.isFullscreen.value ? t("common.exit_fullscreen") : t("common.fullscreen") }}
+                <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                {{ t("websites.doc_xslt_edit_file") }}
               </button>
             </div>
-            <!-- CodeMirror XML editor — edits xslt_config.content directly.
-                 Named callback ref instead of plain string ref: Vue does not
-                 reliably update a Ref<HTMLElement> when the element lives
-                 inside a v-for + nested v-if/v-show chain. -->
+          </div>
+
+          <!-- Full-screen XSLT editor modal.
+               v-show (not v-if) keeps the CM5 container in the DOM so the
+               editor stays initialised between opens. autoRefresh:true handles
+               the display:none → visible transition automatically; openXsltModal
+               also calls refresh() after the next tick for an instant repaint. -->
+          <div
+            v-show="showXsltModal"
+            class="fixed inset-0 z-50 flex flex-col bg-white"
+            role="dialog"
+            :aria-label="t('websites.doc_xslt_modal_title')"
+          >
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <span class="font-medium text-sm text-gray-800">
+                {{ t("websites.doc_xslt_modal_title") }}
+                <span v-if="xsltFileName" class="ml-2 font-mono text-xs text-gray-500">{{ xsltFileName }}</span>
+              </span>
+              <button
+                type="button"
+                class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                :aria-label="t('websites.doc_xslt_modal_close')"
+                @click="closeXsltModal"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <!-- CodeMirror fills all available space -->
             <div
               :ref="onXsltEditorRef"
-              class="overflow-hidden rounded border border-gray-300"
-              style="height: 260px;"
+              class="min-h-0 flex-1 overflow-hidden [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
             />
+            <!-- Modal footer -->
+            <div class="flex items-center justify-end border-t border-gray-200 px-4 py-3">
+              <button
+                type="button"
+                class="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700"
+                @click="closeXsltModal"
+              >
+                {{ t("websites.doc_xslt_modal_close") }}
+              </button>
+            </div>
           </div>
 
           <!-- Catalog -->
