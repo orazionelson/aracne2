@@ -1249,12 +1249,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col gap-1">
-          <div class="flex shrink-0 justify-end">
-            <button type="button" class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50" @click="xsltCm.toggleFullscreen()">
-              {{ xsltCm.isFullscreen.value ? t("documents.exit_fullscreen") : t("documents.fullscreen") }}
-            </button>
-          </div>
+        <div class="flex min-h-0 flex-1 flex-col">
           <div
             :ref="onXsltEditorRef"
             class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
