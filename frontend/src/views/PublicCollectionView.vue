@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { apiClient } from "@/services/api";
+import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 
 interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
 interface PublicCollectionDetail {
@@ -19,6 +20,7 @@ interface PublicCollectionDetail {
 const { t } = useI18n();
 const route = useRoute();
 const uiConfig = useUiConfigStore();
+usePublicCustomCss();
 
 const slug = route.params.slug as string;
 const collection = ref<PublicCollectionDetail | null>(null);

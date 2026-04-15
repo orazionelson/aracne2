@@ -422,6 +422,9 @@ const homeShowSearch = computed(
 const homeShowLoginButton = computed(
   () => settingStore.getSetting("home_show_login_button") === "true",
 );
+const homePropagateCss = computed(
+  () => settingStore.getSetting("home_propagate_css") === "true",
+);
 const togglingHomeSetting = ref<Record<string, boolean>>({});
 
 async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
@@ -1617,6 +1620,30 @@ onMounted(async () => {
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
               :class="homeShowLoginButton ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+      </div>
+
+        <!-- home_propagate_css -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_propagate_css") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_propagate_css_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['home_propagate_css']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="homePropagateCss ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('home_propagate_css', homePropagateCss)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="homePropagateCss ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
         </div>

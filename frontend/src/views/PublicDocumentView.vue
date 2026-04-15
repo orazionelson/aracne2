@@ -4,11 +4,13 @@ import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useUiConfigStore } from "@/stores/ui_config";
+import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 
 const { t } = useI18n();
 const route = useRoute();
 const auth = useAuthStore();
 const uiConfig = useUiConfigStore();
+usePublicCustomCss();
 
 const slug = route.params.slug as string;
 const filename = route.params.filename as string;

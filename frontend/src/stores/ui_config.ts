@@ -11,6 +11,7 @@ export interface UiConfig {
   home_show_search: boolean;
   home_show_login_button: boolean;
   has_custom_homepage_css: boolean;
+  home_propagate_css: boolean;
   evt_enabled: boolean;
 }
 
@@ -23,6 +24,7 @@ const DEFAULTS: UiConfig = {
   home_show_search: true,
   home_show_login_button: true,
   has_custom_homepage_css: false,
+  home_propagate_css: false,
   evt_enabled: false,
 };
 

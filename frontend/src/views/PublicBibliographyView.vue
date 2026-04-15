@@ -4,11 +4,13 @@ import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { useCollectionStore, type CollectionBibliography } from "@/stores/collections";
+import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 
 const { t } = useI18n();
 const route = useRoute();
 const uiConfig = useUiConfigStore();
 const collectionsStore = useCollectionStore();
+usePublicCustomCss();
 
 const slug = route.params.slug as string;
 const isLoading = ref(true);

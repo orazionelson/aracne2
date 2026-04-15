@@ -46,6 +46,7 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("home_show_collections", "true", "bool"),
     ("home_show_search", "true", "bool"),
     ("home_show_login_button", "true", "bool"),
+    ("home_propagate_css", "false", "bool"),
     ("evt_enabled", "false", "bool"),
     # AI integration settings (encrypted values are written empty; Admin fills them).
     ("ai_provider", "disabled", "string"),

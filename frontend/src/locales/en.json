@@ -160,6 +160,8 @@
     "homepage_show_search_hint": "Allow visitors to search collections by title",
     "homepage_show_login_button": "Enable login button",
     "homepage_show_login_button_hint": "Display a login link in the public homepage header",
+    "homepage_propagate_css": "Propagate custom CSS",
+    "homepage_propagate_css_hint": "Apply the custom stylesheet to all public pages (collection list, document, entities, bibliography), not just the homepage.",
     "homepage_css_title": "Custom stylesheet",
     "homepage_css_hint": "Upload a .css file to override the public homepage styles. It is injected as the last stylesheet, so it takes precedence over all defaults.",
     "homepage_css_status_active": "Custom CSS active",

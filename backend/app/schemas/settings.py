@@ -22,6 +22,7 @@ class UiConfigResponse(BaseModel):
     home_show_search: bool
     home_show_login_button: bool
     has_custom_homepage_css: bool
+    home_propagate_css: bool
     evt_enabled: bool
 
 
