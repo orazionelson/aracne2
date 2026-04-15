@@ -179,3 +179,46 @@ async def test_list_media_unauthenticated_returns_401(
         f"/api/v1/collections/{assigned_collection.slug}/documents/doc.xml/media"
     )
     assert res.status_code == 401
+
+
+# ── Security: path-traversal via doc_filename ─────────────────────────────────
+
+
+@pytest.mark.parametrize("bad_doc", [
+    "../etc/passwd.xml",
+    "../../secret.xml",
+    ".hidden.xml",
+    "no-extension",
+    "a" * 300 + ".xml",
+])
+@pytest.mark.asyncio
+async def test_list_media_rejects_path_traversal_doc_filename(
+    client: AsyncClient,
+    seeded_user: User,
+    assigned_collection: Collection,
+    bad_doc: str,
+) -> None:
+    """doc_filename values that could cause path traversal are rejected with 422."""
+    token = await _login_as(client, TEST_USER_USERNAME, TEST_USER_PASSWORD)
+    res = await client.get(
+        f"/api/v1/collections/{assigned_collection.slug}/documents/{bad_doc}/media",
+        headers=_auth(token),
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upload_media_rejects_path_traversal_doc_filename(
+    client: AsyncClient,
+    seeded_user: User,
+    assigned_collection: Collection,
+) -> None:
+    """Uploading to a path-traversal doc_filename is rejected with 422."""
+    import io
+    token = await _login_as(client, TEST_USER_USERNAME, TEST_USER_PASSWORD)
+    res = await client.post(
+        f"/api/v1/collections/{assigned_collection.slug}/documents/../secret.xml/media",
+        headers=_auth(token),
+        files={"file": ("img.png", io.BytesIO(b"PNG"), "image/png")},
+    )
+    assert res.status_code == 422

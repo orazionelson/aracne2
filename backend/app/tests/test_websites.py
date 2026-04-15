@@ -309,3 +309,64 @@ async def test_refresh_tags_calls_existdb(
             headers=_auth(token),
         )
     assert res.status_code == 200
+
+
+# ── New fields: website_url and show_in_public_home ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_website_with_url_and_public_home_flag(
+    client: AsyncClient, seeded_designer: User
+) -> None:
+    """Designer can set website_url and show_in_public_home when creating a website."""
+    token = await _login_as(client, DESIGNER_USERNAME, DESIGNER_PASSWORD)
+    res = await client.post(
+        "/api/v1/websites",
+        headers=_auth(token),
+        json={
+            "slug": "site-with-url",
+            "title": "Site With URL",
+            "website_url": "https://example.com",
+            "show_in_public_home": True,
+        },
+    )
+    assert res.status_code == 201
+    data = res.json()["data"]
+    assert data["website_url"] == "https://example.com"
+    assert data["show_in_public_home"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_website_url_and_public_home_flag(
+    client: AsyncClient, seeded_designer: User, seeded_website: Website
+) -> None:
+    """Designer can update website_url and show_in_public_home on an existing website."""
+    token = await _login_as(client, DESIGNER_USERNAME, DESIGNER_PASSWORD)
+    res = await client.put(
+        f"/api/v1/websites/{seeded_website.slug}",
+        headers=_auth(token),
+        json={
+            "slug": seeded_website.slug,
+            "title": seeded_website.title,
+            "website_url": "https://updated.example.com",
+            "show_in_public_home": True,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["website_url"] == "https://updated.example.com"
+    assert data["show_in_public_home"] is True
+
+
+@pytest.mark.asyncio
+async def test_website_url_defaults_to_none(
+    client: AsyncClient, seeded_designer: User, seeded_website: Website
+) -> None:
+    """A website created without website_url has website_url=None and show_in_public_home=False."""
+    token = await _login_as(client, DESIGNER_USERNAME, DESIGNER_PASSWORD)
+    res = await client.get(
+        f"/api/v1/websites/{seeded_website.slug}", headers=_auth(token)
+    )
+    assert res.status_code == 200
+    assert res.json()["data"]["website_url"] is None
+    assert res.json()["data"]["show_in_public_home"] is False
