@@ -7,11 +7,9 @@ const { t } = useI18n();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type EntityType = "person" | "place" | "org";
-
 interface NamedEntity {
   id: string;
-  type: EntityType;
+  type: string;
   canonical_form: string;
   authority_ref: string | null;
   occurrence_count: number;
@@ -46,7 +44,7 @@ const entities = ref<NamedEntity[]>([]);
 const pagination = ref<Pagination>({ page: 1, per_page: 30, total: 0, total_pages: 1 });
 const isLoading = ref(false);
 const error = ref<string | null>(null);
-const filterType = ref<EntityType | "">("");
+const filterType = ref("");
 const filterQ = ref("");
 const filterUnlinked = ref(false);
 
@@ -409,16 +407,20 @@ function renderHelpHtml(raw: string): string {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function typeBadgeClass(type: EntityType): string {
-  return {
-    person: "bg-indigo-100 text-indigo-700",
-    place:  "bg-emerald-100 text-emerald-700",
-    org:    "bg-amber-100 text-amber-700",
-  }[type] ?? "bg-gray-100 text-gray-600";
+const TYPE_BADGE: Record<string, string> = {
+  persName:  "bg-indigo-100 text-indigo-700",
+  placeName: "bg-emerald-100 text-emerald-700",
+  geogName:  "bg-emerald-100 text-emerald-700",
+  orgName:   "bg-amber-100 text-amber-700",
+  name:      "bg-violet-100 text-violet-700",
+};
+
+function typeBadgeClass(type: string): string {
+  return TYPE_BADGE[type] ?? "bg-gray-100 text-gray-600";
 }
 
-function typeLabel(type: EntityType): string {
-  return t(`entities.type_${type}`);
+function typeLabel(type: string): string {
+  return type;
 }
 </script>
 
@@ -449,15 +451,13 @@ function typeLabel(type: EntityType): string {
     <div v-if="activeTab === 'admin'">
       <!-- Filters -->
       <div class="mb-4 flex flex-wrap items-center gap-3">
-        <select
+        <input
           v-model="filterType"
-          class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-        >
-          <option value="">{{ t("entities.type_all") }}</option>
-          <option value="person">{{ t("entities.type_person") }}</option>
-          <option value="place">{{ t("entities.type_place") }}</option>
-          <option value="org">{{ t("entities.type_org") }}</option>
-        </select>
+          type="text"
+          :placeholder="t('entities.type_filter_placeholder')"
+          class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+          @keydown="onSearchKeydown"
+        />
         <input
           v-model="filterQ"
           type="text"
