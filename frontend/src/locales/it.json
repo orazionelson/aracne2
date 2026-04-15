@@ -409,6 +409,8 @@
     "edit_prompt": "Modifica",
     "delete_prompt": "Elimina",
     "confirm_delete_prompt": "Eliminare questo prompt? L'azione è irreversibile.",
+    "discuss": "Discuti",
+    "panel_discuss_title": "AI · Discuti il documento",
     "chat_input_placeholder": "Scrivi una domanda di approfondimento...",
     "send": "Invia",
     "you": "Tu",

@@ -409,6 +409,8 @@
     "edit_prompt": "Edit",
     "delete_prompt": "Delete",
     "confirm_delete_prompt": "Delete this prompt? This cannot be undone.",
+    "discuss": "Discuss",
+    "panel_discuss_title": "AI · Discuss document",
     "chat_input_placeholder": "Ask a follow-up question...",
     "send": "Send",
     "you": "You",

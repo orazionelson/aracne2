@@ -12,6 +12,7 @@ import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
+import AiPanel from '@/components/AiPanel.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -564,9 +565,12 @@ async function handleSave(): Promise<void> {
 // ── AI ────────────────────────────────────────────────────────────────────────
 const showAiPanel = ref(false);
 const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== 'disabled');
-const lastAiPrompt = ref<'validate' | 'improve' | null>(null);
+const lastAiPrompt = ref<'validate' | 'improve' | 'discuss' | null>(null);
 const schemaLabel = ref('TEI P5');
 const aiNoErrors = ref(false);
+// Snapshot of context captured at the moment "Discuss" is clicked; kept stable
+// so AiPanel's deep context-watcher does not restart the stream on each keystroke.
+const discussContext = ref<Record<string, string> | null>(null);
 
 const activeEditor = computed(() => singleCm.editorInstance.value);
 
@@ -578,9 +582,10 @@ function openAiPanel(): void {
 }
 
 function closeAiPanel(): void {
-  aiStore.stopStream();
-  aiStore.clearResponse();
+  aiStore.resetChat();
   aiNoErrors.value = false;
+  lastAiPrompt.value = null;
+  discussContext.value = null;
   showAiPanel.value = false;
 }
 
@@ -631,6 +636,20 @@ async function runImproveAi(): Promise<void> {
     collection_slug: slug,
     selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
   });
+}
+
+function runDiscussAi(): void {
+  openAiPanel();
+  aiStore.resetChat();
+  aiNoErrors.value = false;
+  // Capture a snapshot of the current selection so AiPanel receives a stable
+  // context object — a reactive computed would retrigger the stream on every edit.
+  discussContext.value = {
+    filename,
+    collection_slug: slug,
+    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+  };
+  lastAiPrompt.value = 'discuss';
 }
 
 function applyAiResponse(): void {
@@ -966,6 +985,20 @@ async function runValidation(): Promise<void> {
     class="flex flex-shrink-0 flex-col bg-white"
     :style="{ width: panelWidth + 'px' }"
   >
+    <!-- Discuss mode: AiPanel takes over the full sidebar -->
+    <AiPanel
+      v-if="lastAiPrompt === 'discuss' && discussContext"
+      prompt-slug="document_discuss"
+      :context="discussContext"
+      :title="t('ai.panel_discuss_title')"
+      :chat="true"
+      :show-apply="false"
+      :sidebar="true"
+      @close="closeAiPanel"
+    />
+
+    <!-- Validate / Improve mode: custom inline panel -->
+    <template v-else>
     <!-- Header with action buttons -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
       <div class="flex gap-1.5">
@@ -982,6 +1015,13 @@ async function runValidation(): Promise<void> {
           @click="runImproveAi"
         >
           {{ t('ai.improve') }}
+        </button>
+        <button
+          :disabled="aiStore.isStreaming"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runDiscussAi"
+        >
+          {{ t('ai.discuss') }}
         </button>
       </div>
       <button class="text-gray-400 hover:text-gray-700" @click="closeAiPanel">✕</button>
@@ -1018,6 +1058,7 @@ async function runValidation(): Promise<void> {
         {{ t('ai.apply') }}
       </button>
     </div>
+    </template>
   </div>
   <!-- Media panel sidebar -->
   <MediaPanel

@@ -187,6 +187,23 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
         "editor",
     ),
     (
+        "document_discuss",
+        "Discuss document content",
+        "Opens a free multi-turn conversation about the selected XML fragment.",
+        (
+            "You are a TEI P5 XML expert. The user wants to discuss the following "
+            "XML fragment from their document.\n"
+            "Answer in clear, natural language. You may include corrected XML "
+            "snippets when helpful, but focus on explaining and guiding rather "
+            "than producing raw XML only.\n\n"
+            "File: {filename}\n"
+            "Collection: {collection_slug}\n\n"
+            "Selection:\n{selection}"
+        ),
+        ["filename", "collection_slug", "selection"],
+        "editor",
+    ),
+    (
         "xslt_debug",
         "Debug XSLT stylesheet",
         "Analyzes an XSLT 1.0 stylesheet and explains the reported error.",
