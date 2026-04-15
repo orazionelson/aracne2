@@ -1239,11 +1239,10 @@ onBeforeUnmount(() => {
           <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
             {{ t("websites.doc_xslt_filename") }}…
           </label>
-          <span class="text-xs text-gray-500">{{
-            xsltFileName ? xsltFileName
-              : xsltHasContent ? t("websites.doc_xslt_saved")
-              : t("websites.doc_xslt_no_file")
-          }}</span>
+          <span class="text-xs text-gray-500">
+            {{ xsltHasContent ? t("websites.doc_xslt_saved") : t("websites.doc_xslt_no_file") }}
+            <span v-if="xsltFileName" class="ml-1 font-mono">{{ xsltFileName }}</span>
+          </span>
           <button v-if="xsltHasContent" type="button" class="text-xs text-red-500 hover:text-red-700" @click="clearXsltFile">
             {{ t("websites.doc_xslt_clear") }}
           </button>
