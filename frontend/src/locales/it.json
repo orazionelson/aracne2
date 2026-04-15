@@ -625,6 +625,7 @@
     "doc_xslt_clear": "Rimuovi",
     "doc_xslt_source_catalog": "Seleziona dal catalogo",
     "doc_xslt_catalog_placeholder": "— scegli un foglio di stile —",
+    "doc_xslt_catalog_download": "Scarica il foglio di stile selezionato",
     "doc_img_section": "Rendering immagini",
     "doc_img_enabled": "Attivo",
     "doc_img_figure_title": "Figure (<figure>/<graphic>)",

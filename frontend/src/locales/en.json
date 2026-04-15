@@ -625,6 +625,7 @@
     "doc_xslt_clear": "Clear",
     "doc_xslt_source_catalog": "Select from catalog",
     "doc_xslt_catalog_placeholder": "— choose a stylesheet —",
+    "doc_xslt_catalog_download": "Download selected stylesheet",
     "doc_img_section": "Image Rendering",
     "doc_img_enabled": "Enabled",
     "doc_img_figure_title": "Figures (<figure>/<graphic>)",

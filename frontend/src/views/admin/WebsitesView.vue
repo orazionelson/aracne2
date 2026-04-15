@@ -1670,16 +1670,30 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
 
           <!-- Catalog -->
           <div v-if="(editForm.xslt_config as XsltConfig).source === 'catalog'" class="mt-3">
-            <select
-              v-model="(editForm.xslt_config as XsltConfig).catalog_id"
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
-            >
-              <option :value="null">{{ t("websites.doc_xslt_catalog_placeholder") }}</option>
-              <option v-for="tpl in xsltStore.templates" :key="tpl.id" :value="tpl.id">
-                {{ tpl.name }}
-                <template v-if="tpl.processor !== 'lxml'"> ({{ tpl.processor }})</template>
-              </option>
-            </select>
+            <div class="flex items-center gap-2">
+              <select
+                v-model="(editForm.xslt_config as XsltConfig).catalog_id"
+                class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option :value="null">{{ t("websites.doc_xslt_catalog_placeholder") }}</option>
+                <option v-for="tpl in xsltStore.templates" :key="tpl.id" :value="tpl.id">
+                  {{ tpl.name }}
+                  <template v-if="tpl.processor !== 'lxml'"> ({{ tpl.processor }})</template>
+                </option>
+              </select>
+              <button
+                type="button"
+                :disabled="!(editForm.xslt_config as XsltConfig).catalog_id"
+                class="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:border-indigo-400 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
+                :title="t('websites.doc_xslt_catalog_download')"
+                @click="xsltStore.downloadTemplate((editForm.xslt_config as XsltConfig).catalog_id!)"
+              >
+                <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {{ t("websites.doc_xslt_catalog_download") }}
+              </button>
+            </div>
             <p v-if="xsltStore.templates.length === 0" class="mt-1 text-xs text-gray-400">
               {{ t("settings.xslt_templates_empty") }}
             </p>

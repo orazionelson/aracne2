@@ -63,5 +63,18 @@ export const useXsltTemplateStore = defineStore("xslt_templates", () => {
     templates.value = templates.value.filter((t) => t.id !== id);
   }
 
-  return { templates, fetchTemplates, getTemplate, createTemplate, patchTemplate, deleteTemplate };
+  /** Download a catalog template as an .xsl file. */
+  async function downloadTemplate(id: string): Promise<void> {
+    const tpl = await getTemplate(id);
+    const blob = new Blob([tpl.content], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // Sanitise the template name for use as a filename.
+    a.download = tpl.name.replace(/[^a-zA-Z0-9._-]/g, "_") + ".xsl";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return { templates, fetchTemplates, getTemplate, createTemplate, patchTemplate, deleteTemplate, downloadTemplate };
 });
