@@ -88,6 +88,7 @@ const reindexError = ref<string | null>(null);
 
 const collections = ref<CollectionOption[]>([]);
 const isLoadingCollections = ref(false);
+const collectionsLoadError = ref(false);
 
 // Reindex-all state
 const isReindexingAll = ref(false);
@@ -249,6 +250,7 @@ async function submitMerge(): Promise<void> {
 
 async function fetchCollections(): Promise<void> {
   isLoadingCollections.value = true;
+  collectionsLoadError.value = false;
   try {
     const res = await apiClient.getPaginated<CollectionOption>("/collections", {
       params: { per_page: 200 },
@@ -259,7 +261,7 @@ async function fetchCollections(): Promise<void> {
       title: c.title,
     }));
   } catch {
-    // non-fatal — user can still type the slug
+    collectionsLoadError.value = true;
   } finally {
     isLoadingCollections.value = false;
   }
@@ -548,24 +550,33 @@ function typeLabel(type: EntityType): string {
               {{ t("entities.reindex_collection_label") }}
             </label>
             <select
-              v-if="collections.length > 0"
               v-model="reindexSlug"
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              :disabled="isLoadingCollections || collectionsLoadError"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
             >
-              <option value="">{{ t("entities.reindex_select_placeholder") }}</option>
-              <option v-for="col in collections" :key="col.slug" :value="col.slug">
-                {{ col.title }} ({{ col.slug }})
+              <option v-if="isLoadingCollections" value="" disabled>
+                {{ t("common.loading") }}
               </option>
+              <option v-else-if="collectionsLoadError" value="" disabled>
+                {{ t("entities.reindex_collections_load_error") }}
+              </option>
+              <option v-else-if="collections.length === 0" value="" disabled>
+                {{ t("entities.reindex_no_collections") }}
+              </option>
+              <template v-else>
+                <option value="">{{ t("entities.reindex_select_placeholder") }}</option>
+                <option v-for="col in collections" :key="col.slug" :value="col.slug">
+                  {{ col.title }} ({{ col.slug }})
+                </option>
+              </template>
             </select>
-            <p v-else-if="isLoadingCollections" class="text-xs text-gray-400">
-              {{ t("common.loading") }}
-            </p>
-            <input
-              v-else
-              v-model="reindexSlug"
-              :placeholder="t('entities.reindex_collection_placeholder')"
-              class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
-            />
+            <button
+              v-if="collectionsLoadError"
+              class="mt-1 text-xs text-indigo-600 hover:underline"
+              @click="fetchCollections"
+            >
+              {{ t("entities.reindex_retry_load") }}
+            </button>
           </div>
           <p v-if="reindexError" class="text-sm text-red-600">{{ reindexError }}</p>
           <p v-if="reindexResult" class="text-sm font-medium text-green-700">{{ reindexResult }}</p>
