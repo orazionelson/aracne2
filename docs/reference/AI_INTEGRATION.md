@@ -32,8 +32,10 @@ frontend/src/
 └── components/AiPanel.vue  # Reusable panel (single-shot and chat modes)
 
 frontend/src/views/
-├── CollectionDetailView.vue  # Uses AiPanel with chat=true (validation context)
-└── DocumentEditView.vue      # Uses ai store directly (editor context, no chat)
+├── CollectionDetailView.vue        # Uses AiPanel with chat=true (validation context)
+├── DocumentEditView.vue            # Uses ai store directly (editor context, no chat)
+├── admin/WebsiteEditView.vue       # XSLT editor: custom debug panel + AiPanel discuss mode
+└── CollectionBibliobuilderview.vue # Bibliobuilder: custom panel wired to ai store directly
 ```
 
 ---
@@ -346,8 +348,44 @@ Stylesheet:
 {xslt_source}
 ```
 
-Used in: XSLT editor (not yet wired to AiPanel as of this writing — see DEFERRED.md).
-Chat mode: not yet determined.
+Used in: `WebsiteEditView` — XSLT editor, Debug mode.
+The user pastes an error message into a dedicated textarea; clicking "Debug"
+calls `aiStore.startStream("xslt_debug", { error_msg, xslt_source })`.
+Single-shot (not chat). Does **not** use the `AiPanel` component — the response
+is shown in a custom inline panel (see [XSLT editor AI panel](#xslt-editor-ai-panel) below).
+
+### `xslt_discuss` (target_context: `"xslt"`)
+
+Context vars: `xslt_source`
+
+```
+You are an XSLT 1.0 expert. The user wants to discuss the following
+XSLT stylesheet.
+Answer in clear, natural language. You may include corrected XSLT
+snippets when helpful, but focus on explaining and guiding.
+
+Stylesheet:
+{xslt_source}
+```
+
+Used in: `WebsiteEditView` — XSLT editor, Discuss mode.
+Clicking "Discuss" switches the side panel to the `AiPanel` component with
+`chat=true` and `show-apply=false`. The stylesheet source is captured once
+at the moment the button is clicked and passed as `{ xslt_source }` context.
+
+### `bibliobuilder` (target_context: `null`)
+
+Context vars: _(none — all content passed as the first user message)_
+
+The prompt instructs the model to normalize raw TEI `<bibl>`/`<biblStruct>`
+entries into a deduplicated, sorted `<listBibl>` following a strict TEI P5
+structure. Batch size cap: 80 entries per turn.
+
+Used in: `CollectionBibliobuilderview` — dedicated Bibliobuilder page ([see below](#bibliobuilder-flow)).
+Does **not** use the `AiPanel` component. Wired to `aiStore` directly.
+Multi-turn chat via `continueChat`. The first call passes the extracted XML
+as the user message (no context object); follow-up turns pass the user's
+free-text questions the same way.
 
 ---
 
@@ -416,6 +454,7 @@ context:    Record<string, string>   // values for {placeholder} substitution
 title?:     string                   // panel header label
 sidebar?:   boolean                  // fills parent height (vs. fixed card)
 chat?:      boolean                  // enables multi-turn chat mode (default: false)
+showApply?: boolean                  // when false, hides the Apply button (default: true)
 ```
 
 ### Emits
@@ -558,6 +597,169 @@ No migration needed — seeding is idempotent (skips existing slugs).
    schema change is needed; the key is stored/managed through the Settings UI.
 5. Update the `ai_provider` validation in the Settings view frontend if there is a
    closed enum there.
+
+---
+
+## XSLT editor AI panel
+
+**File**: `frontend/src/views/admin/WebsiteEditView.vue`, tab `xslt_edit`
+
+The XSLT editor tab contains a **resizable side panel** that hosts two distinct AI
+modes. The panel is only visible when the XSLT source is set to `custom` (inline
+CodeMirror editor active). The AI button is hidden entirely when the AI provider
+is `"disabled"`.
+
+### Layout
+
+```
+┌────────────────────────────────┬──┬──────────────────────────┐
+│                                │  │                          │
+│   CodeMirror editor            │▓▓│   AI side panel          │
+│   (min-width: 0, flex-1)       │▓▓│   (resizable, 240–720px) │
+│                                │  │                          │
+└────────────────────────────────┴──┴──────────────────────────┘
+                              drag handle
+```
+
+The drag handle is a 5px column; dragging leftward expands the AI panel.
+State: `xsltAiPanelWidth` (default 384px), `xsltIsDragging`.
+
+### Panel modes
+
+The panel has two mutually exclusive modes controlled by `xsltAiMode`:
+
+| Mode | Value | Prompt | Component |
+|------|-------|--------|-----------|
+| Debug | `"debug"` | `xslt_debug` | Custom template (no `AiPanel`) |
+| Discuss | `"discuss"` | `xslt_discuss` | `<AiPanel :chat="true" :show-apply="false" :sidebar="true">` |
+
+#### Debug mode (default)
+
+Single-shot. The user enters an error message in a `<textarea>` (`xsltDebugError`),
+then clicks "Debug":
+
+```
+runXsltDebug()
+  → xsltAiMode = "debug"
+  → aiStore.clearResponse()          // keep chatHistory, clear live buffer only
+  → aiStore.startStream("xslt_debug", {
+        error_msg:   xsltDebugError.value,     // from textarea
+        xslt_source: xsltCm.getValue(),        // current CM5 buffer
+    })
+```
+
+The response streams into `aiStore.response` and is displayed in a monospace
+`<span>` in the response area. No chat follow-up. The user can click "Debug" again
+after changing the error text or editing the stylesheet.
+
+#### Discuss mode
+
+Multi-turn chat. The user clicks "Discuss":
+
+```
+runXsltDiscuss()
+  → aiStore.resetChat()              // clear any previous debug response
+  → xsltDiscussContext.value = { xslt_source: xsltCm.getValue() }
+  → xsltAiMode = "discuss"
+```
+
+This replaces the custom debug panel with the `AiPanel` component (mounted via
+`v-if="xsltAiMode === 'discuss' && xsltDiscussContext"`). `AiPanel` auto-starts on
+mount, immediately sending the stylesheet as context. The `@close` event calls
+`closeXsltAiPanel()`.
+
+`show-apply` is `false` in this context because the output is explanatory text,
+not code meant to be applied to the editor.
+
+**Important**: the stylesheet content (`xslt_source`) is captured once, at the
+moment "Discuss" is clicked. If the stylesheet changes afterwards, the context is
+stale until the user closes and re-opens the panel.
+
+### Panel lifecycle
+
+```
+openXsltAiPanel()    → xsltAiOpen=true; default mode = "debug" (if no mode set)
+closeXsltAiPanel()   → aiStore.resetChat(); xsltAiOpen=false; xsltAiMode=null;
+                        xsltDiscussContext=null
+runXsltDiscuss()     → aiStore.resetChat(); capture context; mode="discuss"
+runXsltDebug()       → aiStore.clearResponse(); startStream(...)
+```
+
+Closing the panel always calls `aiStore.resetChat()` to clear history and abort
+any active stream.
+
+---
+
+## Bibliobuilder flow
+
+**File**: `frontend/src/views/CollectionBibliobuilderview.vue`
+**Route**: `/collections/:slug/bibliobuilder` (EiC+ only)
+
+The Bibliobuilder page is a two-step tool: extract bibliography entries from the
+collection's XML documents, then send them to the AI for normalization.
+
+The page does **not** use the `AiPanel` component. It wires `useAiStore` directly,
+following the same pattern as the XSLT debug panel.
+
+### Step 1 — Extract
+
+```
+doExtract()
+  → collectionsStore.extractBibl(collection.id)
+      → GET /api/v1/collections/{id}/extract-bibl
+      → backend runs XQuery (xqueries/collections/extract_bibl.xq)
+      → returns raw <entries> XML with namespace-stripped <bibl>/<biblStruct>
+  → rawEntries.value = xml
+  → entryCount.value = count of <bibl>/<biblStruct> tags (regex)
+  → showRaw.value = true   (auto-shows extracted XML for inspection)
+  → aiStore.resetChat()    (discard any previous AI session)
+```
+
+### Step 2 — Run AI
+
+```
+runAi()
+  → aiStore.continueChat("bibliobuilder", {}, rawEntries.value)
+```
+
+Note: `continueChat` is used (not `startStream`) so the extracted XML is passed
+as the **first user message**, not as a context variable. The `bibliobuilder`
+prompt has no `context_vars`, so `context` is always `{}`.
+
+The response streams into `aiStore.response`, then into `aiStore.chatHistory`.
+The response area auto-scrolls on each chunk via a watcher on `aiStore.response`.
+
+### Follow-up turns
+
+After the first response, a follow-up `<textarea>` appears (`v-if hasExchange`).
+The user can ask questions or send additional batches:
+
+```
+sendFollowUp()
+  → msg = chatInput.value.trim()
+  → aiStore.continueChat("bibliobuilder", {}, msg)
+```
+
+`Ctrl+Enter` / `Cmd+Enter` triggers `sendFollowUp` from the textarea.
+
+### Result actions
+
+After the AI responds, the action bar shows:
+
+| Action | Behaviour |
+|--------|-----------|
+| Edit | Sets `editableContent` to the last assistant response; replaces the read-only display with a `<textarea>` |
+| Cancel edit | Clears `editableContent`; reverts to AI output |
+| Copy | `navigator.clipboard.writeText(effectiveContent)` |
+| Save | `collectionsStore.saveBibliography(collection.id, effectiveContent)` → auto-increments `version`; shows "Saved v{n}" badge |
+
+`effectiveContent` = edited text (if editing) or last AI response.
+A new AI exchange discards any in-progress edit automatically (watcher on
+`aiStore.chatHistory.length`).
+
+Saved bibliographies are versioned (one row per version per collection in
+`collection_bibliographies`). One version per collection can be marked `is_public`,
+which exposes it on the public website at `/browse/{slug}/bibliography`.
 
 ---
 
