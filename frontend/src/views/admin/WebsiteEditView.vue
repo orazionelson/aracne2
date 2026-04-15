@@ -634,7 +634,7 @@ onBeforeUnmount(() => {
     {{ t("common.error") }}
   </div>
 
-  <div v-else class="flex min-h-screen flex-col bg-white">
+  <div v-else class="flex h-screen flex-col bg-white">
 
     <!-- Page header -->
     <div class="flex shrink-0 items-center gap-4 border-b border-gray-200 bg-white px-6 py-3 shadow-sm">
@@ -1230,10 +1230,12 @@ onBeforeUnmount(() => {
       <!-- Tab: XSLT Edit (active only when source=custom).
            v-show keeps CM5 alive across tab switches — v-if would destroy/recreate
            the container, making the composable's reinit logic race against Vue's
-           scheduler deduplication and produce a blank editor on return. -->
-      <div v-show="editTab === 'xslt_edit'" class="bg-indigo-50 p-4 space-y-2">
+           scheduler deduplication and produce a blank editor on return.
+           h-full + flex-col makes the editor grow to fill the space between the
+           tab bar and the action bar. -->
+      <div v-show="editTab === 'xslt_edit'" class="flex h-full flex-col bg-indigo-50 p-4">
         <input id="xslt-file-input" type="file" accept=".xsl,.xslt,.xml" class="hidden" @change="onXsltFileChange" />
-        <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center gap-2 pb-2">
           <label for="xslt-file-input" class="cursor-pointer rounded border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
             {{ t("websites.doc_xslt_filename") }}…
           </label>
@@ -1247,16 +1249,15 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="space-y-1">
-          <div class="flex justify-end">
+        <div class="flex min-h-0 flex-1 flex-col gap-1">
+          <div class="flex shrink-0 justify-end">
             <button type="button" class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50" @click="xsltCm.toggleFullscreen()">
               {{ xsltCm.isFullscreen.value ? t("documents.exit_fullscreen") : t("documents.fullscreen") }}
             </button>
           </div>
           <div
             :ref="onXsltEditorRef"
-            class="overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:text-sm"
-            style="height: 320px;"
+            class="min-h-0 flex-1 overflow-hidden rounded border border-gray-300 [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
           />
         </div>
       </div>
