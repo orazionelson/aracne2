@@ -49,6 +49,8 @@ async function doExtract(): Promise<void> {
     const xml = await collectionsStore.extractBibl(collection.value.id);
     rawEntries.value = xml;
     entryCount.value = (xml.match(/<(bibl|biblStruct)[\s>]/g) ?? []).length;
+    // Auto-show the raw XML so users can inspect it before running the AI.
+    showRaw.value = true;
     // Reset any previous AI session when new data is extracted.
     aiStore.resetChat();
   } catch (err) {

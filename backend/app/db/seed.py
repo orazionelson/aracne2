@@ -266,7 +266,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "   Omit empty elements. Keep only what is present or safely inferable.\n\n"
             "3. xml:id FORMAT: bib_<surname>_<year>[a-z] (ASCII lowercase, disambiguate as needed).\n"
             "   No author → bib_<first_3_title_words>_<year>. Manuscripts → ms_<repo>_<shelfmark>.\n\n"
-            "4. DEDUPLICATE: match on ≥2 of {author, title, date, identifier}.\n"
+            "4. DEDUPLICATE: match on ≥2 of {{author, title, date, identifier}}.\n"
             "   Keep the richest entry, merge missing fields from others.\n"
             "   Record source documents in <note type=\"sources\">source1, source2</note>.\n\n"
             "5. PARSE FREE TEXT in <bibl> without child elements:\n"
@@ -284,10 +284,14 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
 
 
 async def seed_ai_prompts(db: AsyncSession) -> None:
-    """Seed native AI prompt templates if not already present (matched by slug)."""
+    """Seed native AI prompt templates; insert new ones and update existing ones.
+
+    Updating on re-seed keeps native prompts in sync with the seed definition,
+    so template fixes and label changes propagate without manual SQL.
+    """
     for slug, label, description, template, context_vars, target_context in DEFAULT_AI_PROMPTS:
-        exists = await db.scalar(select(AiPrompt).where(AiPrompt.slug == slug))
-        if not exists:
+        existing = await db.scalar(select(AiPrompt).where(AiPrompt.slug == slug))
+        if not existing:
             db.add(
                 AiPrompt(
                     slug=slug,
@@ -299,6 +303,14 @@ async def seed_ai_prompts(db: AsyncSession) -> None:
                     is_native=True,
                 )
             )
+        else:
+            # Keep native prompts in sync with the seed definition so that
+            # template fixes and label updates are applied on re-seed.
+            existing.label = label
+            existing.description = description
+            existing.template = template
+            existing.context_vars = context_vars
+            existing.target_context = target_context
     await db.flush()
     logger.info("seed_ai_prompts_done")
 
