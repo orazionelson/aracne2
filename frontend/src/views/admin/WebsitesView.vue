@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, type ComponentPublicInstance } from "vue";
+import { ref, onMounted, computed, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import CodeMirror, { type Editor as CM5Editor } from "codemirror";
+import "codemirror/mode/xml/xml";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig, type ImageRenderingConfig, type NoteRenderingConfig } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
-import { useCodeMirror } from "@/composables/useCodeMirror";
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -88,10 +89,12 @@ function resetXsltFileInput(): void {
   if (el) el.value = "";
 }
 
-// Document tab — CodeMirror editor for custom XSLT source
-const xsltEditorContainer = ref<HTMLElement | null>(null);
-const xsltEditorInitialContent = ref<string>("");
+// Document tab — XSLT modal editor
+// Managed directly (not via useCodeMirror) to avoid timing issues with the
+// composable's watch+rAF deferred init chain across v-if mount/unmount cycles.
+const xsltModalContainerRef = ref<HTMLElement | null>(null);
 const showXsltModal = ref<boolean>(false);
+let xsltModalCm: CM5Editor | null = null;
 
 /** True when the custom XSLT slot has content — either freshly uploaded or
  *  restored from the server on form load (filename is not persisted). */
@@ -99,39 +102,36 @@ const xsltHasContent = computed<boolean>(
   () => !!((editForm.value.xslt_config as XsltConfig | undefined)?.content),
 );
 
-function openXsltModal(): void {
-  // v-if on the modal mounts the CM5 container fresh in a visible context,
-  // so no refresh() call is needed — CM5 initialises with correct dimensions.
+async function openXsltModal(): Promise<void> {
   showXsltModal.value = true;
+  await nextTick(); // container div is now in the DOM and visible
+  const el = xsltModalContainerRef.value;
+  if (!el) return;
+  const content = (editForm.value.xslt_config as XsltConfig | undefined)?.content ?? "";
+  xsltModalCm = CodeMirror(el, {
+    mode: 'application/xml',
+    value: content,
+    lineNumbers: true,
+    lineWrapping: true,
+    styleActiveLine: true,
+    autoRefresh: true,
+    foldGutter: true,
+    autoCloseTags: true,
+    gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
+    extraKeys: { 'Ctrl-/': 'toggleComment' },
+  });
+  xsltModalCm.setSize(null, '100%');
+  xsltModalCm.on('change', (cm: CM5Editor) => {
+    if (editForm.value.xslt_config) {
+      (editForm.value.xslt_config as XsltConfig).content = cm.getValue() || null;
+    }
+  });
 }
 
 function closeXsltModal(): void {
+  xsltModalCm = null;
   showXsltModal.value = false;
 }
-
-/**
- * Callback ref for the CM5 container div. Vue does not reliably update a
- * plain Ref<HTMLElement> when the element lives inside a v-for + nested
- * v-if/v-show chain. A named callback ref is called directly by Vue at
- * mount/unmount time, bypassing the v-for ref-collection behaviour.
- */
-function onXsltEditorRef(el: Element | ComponentPublicInstance | null): void {
-  xsltEditorContainer.value = el instanceof HTMLElement ? el : null;
-}
-
-const xsltCm = useCodeMirror(xsltEditorContainer, {
-  // Read from xslt_config.content directly so the editor is always seeded
-  // with the current state — whether restored from the server on form load,
-  // populated by a file upload, or edited in a previous modal session.
-  get initialValue() {
-    return (editForm.value.xslt_config as XsltConfig | undefined)?.content ?? "";
-  },
-  onChange: (value: string) => {
-    if (editForm.value.xslt_config) {
-      (editForm.value.xslt_config as XsltConfig).content = value || null;
-    }
-  },
-});
 
 // Document tab — preview state
 const previewDocFilename = ref<string>("");
@@ -149,10 +149,8 @@ function onXsltFileChange(event: Event): void {
     const content = e.target?.result as string;
     if (editForm.value.xslt_config) {
       (editForm.value.xslt_config as XsltConfig).content = content;
-      // Keep initialValue in sync so initializeEditor (deferred via rAF)
-      // picks up the uploaded content even if it runs after this callback.
-      xsltEditorInitialContent.value = content;
-      xsltCm.setValue(content);
+      // If the modal is already open, sync the live editor instance.
+      xsltModalCm?.setValue(content);
     }
   };
   reader.readAsText(file);
@@ -163,7 +161,7 @@ function clearXsltFile(): void {
   resetXsltFileInput();
   if (editForm.value.xslt_config) {
     (editForm.value.xslt_config as XsltConfig).content = null;
-    xsltCm.setValue("");
+    xsltModalCm?.setValue("");
   }
 }
 
@@ -556,7 +554,6 @@ async function startEdit(website: Website): Promise<void> {
   editError.value = null;
   xsltFileName.value = "";
   resetXsltFileInput();
-  xsltEditorInitialContent.value = (website.xslt_config as XsltConfig)?.content ?? "";
   // Reset preview state for the new website being edited.
   previewDocFilename.value = "";
   previewError.value = null;
@@ -1705,7 +1702,7 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
             </div>
             <!-- CodeMirror fills all available space -->
             <div
-              :ref="onXsltEditorRef"
+              ref="xsltModalContainerRef"
               class="min-h-0 flex-1 overflow-hidden [&_.CodeMirror]:h-full [&_.CodeMirror]:text-sm"
             />
             <!-- Modal footer -->
