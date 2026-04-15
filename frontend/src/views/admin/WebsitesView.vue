@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick, type ComponentPublicInstance } from "vue";
+import { ref, onMounted, computed, watch, type ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useWebsiteStore, type Website, type WebsitePage, type WebsiteIndex, type WebsiteIndexCreate, type WebsiteIndexUpdate, type WebsiteCreate, type WebsitePageCreate, type WebsitePageUpdate, type MetaSuggestions, type AracnePageConfig, type XsltConfig, type ImageRenderingConfig, type NoteRenderingConfig } from "@/stores/websites";
@@ -100,8 +100,9 @@ const xsltHasContent = computed<boolean>(
 );
 
 function openXsltModal(): void {
+  // v-if on the modal mounts the CM5 container fresh in a visible context,
+  // so no refresh() call is needed — CM5 initialises with correct dimensions.
   showXsltModal.value = true;
-  nextTick(() => xsltCm.refresh());
 }
 
 function closeXsltModal(): void {
@@ -119,7 +120,12 @@ function onXsltEditorRef(el: Element | ComponentPublicInstance | null): void {
 }
 
 const xsltCm = useCodeMirror(xsltEditorContainer, {
-  get initialValue() { return xsltEditorInitialContent.value; },
+  // Read from xslt_config.content directly so the editor is always seeded
+  // with the current state — whether restored from the server on form load,
+  // populated by a file upload, or edited in a previous modal session.
+  get initialValue() {
+    return (editForm.value.xslt_config as XsltConfig | undefined)?.content ?? "";
+  },
   onChange: (value: string) => {
     if (editForm.value.xslt_config) {
       (editForm.value.xslt_config as XsltConfig).content = value || null;
@@ -551,9 +557,6 @@ async function startEdit(website: Website): Promise<void> {
   xsltFileName.value = "";
   resetXsltFileInput();
   xsltEditorInitialContent.value = (website.xslt_config as XsltConfig)?.content ?? "";
-  // If the CM5 instance is already alive (e.g. switching between websites
-  // without unmounting the panel), sync the editor content immediately.
-  xsltCm.setValue(xsltEditorInitialContent.value);
   // Reset preview state for the new website being edited.
   previewDocFilename.value = "";
   previewError.value = null;
@@ -1673,12 +1676,12 @@ async function deletePage(websiteSlug: string, pageSlug: string): Promise<void> 
           </div>
 
           <!-- Full-screen XSLT editor modal.
-               v-show (not v-if) keeps the CM5 container in the DOM so the
-               editor stays initialised between opens. autoRefresh:true handles
-               the display:none → visible transition automatically; openXsltModal
-               also calls refresh() after the next tick for an instant repaint. -->
+               v-if ensures the CM5 container mounts in a fully visible context
+               so CodeMirror can measure correct dimensions on first render.
+               initialValue reads xslt_config.content so edits from previous
+               sessions are preserved when the modal is reopened. -->
           <div
-            v-show="showXsltModal"
+            v-if="showXsltModal"
             class="fixed inset-0 z-50 flex flex-col bg-white"
             role="dialog"
             :aria-label="t('websites.doc_xslt_modal_title')"
