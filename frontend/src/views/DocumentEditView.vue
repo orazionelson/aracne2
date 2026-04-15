@@ -652,6 +652,15 @@ function runDiscussAi(): void {
   lastAiPrompt.value = 'discuss';
 }
 
+// Strips markdown code fences that some models add to improve responses despite
+// explicit instructions not to, keeping the display consistent with Apply.
+const improveDisplayResponse = computed(() =>
+  aiStore.response
+    .replace(/^```(?:xml)?\r?\n?/, '')
+    .replace(/\r?\n?```$/, '')
+    .trim()
+);
+
 function applyAiResponse(): void {
   const cm = activeEditor.value;
   if (!cm) return;
@@ -1043,7 +1052,7 @@ async function runValidation(): Promise<void> {
         {{ t('ai.thinking') }}
       </span>
       <span v-else-if="aiStore.streamError" class="text-red-600">{{ aiStore.streamError }}</span>
-      <span v-else>{{ aiStore.response }}</span>
+      <span v-else>{{ lastAiPrompt === 'improve' ? improveDisplayResponse : aiStore.response }}</span>
     </div>
 
     <!-- Footer -->
