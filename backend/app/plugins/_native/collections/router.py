@@ -29,6 +29,7 @@ from app.schemas.collections import (
     CollectionUpdate,
     DocumentInfo,
     DocumentMeta,
+    DocumentValidateRequest,
     PermissionEntry,
     PermissionGrant,
     PublicCollectionSearchResult,
@@ -611,6 +612,7 @@ async def collection_validate_all_cancel(
 async def document_validate(
     collection_id: str,
     filename: str,
+    body: DocumentValidateRequest,
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -621,7 +623,14 @@ async def document_validate(
     Requires the collection to have a schema with a validation file attached.
     Returns a ValidationResult with a list of errors (empty list = valid).
     Validation failure does not prevent saving — it is informational.
+
+    When ``xml_content`` is provided in the request body the supplied XML is
+    validated directly instead of fetching the saved file from eXist-db.  This
+    allows the editor to validate unsaved content.
     """
     role: str = request.state.role
-    result = await validate_document(db, existdb, collection_id, filename, current_user, role)
+    result = await validate_document(
+        db, existdb, collection_id, filename, current_user, role,
+        xml_content=body.xml_content,
+    )
     return DataResponse(data=result)

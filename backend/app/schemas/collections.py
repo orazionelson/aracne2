@@ -141,6 +141,10 @@ class DocumentInfo(BaseModel):
     filename: str
 
 
+class DocumentValidateRequest(BaseModel):
+    xml_content: str | None = None  # when provided, validate this content instead of the saved file
+
+
 class PermissionEntry(BaseModel):
     collection_id: uuid.UUID
     user_id: uuid.UUID

@@ -1170,12 +1170,17 @@ async def validate_document(
     filename: str,
     actor: User,
     role: str,
+    xml_content: str | None = None,
 ) -> "ValidationResult":
     """Validate an XML document against the TEI schema attached to its collection.
 
     Requires the collection to have a schema with a validation file.
     Validation failure is non-blocking: this function always returns a
     ValidationResult; it never raises on schema errors.
+
+    When *xml_content* is provided it is validated directly; otherwise the
+    saved document is fetched from eXist-db.  Pass the editor buffer here to
+    validate unsaved changes without requiring a save first.
 
     Raises NotFoundError if the collection, document, or schema is missing.
     Raises DomainValidationError if the schema has no validation file attached.
@@ -1197,8 +1202,10 @@ async def validate_document(
     if schema is None:
         raise NotFoundError("The schema attached to this collection no longer exists.")
 
-    # Download document bytes from eXist-db
-    xml_bytes = await existdb.get_document(col.slug, filename)
+    if xml_content is not None:
+        xml_bytes = xml_content.encode("utf-8")
+    else:
+        xml_bytes = await existdb.get_document(col.slug, filename)
 
     return validate_xml(xml_bytes, schema)
 

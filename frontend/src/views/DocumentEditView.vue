@@ -588,8 +588,25 @@ async function runValidateAi(): Promise<void> {
   aiStore.clearResponse();
   aiNoErrors.value = false;
   lastAiPrompt.value = 'validate';
-  if (!validationResult.value) {
-    await runValidation();
+  // Always validate the current editor buffer, not the saved file, so that
+  // unsaved changes are caught.  Clear any cached result to force a fresh run.
+  validationResult.value = null;
+  isValidating.value = true;
+  try {
+    validationResult.value = await schemaStore.validateDocument(
+      slug,
+      filename,
+      singleCm.getValue(),
+    );
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    validationResult.value = {
+      valid: false,
+      errors: [{ line: 0, col: 0, message: msg ?? t('common.error') }],
+    };
+  } finally {
+    isValidating.value = false;
   }
   if (!validationResult.value || validationResult.value.valid) {
     aiNoErrors.value = true;

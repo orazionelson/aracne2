@@ -92,14 +92,20 @@ export const useSchemaStore = defineStore("schemas", () => {
     return response.data;
   }
 
-  /** Validate a document against its collection's schema. */
+  /** Validate a document against its collection's schema.
+   *
+   * Pass ``content`` to validate the current editor buffer instead of the
+   * saved file.  When omitted the backend fetches the saved version from
+   * eXist-db.
+   */
   async function validateDocument(
     slug: string,
     filename: string,
+    content?: string,
   ): Promise<ValidationResult> {
     return await apiClient.post<ValidationResult>(
       `/collections/${slug}/documents/${filename}/validate`,
-      {},
+      content !== undefined ? { xml_content: content } : {},
     );
   }
 
