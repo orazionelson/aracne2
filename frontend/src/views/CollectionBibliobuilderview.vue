@@ -108,9 +108,34 @@ const lastAssistantResponse = computed(() => {
 
 const hasExchange = computed(() => aiStore.chatHistory.length >= 2);
 
+// ── Editable result ───────────────────────────────────────────────────────────
+
+// null = not in edit mode; string = user is editing (may differ from AI output)
+const editableContent = ref<string | null>(null);
+const isEditing = computed(() => editableContent.value !== null);
+
+// The content that Copy and Save will use: edited version takes precedence.
+const effectiveContent = computed(
+  () => editableContent.value ?? lastAssistantResponse.value,
+);
+
+function startEdit(): void {
+  editableContent.value = lastAssistantResponse.value;
+}
+
+function cancelEdit(): void {
+  editableContent.value = null;
+}
+
+// When a new AI exchange starts, discard any in-progress edit.
+watch(
+  () => aiStore.chatHistory.length,
+  () => { editableContent.value = null; },
+);
+
 async function copyResult(): Promise<void> {
-  if (!lastAssistantResponse.value) return;
-  await navigator.clipboard.writeText(lastAssistantResponse.value);
+  if (!effectiveContent.value) return;
+  await navigator.clipboard.writeText(effectiveContent.value);
 }
 
 // ── Save ─────────────────────────────────────────────────────────────────────
@@ -120,16 +145,18 @@ const saveError = ref<string | null>(null);
 const savedVersion = ref<number | null>(null);
 
 async function saveResult(): Promise<void> {
-  if (!collection.value || !lastAssistantResponse.value || isSaving.value) return;
+  if (!collection.value || !effectiveContent.value || isSaving.value) return;
   isSaving.value = true;
   saveError.value = null;
   savedVersion.value = null;
   try {
     const entry = await collectionsStore.saveBibliography(
       collection.value.id,
-      lastAssistantResponse.value,
+      effectiveContent.value,
     );
     savedVersion.value = entry.version;
+    // Lock out of edit mode after a successful save.
+    editableContent.value = null;
   } catch (err) {
     saveError.value = err instanceof Error ? err.message : t("common.error");
   } finally {
@@ -248,8 +275,15 @@ async function saveResult(): Promise<void> {
             </button>
           </div>
 
-          <!-- Response area -->
+          <!-- Response area — readonly while streaming/idle; editable textarea when editing -->
+          <textarea
+            v-if="isEditing"
+            v-model="editableContent"
+            rows="20"
+            class="w-full resize-y rounded border border-indigo-300 bg-white px-4 py-3 font-mono text-sm text-gray-800 focus:border-indigo-500 focus:outline-none"
+          />
           <div
+            v-else
             ref="responseContainer"
             class="min-h-48 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-4 py-3 font-mono text-sm text-gray-800"
             style="max-height: 480px;"
@@ -286,7 +320,7 @@ async function saveResult(): Promise<void> {
             </template>
           </div>
 
-          <!-- Copy + Save result -->
+          <!-- Action bar: Edit / Copy / Save -->
           <div v-if="lastAssistantResponse && !aiStore.isStreaming" class="mt-2 flex items-center justify-end gap-3">
             <p v-if="saveError" class="text-xs text-red-600">{{ saveError }}</p>
             <span
@@ -295,6 +329,20 @@ async function saveResult(): Promise<void> {
             >
               {{ t("bibliobuilder.saved_version", { version: savedVersion }) }}
             </span>
+            <button
+              v-if="isEditing"
+              class="text-xs text-gray-400 hover:text-red-600"
+              @click="cancelEdit"
+            >
+              {{ t("bibliobuilder.edit_cancel") }}
+            </button>
+            <button
+              v-else
+              class="text-xs text-gray-400 hover:text-indigo-600"
+              @click="startEdit"
+            >
+              {{ t("bibliobuilder.edit_btn") }}
+            </button>
             <button
               class="text-xs text-gray-400 hover:text-indigo-600"
               @click="copyResult"

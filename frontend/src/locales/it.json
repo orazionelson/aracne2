@@ -874,6 +874,8 @@
     "copy_btn": "Copia risultato",
     "save_btn": "Salva",
     "saved_version": "Salvato come v{version}",
+    "edit_btn": "Modifica",
+    "edit_cancel": "Annulla modifica",
     "panel_title": "Bibliografie salvate",
     "panel_empty": "Nessuna bibliografia salvata.",
     "delete_version_confirm": "Eliminare la versione {version}? L'operazione non può essere annullata."
