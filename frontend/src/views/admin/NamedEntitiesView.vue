@@ -70,6 +70,7 @@ const mergeSourceId = ref("");
 const mergeTargetId = ref("");
 const isMerging = ref(false);
 const mergeError = ref<string | null>(null);
+const showMergeHelp = ref(false);
 
 // ── State — re-index ──────────────────────────────────────────────────────────
 
@@ -475,12 +476,31 @@ function typeLabel(type: string): string {
         >
           {{ t("entities.search_placeholder").replace("...", "") }}
         </button>
-        <button
-          class="ml-auto rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          @click="openMerge"
-        >
-          {{ t("entities.merge_title") }}
-        </button>
+        <div class="ml-auto flex items-center gap-2">
+          <button
+            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            :title="t('entities.merge_help_btn')"
+            @click="showMergeHelp = !showMergeHelp"
+          >
+            ?
+          </button>
+          <button
+            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            @click="openMerge"
+          >
+            {{ t("entities.merge_title") }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Merge help panel -->
+      <div
+        v-if="showMergeHelp"
+        class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+      >
+        <p class="mb-1 font-semibold">{{ t("entities.merge_help_title") }}</p>
+        <p class="mb-2">{{ t("entities.merge_help_body") }}</p>
+        <p class="italic text-blue-700">{{ t("entities.merge_help_example") }}</p>
       </div>
 
       <p v-if="error" class="mb-3 text-sm text-red-600">{{ error }}</p>
