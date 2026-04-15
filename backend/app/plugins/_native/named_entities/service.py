@@ -187,7 +187,7 @@ async def index_document(
             continue
 
         authority_ref = _clean_authority_ref(ref_attr)
-        entity = await _upsert_entity(db, entity_type, raw_text, authority_ref)
+        entity = await _upsert_entity(db, tag_name, raw_text, authority_ref)
         new_entity_ids.append(entity.id)
 
         db.add(
