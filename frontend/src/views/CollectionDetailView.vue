@@ -1691,6 +1691,7 @@ function statusClass(s: string): string {
                   :context="buildAiValidationContext(doc.filename)"
                   :title="t('ai.panel_validation_title')"
                   :chat="true"
+                  :show-apply="false"
                   @close="aiDocFilename = null"
                 />
               </div>

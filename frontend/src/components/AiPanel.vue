@@ -13,6 +13,8 @@ const props = defineProps<{
   sidebar?: boolean;
   /** When true the panel operates in multi-turn chat mode. */
   chat?: boolean;
+  /** When false the Apply button is hidden (default: true). */
+  showApply?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -124,6 +126,7 @@ onUnmounted(() => {
 
 // Derived: whether the Apply button should be shown.
 const canApply = computed(() => {
+  if (props.showApply === false) return false;
   if (ai.isStreaming) return false;
   if (props.chat) {
     return ai.chatHistory.some((m) => m.role === "assistant");
@@ -136,8 +139,7 @@ const canApply = computed(() => {
   <div
     :class="sidebar
       ? 'flex h-full flex-col'
-      : 'flex flex-col rounded-xl border border-gray-200 bg-white shadow-lg'"
-    :style="sidebar ? undefined : 'min-width: 320px; max-width: 520px;'"
+      : 'flex w-full flex-col rounded-xl border border-gray-200 bg-white shadow-lg'"
   >
     <!-- Header -->
     <div
