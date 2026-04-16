@@ -125,6 +125,7 @@
     "appearance_logo_url_hint": "Relative path (e.g. /aracne-logo.png) or absolute URL",
     "appearance_logo_upload": "Upload image",
     "appearance_logo_save_url": "Save URL",
+    "appearance_logo_restore_default": "Restore default logo",
     "appearance_color_title": "Navbar colour",
     "appearance_color_preview": "Preview",
     "tab_homepage": "Homepage",

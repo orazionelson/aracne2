@@ -397,6 +397,21 @@ async function handleLogoUpload(event: Event): Promise<void> {
   }
 }
 
+const DEFAULT_LOGO_URL = "/aracne-logo.png";
+
+async function restoreDefaultLogo(): Promise<void> {
+  logoUrlError.value = "";
+  try {
+    await settingStore.updateSetting("platform_logo_url", DEFAULT_LOGO_URL);
+    logoUrlDraft.value = DEFAULT_LOGO_URL;
+    await uiConfigStore.fetchConfig();
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    logoUrlError.value = msg ?? t("common.error");
+  }
+}
+
 async function selectNavbarColor(color: string): Promise<void> {
   try {
     await settingStore.updateSetting("navbar_bg_color", color);
@@ -1854,6 +1869,13 @@ onMounted(async () => {
           <div class="text-xs text-gray-500">
             <p>{{ t("settings.appearance_logo_url_hint") }}</p>
             <p class="mt-1 font-mono">{{ currentLogoUrl || "—" }}</p>
+            <button
+              v-if="currentLogoUrl && currentLogoUrl !== DEFAULT_LOGO_URL"
+              class="mt-2 text-indigo-600 hover:underline"
+              @click="restoreDefaultLogo"
+            >
+              {{ t("settings.appearance_logo_restore_default") }}
+            </button>
           </div>
         </div>
 
