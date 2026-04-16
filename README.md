@@ -1,6 +1,6 @@
 # Aracne2
 
-A modular, production-ready CMS for managing, editing and publishing collections of structured XML documents. Built with a separate frontend/backend architecture and a plugin system inspired by WordPress modularity.
+A modular, production-ready CMS for managing, editing and publishing collections of structured XML documents. Built with a separate frontend/backend architecture and a hook-based plugin system designed to be modular and extensible.
 
 ## Architecture overview
 
