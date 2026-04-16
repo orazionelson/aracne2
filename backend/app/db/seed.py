@@ -1,4 +1,6 @@
 import asyncio
+import shutil
+from pathlib import Path
 
 import structlog
 from sqlalchemy import select
@@ -12,7 +14,11 @@ from app.models.license import License
 from app.models.role import Role, UserRole
 from app.models.session import Session  # noqa: F401 — ensure model is registered
 from app.models.system_setting import SystemSetting
+from app.models.tei_schema import SchemaFormat, TeiSchema
 from app.models.user import User
+
+# Path to bundled TEI schemas shipped with the application.
+_BUNDLED_SCHEMAS_DIR: Path = Path(__file__).parent.parent / "tei_schemas"
 
 logger = structlog.get_logger()
 
@@ -319,6 +325,50 @@ async def seed_ai_prompts(db: AsyncSession) -> None:
     logger.info("seed_ai_prompts_done")
 
 
+# Bundled native schemas: (name, filename, format)
+_BUNDLED_TEI_SCHEMAS: list[tuple[str, str, SchemaFormat]] = [
+    ("TEI All (P5 v4.11.0)", "tei_all.rng", SchemaFormat.rng),
+]
+
+
+async def seed_tei_schemas(db: AsyncSession) -> None:
+    """Seed bundled TEI schemas shipped with the application.
+
+    For each entry in _BUNDLED_TEI_SCHEMAS:
+    - Skip if a TeiSchema row with the same name already exists.
+    - Create the DB row, copy the bundled file to schemas_dir, and update
+      validation_filename / validation_format on the row.
+
+    Idempotent: safe to call on every startup or `make seed` run.
+    """
+    for name, filename, fmt in _BUNDLED_TEI_SCHEMAS:
+        exists = await db.scalar(select(TeiSchema).where(TeiSchema.name == name))
+        if exists:
+            continue
+
+        src = _BUNDLED_SCHEMAS_DIR / filename
+        if not src.exists():
+            logger.warning("bundled_schema_missing", filename=filename)
+            continue
+
+        row = TeiSchema(
+            name=name,
+            validation_filename=filename,
+            validation_format=fmt,
+        )
+        db.add(row)
+        await db.flush()  # assigns row.id
+
+        dest_dir = settings.schemas_dir / str(row.id)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        ext = fmt.value  # "rng" | "dtd" | "xsd"
+        shutil.copy2(src, dest_dir / f"validation.{ext}")
+
+        logger.info("seed_tei_schema_created", name=name, schema_id=str(row.id))
+
+    logger.info("seed_tei_schemas_done")
+
+
 async def seed_admin(db: AsyncSession) -> None:
     if not settings.admin_password:
         logger.warning(
@@ -368,6 +418,7 @@ async def main() -> None:
         await seed_licenses(db)
         await seed_body_templates(db)
         await seed_ai_prompts(db)
+        await seed_tei_schemas(db)
         await seed_admin(db)
         await db.commit()
     print("Seed completed successfully.")
