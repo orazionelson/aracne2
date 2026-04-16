@@ -373,6 +373,34 @@ Before going to production:
 - Uncomment the HSTS header in `nginx.conf` once HTTPS is active
 - Change all default passwords in `.env`
 
+## Reference documentation
+
+Technical reference documents are in [`docs/reference/`](docs/reference/).
+
+| Document | Topic |
+|---|---|
+| [API_FORMAT.md](docs/reference/API_FORMAT.md) | Standard JSON envelope, pagination, error format |
+| [DB_SCHEMA.md](docs/reference/DB_SCHEMA.md) | PostgreSQL platform schema (Layer 1) |
+| [SYSTEM_SETTINGS.md](docs/reference/SYSTEM_SETTINGS.md) | All system_settings keys, types, and defaults |
+| [COLLECTIONS.md](docs/reference/COLLECTIONS.md) | Collections & TEI editor — data model and endpoints |
+| [SEARCH_ENGINES.md](docs/reference/SEARCH_ENGINES.md) | Search Engine portals — data model, build, API, caching |
+| [EMBED_WIDGET.md](docs/reference/EMBED_WIDGET.md) | Embeddable JS search widget — CORS, origin enforcement, snippet |
+| [WEB_SITES.md](docs/reference/WEB_SITES.md) | Website generator — static / dynamic / hybrid modes |
+| [XSLT_TEMPLATES.md](docs/reference/XSLT_TEMPLATES.md) | XSLT template catalog |
+| [TEI_SCHEMAS.md](docs/reference/TEI_SCHEMAS.md) | Schema catalog (RNG / DTD / XSD / CM5) |
+| [ZONES_FACSIMILE.md](docs/reference/ZONES_FACSIMILE.md) | Text-image alignment via TEI `<zone>` / `facs` |
+| [NAMED_ENTITIES.md](docs/reference/NAMED_ENTITIES.md) | Named entity index — extraction, normalisation, VIAF/GeoNames |
+| [BIBLIOGRAPHY.md](docs/reference/BIBLIOGRAPHY.md) | Bibliographic entries (BibTeX / CSL-JSON import, Bibliobuilder) |
+| [BODY_TEMPLATES.md](docs/reference/BODY_TEMPLATES.md) | Body templates for document creation |
+| [PLUGINS.md](docs/reference/PLUGINS.md) | Plugin architecture — native and third-party plugins |
+| [AI_INTEGRATION.md](docs/reference/AI_INTEGRATION.md) | AI provider adapters, prompt library, streaming |
+| [WEBHOOKS.md](docs/reference/WEBHOOKS.md) | Webhook dispatcher — events, signing, retries |
+| [NOTIFICATIONS.md](docs/reference/NOTIFICATIONS.md) | In-app notification system |
+| [OAI_PMH_PROVIDER.md](docs/reference/OAI_PMH_PROVIDER.md) | OAI-PMH 2.0 metadata provider |
+| [EVT_INTEGRATION.md](docs/reference/EVT_INTEGRATION.md) | EVT 2 viewer integration |
+| [STYLING_PUBLIC_HOMEPAGE.md](docs/reference/STYLING_PUBLIC_HOMEPAGE.md) | CSS classes for the public homepage |
+| [HEALTH_CHECK.md](docs/reference/HEALTH_CHECK.md) | Health check endpoint |
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
