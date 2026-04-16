@@ -19,10 +19,11 @@ entry must be added here.**
    - [File uploads](#63-file-uploads)
    - [Search & pagination](#64-search--pagination)
    - [Data retention](#65-data-retention)
-   - [Document editor](#66-document-editor)
+   - [Public home](#66-public-home)
    - [EVT viewer](#67-evt-viewer)
    - [Website caching](#68-website-caching)
-   - [AI integration](#69-ai-integration)
+   - [Named entity index](#69-named-entity-index)
+   - [AI integration](#610-ai-integration)
 7. [How to add a new setting](#7-how-to-add-a-new-setting)
 
 ---
@@ -108,7 +109,10 @@ HTTPS and immediately encrypted before being written to the database.
 | `PATCH` | `/api/v1/settings/{key}` | Admin | Update a setting; validates type before write |
 | `GET` | `/api/v1/settings/ui-config` | Public | Subset of settings needed at boot (see §5) |
 | `POST` | `/api/v1/settings/logo` | Admin | Upload a logo image; updates `platform_logo_url` |
-| `GET` | `/api/v1/settings/logo/file` | Public | Serve the uploaded logo file |
+| `GET` | `/api/v1/settings/logo/file` | Public | Serve the uploaded logo file (120 req/min) |
+| `POST` | `/api/v1/settings/homepage-css` | Admin | Upload a custom homepage CSS file (max 512 KB) |
+| `GET` | `/api/v1/settings/homepage-css/file` | Public | Serve the custom homepage CSS (120 req/min) |
+| `DELETE` | `/api/v1/settings/homepage-css` | Admin | Remove the custom homepage CSS |
 
 The `PATCH` endpoint body is `{"value": "<string>"}`. The service resolves the
 current `type` and validates before writing. On success it returns a
@@ -140,7 +144,12 @@ fetchUiConfig()   // GET /api/v1/settings/ui-config
 
 **Keys exposed**:
 `platform_name`, `platform_logo_url`, `navbar_bg_color`, `public_home_enabled`,
-`home_show_collections`, `home_show_search`, `evt_enabled`.
+`home_show_collections`, `home_show_search`, `home_show_login_button`,
+`has_custom_homepage_css`, `home_propagate_css`, `evt_enabled`.
+
+> `has_custom_homepage_css` is not a database setting — it is computed from the
+> filesystem at request time by `get_homepage_css_path()` and returned alongside
+> the other UI config keys.
 
 ---
 
@@ -191,13 +200,12 @@ use (e.g. language selector default on login page).
 |---|---|
 | **Type** | `string` |
 | **Default** | `"/aracne-logo.png"` |
-| **Editable** | Via logo upload (POST /api/v1/settings/logo) |
+| **Editable** | Via logo upload (`POST /api/v1/settings/logo`) |
 
 URL of the logo image displayed in the navbar. Updated automatically when an
-Admin uploads a new logo via `POST /api/v1/settings/logo`; the new value is
-always `/api/v1/settings/logo/file`.
+Admin uploads a new logo; the new value is always `/api/v1/settings/logo/file`.
 
-Accepted upload formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`.
+Accepted upload formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp` (max 2 MB).
 
 **Consumed by**:
 - `get_public_config()` → `UiConfigResponse.platform_logo_url`
@@ -218,60 +226,7 @@ value (`#rrggbb`, `rgb(…)`, named colors, etc.).
 
 **Consumed by**:
 - `get_public_config()` → `UiConfigResponse.navbar_bg_color`
-- Frontend: `useUiConfigStore` → navbar inline style `:style="{ background: uiConfig.navbar_bg_color }"`
-
----
-
-#### `public_home_enabled`
-
-| | |
-|---|---|
-| **Type** | `bool` |
-| **Default** | `false` |
-| **Editable** | Yes — Admin |
-
-When `false`, the public home page (`/`) is disabled; unauthenticated users
-are redirected to the login page. When `true`, the home page is accessible
-without authentication and shows the sections configured by
-`home_show_collections` and `home_show_search`.
-
-**Consumed by**:
-- `get_public_config()` → `UiConfigResponse.public_home_enabled`
-- Frontend: `useUiConfigStore` + Vue Router guard → redirect to login
-
----
-
-#### `home_show_collections`
-
-| | |
-|---|---|
-| **Type** | `bool` |
-| **Default** | `true` |
-| **Editable** | Yes — Admin |
-
-Whether the public home page shows the list of published collections.
-Only relevant when `public_home_enabled = true`.
-
-**Consumed by**:
-- `get_public_config()` → `UiConfigResponse.home_show_collections`
-- Frontend: `PublicHomeSection.vue` — conditionally renders the collections panel
-
----
-
-#### `home_show_search`
-
-| | |
-|---|---|
-| **Type** | `bool` |
-| **Default** | `true` |
-| **Editable** | Yes — Admin |
-
-Whether the public home page shows the full-text search bar.
-Only relevant when `public_home_enabled = true`.
-
-**Consumed by**:
-- `get_public_config()` → `UiConfigResponse.home_show_search`
-- Frontend: `PublicHomeSection.vue` — conditionally renders the search panel
+- Frontend: `useUiConfigStore` → navbar inline style
 
 ---
 
@@ -392,7 +347,8 @@ Maximum size in MB for the raw ZIP archive submitted to
 | **Editable** | Yes — Admin (takes effect immediately) |
 
 Maximum total size in MB of all XML files extracted from a ZIP archive (zip-bomb
-guard). The sum of all extracted file sizes must not exceed this limit.
+guard). Actual bytes are counted during streaming decompression, not from the
+ZIP central directory declared sizes.
 
 ---
 
@@ -443,9 +399,6 @@ Changes take effect on the next scheduler run (at most 24 hours later).
 Number of days to retain audit log entries. Rows with `created_at` older than
 this are deleted by `purge_audit_log()` in `backend/app/core/scheduler.py`.
 
-Reducing this value will not immediately delete old entries — they will be
-removed on the next scheduled purge run.
-
 **Consumed by**: `_get_retention("audit_log_retention_days", 90)` in
 `app/core/scheduler.py` (fallback default: `90`).
 
@@ -467,7 +420,98 @@ Deleted by `purge_expired_sessions()` in `backend/app/core/scheduler.py`.
 
 ---
 
-### 6.6 EVT viewer
+### 6.6 Public home
+
+Settings that control the appearance and behaviour of the public home page
+(`/`). All are returned by `get_public_config()` as part of `UiConfigResponse`
+and consumed by `useUiConfigStore` in the frontend.
+
+---
+
+#### `public_home_enabled`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `false` |
+| **Editable** | Yes — Admin |
+
+When `false`, the public home page is disabled; unauthenticated users are
+redirected to the login page. When `true`, the home page is accessible without
+authentication.
+
+---
+
+#### `home_show_collections`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `true` |
+| **Editable** | Yes — Admin |
+
+Whether the public home page shows the list of published collections.
+Only relevant when `public_home_enabled = true`.
+
+**Consumed by**: `PublicHomeSection.vue` — conditionally renders the collections panel.
+
+---
+
+#### `home_show_search`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `true` |
+| **Editable** | Yes — Admin |
+
+Whether the public home page shows the full-text search bar.
+Only relevant when `public_home_enabled = true`.
+
+**Consumed by**: `PublicHomeSection.vue` — conditionally renders the search panel.
+
+---
+
+#### `home_show_login_button`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `true` |
+| **Editable** | Yes — Admin |
+
+Whether the public header shows the "Sign in" link. Disable to create a fully
+anonymous-facing public home without any reference to the admin interface.
+
+**Consumed by**: `PublicHomeSection.vue` — conditionally renders the login link.
+
+---
+
+#### `home_propagate_css`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `false` |
+| **Editable** | Yes — Admin |
+
+When `true`, the custom homepage CSS file (if uploaded) is injected as a
+`<link>` stylesheet into all non-homepage public views: collection list,
+document, entities, bibliography. The homepage always injects the CSS
+independently of this setting.
+
+**Consumed by**: `useUiConfigStore.home_propagate_css` →
+`usePublicCustomCss` composable, called in `PublicCollectionView`,
+`PublicDocumentView`, `PublicEntitiesView`, `PublicBibliographyView`.
+
+> `has_custom_homepage_css` (computed, not a DB setting): returned alongside
+> the above settings in `UiConfigResponse`. It is `true` when
+> `MEDIA_DIR/custom_homepage.css` exists on the filesystem. Managed via
+> `POST/DELETE /api/v1/settings/homepage-css`.
+
+---
+
+### 6.7 EVT viewer
 
 #### `evt_enabled`
 
@@ -516,12 +560,40 @@ stored but **not yet read at runtime** — the website service currently uses
 a hardcoded constant of 300 seconds and notes this setting as a planned
 integration point.
 
-When wired, this value will be read from the database at request time to set
-the `max-age` on dynamic page responses.
+---
+
+### 6.9 Named entity index
+
+#### `entity_index_tags`
+
+| | |
+|---|---|
+| **Type** | `string` (JSON array) |
+| **Default** | `'["persName", "placeName", "orgName"]'` |
+| **Editable** | Yes — EditorInChief+ (via `PUT /api/v1/entities/admin/tag-config`) |
+
+JSON array of TEI local element names to extract during entity indexing.
+The tag name is used directly as the entity `type` stored in the database.
+Any TEI element can be added (e.g. `"objectName"`, `"measure"`, `"geogName"`).
+
+Constraints: 1–50 tags, each ≤ 64 characters.
+
+After changing this setting, all collections must be re-indexed via
+`POST /api/v1/entities/admin/reindex/{slug}` for the new configuration to
+take effect on existing documents.
+
+**Consumed by**: `get_tag_config()` in
+`app/plugins/_native/named_entities/service.py` → passed as the `$tags`
+external variable to `xqueries/named_entities/extract_document.xq`.
+
+> This setting is managed through a dedicated endpoint
+> (`GET/PUT /api/v1/entities/admin/tag-config`) rather than the generic
+> `PATCH /api/v1/settings/{key}` — it has its own Pydantic schema
+> (`EntityTagConfig`) with list and length validation.
 
 ---
 
-### 6.9 AI integration
+### 6.10 AI integration
 
 All AI settings are read from the database at request time by
 `backend/app/plugins/_native/ai/service.py`. Changes take effect on the next
@@ -558,8 +630,7 @@ API key for the selected provider must also be set.
 | **Editable** | Yes — Admin |
 | **Sensitive** | Yes — encrypted at rest, masked in API responses |
 
-OpenAI API key. Required when `ai_provider = "openai"`. Stored encrypted using
-AES with `JWT_SECRET` as the key. Never returned in plaintext by the API.
+OpenAI API key. Required when `ai_provider = "openai"`.
 
 ---
 
@@ -571,8 +642,7 @@ AES with `JWT_SECRET` as the key. Never returned in plaintext by the API.
 | **Default** | `"gpt-4o"` |
 | **Editable** | Yes — Admin |
 
-OpenAI model name passed to the completions API. Any model available on the
-configured API key can be used (e.g. `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`).
+OpenAI model name passed to the completions API (e.g. `gpt-4o`, `gpt-4o-mini`).
 
 ---
 
@@ -597,8 +667,7 @@ Anthropic API key. Required when `ai_provider = "anthropic"`.
 | **Default** | `"claude-opus-4-6"` |
 | **Editable** | Yes — Admin |
 
-Anthropic model name. Any model available on the configured API key can be used
-(e.g. `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`).
+Anthropic model name (e.g. `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`).
 
 ---
 
@@ -640,10 +709,6 @@ Rate limit for AI streaming requests. Each authenticated user is allowed at
 most this many AI requests per rolling 60-minute window. Requests beyond the
 limit are rejected with `429 Too Many Requests`.
 
-The rate-limit counter is stored in-memory (per backend process). In a
-multi-process deployment, each process has its own counter — effective limit
-is `ai_max_requests_per_hour × process_count`.
-
 **Consumed by**: `_check_rate_limit()` and `get_ai_config()` in
 `app/plugins/_native/ai/service.py`.
 
@@ -659,8 +724,7 @@ is `ai_max_requests_per_hour × process_count`.
 
 When `true`, the AI panel displays a privacy disclaimer before the first
 request in each session, reminding the user that document content is sent to
-an external provider. Intended for deployments handling sensitive or
-confidential documents.
+an external provider.
 
 **Consumed by**: `get_ai_config()` → `AiConfigResponse.privacy_warning_enabled`
 → `AiPanel.vue`.
@@ -697,10 +761,8 @@ confidential documents.
    `UiConfigResponse` in `backend/app/schemas/settings.py`.
 
 4. **Consume it in the frontend** — either:
-   - Read via `settingStore.getSetting("my_new_setting")` (requires auth,
-     Admin only)
-   - Or read via `uiConfigStore.myNewSetting` if it was added to the public
-     UI config
+   - Read via `settingStore.getSetting("my_new_setting")` (requires auth, Admin only)
+   - Or read via `uiConfigStore.myNewSetting` if it was added to the public UI config
 
 5. **Add i18n labels** in `frontend/src/locales/en.json` and `it.json` so the
    settings panel renders a readable label.
@@ -708,6 +770,6 @@ confidential documents.
 6. If the setting is **sensitive** (API key, password, secret), add the key to
    `SENSITIVE_KEYS` in `backend/app/core/encryption.py`.
 
-> Re-running `make seed` after deploying will insert the new setting with its
-> default value on any installation that does not already have it. Existing
-> Admin-configured values are never overwritten.
+> Re-running `python -m app.db.seed` after deploying will insert the new
+> setting with its default value on any installation that does not already
+> have it. Existing Admin-configured values are never overwritten.
