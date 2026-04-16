@@ -33,9 +33,13 @@ class Settings(BaseSettings):
     # eXist-db
     existdb_url: str
     existdb_user: str
-    # Shared with the existdb Docker image (EXIST_PASSWORD).
-    # eXist-db 6.2.0 ignores EXIST_PASSWORD on first boot — admin password is empty by default.
+    # Admin password — set manually in eXist-db and stored here.
+    # Used by the backend exclusively for bootstrap operations (ensure_root, bootstrap_user).
     exist_password: str = ""
+    # Runtime user password — password of the dedicated 'aracne' account created at bootstrap.
+    # All post-bootstrap operations use this credential. If empty, bootstrap is skipped and
+    # the runtime client falls back to admin credentials (not recommended for production).
+    existdb_app_password: str = ""
 
     # JWT
     jwt_secret: str

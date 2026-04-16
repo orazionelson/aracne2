@@ -37,11 +37,16 @@ configure_logging()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # STARTUP
     await existdb_client.connect()
-    # Ensure /db/aracne2/collections base structure exists (idempotent)
+    # Ensure /db/aracne2/collections base structure exists (idempotent, admin)
     try:
         await existdb_client.ensure_root()
     except Exception as exc:
         structlog.get_logger().warning("existdb_ensure_root_failed", error=str(exc))
+    # Create the dedicated runtime user and set collection ownership (idempotent, admin)
+    try:
+        await existdb_client.bootstrap_user()
+    except Exception as exc:
+        structlog.get_logger().warning("existdb_bootstrap_user_failed", error=str(exc))
     # Verify postgres connectivity — non-fatal so tests and degraded starts work
     try:
         from sqlalchemy import text

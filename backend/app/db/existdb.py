@@ -7,6 +7,12 @@ data is cleanly namespaced inside the eXist-db instance.
 Collection slug  →  eXist-db path
   "dante"        →  /db/aracne2/collections/dante
 
+Two HTTP clients are maintained:
+  _admin_client  — authenticates as the eXist-db 'admin' user; used only for
+                   bootstrap operations (ensure_root, bootstrap_user).
+  _client        — authenticates as the dedicated 'aracne' runtime user; used
+                   for all post-bootstrap queries and document operations.
+
 XQuery files are loaded from app/xqueries/ — never built inline.
 All XML parsing uses defusedxml (XXE prevention).
 """
@@ -26,17 +32,31 @@ logger = structlog.get_logger()
 _REST = "/exist/rest"
 _DB_ROOT = "/db/aracne2"
 _XQUERIES_DIR = Path(__file__).parent.parent / "xqueries"
+# eXist-db's built-in admin account name — not configurable via environment.
+_ADMIN_USER = "admin"
 
 
 class ExistDBClient:
     _client: httpx.AsyncClient | None = None
+    _admin_client: httpx.AsyncClient | None = None
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
     async def connect(self) -> None:
+        # Admin client — used exclusively for bootstrap (ensure_root, bootstrap_user).
+        self._admin_client = httpx.AsyncClient(
+            base_url=settings.existdb_url,
+            auth=(_ADMIN_USER, settings.exist_password),
+            timeout=30.0,
+        )
+        # Runtime client — all post-bootstrap operations use the 'aracne' account.
+        # Falls back to admin credentials only when existdb_app_password is not configured
+        # (development / first-run scenarios before bootstrap has been executed).
+        runtime_user = settings.existdb_user
+        runtime_password = settings.existdb_app_password or settings.exist_password
         self._client = httpx.AsyncClient(
             base_url=settings.existdb_url,
-            auth=(settings.existdb_user, settings.exist_password),
+            auth=(runtime_user, runtime_password),
             timeout=30.0,
         )
 
@@ -44,6 +64,9 @@ class ExistDBClient:
         if self._client:
             await self._client.aclose()
             self._client = None
+        if self._admin_client:
+            await self._admin_client.aclose()
+            self._admin_client = None
 
     async def ping(self) -> bool:
         """GET /exist/rest/ — returns True if reachable, False otherwise."""
@@ -58,9 +81,33 @@ class ExistDBClient:
     async def ensure_root(self) -> None:
         """Create /db/aracne2 and /db/aracne2/collections if absent.
 
+        Requires admin credentials — creates collections at the /db/ root level.
         Safe to call at every startup — the XQuery is fully idempotent.
         """
-        await self.xquery("system/ensure_root.xq")
+        await self._xquery_admin("system/ensure_root.xq")
+
+    async def bootstrap_user(self) -> None:
+        """Create the Aracne2 runtime user in eXist-db and set collection ownership.
+
+        Requires admin credentials. Idempotent: safe to call on every startup.
+        Skipped with a warning if existdb_app_password is not configured.
+        """
+        if not settings.existdb_app_password:
+            logger.warning(
+                "existdb_bootstrap_skipped",
+                reason="existdb_app_password not set — runtime user not created",
+            )
+            return
+        await self._xquery_admin(
+            "system/bootstrap_user.xq",
+            variables={
+                "username": settings.existdb_user,
+                "password": settings.existdb_app_password,
+            },
+        )
+        logger.info(
+            "existdb_bootstrap_user_ok", username=settings.existdb_user
+        )
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
@@ -68,6 +115,41 @@ class ExistDBClient:
         if not self._client:
             raise ExternalServiceError("existdb", "Client not connected")
         return self._client
+
+    def _require_admin(self) -> httpx.AsyncClient:
+        if not self._admin_client:
+            raise ExternalServiceError("existdb", "Admin client not connected")
+        return self._admin_client
+
+    async def _xquery_admin(
+        self, query_file: str, variables: dict[str, str] | None = None
+    ) -> bytes:
+        """Execute an XQuery using admin credentials.
+
+        Identical to xquery() but uses _admin_client. Reserved for bootstrap
+        operations that require elevated privileges (ensure_root, bootstrap_user).
+        """
+        query = self._load_xq(query_file)
+        if variables:
+            query = self._inline_prolog_variables(query, variables)
+        client = self._require_admin()
+        r = await client.post(
+            self._rest_url("db"),
+            content=urlencode({"_query": query, "_wrap": "no"}).encode(),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if r.status_code not in (200, 201):
+            logger.error(
+                "existdb_admin_xquery_failed",
+                query_file=query_file,
+                status=r.status_code,
+                response_body=r.text[:500],
+            )
+            raise ExternalServiceError(
+                "existdb",
+                f"Admin XQuery '{query_file}' failed ({r.status_code}): {r.text[:300]}",
+            )
+        return r.content
 
     def col_path(self, slug: str) -> str:
         """Full eXist-db path for a collection slug."""
