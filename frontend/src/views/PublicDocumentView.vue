@@ -23,31 +23,31 @@ const renderUrl = computed(() => {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-gray-50">
+  <div class="pd-page flex min-h-screen flex-col bg-gray-50">
     <!-- Public header: shown only for unauthenticated visitors.
          Authenticated users already have AppNavbar from App.vue. -->
     <header
       v-if="!auth.isAuthenticated"
-      class="flex h-14 items-center gap-3 px-6 text-white shadow"
+      class="pd-header flex h-14 items-center gap-3 px-6 text-white shadow"
       :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
     >
-      <router-link to="/" class="flex items-center gap-2 font-bold text-lg hover:opacity-80">
+      <router-link to="/" class="pd-logo flex items-center gap-2 font-bold text-lg hover:opacity-80">
         <img
           v-if="uiConfig.config.platform_logo_url"
           :src="uiConfig.config.platform_logo_url"
           alt="Logo"
-          class="h-8 w-auto object-contain"
+          class="pd-logo-img h-8 w-auto object-contain"
         />
-        <span>{{ uiConfig.config.platform_name }}</span>
+        <span class="pd-site-name">{{ uiConfig.config.platform_name }}</span>
       </router-link>
-      <span class="ml-auto text-sm opacity-80">
+      <span class="pd-login ml-auto text-sm opacity-80">
         <router-link to="/login" class="hover:underline">{{ t("auth.sign_in") }}</router-link>
       </span>
     </header>
 
-    <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
+    <main class="pd-main mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
       <!-- Breadcrumb -->
-      <nav class="mb-6 text-sm text-gray-400">
+      <nav class="pd-breadcrumb mb-6 text-sm text-gray-400">
         <router-link to="/" class="hover:text-gray-700">
           {{ uiConfig.config.platform_name }}
         </router-link>
@@ -65,7 +65,7 @@ const renderUrl = computed(() => {
       <!-- Rendered document -->
       <iframe
         :src="renderUrl"
-        class="flex-1 w-full rounded-xl border border-gray-200 bg-white shadow-sm"
+        class="doc-frame flex-1 w-full rounded-xl border border-gray-200 bg-white shadow-sm"
         style="min-height: 70vh;"
         :title="filename"
       />

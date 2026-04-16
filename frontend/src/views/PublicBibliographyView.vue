@@ -62,34 +62,34 @@ const entries = computed<BibEntry[]>(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="pb-page min-h-screen bg-gray-50">
     <!-- Public header -->
     <header
-      class="flex h-14 items-center gap-3 px-6 text-white shadow"
+      class="pb-header flex h-14 items-center gap-3 px-6 text-white shadow"
       :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
     >
-      <router-link to="/" class="flex items-center gap-2 text-lg font-bold hover:opacity-80">
+      <router-link to="/" class="pb-logo flex items-center gap-2 text-lg font-bold hover:opacity-80">
         <img
           v-if="uiConfig.config.platform_logo_url"
           :src="uiConfig.config.platform_logo_url"
           alt="Logo"
-          class="h-8 w-auto object-contain"
+          class="pb-logo-img h-8 w-auto object-contain"
         />
-        <span>{{ uiConfig.config.platform_name }}</span>
+        <span class="pb-site-name">{{ uiConfig.config.platform_name }}</span>
       </router-link>
-      <span class="ml-auto text-sm opacity-80">
+      <span class="pb-login ml-auto text-sm opacity-80">
         <router-link to="/login" class="hover:underline">
           {{ t("auth.sign_in") }}
         </router-link>
       </span>
     </header>
 
-    <main class="mx-auto max-w-3xl px-4 py-10">
+    <main class="pb-main mx-auto max-w-3xl px-4 py-10">
       <!-- Loading -->
       <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
 
       <!-- Error / not found -->
-      <div v-else-if="error" class="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+      <div v-else-if="error" class="pb-error rounded-lg border border-red-200 bg-red-50 p-6 text-center">
         <p class="text-sm text-red-700">{{ error }}</p>
         <router-link
           :to="{ name: 'public-collection', params: { slug } }"
@@ -101,10 +101,10 @@ const entries = computed<BibEntry[]>(() => {
 
       <template v-else-if="bibliography">
         <!-- Page title -->
-        <div class="mb-6">
+        <div class="pb-page-title mb-6">
           <router-link
             :to="{ name: 'public-collection', params: { slug } }"
-            class="mb-2 inline-block text-xs text-gray-400 hover:text-gray-600"
+            class="pb-back-link mb-2 inline-block text-xs text-gray-400 hover:text-gray-600"
           >
             ← {{ t("public.back_to_collection") }}
           </router-link>
@@ -121,11 +121,11 @@ const entries = computed<BibEntry[]>(() => {
         </p>
 
         <!-- Bibliography list -->
-        <ol v-else class="space-y-3">
+        <ol v-else class="bibliography-list space-y-3">
           <li
             v-for="(entry, idx) in entries"
             :key="idx"
-            class="flex gap-3 rounded-lg border border-gray-100 bg-white px-5 py-3 shadow-sm"
+            class="bibliography-item flex gap-3 rounded-lg border border-gray-100 bg-white px-5 py-3 shadow-sm"
           >
             <span class="mt-0.5 shrink-0 font-mono text-sm text-gray-300">{{ idx + 1 }}.</span>
             <span class="text-sm leading-relaxed text-gray-800">{{ entry.text }}</span>

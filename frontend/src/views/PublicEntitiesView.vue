@@ -142,48 +142,48 @@ function typeLabel(type: EntityType): string {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="pe-page min-h-screen bg-gray-50">
     <!-- Public header (same as PublicBibliographyView) -->
     <header
-      class="flex h-14 items-center gap-3 px-6 text-white shadow"
+      class="pe-header flex h-14 items-center gap-3 px-6 text-white shadow"
       :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
     >
-      <router-link to="/" class="flex items-center gap-2 text-lg font-bold hover:opacity-80">
+      <router-link to="/" class="pe-logo flex items-center gap-2 text-lg font-bold hover:opacity-80">
         <img
           v-if="uiConfig.config.platform_logo_url"
           :src="uiConfig.config.platform_logo_url"
           alt="Logo"
-          class="h-8 w-auto object-contain"
+          class="pe-logo-img h-8 w-auto object-contain"
         />
-        <span>{{ uiConfig.config.platform_name }}</span>
+        <span class="pe-site-name">{{ uiConfig.config.platform_name }}</span>
       </router-link>
-      <span class="ml-auto text-sm opacity-80">
+      <span class="pe-login ml-auto text-sm opacity-80">
         <router-link to="/login" class="hover:underline">
           {{ t("auth.sign_in") }}
         </router-link>
       </span>
     </header>
 
-    <main class="mx-auto max-w-4xl px-4 py-8">
+    <main class="pe-main mx-auto max-w-4xl px-4 py-8">
       <!-- Back link -->
       <router-link
         :to="{ name: 'public-collection', params: { slug } }"
-        class="mb-4 inline-block text-sm text-indigo-600 hover:underline"
+        class="pe-back-link mb-4 inline-block text-sm text-indigo-600 hover:underline"
       >
         {{ t("public.entities_back") }}
       </router-link>
 
       <!-- Page title -->
-      <div class="mb-6">
+      <div class="pe-page-title mb-6">
         <h1 class="text-2xl font-bold text-gray-900">{{ t("public.entities_page_title") }}</h1>
         <p class="mt-1 text-sm text-gray-500">{{ t("public.entities_page_subtitle") }}</p>
       </div>
 
       <!-- Filters -->
-      <div class="mb-5 flex flex-wrap items-center gap-3">
+      <div class="entity-filters mb-5 flex flex-wrap items-center gap-3">
         <select
           v-model="filterType"
-          class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+          class="filter-type rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
         >
           <option value="">{{ t("entities.type_all") }}</option>
           <option value="person">{{ t("entities.type_person") }}</option>
@@ -194,11 +194,11 @@ function typeLabel(type: EntityType): string {
           v-model="filterQ"
           type="text"
           :placeholder="t('entities.search_placeholder')"
-          class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+          class="filter-search rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
           @keydown="onSearchKeydown"
         />
         <button
-          class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          class="filter-btn rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
           @click="fetchEntities(1)"
         >
           {{ t("collections.search_button") }}
@@ -209,7 +209,7 @@ function typeLabel(type: EntityType): string {
       <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
 
       <!-- Entity list -->
-      <div v-if="!isLoading" class="space-y-2">
+      <div v-if="!isLoading" class="entity-list space-y-2">
         <p v-if="entities.length === 0" class="text-sm text-gray-500">
           {{ t("entities.empty") }}
         </p>
@@ -217,26 +217,26 @@ function typeLabel(type: EntityType): string {
         <template v-for="entity in entities" :key="entity.id">
           <!-- Entity row -->
           <div
-            class="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50/30"
+            class="entity-row flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50/30"
             :class="selectedEntity?.id === entity.id ? 'border-violet-300 ring-1 ring-violet-200' : ''"
             @click="openOccurrences(entity)"
           >
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 <span
-                  class="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
+                  class="entity-badge shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
                   :class="typeBadgeClass(entity.type)"
                 >
                   {{ typeLabel(entity.type) }}
                 </span>
-                <span class="truncate font-medium text-gray-900">{{ entity.canonical_form }}</span>
-                <span class="shrink-0 text-xs text-gray-400">
+                <span class="entity-name truncate font-medium text-gray-900">{{ entity.canonical_form }}</span>
+                <span class="entity-count shrink-0 text-xs text-gray-400">
                   {{ t("entities.occurrences", { n: entity.occurrence_count }) }}
                 </span>
               </div>
               <div
                 v-if="entity.authority_ref"
-                class="mt-0.5 truncate font-mono text-xs text-indigo-600"
+                class="entity-authority mt-0.5 truncate font-mono text-xs text-indigo-600"
               >
                 <a
                   :href="entity.authority_ref"
@@ -257,7 +257,7 @@ function typeLabel(type: EntityType): string {
           <!-- Inline occurrences panel -->
           <div
             v-if="selectedEntity?.id === entity.id"
-            class="rounded-xl border border-violet-200 bg-violet-50 p-4"
+            class="occurrences-panel rounded-xl border border-violet-200 bg-violet-50 p-4"
           >
             <h2 class="mb-3 text-sm font-semibold text-violet-800">
               {{ t("entities.occurrences_title") }} —
@@ -275,9 +275,9 @@ function typeLabel(type: EntityType): string {
               <div
                 v-for="occ in occurrences"
                 :key="occ.id"
-                class="rounded border border-violet-100 bg-white p-3 text-xs"
+                class="occurrence-item rounded border border-violet-100 bg-white p-3 text-xs"
               >
-                <div class="flex items-start justify-between gap-2">
+                <div class="occurrence-form flex items-start justify-between gap-2">
                   <div>
                     <span class="font-medium text-violet-700">{{ occ.raw_form }}</span>
                     <span class="ml-2 text-gray-400">
@@ -294,19 +294,19 @@ function typeLabel(type: EntityType): string {
                       name: 'public-document',
                       params: { slug: occ.collection_slug, filename: occ.filename },
                     }"
-                    class="shrink-0 text-indigo-600 hover:underline"
+                    class="occurrence-doc-link shrink-0 text-indigo-600 hover:underline"
                     target="_blank"
                   >
                     {{ t("entities.view_in_doc") }}
                   </router-link>
                 </div>
-                <p v-if="occ.context" class="mt-1 italic text-gray-500">"{{ occ.context }}"</p>
+                <p v-if="occ.context" class="occurrence-context mt-1 italic text-gray-500">"{{ occ.context }}"</p>
               </div>
 
               <!-- Occurrences pagination -->
               <div
                 v-if="occurrencesPagination.total_pages > 1"
-                class="flex items-center justify-center gap-3 pt-1 text-xs"
+                class="occurrences-pagination flex items-center justify-center gap-3 pt-1 text-xs"
               >
                 <button
                   :disabled="occurrencesPagination.page <= 1"
@@ -331,7 +331,7 @@ function typeLabel(type: EntityType): string {
         <!-- Entity list pagination -->
         <div
           v-if="pagination.total_pages > 1"
-          class="mt-4 flex items-center justify-center gap-3 text-sm"
+          class="entity-pagination mt-4 flex items-center justify-center gap-3 text-sm"
         >
           <button
             :disabled="pagination.page <= 1"

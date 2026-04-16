@@ -1,10 +1,19 @@
-# Styling the Public Homepage
+# Styling the Public Pages
 
-This document lists every descriptive CSS class present on the public
-homepage component (`frontend/src/components/PublicHomeSection.vue`).
-Each element carries at least one semantic class alongside its Tailwind
-utility classes, so custom stylesheets can target specific areas without
-relying on brittle structural selectors.
+This document lists every descriptive CSS class present on the public-facing
+views and the homepage component. Each element carries at least one semantic
+class alongside its Tailwind utility classes, so custom stylesheets can target
+specific areas without relying on brittle structural selectors.
+
+Files covered:
+
+| File | View |
+|---|---|
+| `frontend/src/components/PublicHomeSection.vue` | Public homepage |
+| `frontend/src/views/PublicCollectionView.vue` | Collection detail |
+| `frontend/src/views/PublicDocumentView.vue` | Document viewer |
+| `frontend/src/views/PublicEntitiesView.vue` | Named entities |
+| `frontend/src/views/PublicBibliographyView.vue` | Bibliography |
 
 ---
 
@@ -137,12 +146,191 @@ Rendered when there is more than one page and no active search.
 
 ## Settings that affect rendering
 
-The following system settings (configurable under **Admin → Settings → Homepage**)
-determine which sections are rendered:
+All options are configurable under **Admin → Settings → Homepage**.
 
-| Setting key | Default | Effect |
+### Visibility toggles
+
+| Setting key | UI label | Default | Effect on the DOM |
+|---|---|---|---|
+| `public_home_enabled` | Enable public homepage | `false` | Enables the entire public homepage; when off the route returns 404 |
+| `home_show_collections` | Show collection list | `true` | Shows/hides the collection section, search results, and pagination (`ph-stats`, `collection-list`, `ph-pagination`) |
+| `home_show_search` | Show search bar | `true` | Shows/hides the `ph-search` block; search results are also hidden when off |
+| `home_show_login_button` | Enable login button | `true` | Shows/hides the `ph-login` span in the header across all public views |
+
+### Custom stylesheet
+
+| Setting key | UI label | Default | Behaviour |
+|---|---|---|---|
+| `has_custom_homepage_css` | *(derived from file presence)* | `false` | When a CSS file has been uploaded, it is injected as the last `<link>` in the homepage (`<component :is="'link'">`) so it takes precedence over all Tailwind defaults |
+| `home_propagate_css` | Propagate custom CSS | `false` | Extends the same `<link>` injection to all other public views (collection detail, document viewer, entities, bibliography) via the `usePublicCustomCss` composable |
+
+#### Managing the custom stylesheet
+
+The **Custom Stylesheet** panel under the toggles exposes three actions:
+
+| Action | Description |
+|---|---|
+| **Choose File + Upload** | Uploads a `.css` file to the server (`POST /api/v1/settings/homepage-css`). Only `.css` files are accepted. The status badge switches to *Custom CSS active* after a successful upload. |
+| **Remove** | Deletes the uploaded file from the server (`DELETE /api/v1/settings/homepage-css`). The badge disappears and the CSS is no longer injected. |
+| **Download CSS** | Downloads a ready-to-edit template (`public-pages.css`) that contains empty rule blocks for every descriptive class across all five public views. Use this as a starting point for customisation. |
+
+---
+
+---
+
+# Collection Detail — `PublicCollectionView.vue`
+
+## Page structure
+
+| Class | Element | Description |
 |---|---|---|
-| `public_home_enabled` | `false` | Enables the public homepage entirely |
-| `home_show_collections` | `true` | Shows/hides the collection section and search results |
-| `home_show_search` | `true` | Shows/hides the search bar (`ph-search` block) |
-| `home_show_login_button` | `true` | Shows/hides the `ph-login` element in the header |
+| `pc-page` | `<div>` | Outermost page wrapper |
+| `pc-header` | `<header>` | Top navigation bar |
+| `pc-main` | `<main>` | Content area |
+
+## Header
+
+| Class | Element | Description |
+|---|---|---|
+| `pc-logo` | `<a>` | Logo + platform name link |
+| `pc-logo-img` | `<img>` | Platform logo image |
+| `pc-site-name` | `<span>` | Platform name text |
+| `pc-login` | `<span>` | Login link wrapper |
+
+## Navigation and collection info
+
+| Class | Element | Description |
+|---|---|---|
+| `pc-breadcrumb` | `<nav>` | Breadcrumb trail (homepage → collection title) |
+| `pc-collection-header` | `<div>` | Collection title, author, description, metadata block |
+| `col-title` | `<h1>` | Collection title |
+| `col-author` | `<p>` | Author name (italic) |
+| `col-desc` | `<p>` | Collection description |
+| `col-meta` | `<div>` | Metadata row (publisher, year) |
+| `col-publisher` | `<span>` | Publisher name |
+| `col-year` | `<span>` | Publication year |
+
+## Document list
+
+| Class | Element | Description |
+|---|---|---|
+| `doc-list-heading` | `<h2>` | Section heading with document count |
+| `doc-list` | `<ul>` | List of documents in the collection |
+| `doc-item` | `<li>` | Single document row |
+| `doc-title` | `<p>` | Document title (or filename fallback) |
+| `doc-author` | `<p>` | Document author (italic, optional) |
+| `doc-view-link` | `<a>` | Link to the document viewer |
+
+---
+
+# Document Viewer — `PublicDocumentView.vue`
+
+## Page structure
+
+| Class | Element | Description |
+|---|---|---|
+| `pd-page` | `<div>` | Outermost page wrapper |
+| `pd-header` | `<header>` | Top navigation bar (hidden for authenticated users) |
+| `pd-main` | `<main>` | Content area |
+
+## Header
+
+| Class | Element | Description |
+|---|---|---|
+| `pd-logo` | `<a>` | Logo + platform name link |
+| `pd-logo-img` | `<img>` | Platform logo image |
+| `pd-site-name` | `<span>` | Platform name text |
+| `pd-login` | `<span>` | Login link wrapper |
+
+## Content
+
+| Class | Element | Description |
+|---|---|---|
+| `pd-breadcrumb` | `<nav>` | Breadcrumb trail (homepage → collection → filename) |
+| `doc-frame` | `<iframe>` | Rendered XSLT document output |
+
+---
+
+# Named Entities — `PublicEntitiesView.vue`
+
+## Page structure
+
+| Class | Element | Description |
+|---|---|---|
+| `pe-page` | `<div>` | Outermost page wrapper |
+| `pe-header` | `<header>` | Top navigation bar |
+| `pe-main` | `<main>` | Content area |
+
+## Header
+
+| Class | Element | Description |
+|---|---|---|
+| `pe-logo` | `<a>` | Logo + platform name link |
+| `pe-logo-img` | `<img>` | Platform logo image |
+| `pe-site-name` | `<span>` | Platform name text |
+| `pe-login` | `<span>` | Login link wrapper |
+
+## Navigation and filters
+
+| Class | Element | Description |
+|---|---|---|
+| `pe-back-link` | `<a>` | Link back to the collection |
+| `pe-page-title` | `<div>` | Page title and subtitle block |
+| `entity-filters` | `<div>` | Filter bar (type selector + search input + button) |
+| `filter-type` | `<select>` | Entity type dropdown filter |
+| `filter-search` | `<input>` | Text search input |
+| `filter-btn` | `<button>` | Search submit button |
+
+## Entity list
+
+| Class | Element | Description |
+|---|---|---|
+| `entity-list` | `<div>` | Container for all entity rows |
+| `entity-row` | `<div>` | Clickable row for a single entity |
+| `entity-badge` | `<span>` | Coloured type badge (person / place / org) |
+| `entity-name` | `<span>` | Canonical form of the entity |
+| `entity-count` | `<span>` | Number of occurrences |
+| `entity-authority` | `<div>` | Authority reference URI (optional) |
+| `entity-pagination` | `<div>` | Pagination controls for the entity list |
+
+## Occurrences panel (inline, per entity)
+
+| Class | Element | Description |
+|---|---|---|
+| `occurrences-panel` | `<div>` | Expanded panel shown below the selected entity row |
+| `occurrence-item` | `<div>` | Single occurrence card |
+| `occurrence-form` | `<div>` | Row with raw form, source info, and link |
+| `occurrence-context` | `<p>` | Excerpt snippet from the source document |
+| `occurrence-doc-link` | `<a>` | Link to the document in a new tab |
+| `occurrences-pagination` | `<div>` | Pagination controls for the occurrences list |
+
+---
+
+# Bibliography — `PublicBibliographyView.vue`
+
+## Page structure
+
+| Class | Element | Description |
+|---|---|---|
+| `pb-page` | `<div>` | Outermost page wrapper |
+| `pb-header` | `<header>` | Top navigation bar |
+| `pb-main` | `<main>` | Content area |
+
+## Header
+
+| Class | Element | Description |
+|---|---|---|
+| `pb-logo` | `<a>` | Logo + platform name link |
+| `pb-logo-img` | `<img>` | Platform logo image |
+| `pb-site-name` | `<span>` | Platform name text |
+| `pb-login` | `<span>` | Login link wrapper |
+
+## Content
+
+| Class | Element | Description |
+|---|---|---|
+| `pb-error` | `<div>` | Error / not-found message block |
+| `pb-page-title` | `<div>` | Page title, version, and date block |
+| `pb-back-link` | `<a>` | Link back to the collection |
+| `bibliography-list` | `<ol>` | Numbered list of bibliography entries |
+| `bibliography-item` | `<li>` | Single bibliography entry |
