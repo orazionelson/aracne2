@@ -266,3 +266,44 @@ async def test_delete_homepage_css_as_admin(
             "/api/v1/settings/homepage-css", headers=_auth(token)
         )
     assert res.status_code == 204
+
+
+# ── Size guard: logo ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_too_large_returns_422(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Uploading a logo larger than 2 MB is rejected with 422."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    oversized = b"\x89PNG\r\n\x1a\n" + b"x" * (2 * 1024 * 1024 + 1)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        mock_settings.jwt_secret = "test-secret"
+        res = await client.post(
+            "/api/v1/settings/logo",
+            headers=_auth(token),
+            files={"file": ("big.png", io.BytesIO(oversized), "image/png")},
+        )
+    assert res.status_code == 422
+
+
+# ── Size guard: homepage CSS ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_upload_homepage_css_too_large_returns_422(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Uploading a CSS file larger than 512 KB is rejected with 422."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    oversized = b"body { color: red; }" + b" " * (512 * 1024 + 1)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.post(
+            "/api/v1/settings/homepage-css",
+            headers=_auth(token),
+            files={"file": ("big.css", io.BytesIO(oversized), "text/css")},
+        )
+    assert res.status_code == 422

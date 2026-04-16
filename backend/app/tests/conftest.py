@@ -27,9 +27,11 @@ from app.models.user import User as _User
 # in-memory SQLite, so plugin_loader never runs and no plugin router is mounted.
 # Register each native plugin router here directly so their endpoints are reachable,
 # and import their models so Base.metadata.create_all() includes the plugin tables.
+from app.plugins._native.backup.router import router as _backup_router
 from app.plugins._native.collections.router import router as _collections_router
 from app.plugins._native.named_entities import models as _ne_models  # noqa: F401 — register tables
 from app.plugins._native.named_entities.router import router as _named_entities_router
+app.include_router(_backup_router, prefix="/api/v1")
 app.include_router(_collections_router, prefix="/api/v1")
 app.include_router(_named_entities_router, prefix="/api/v1")
 

@@ -182,6 +182,36 @@ async def test_admin_put_tag_config_as_eic(
 
 
 @pytest.mark.asyncio
+async def test_admin_put_tag_config_too_many_tags_returns_422(
+    client: AsyncClient, seeded_editorinchief: User
+) -> None:
+    """More than 50 tags in the config is rejected with 422."""
+    token = await _login_as(client, EIC_USERNAME, EIC_PASSWORD)
+    too_many = [f"tag{i}" for i in range(51)]
+    res = await client.put(
+        "/api/v1/entities/admin/tag-config",
+        headers=_auth(token),
+        json={"tags": too_many},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_put_tag_config_tag_too_long_returns_422(
+    client: AsyncClient, seeded_editorinchief: User
+) -> None:
+    """A tag name longer than 64 characters is rejected with 422."""
+    token = await _login_as(client, EIC_USERNAME, EIC_PASSWORD)
+    long_tag = "a" * 65
+    res = await client.put(
+        "/api/v1/entities/admin/tag-config",
+        headers=_auth(token),
+        json={"tags": [long_tag]},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_admin_update_entity_not_found_returns_404(
     client: AsyncClient, seeded_admin: User
 ) -> None:
