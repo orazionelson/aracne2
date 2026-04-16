@@ -8,76 +8,18 @@ implemented, or may be reconsidered as the product evolves.
 Each entry describes the idea, the motivation, the open questions, and any
 prerequisite that would need to be in place first.
 
----
+### Priority legend
 
-## 1. Mobile companion app
-
-A lightweight read-only mobile client (iOS + Android) for Editors and
-EditorInChiefs to review documents and approve publication requests on the go.
-
-**Motivation**
-Editorial workflows often require quick approvals or status checks from people
-who are away from their desks. A native app with push notifications would reduce
-turnaround time for review cycles.
-
-**Scope**
-Read-only access is sufficient for most use cases:
-- Browse assigned collections and their publication state
-- Open documents in a rendered view (HTML from XSLT, not the raw XML editor)
-- Approve / reject publication requests (simple state transition, one HTTP call)
-- Receive push notifications for events: document submitted for review, comment added
-
-Full XML editing on mobile is out of scope — the CodeMirror editor is not
-practical on a touch screen.
-
-**Open questions**
-- Framework: native (Swift + Kotlin) vs. cross-platform (Flutter, React Native,
-  Capacitor wrapping the existing Vue SPA)?
-- Capacitor is the lowest-friction option given the existing Vue 3 frontend.
-  The SPA already uses responsive Tailwind CSS; a dedicated mobile view layer
-  could be added without forking the codebase.
-- Push notifications require a server-side delivery layer (APNs + FCM).
-  This is a non-trivial addition to the backend (new `device_tokens` table,
-  new `notification_dispatcher` channel).
-
-**Prerequisites**
-- WebSocket or SSE notification delivery (DEFERRED item 9) must be in place, or
-  alternatively a polling-friendly `/notifications` endpoint (already exists).
-- The publication workflow (Phase 05+) must be operational.
+| Label | Meaning |
+|---|---|
+| 🔴 High | Strong fit with project goals; likely to be needed; relatively clear implementation path |
+| 🟡 Medium | Useful but not urgent; depends on growth in usage or contributor base |
+| 🟢 Low | Technically interesting but low immediate impact or high complexity |
+| 🔵 To discuss | Value or direction unclear; needs stakeholder input before scoping |
 
 ---
 
-## 2. Collaborative real-time editing
-
-Allow multiple Editors to work simultaneously on the same XML document with
-conflict-free merging and cursor presence awareness.
-
-**Motivation**
-Large TEI transcription projects often involve teams where different editors
-handle different sections of the same document. Sequential lock-based editing
-creates bottlenecks; real-time collaboration removes them.
-
-**Scope**
-- Operational Transformation (OT) or CRDT-based conflict resolution on XML text
-- Cursor presence: each connected user's cursor position shown in the editor
-- Awareness panel: list of who is currently editing the document
-
-**Open questions**
-- XML-aware OT/CRDT is significantly harder than plain text (CodeMirror's
-  built-in Yjs integration works for text; XML structure requires extra care).
-- Requires a persistent WebSocket connection per open document, which conflicts
-  with simple horizontal scaling (needs sticky sessions or a shared state layer).
-- eXist-db has no built-in real-time collaboration support — the document would
-  need to be reconstructed and saved to eXist-db on each significant checkpoint.
-
-**Prerequisites**
-- WebSocket layer (DEFERRED item 9)
-- Document versioning strategy (DEFERRED item 7)
-- Async task queue for durable saves (DEFERRED item 1)
-
----
-
-## 3. CLI import/export tool
+## 1. CLI import/export tool 🔴 High
 
 A standalone command-line tool (`aracne-cli`) for bulk operations outside the web UI.
 
@@ -111,180 +53,7 @@ aracne-cli validate --dir ./tei_files/ --schema tei_all
 
 ---
 
-## 4. Public reader statistics and analytics
-
-Track how published documents and collections are accessed by public readers,
-with an aggregated dashboard for EditorInChiefs and Admins.
-
-**Motivation**
-Scholarly editors and funders often need evidence of readership to justify project
-resources. Basic analytics (views per document, geographic distribution,
-search query frequency) provide this evidence without relying on third-party
-tracking services.
-
-**Scope**
-- Page view counter per document (incremented on public `GET /pub/...` access)
-- Aggregated daily/monthly views stored in a `view_stats` table
-  (no individual user tracking — privacy-first design)
-- Search query log (anonymized: IP hashed, no session linkage)
-- Dashboard: top documents, views over time, most common search terms
-
-**Privacy constraints**
-- No individual-level tracking — only aggregate counts
-- IP addresses hashed before storage (already in place for audit log)
-- Stats retention configurable via `system_settings` (default: 12 months)
-- No third-party analytics services — all data stays on the platform
-
-**Open questions**
-- Time series storage: plain `view_stats` table with daily aggregation rows,
-  or TimescaleDB / PostgreSQL partitioning for larger deployments?
-- Bot filtering: distinguish crawler traffic from human readers
-  (User-Agent heuristics + rate-based detection).
-
-**Prerequisites**
-- Public rendering layer (Phase 06+)
-- `system_settings` retention policy (already partially implemented)
-
----
-
-## 5. Glossary and index generation from named entities
-
-Automatically generate a structured glossary or index of persons, places, and
-works from the named entity index, rendered as a navigable section of the
-public website.
-
-**Motivation**
-Critical editions traditionally include an index of names and a glossary of terms.
-Aracne2 already tracks named entities in PostgreSQL and links them to TEI elements
-(`<persName>`, `<placeName>`, `<title>`) — generating an index from this data
-is a natural extension.
-
-**Scope**
-- Public endpoint: `GET /pub/websites/{slug}/index/persons`
-  Returns all persons referenced in the published documents of that website,
-  with links to the passages where they appear.
-- Same for places, organizations, works.
-- Frontend: an `IndexView.vue` with alphabetical navigation (A–Z jump links)
-  and a detail panel showing bio/geo data from the entity record plus
-  all document occurrences.
-
-**Open questions**
-- Occurrence linking requires a pre-built index: either stored in PostgreSQL
-  at document-save time, or computed at render time via XQuery.
-  XQuery is simpler but slower for large corpora.
-- The entity detail panel could optionally fetch external data
-  (VIAF, GeoNames, Wikidata) to enrich the display — but this requires
-  network calls at render time and introduces external dependencies.
-
-**Prerequisites**
-- Named entity management (Phase 05+)
-- Public rendering layer (Phase 06+)
-- Full-text search / XQuery occurrence index (DEFERRED item 8)
-
----
-
-## 6. Automated bibliography enrichment via DOI / ISBN lookup
-
-When an Editor enters a bibliographic reference in the document, the system can
-fetch structured metadata from CrossRef (DOI) or Open Library (ISBN) and
-populate the entry automatically.
-
-**Motivation**
-Manual entry of bibliographic metadata is error-prone and time-consuming.
-Auto-population from authoritative sources improves data quality and editor
-productivity.
-
-**Scope**
-- Frontend: a lookup field in the bibliography management panel.
-  The Editor pastes a DOI or ISBN; the frontend calls the backend.
-- Backend: `GET /bibliography/lookup?doi=10.xxx/yyy` or `?isbn=978...`
-  The backend proxies the request to CrossRef / Open Library, parses the
-  response, and returns a normalized `BibliographyEntry` schema.
-- The Editor reviews the auto-filled form and saves.
-
-**Open questions**
-- Rate limits and caching: CrossRef allows free API access but throttles at
-  ~50 req/s. Cache lookup results in PostgreSQL or Redis to avoid duplicate calls.
-- Fallback: if CrossRef returns nothing (conference papers, grey literature),
-  fall back to manual entry — do not block the workflow.
-- Data model: the normalized entry should map cleanly to TEI `<biblStruct>`.
-
-**Prerequisites**
-- Bibliography management endpoints (Phase 05+)
-- `httpx` already in stack — no new dependency needed for the proxy call
-
----
-
-## 7. TEI-to-DOCX / TEI-to-PDF export
-
-Allow Editors to export a document or collection as a Word `.docx` file or PDF
-for non-technical stakeholders or traditional publishers.
-
-**Motivation**
-Not all collaborators work in XML or read rendered HTML. Providing a
-well-formatted Word export bridges the gap between the digital edition
-environment and traditional editorial workflows.
-
-**Scope**
-- `GET /collections/{slug}/documents/{doc_id}/export?format=docx`
-- `GET /collections/{slug}/documents/{doc_id}/export?format=pdf`
-- Backend pipeline: TEI XML → XSLT → intermediate format → final format
-  - DOCX: `python-docx` or `pandoc` (via subprocess)
-  - PDF: `weasyprint` (HTML → PDF via CSS) or `pandoc` (via LaTeX → PDF)
-
-**Open questions**
-- Fidelity: scholarly TEI markup (`<app>`, `<rdg>`, `<note type="critical">`)
-  does not map cleanly to Word or PDF without significant XSLT investment.
-  The export will always be a simplified representation.
-- `pandoc` (if used via subprocess) is a system dependency not in the current
-  stack. `weasyprint` is a Python package but adds ~20 MB to the image.
-- Export of large collections: must be async (DEFERRED item 1).
-
-**Prerequisites**
-- Document CRUD and XSLT rendering (Phase 05+)
-- Async task queue for large exports (DEFERRED item 1)
-
----
-
-## 8. Gamification / contributor leaderboard
-
-A lightweight engagement layer for large distributed transcription projects:
-track individual Editor contributions (documents transcribed, words encoded,
-corrections approved) and display an optional leaderboard.
-
-**Motivation**
-Crowd-sourced transcription projects (manuscript digitization campaigns,
-large corpora) depend on volunteer engagement. Visible contribution metrics
-have been shown to improve retention and motivation in similar projects
-(e.g., Zooniverse, Transkribus crowdsourcing).
-
-**Scope**
-- A `contributions` table tracking: `user_id`, `event_type`, `document_id`,
-  `word_count_delta`, `timestamp`.
-- Events: document created, document saved (delta), review approved.
-- Public or semi-public leaderboard: opt-in per user (GDPR: visibility is
-  a user preference, not a default).
-- Frontend: a `ContributorsView.vue` showing top contributors with avatars,
-  document counts, and word counts — linked from the public website if enabled.
-
-**Open questions**
-- Word count computation: TEI word count requires parsing the XML and counting
-  text nodes within `<body>` — an XQuery job, not a simple row count.
-- Fairness: a short document with dense TEI encoding takes longer than a long
-  document of plain text. Raw word count is a poor proxy for effort.
-- This feature is only meaningful for projects with many contributors.
-  It should be a plugin, not a core feature.
-
-**Prerequisites**
-- Document CRUD (Phase 05+)
-- Public rendering layer (Phase 06+)
-- Plugin system hooks: `document.saved`, `review.approved` (already planned)
-
----
-
----
-
-## 9. Non-native plugin: GitHub Integration
+## 2. Non-native plugin: GitHub Integration 🔴 High
 
 Connect a collection to a GitHub repository and allow EditorInChiefs to push
 documents to GitHub and, exclusively for empty collections, perform a one-time
@@ -587,7 +356,178 @@ GitHub corpus that needs to be imported into Aracne2.
 
 ---
 
-## 10. Secret management — beyond plain-text `.env`
+## 3. Automated bibliography enrichment via DOI / ISBN lookup 🔴 High
+
+When an Editor enters a bibliographic reference in the document, the system can
+fetch structured metadata from CrossRef (DOI) or Open Library (ISBN) and
+populate the entry automatically.
+
+**Motivation**
+Manual entry of bibliographic metadata is error-prone and time-consuming.
+Auto-population from authoritative sources improves data quality and editor
+productivity.
+
+**Scope**
+- Frontend: a lookup field in the bibliography management panel.
+  The Editor pastes a DOI or ISBN; the frontend calls the backend.
+- Backend: `GET /bibliography/lookup?doi=10.xxx/yyy` or `?isbn=978...`
+  The backend proxies the request to CrossRef / Open Library, parses the
+  response, and returns a normalized `BibliographyEntry` schema.
+- The Editor reviews the auto-filled form and saves.
+
+**Open questions**
+- Rate limits and caching: CrossRef allows free API access but throttles at
+  ~50 req/s. Cache lookup results in PostgreSQL or Redis to avoid duplicate calls.
+- Fallback: if CrossRef returns nothing (conference papers, grey literature),
+  fall back to manual entry — do not block the workflow.
+- Data model: the normalized entry should map cleanly to TEI `<biblStruct>`.
+
+**Prerequisites**
+- Bibliography management endpoints (Phase 05+)
+- `httpx` already in stack — no new dependency needed for the proxy call
+
+---
+
+## 4. Public reader statistics and analytics 🔴 High
+
+Track how published documents and collections are accessed by public readers,
+with an aggregated dashboard for EditorInChiefs and Admins.
+
+**Motivation**
+Scholarly editors and funders often need evidence of readership to justify project
+resources. Basic analytics (views per document, geographic distribution,
+search query frequency) provide this evidence without relying on third-party
+tracking services.
+
+**Scope**
+- Page view counter per document (incremented on public `GET /pub/...` access)
+- Aggregated daily/monthly views stored in a `view_stats` table
+  (no individual user tracking — privacy-first design)
+- Search query log (anonymized: IP hashed, no session linkage)
+- Dashboard: top documents, views over time, most common search terms
+
+**Privacy constraints**
+- No individual-level tracking — only aggregate counts
+- IP addresses hashed before storage (already in place for audit log)
+- Stats retention configurable via `system_settings` (default: 12 months)
+- No third-party analytics services — all data stays on the platform
+
+**Open questions**
+- Time series storage: plain `view_stats` table with daily aggregation rows,
+  or TimescaleDB / PostgreSQL partitioning for larger deployments?
+- Bot filtering: distinguish crawler traffic from human readers
+  (User-Agent heuristics + rate-based detection).
+
+**Prerequisites**
+- Public rendering layer (Phase 06+)
+- `system_settings` retention policy (already partially implemented)
+
+---
+
+## 5. Gamification / contributor leaderboard 🟡 Medium
+
+A lightweight engagement layer for large distributed transcription projects:
+track individual Editor contributions (documents transcribed, words encoded,
+corrections approved) and display an optional leaderboard.
+
+**Motivation**
+Crowd-sourced transcription projects (manuscript digitization campaigns,
+large corpora) depend on volunteer engagement. Visible contribution metrics
+have been shown to improve retention and motivation in similar projects
+(e.g., Zooniverse, Transkribus crowdsourcing).
+
+**Scope**
+- A `contributions` table tracking: `user_id`, `event_type`, `document_id`,
+  `word_count_delta`, `timestamp`.
+- Events: document created, document saved (delta), review approved.
+- Public or semi-public leaderboard: opt-in per user (GDPR: visibility is
+  a user preference, not a default).
+- Frontend: a `ContributorsView.vue` showing top contributors with avatars,
+  document counts, and word counts — linked from the public website if enabled.
+
+**Open questions**
+- Word count computation: TEI word count requires parsing the XML and counting
+  text nodes within `<body>` — an XQuery job, not a simple row count.
+- Fairness: a short document with dense TEI encoding takes longer than a long
+  document of plain text. Raw word count is a poor proxy for effort.
+- This feature is only meaningful for projects with many contributors.
+  It should be a plugin, not a core feature.
+
+**Prerequisites**
+- Document CRUD (Phase 05+)
+- Public rendering layer (Phase 06+)
+- Plugin system hooks: `document.saved`, `review.approved` (already planned)
+
+---
+
+## 6. Mobile companion app 🟢 Low
+
+A lightweight read-only mobile client (iOS + Android) for Editors and
+EditorInChiefs to review documents and approve publication requests on the go.
+
+**Motivation**
+Editorial workflows often require quick approvals or status checks from people
+who are away from their desks. A native app with push notifications would reduce
+turnaround time for review cycles.
+
+**Scope**
+Read-only access is sufficient for most use cases:
+- Browse assigned collections and their publication state
+- Open documents in a rendered view (HTML from XSLT, not the raw XML editor)
+- Approve / reject publication requests (simple state transition, one HTTP call)
+- Receive push notifications for events: document submitted for review, comment added
+
+Full XML editing on mobile is out of scope — the CodeMirror editor is not
+practical on a touch screen.
+
+**Open questions**
+- Framework: native (Swift + Kotlin) vs. cross-platform (Flutter, React Native,
+  Capacitor wrapping the existing Vue SPA)?
+- Capacitor is the lowest-friction option given the existing Vue 3 frontend.
+  The SPA already uses responsive Tailwind CSS; a dedicated mobile view layer
+  could be added without forking the codebase.
+- Push notifications require a server-side delivery layer (APNs + FCM).
+  This is a non-trivial addition to the backend (new `device_tokens` table,
+  new `notification_dispatcher` channel).
+
+**Prerequisites**
+- WebSocket or SSE notification delivery (DEFERRED item 9) must be in place, or
+  alternatively a polling-friendly `/notifications` endpoint (already exists).
+- The publication workflow (Phase 05+) must be operational.
+
+---
+
+## 7. Collaborative real-time editing 🟢 Low
+
+Allow multiple Editors to work simultaneously on the same XML document with
+conflict-free merging and cursor presence awareness.
+
+**Motivation**
+Large TEI transcription projects often involve teams where different editors
+handle different sections of the same document. Sequential lock-based editing
+creates bottlenecks; real-time collaboration removes them.
+
+**Scope**
+- Operational Transformation (OT) or CRDT-based conflict resolution on XML text
+- Cursor presence: each connected user's cursor position shown in the editor
+- Awareness panel: list of who is currently editing the document
+
+**Open questions**
+- XML-aware OT/CRDT is significantly harder than plain text (CodeMirror's
+  built-in Yjs integration works for text; XML structure requires extra care).
+- Requires a persistent WebSocket connection per open document, which conflicts
+  with simple horizontal scaling (needs sticky sessions or a shared state layer).
+- eXist-db has no built-in real-time collaboration support — the document would
+  need to be reconstructed and saved to eXist-db on each significant checkpoint.
+
+**Prerequisites**
+- WebSocket layer (DEFERRED item 9)
+- Document versioning strategy (DEFERRED item 7)
+- Async task queue for durable saves (DEFERRED item 1)
+
+---
+
+## 8. Secret management — beyond plain-text `.env` 🟢 Low
 
 Aracne2 currently stores all secrets (database passwords, JWT secret, API keys)
 in a plain-text `.env` file. In production this file is protected by filesystem
@@ -629,7 +569,74 @@ the stack.
 
 ---
 
-## 11. Fuzzy string matching via Apache Commons Text in XQuery
+## 9. Glossary and index generation from named entities 🔵 To discuss
+
+Automatically generate a structured glossary or index of persons, places, and
+works from the named entity index, rendered as a navigable section of the
+public website.
+
+**Motivation**
+Critical editions traditionally include an index of names and a glossary of terms.
+Aracne2 already tracks named entities in PostgreSQL and links them to TEI elements
+(`<persName>`, `<placeName>`, `<title>`) — generating an index from this data
+is a natural extension.
+
+**Scope**
+- Public endpoint: `GET /pub/websites/{slug}/index/persons`
+  Returns all persons referenced in the published documents of that website,
+  with links to the passages where they appear.
+- Same for places, organizations, works.
+- Frontend: an `IndexView.vue` with alphabetical navigation (A–Z jump links)
+  and a detail panel showing bio/geo data from the entity record plus
+  all document occurrences.
+
+**Open questions**
+- Occurrence linking requires a pre-built index: either stored in PostgreSQL
+  at document-save time, or computed at render time via XQuery.
+  XQuery is simpler but slower for large corpora.
+- The entity detail panel could optionally fetch external data
+  (VIAF, GeoNames, Wikidata) to enrich the display — but this requires
+  network calls at render time and introduces external dependencies.
+
+**Prerequisites**
+- Named entity management (Phase 05+)
+- Public rendering layer (Phase 06+)
+- Full-text search / XQuery occurrence index (DEFERRED item 8)
+
+---
+
+## 10. TEI-to-DOCX / TEI-to-PDF export 🔵 To discuss
+
+Allow Editors to export a document or collection as a Word `.docx` file or PDF
+for non-technical stakeholders or traditional publishers.
+
+**Motivation**
+Not all collaborators work in XML or read rendered HTML. Providing a
+well-formatted Word export bridges the gap between the digital edition
+environment and traditional editorial workflows.
+
+**Scope**
+- `GET /collections/{slug}/documents/{doc_id}/export?format=docx`
+- `GET /collections/{slug}/documents/{doc_id}/export?format=pdf`
+- Backend pipeline: TEI XML → XSLT → intermediate format → final format
+  - DOCX: `python-docx` or `pandoc` (via subprocess)
+  - PDF: `weasyprint` (HTML → PDF via CSS) or `pandoc` (via LaTeX → PDF)
+
+**Open questions**
+- Fidelity: scholarly TEI markup (`<app>`, `<rdg>`, `<note type="critical">`)
+  does not map cleanly to Word or PDF without significant XSLT investment.
+  The export will always be a simplified representation.
+- `pandoc` (if used via subprocess) is a system dependency not in the current
+  stack. `weasyprint` is a Python package but adds ~20 MB to the image.
+- Export of large collections: must be async (DEFERRED item 1).
+
+**Prerequisites**
+- Document CRUD and XSLT rendering (Phase 05+)
+- Async task queue for large exports (DEFERRED item 1)
+
+---
+
+## 11. Fuzzy string matching via Apache Commons Text in XQuery 🔵 To discuss
 
 Install the **Apache Commons Text Functions** library (version 1.12.0, compatible
 with eXist-db 6.0.0+) from the eXist-db Package Manager. This exposes string
