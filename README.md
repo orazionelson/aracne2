@@ -119,8 +119,10 @@ make seed
 curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 ```
 
-> **Note on `EXIST_PASSWORD`:** eXist-db 6.4.1 ignores this variable on first boot
-> and starts with an empty admin password. Leave `EXIST_PASSWORD=` empty in `.env`.
+> **eXist-db passwords:** eXist-db starts with an **empty** admin password on first boot.
+> Leave `EXIST_PASSWORD=` empty and set `EXISTDB_APP_PASSWORD=<choose_a_password>` —
+> the backend creates the dedicated `aracne` runtime user automatically on startup.
+> See [EXISTDB_SETUP.md](docs/reference/EXISTDB_SETUP.md) for the full setup and security model.
 
 > **Full step-by-step guide** (including troubleshooting): see [quickstart.md](quickstart.md).
 
@@ -400,6 +402,7 @@ Technical reference documents are in [`docs/reference/`](docs/reference/).
 | [EVT_INTEGRATION.md](docs/reference/EVT_INTEGRATION.md) | EVT 2 viewer integration |
 | [STYLING_PUBLIC_HOMEPAGE.md](docs/reference/STYLING_PUBLIC_HOMEPAGE.md) | CSS classes for the public homepage |
 | [HEALTH_CHECK.md](docs/reference/HEALTH_CHECK.md) | Health check endpoint |
+| [EXISTDB_SETUP.md](docs/reference/EXISTDB_SETUP.md) | eXist-db user model, bootstrap, collection namespace, environment variables |
 
 ## License
 
