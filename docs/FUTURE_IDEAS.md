@@ -657,4 +657,87 @@ GitHub corpus that needs to be imported into Aracne2.
 
 ---
 
-*Last updated: 2026-04-16*
+## 12. Secret management — beyond plain-text `.env`
+
+Aracne2 currently stores all secrets (database passwords, JWT secret, API keys)
+in a plain-text `.env` file. In production this file is protected by filesystem
+permissions (`chmod 600`), and it is excluded from git via `.gitignore`. This is
+adequate for most self-hosted deployments.
+
+For environments with stricter security requirements or compliance obligations,
+the following approaches are worth considering in order of increasing complexity:
+
+**Docker Secrets (Docker Swarm)**
+Docker Swarm can inject secrets as in-memory tmpfs files (`/run/secrets/<name>`)
+rather than environment variables. Secrets are never written to disk on worker
+nodes and are not visible in `docker inspect`. Requires migrating from
+`docker compose` (single-node) to Docker Swarm (cluster). Pydantic Settings
+would need to read secret values from files rather than environment variables
+(supported via `secrets_dir` in `pydantic-settings`).
+
+**HashiCorp Vault**
+A dedicated secret management server with audit logging, secret rotation,
+fine-grained access policies, and dynamic credentials (Vault can generate
+short-lived PostgreSQL users on demand). High operational overhead; suitable
+for enterprise deployments or multi-team environments. The backend would need
+a Vault client at startup to fetch secrets before constructing `Settings`.
+
+**Cloud-native secret managers (AWS Secrets Manager, GCP Secret Manager,
+Azure Key Vault)**
+Managed services that integrate natively with cloud IAM. Zero infrastructure
+overhead but create a cloud provider dependency. Suitable when Aracne2 is
+deployed on a cloud VM or container platform. Pydantic Settings can be extended
+with a custom settings source to fetch from these services at boot.
+
+**When to consider**
+The current `chmod 600` approach is sufficient unless: (a) the server is shared
+with untrusted OS users, (b) there are formal compliance requirements (SOC 2,
+ISO 27001, HIPAA), or (c) secret rotation must be automated without redeploying
+the stack.
+
+*Added: 2026-04-17*
+
+---
+
+## 13. Fuzzy string matching via Apache Commons Text in XQuery
+
+Install the **Apache Commons Text Functions** library (version 1.12.0, compatible
+with eXist-db 6.0.0+) from the eXist-db Package Manager. This exposes string
+similarity and distance functions (Levenshtein, Jaro-Winkler, Cosine, etc.)
+directly in XQuery via the `http://exist-db.org/xquery/commons-text` namespace.
+
+**Motivation**
+Some text-processing tasks that currently run in Python could benefit from being
+pushed down into XQuery, where they execute closer to the data:
+- Fuzzy deduplication of named entities (e.g. "Manzoni" vs "A. Manzoni")
+  during entity extraction or reindex passes
+- Candidate matching when linking a TEI `<persName>` to an existing authority record
+- Spelling variant grouping in fulltext search result post-processing
+
+**Current state**
+Named entity deduplication and merge are handled at the Python application layer.
+eXist-db Lucene fulltext already covers the main search use case. This library
+would be an optimisation or a convenience, not a requirement.
+
+**When to consider**
+If a future XQuery needs string similarity logic and the Python round-trip
+(fetch results → compute → re-query) becomes a measurable bottleneck, or if an
+XQuery-native merge/dedup pipeline is designed as part of a large corpus import.
+
+**Installation**
+One-time operation via the eXist-db Dashboard → Package Manager. No Aracne2
+code changes required — the functions become available in all XQuery files
+once installed.
+
+**Open questions**
+- The library is maintained by the eXist-db project; verify it is still
+  actively updated before depending on it in production XQuery.
+- Benchmark against Python `rapidfuzz` (already available if needed) to
+  determine whether the XQuery approach is actually faster for the workloads
+  Aracne2 produces.
+
+*Added: 2026-04-17*
+
+---
+
+*Last updated: 2026-04-17*

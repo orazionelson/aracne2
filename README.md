@@ -374,6 +374,15 @@ Before going to production:
 - Generate a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_hex(64))"`)
 - Uncomment the HSTS header in `nginx.conf` once HTTPS is active
 - Change all default passwords in `.env`
+- Restrict `.env` permissions so only the deploy user can read it:
+  ```bash
+  chmod 600 .env
+  chown <deploy-user>:<deploy-user> .env
+  ```
+  `.env` is already excluded from git via `.gitignore`. The `chmod 600` ensures
+  that other OS users on the same server cannot read the file in plain text.
+  `docker compose` reads it correctly regardless of these permissions as long as
+  it runs as the same user.
 
 ## Reference documentation
 
