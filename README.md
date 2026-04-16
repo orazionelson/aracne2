@@ -15,13 +15,44 @@ Aracne2 is designed around three core targets:
 ## Architecture overview
 
 ```
-Browser ──── REST API + JWT ──── FastAPI backend ──── PostgreSQL  (platform data)
-                                                  └─── eXist-db    (XML documents)
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser                                                        │
+│  Vue 3 SPA · Pinia · Vue Router · Tailwind CSS                  │
+└───────────────────────┬─────────────────────────────────────────┘
+                        │  REST API · JSON · JWT Bearer
+                        │  (httpOnly cookie for refresh token)
+┌───────────────────────▼─────────────────────────────────────────┐
+│  FastAPI backend  (Python 3.12 · async · Pydantic v2)           │
+│                                                                 │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
+│  │   Routers   │  │   Services   │  │  Plugin system         │ │
+│  │  + ACL/JWT  │→ │ + XQuery I/O │  │  hooks · native plugins│ │
+│  └─────────────┘  └──────┬───────┘  └────────────────────────┘ │
+└─────────────────────────┬┴────────────────────────────────────-─┘
+              ┌───────────┴────────────┐
+              │                        │
+┌─────────────▼──────────┐  ┌──────────▼─────────────────────────┐
+│  PostgreSQL 15          │  │  eXist-db 6.x                      │
+│  Layer 1 — platform     │  │  Layer 2 — document data           │
+│  users · roles          │  │  TEI XML collections               │
+│  sessions · settings    │  │  queried via XQuery 3.1            │
+│  audit · plugins        │  │  (REST API + .xq files)            │
+│  named entities         │  │                                    │
+│  schemas · websites     │  │                                    │
+└─────────────────────────┘  └────────────────────────────────────┘
 ```
 
 **Two distinct data layers:**
-- **Layer 1 — Platform data**: users, roles, sessions, settings, audit, plugins → PostgreSQL
-- **Layer 2 — Document data**: XML file collections → filesystem + eXist-db (native XML database)
+
+- **Layer 1 — Platform data** (PostgreSQL): users, roles, sessions, system settings, audit log, plugin registry, named entity index, TEI schemas, XSLT templates, websites, search engines, notifications, webhooks.
+- **Layer 2 — Document data** (eXist-db): TEI XML documents stored natively in per-collection XML databases, queried and transformed via XQuery 3.1 files — never via inline query strings.
+
+**Key architectural principles:**
+
+- Frontend and backend communicate **exclusively via REST API + JSON + JWT** — the frontend never accesses any database directly.
+- All XQuery is loaded from `.xq` / `.xqm` files on the filesystem — no inline query construction in Python code.
+- The plugin system is **hook-based**: plugins register listeners on named events (`document.uploaded`, `collection.published`, …) rather than modifying core code.
+- **Rate limiting** (slowapi) is applied at the router level; XML parsing always uses `defusedxml` to prevent XXE attacks.
 
 ## Features
 
