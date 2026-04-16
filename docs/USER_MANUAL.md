@@ -26,9 +26,10 @@
 16. [EVT viewer](#16-evt-viewer)
 17. [Notifications](#17-notifications)
 18. [Search](#18-search)
-19. [OAI-PMH — making your data harvestable](#19-oai-pmh--making-your-data-harvestable)
-20. [Webhooks — connecting to external tools](#20-webhooks--connecting-to-external-tools)
-21. [Admin reference](#21-admin-reference)
+19. [Search Engines — standalone search portals](#19-search-engines--standalone-search-portals)
+20. [OAI-PMH — making your data harvestable](#20-oai-pmh--making-your-data-harvestable)
+21. [Webhooks — connecting to external tools](#21-webhooks--connecting-to-external-tools)
+22. [Admin reference](#22-admin-reference)
 
 ---
 
@@ -753,7 +754,94 @@ Admins and EditorInChiefs can also search the metadata of all collections
 
 ---
 
-## 19. OAI-PMH — making your data harvestable
+## 19. Search Engines — standalone search portals
+
+A **Search Engine** is a configurable search interface that you create once and
+then share as a standalone page or embed directly into any external website. It
+is different from the simple search bar inside a collection: a Search Engine
+works across **multiple collections at once**, has its own URL, and can be
+styled independently.
+
+### Who can create Search Engines
+
+**Designers**, **EditorInChiefs**, and **Admins** can create and manage Search
+Engines from **Tools → Search Engines** in the navigation menu.
+
+### What a Search Engine can do
+
+| Capability | Description |
+|---|---|
+| **Multi-collection search** | Covers any number of published collections simultaneously |
+| **Full-text search** | Searches inside every XML document, not just titles or metadata |
+| **Advanced search** | Filters by TEI element (`persName`, `placeName`, …) or XML attribute |
+| **Built page** | A self-contained HTML page hosted by Aracne2, ready to share as a link |
+| **Embed widget** | A `<script>` snippet that places the search box on any external site |
+| **Query cache** | Server-side result caching to serve frequent queries instantly |
+
+### Creating a Search Engine
+
+1. Go to **Tools → Search Engines** and click **New search engine**
+2. Fill in the **title** and **slug** (the slug becomes part of the URL, e.g.
+   `search-pages/archivio-manzoni/`)
+3. In the **Collections** field, pick the published collections to include
+4. Adjust **Appearance** options (background colour, header colour, footer text)
+   if you want the page to match your project's visual identity
+5. Click **Save**
+
+### Building the search page
+
+After saving, click the **Build** button. Aracne2 generates the HTML page in the
+background — the status badge will switch from *Building* to *Done* in a few
+seconds. Once done, click **Open** to preview the page in your browser.
+
+The URL of the built page follows the pattern:
+
+```
+https://your-aracne2-instance.org/search-pages/{slug}/
+```
+
+This URL can be linked from your project website or shared with readers directly.
+
+### Advanced search
+
+If your collections use structured TEI markup, you can enable **Advanced search**
+to let users filter by element type and attribute. A "Person" filter backed by
+`<persName>`, for example, lets users search exclusively within person names.
+
+To configure it:
+1. Enable the **Advanced search** toggle
+2. Click **Add tag** to define the display label and the TEI element it maps to
+3. Optionally add **attribute filters** (e.g. `role`, `subtype`)
+4. Rebuild the page
+
+### Embedding the search box on an external site
+
+If readers use a website outside Aracne2 (your university project page, for
+example), you can embed the search box there with a single line of HTML.
+
+1. Open the Search Engine, click the **Embed** button
+2. Enable the embed widget and choose a mode:
+   - **Simple**: full-text search only
+   - **Advanced**: structural search only
+   - **Both**: the widget shows tabs for both modes
+3. If you want to restrict which sites can use the widget, add those origins
+   to the **Allowed origins** list (e.g. `https://project.university.edu`).
+   Leave the list empty to allow all sites.
+4. Copy the **snippet** shown in the Embed tab and paste it into your website's
+   HTML where the search box should appear
+
+The widget loads your Aracne2 instance's search results in real time, so there
+is nothing else to maintain.
+
+### Clearing the cache
+
+If you have recently added documents to a collection and want the search page to
+reflect the new content immediately, click **Clear cache**. The next search query
+will hit the database directly instead of using cached results.
+
+---
+
+## 20. OAI-PMH — making your data harvestable
 
 OAI-PMH (Open Archives Initiative Protocol for Metadata Harvesting) is a standard
 protocol used by library catalogs, aggregators (such as Europeana, OpenDOAR, and
@@ -784,7 +872,7 @@ library.
 
 ---
 
-## 20. Webhooks — connecting to external tools
+## 21. Webhooks — connecting to external tools
 
 Webhooks allow Aracne2 to automatically notify an external system whenever
 something significant happens: a collection is published, a document is uploaded,
@@ -830,7 +918,7 @@ automatically retried up to three times.
 
 ---
 
-## 21. Admin reference
+## 22. Admin reference
 
 This section is a quick reference for Admins. Most of these features are found
 under **Settings** in the navigation.

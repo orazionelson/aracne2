@@ -64,7 +64,8 @@ Aracne2 is designed around three core targets:
 | **Validation** | Per-document and collection-wide TEI validation against RNG / DTD / XSD schemas |
 | **Bibliography** | Bibliographic entry management with BibTeX/CSL-JSON import and a bibliography normalizer (AI) |
 | **Named entities** | Automatic entity extraction (persName, placeName, orgName, …), admin normalisation, VIAF/GeoNames linking |
-| **Websites** | Static / dynamic / hybrid website generator with XSLT rendering, search engines, and embed widget |
+| **Websites** | Static / dynamic / hybrid website generator with XSLT rendering per collection |
+| **Search Engines** | Configurable multi-collection search portals: buildable static HTML page, public API, and embeddable JS widget with per-origin access control |
 | **XSLT templates** | Designer-managed catalog of XSLT stylesheets used by the website generator |
 | **TEI schemas** | Schema catalog (upload / URL import / auto-generated CM5); bundled TEI All P5 schema |
 | **AI integration** | OpenAI, Anthropic, Gemini adapters; prompt library; streaming completion in editor and XSLT debugger |
