@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class NamedEntityResponse(BaseModel):
@@ -53,15 +53,17 @@ class EntityTagConfig(BaseModel):
     *tags* is a list of TEI local element names to extract, e.g.
     ``["persName", "placeName", "orgName", "objectName"]``.
     The tag name is used directly as the entity type stored in the DB.
+    Maximum 50 tags; each tag name must be ≤ 64 characters.
     """
-    tags: list[str]
+    tags: list[str] = Field(..., min_length=1, max_length=50)
 
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("At least one tag must be configured")
         cleaned = [t.strip() for t in v]
         if any(not t for t in cleaned):
             raise ValueError("Tag names cannot be empty")
+        for tag in cleaned:
+            if len(tag) > 64:
+                raise ValueError("Tag names must be ≤ 64 characters")
         return cleaned

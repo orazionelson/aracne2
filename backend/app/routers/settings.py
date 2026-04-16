@@ -1,8 +1,10 @@
 import mimetypes
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import FileResponse
+
+from app.middleware.rate_limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_async_session
@@ -66,7 +68,8 @@ async def settings_logo_upload(
 
 
 @router.get("/logo/file")
-async def settings_logo_file() -> FileResponse:
+@limiter.limit("120/minute")
+async def settings_logo_file(request: Request) -> FileResponse:
     """Serve the uploaded platform logo file (public, no authentication).
 
     Returns 404 if no custom logo has been uploaded yet; the frontend falls
@@ -99,7 +102,8 @@ async def settings_homepage_css_upload(
 
 
 @router.get("/homepage-css/file")
-async def settings_homepage_css_file() -> FileResponse:
+@limiter.limit("120/minute")
+async def settings_homepage_css_file(request: Request) -> FileResponse:
     """Serve the uploaded custom homepage CSS (public, no authentication).
 
     Returns 404 if no custom CSS has been uploaded yet.

@@ -18,6 +18,9 @@ _LOGO_URL = "/api/v1/settings/logo/file"
 _CSS_FILENAME = "custom_homepage.css"
 _CSS_URL = "/api/v1/settings/homepage-css/file"
 
+_MAX_CSS_BYTES = 512 * 1024       # 512 KB
+_MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
+
 
 def _validate_value(key: str, value: str, type_: str) -> None:
     if type_ == "int":
@@ -118,7 +121,7 @@ async def upload_homepage_css(
 ) -> HomepageCssUploadResponse:
     """Save a custom homepage CSS file, replacing any previous one.
 
-    Only ``.css`` files are accepted.  The file is stored as
+    Only ``.css`` files are accepted (max 512 KB).  The file is stored as
     ``custom_homepage.css`` in MEDIA_DIR and served via the public
     ``/settings/homepage-css/file`` endpoint.
     """
@@ -127,6 +130,11 @@ async def upload_homepage_css(
         raise DomainValidationError(
             "INVALID_FILE_TYPE",
             "Only .css files are accepted for the custom homepage stylesheet",
+        )
+    if len(content) > _MAX_CSS_BYTES:
+        raise DomainValidationError(
+            "FILE_TOO_LARGE",
+            "CSS file must be ≤ 512 KB",
         )
     media = app_settings.media_dir
     media.mkdir(parents=True, exist_ok=True)
@@ -151,12 +159,18 @@ async def upload_logo(
     """Save a logo image file and update the platform_logo_url setting.
 
     Removes any previously uploaded logo before saving the new one.
+    Accepts images up to 2 MB.
     """
     ext = Path(filename).suffix.lower()
     if ext not in _LOGO_ALLOWED_EXT:
         raise DomainValidationError(
             "INVALID_FILE_TYPE",
             f"Logo must be one of: {', '.join(sorted(_LOGO_ALLOWED_EXT))}",
+        )
+    if len(content) > _MAX_LOGO_BYTES:
+        raise DomainValidationError(
+            "FILE_TOO_LARGE",
+            "Logo must be ≤ 2 MB",
         )
 
     media = app_settings.media_dir

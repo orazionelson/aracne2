@@ -18,9 +18,11 @@ Admin endpoints (Admin role):
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.middleware.rate_limiter import limiter
 
 from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import get_async_session
@@ -172,13 +174,15 @@ async def admin_delete_entity(
 # ── Public routes ─────────────────────────────────────────────────────────────
 
 @router.get("")
+@limiter.limit("60/minute")
 async def list_entities(
+    request: Request,
     db: _DbDep,
     entity_type: Annotated[str | None, Query(alias="type")] = None,
-    q: str | None = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
     collection_slug: str | None = Query(default=None, alias="collection_slug"),
-    page: int = 1,
-    per_page: int = 30,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 30,
 ) -> PaginatedResponse:
     """Public: paginated list of named entities from published public collections.
 
@@ -196,8 +200,8 @@ async def list_entity_occurrences(
     entity_id: uuid.UUID,
     db: _DbDep,
     collection: str | None = None,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PaginatedResponse:
     """Public: paginated occurrences of one entity in published public collections."""
     rows, total = await service.get_entity_occurrences(
