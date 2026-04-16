@@ -1,3 +1,7 @@
+import io
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -125,3 +129,140 @@ async def test_update_setting_as_non_admin_returns_403(
         json={"value": "Hacked"},
     )
     assert res.status_code == 403
+
+
+# ── Logo upload / serve ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_logo_file_returns_404_when_no_logo(
+    client: AsyncClient, tmp_path: Path
+) -> None:
+    """GET /settings/logo/file returns 404 when no logo has been uploaded."""
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.get("/api/v1/settings/logo/file")
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_as_admin(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Admin can upload a PNG logo; the response includes the serve URL."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02"
+        b"\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx"
+        b"\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        mock_settings.jwt_secret = "test-secret"
+        res = await client.post(
+            "/api/v1/settings/logo",
+            headers=_auth(token),
+            files={"file": ("logo.png", io.BytesIO(png_bytes), "image/png")},
+        )
+    assert res.status_code == 200
+    assert res.json()["data"]["url"] == "/api/v1/settings/logo/file"
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_with_invalid_extension_returns_422(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Uploading a non-image file for the logo returns a 422 error."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        mock_settings.jwt_secret = "test-secret"
+        res = await client.post(
+            "/api/v1/settings/logo",
+            headers=_auth(token),
+            files={"file": ("document.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
+        )
+    assert res.status_code == 422
+
+
+# ── Homepage CSS upload / serve / delete ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_homepage_css_file_returns_404_when_no_css(
+    client: AsyncClient, tmp_path: Path
+) -> None:
+    """GET /settings/homepage-css/file returns 404 when no CSS has been uploaded."""
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.get("/api/v1/settings/homepage-css/file")
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_upload_homepage_css_as_admin(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Admin can upload a CSS file; the response includes the serve URL."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.post(
+            "/api/v1/settings/homepage-css",
+            headers=_auth(token),
+            files={"file": ("custom.css", io.BytesIO(b"body { color: red; }"), "text/css")},
+        )
+    assert res.status_code == 200
+    assert res.json()["data"]["url"] == "/api/v1/settings/homepage-css/file"
+
+
+@pytest.mark.asyncio
+async def test_upload_homepage_css_with_wrong_extension_returns_422(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Uploading a non-CSS file for the homepage stylesheet returns 422."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.post(
+            "/api/v1/settings/homepage-css",
+            headers=_auth(token),
+            files={"file": ("script.js", io.BytesIO(b"alert(1)"), "application/javascript")},
+        )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_homepage_css_when_none_returns_404(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """DELETE /settings/homepage-css returns 404 when no CSS has been uploaded."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        res = await client.delete(
+            "/api/v1/settings/homepage-css", headers=_auth(token)
+        )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_homepage_css_as_admin(
+    client: AsyncClient, seeded_admin: User, tmp_path: Path
+) -> None:
+    """Admin can delete an existing custom homepage CSS file."""
+    token = await _login_as(client, ADMIN_USERNAME, ADMIN_PASSWORD)
+    # Upload first, then delete.
+    with patch("app.services.settings.app_settings") as mock_settings:
+        mock_settings.media_dir = tmp_path
+        await client.post(
+            "/api/v1/settings/homepage-css",
+            headers=_auth(token),
+            files={"file": ("custom.css", io.BytesIO(b"body {}"), "text/css")},
+        )
+        res = await client.delete(
+            "/api/v1/settings/homepage-css", headers=_auth(token)
+        )
+    assert res.status_code == 204

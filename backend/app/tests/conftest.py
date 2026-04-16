@@ -22,13 +22,16 @@ from app.models import Role, User, UserRole  # noqa: F401 — required for metad
 from app.models.role import Role as _Role
 from app.models.user import User as _User
 
-# The collections plugin router is loaded dynamically at runtime via
-# plugin_loader.load_active(), which uses AsyncSessionLocal (real Postgres).
-# In tests, Postgres is replaced with in-memory SQLite, so plugin_loader
-# never runs and the collections router is never mounted.
-# Register it directly here so that all collection endpoints are reachable.
+# Plugin routers are loaded dynamically at runtime via plugin_loader.load_active(),
+# which uses AsyncSessionLocal (real Postgres).  In tests, Postgres is replaced with
+# in-memory SQLite, so plugin_loader never runs and no plugin router is mounted.
+# Register each native plugin router here directly so their endpoints are reachable,
+# and import their models so Base.metadata.create_all() includes the plugin tables.
 from app.plugins._native.collections.router import router as _collections_router
+from app.plugins._native.named_entities import models as _ne_models  # noqa: F401 — register tables
+from app.plugins._native.named_entities.router import router as _named_entities_router
 app.include_router(_collections_router, prefix="/api/v1")
+app.include_router(_named_entities_router, prefix="/api/v1")
 
 
 # slowapi 0.1.9 has no built-in "enabled" flag.
