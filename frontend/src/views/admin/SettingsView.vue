@@ -70,9 +70,7 @@ function isEditing(key: string): boolean {
 
 // Settings with a fixed set of allowed values — show a <select> instead of
 // a free-text input.  Add new entries here when introducing enum-like settings.
-const SETTING_OPTIONS: Record<string, string[]> = {
-  document_editor_mode: ['single', 'split'],
-};
+const SETTING_OPTIONS: Record<string, string[]> = {};
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const schemaError = ref<string | null>(null);

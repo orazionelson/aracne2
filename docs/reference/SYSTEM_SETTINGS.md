@@ -467,24 +467,7 @@ Deleted by `purge_expired_sessions()` in `backend/app/core/scheduler.py`.
 
 ---
 
-### 6.6 Document editor
-
-#### `document_editor_mode`
-
-| | |
-|---|---|
-| **Type** | `string` |
-| **Default** | `"single"` |
-| **Editable** | Yes — Admin |
-| **Valid values** | `single` |
-
-Editor layout mode. Currently only `single` (one full-width CodeMirror instance)
-is implemented. The setting is visible in the admin settings panel as a
-`<select>` dropdown and is reserved for a future split-pane mode.
-
----
-
-### 6.7 EVT viewer
+### 6.6 EVT viewer
 
 #### `evt_enabled`
 
