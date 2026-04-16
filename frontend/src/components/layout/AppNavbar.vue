@@ -88,7 +88,7 @@ function closeTools(): void {
       <div class="hidden flex-1 items-center gap-1 text-sm md:flex">
         <router-link
           to="/"
-          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           exact-active-class="!text-white bg-white/10"
         >
           <HomeIcon class="h-4 w-4 shrink-0" />
@@ -97,7 +97,7 @@ function closeTools(): void {
 
         <router-link
           to="/collections"
-          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
         >
           <FolderOpenIcon class="h-4 w-4 shrink-0" />
@@ -107,7 +107,7 @@ function closeTools(): void {
         <!-- Tools dropdown -->
         <div ref="toolsRef" class="relative">
           <button
-            class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
             :class="toolsOpen ? '!text-white bg-white/10' : ''"
             @click="toolsOpen = !toolsOpen"
           >
@@ -130,7 +130,7 @@ function closeTools(): void {
             <router-link
               v-if="auth.hasMinRole('EditorInChief')"
               to="/users"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -140,7 +140,7 @@ function closeTools(): void {
             <router-link
               v-if="auth.hasMinRole('Admin')"
               to="/admin/plugins"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -150,7 +150,7 @@ function closeTools(): void {
             <router-link
               v-if="auth.hasMinRole('Admin')"
               to="/admin/webhooks"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -159,7 +159,7 @@ function closeTools(): void {
             </router-link>
             <router-link
               to="/entities"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -169,7 +169,7 @@ function closeTools(): void {
             <router-link
               v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
               to="/admin/websites"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -179,7 +179,7 @@ function closeTools(): void {
             <router-link
               v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
               to="/admin/search-engines"
-              class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
               active-class="!text-white bg-white/5"
               @click="closeTools"
             >
@@ -192,13 +192,13 @@ function closeTools(): void {
 
       <!-- Desktop right side -->
       <div class="ml-auto hidden items-center gap-1 text-sm md:flex">
-        <span class="mr-2 text-xs text-gray-500">
+        <span class="mr-2 text-xs text-white/40">
           {{ auth.user?.username }} &middot; {{ auth.user?.role }}
         </span>
 
         <router-link
           to="/notifications"
-          class="relative flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="relative flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
         >
           <BellIcon class="h-4 w-4 shrink-0" />
@@ -214,7 +214,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/settings"
-          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
         >
           <Cog6ToothIcon class="h-4 w-4 shrink-0" />
@@ -223,7 +223,7 @@ function closeTools(): void {
 
         <router-link
           to="/profile"
-          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
         >
           <UserCircleIcon class="h-4 w-4 shrink-0" />
@@ -231,7 +231,7 @@ function closeTools(): void {
         </router-link>
 
         <button
-          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           @click="handleLogout"
         >
           <ArrowRightOnRectangleIcon class="h-4 w-4 shrink-0" />
@@ -265,13 +265,13 @@ function closeTools(): void {
       v-if="menuOpen"
       class="border-t border-white/20 px-4 pb-4 pt-2 text-sm md:hidden"
     >
-      <p class="mb-3 text-xs text-gray-500">
+      <p class="mb-3 text-xs text-white/40">
         {{ auth.user?.username }} &middot; {{ auth.user?.role }}
       </p>
       <div class="flex flex-col gap-0.5">
         <router-link
           to="/"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           exact-active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -280,7 +280,7 @@ function closeTools(): void {
         </router-link>
         <router-link
           to="/collections"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -290,7 +290,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('EditorInChief')"
           to="/users"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -300,7 +300,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/plugins"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -310,7 +310,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/webhooks"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -319,7 +319,7 @@ function closeTools(): void {
         </router-link>
         <router-link
           to="/entities"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -329,7 +329,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
           to="/admin/websites"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -339,7 +339,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasRole('Designer') || auth.hasMinRole('EditorInChief')"
           to="/admin/search-engines"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -348,7 +348,7 @@ function closeTools(): void {
         </router-link>
         <router-link
           to="/notifications"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -364,7 +364,7 @@ function closeTools(): void {
         <router-link
           v-if="auth.hasMinRole('Admin')"
           to="/admin/settings"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -373,7 +373,7 @@ function closeTools(): void {
         </router-link>
         <router-link
           to="/profile"
-          class="flex items-center gap-3 rounded px-3 py-2 text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
           active-class="!text-white bg-white/10"
           @click="closeMenu"
         >
@@ -381,7 +381,7 @@ function closeTools(): void {
           {{ t("nav.profile") }}
         </router-link>
         <button
-          class="flex items-center gap-3 rounded px-3 py-2 text-left text-gray-400 hover:bg-white/10 hover:text-white"
+          class="flex items-center gap-3 rounded px-3 py-2 text-left text-white/75 hover:bg-white/10 hover:text-white"
           @click="handleLogout"
         >
           <ArrowRightOnRectangleIcon class="h-4 w-4 shrink-0" />
