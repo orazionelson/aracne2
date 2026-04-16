@@ -183,43 +183,7 @@ is a natural extension.
 
 ---
 
-## 6. Peer review workflow
-
-An optional structured review process before publication, involving one or more
-external reviewers who can annotate the document and leave structured feedback.
-
-**Motivation**
-Academic digital editions often undergo blind or open peer review before
-publication. Integrating this process into the CMS eliminates email attachments
-and version confusion.
-
-**Scope**
-- A document can be assigned a `review_status`: `draft → submitted → under_review → accepted → rejected`
-- The EditorInChief invites one or more Reviewers (a new role, or a temporary
-  access grant) to read and annotate the document.
-- Reviewers leave structured comments anchored to specific XML passages
-  (stored as `<note type="review">` in a separate annotation layer, not in the
-  canonical TEI XML).
-- The Editor sees the comments and can accept/dismiss each one.
-- An audit trail of the review cycle is preserved in `audit_log`.
-
-**Open questions**
-- The Reviewer role: full platform account vs. a one-time access link
-  (simpler for external reviewers with no existing account).
-- Annotation storage: separate table in PostgreSQL, or annotation layer in
-  eXist-db alongside the document?
-- This overlaps with the general commenting/annotation system — decide whether
-  review annotations are a special case of a general annotation feature or a
-  separate subsystem.
-
-**Prerequisites**
-- Document publication workflow (Phase 05+)
-- Notification system (already planned)
-- Possibly: email delivery (DEFERRED item 11) for inviting external reviewers
-
----
-
-## 7. Automated bibliography enrichment via DOI / ISBN lookup
+## 6. Automated bibliography enrichment via DOI / ISBN lookup
 
 When an Editor enters a bibliographic reference in the document, the system can
 fetch structured metadata from CrossRef (DOI) or Open Library (ISBN) and
@@ -251,41 +215,7 @@ productivity.
 
 ---
 
-## 8. Multi-tenant mode
-
-Allow a single Aracne2 installation to host multiple independent editorial
-projects, each with its own collections, users, and settings, isolated from
-each other.
-
-**Motivation**
-A university digital humanities center may host a dozen independent scholarly
-edition projects. Running one Aracne2 instance per project is operationally
-expensive (separate databases, separate Docker stacks). A multi-tenant mode
-would let a single installation serve all of them.
-
-**Scope**
-The fundamental unit is a `tenant` (or `project`):
-- Each tenant has its own user namespace, collection namespace, and website.
-- Cross-tenant data is never accessible — strict row-level isolation.
-- A super-admin role (above the current Admin) manages tenants.
-
-**Open questions**
-- Isolation strategy: schema-per-tenant in PostgreSQL (strong isolation, complex
-  migration tooling) vs. row-level security with a `tenant_id` column on every
-  table (simpler, but `tenant_id` leak is a hard-to-audit risk)?
-- eXist-db isolation: separate database per tenant (preferable) or separate
-  collection root with ACL? eXist-db supports multiple databases natively.
-- This is a **foundational architectural change** — adding it retroactively to
-  an existing schema is expensive. If multi-tenancy is a likely requirement,
-  the decision should be made before Phase 01 data models are finalised.
-
-**Prerequisites**
-- None — but the decision has the highest ROI if made early (Phase 01).
-  After Phase 03 the migration cost grows with each new model.
-
----
-
-## 9. TEI-to-DOCX / TEI-to-PDF export
+## 7. TEI-to-DOCX / TEI-to-PDF export
 
 Allow Editors to export a document or collection as a Word `.docx` file or PDF
 for non-technical stakeholders or traditional publishers.
@@ -316,7 +246,7 @@ environment and traditional editorial workflows.
 
 ---
 
-## 10. Gamification / contributor leaderboard
+## 8. Gamification / contributor leaderboard
 
 A lightweight engagement layer for large distributed transcription projects:
 track individual Editor contributions (documents transcribed, words encoded,
@@ -354,7 +284,7 @@ have been shown to improve retention and motivation in similar projects
 
 ---
 
-## 11. Non-native plugin: GitHub Integration
+## 9. Non-native plugin: GitHub Integration
 
 Connect a collection to a GitHub repository and allow EditorInChiefs to push
 documents to GitHub and, exclusively for empty collections, perform a one-time
@@ -657,7 +587,7 @@ GitHub corpus that needs to be imported into Aracne2.
 
 ---
 
-## 12. Secret management — beyond plain-text `.env`
+## 10. Secret management — beyond plain-text `.env`
 
 Aracne2 currently stores all secrets (database passwords, JWT secret, API keys)
 in a plain-text `.env` file. In production this file is protected by filesystem
@@ -699,7 +629,7 @@ the stack.
 
 ---
 
-## 13. Fuzzy string matching via Apache Commons Text in XQuery
+## 11. Fuzzy string matching via Apache Commons Text in XQuery
 
 Install the **Apache Commons Text Functions** library (version 1.12.0, compatible
 with eXist-db 6.0.0+) from the eXist-db Package Manager. This exposes string
