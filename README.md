@@ -13,6 +13,27 @@ Browser ──── REST API + JWT ──── FastAPI backend ──── Po
 - **Layer 1 — Platform data**: users, roles, sessions, settings, audit, plugins → PostgreSQL
 - **Layer 2 — Document data**: XML file collections → filesystem + eXist-db (native XML database)
 
+## Features
+
+| Area | Feature |
+|---|---|
+| **Editorial** | Collection-based TEI XML document management with full workflow (draft → review → published) |
+| **Editor** | CodeMirror 5 TEI editor with XML autocomplete (CM5 schema), AI assistance, and inline validation |
+| **Facsimile** | Text-image alignment via TEI `<zone>` / `facs` — manual editor and HTR pipeline import |
+| **Validation** | Per-document and collection-wide TEI validation against RNG / DTD / XSD schemas |
+| **Bibliography** | Bibliographic entry management with BibTeX/CSL-JSON import and a bibliography normalizer (AI) |
+| **Named entities** | Automatic entity extraction (persName, placeName, orgName, …), admin normalisation, VIAF/GeoNames linking |
+| **Websites** | Static / dynamic / hybrid website generator with XSLT rendering, search engines, and embed widget |
+| **XSLT templates** | Designer-managed catalog of XSLT stylesheets used by the website generator |
+| **TEI schemas** | Schema catalog (upload / URL import / auto-generated CM5); bundled TEI All P5 schema |
+| **AI integration** | OpenAI, Anthropic, Gemini adapters; prompt library; streaming completion in editor and XSLT debugger |
+| **OAI-PMH** | OAI-PMH 2.0 provider for metadata harvesting |
+| **EVT viewer** | Optional EVT 2 integration for public reading of published collections |
+| **Notifications** | In-app notification inbox; event-driven dispatch via plugin hooks |
+| **Webhooks** | Admin-managed HTTP webhooks subscribed to platform events |
+| **Plugins** | Hook-based plugin architecture; native plugins for audit, notifications, webhooks, AI, OAI-PMH, EVT |
+| **Public site** | Public homepage with customisable CSS, collection browser, entity browser, bibliography, and search |
+
 ## Technology stack
 
 | Layer | Technology |
@@ -136,7 +157,7 @@ make help          # Full command reference
 │       └── locales/           # i18n (en, it)
 ├── docs/
 │   ├── phases/                # implementation phase specifications
-│   └── reference/             # API format, DB schema
+│   └── reference/             # API format, DB schema, feature reference guides
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
 ├── nginx.conf
