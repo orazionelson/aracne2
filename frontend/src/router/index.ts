@@ -128,6 +128,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin" },
     },
     {
+      path: "/admin/backup",
+      name: "admin-backup",
+      component: () => import("@/views/admin/BackupView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin" },
+    },
+    {
       path: "/admin/entities",
       name: "admin-entities",
       component: () => import("@/views/admin/NamedEntitiesView.vue"),

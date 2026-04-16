@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings.websites_root.mkdir(parents=True, exist_ok=True)
     settings.search_engines_root.mkdir(parents=True, exist_ok=True)
     settings.documents_media_root.mkdir(parents=True, exist_ok=True)
+    settings.backup_root.mkdir(parents=True, exist_ok=True)
 
     # Start periodic background jobs (audit log + session cleanup)
     register_jobs()

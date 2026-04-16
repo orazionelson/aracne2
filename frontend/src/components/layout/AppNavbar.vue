@@ -17,6 +17,7 @@ import {
   Cog6ToothIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
+  ArchiveBoxArrowDownIcon,
 } from "@heroicons/vue/24/outline";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
@@ -186,6 +187,16 @@ function closeTools(): void {
               <MagnifyingGlassIcon class="h-4 w-4 shrink-0" />
               {{ t("nav.search_engines") }}
             </router-link>
+            <router-link
+              v-if="auth.hasMinRole('Admin')"
+              to="/admin/backup"
+              class="flex items-center gap-2.5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
+              active-class="!text-white bg-white/5"
+              @click="closeTools"
+            >
+              <ArchiveBoxArrowDownIcon class="h-4 w-4 shrink-0" />
+              {{ t("nav.backup") }}
+            </router-link>
           </div>
         </div>
       </div>
@@ -345,6 +356,16 @@ function closeTools(): void {
         >
           <MagnifyingGlassIcon class="h-4 w-4 shrink-0" />
           {{ t("nav.search_engines") }}
+        </router-link>
+        <router-link
+          v-if="auth.hasMinRole('Admin')"
+          to="/admin/backup"
+          class="flex items-center gap-3 rounded px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
+          active-class="!text-white bg-white/10"
+          @click="closeMenu"
+        >
+          <ArchiveBoxArrowDownIcon class="h-4 w-4 shrink-0" />
+          {{ t("nav.backup") }}
         </router-link>
         <router-link
           to="/notifications"

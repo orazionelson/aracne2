@@ -121,6 +121,11 @@ class Settings(BaseSettings):
     # Serve via nginx in production: location /search-pages/ { alias /app/search-pages/; }
     search_engines_root: Path = Path("/app/search-pages")
 
+    # Backup storage — ZIP archives created by the native Backup plugin.
+    # Defaults to /app/backups. Override via BACKUP_ROOT env variable in production
+    # to point to a persistent volume mounted outside the container.
+    backup_root: Path = Path("/app/backups")
+
     # GeoNames API — used by /geonames/search to power Place-of-Publication autocomplete.
     # Register a free account at https://www.geonames.org/login and set this variable.
     geonames_username: str = "aracne"

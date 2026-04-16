@@ -58,7 +58,8 @@
     "settings": "Settings",
     "profile": "Profile",
     "menu": "Menu",
-    "search_engines": "Search Engines"
+    "search_engines": "Search Engines",
+    "backup": "Backup"
   },
   "profile": {
     "title": "Profile",
@@ -945,5 +946,30 @@
   },
   "errors": {
     "not_found": "404 — Page not found"
+  },
+  "backup": {
+    "title": "Backup",
+    "subtitle": "Create and download ZIP archives of platform data.",
+    "create": "New backup",
+    "creating": "Creating...",
+    "scope_database": "Database (PostgreSQL)",
+    "scope_collections": "Collections (XML documents)",
+    "scope_media": "Media files",
+    "label_placeholder": "Optional label",
+    "empty": "No backups yet.",
+    "col_label": "Label",
+    "col_scopes": "Scopes",
+    "col_status": "Status",
+    "col_started": "Started",
+    "col_size": "Size",
+    "col_actions": "Actions",
+    "download": "Download",
+    "delete": "Delete",
+    "status_pending": "Pending",
+    "status_running": "Running",
+    "status_done": "Done",
+    "status_failed": "Failed",
+    "confirm_delete": "Delete this backup archive? This cannot be undone.",
+    "error_create": "Failed to start backup."
   }
 }

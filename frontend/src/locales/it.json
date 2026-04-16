@@ -58,7 +58,8 @@
     "settings": "Impostazioni",
     "profile": "Profilo",
     "menu": "Menu",
-    "search_engines": "Motori di ricerca"
+    "search_engines": "Motori di ricerca",
+    "backup": "Backup"
   },
   "profile": {
     "title": "Profilo",
@@ -945,5 +946,30 @@
   },
   "errors": {
     "not_found": "404 — Pagina non trovata"
+  },
+  "backup": {
+    "title": "Backup",
+    "subtitle": "Crea e scarica archivi ZIP dei dati della piattaforma.",
+    "create": "Nuovo backup",
+    "creating": "Creazione in corso...",
+    "scope_database": "Database (PostgreSQL)",
+    "scope_collections": "Collezioni (documenti XML)",
+    "scope_media": "File media",
+    "label_placeholder": "Etichetta (opzionale)",
+    "empty": "Nessun backup ancora.",
+    "col_label": "Etichetta",
+    "col_scopes": "Ambiti",
+    "col_status": "Stato",
+    "col_started": "Avviato",
+    "col_size": "Dimensione",
+    "col_actions": "Azioni",
+    "download": "Scarica",
+    "delete": "Elimina",
+    "status_pending": "In attesa",
+    "status_running": "In corso",
+    "status_done": "Completato",
+    "status_failed": "Fallito",
+    "confirm_delete": "Eliminare questo archivio di backup? Operazione irreversibile.",
+    "error_create": "Impossibile avviare il backup."
   }
 }
