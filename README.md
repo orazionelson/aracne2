@@ -2,6 +2,16 @@
 
 A modular, production-ready CMS for managing, editing and publishing collections of structured XML documents. Built with a separate frontend/backend architecture and a hook-based plugin system designed to be modular and extensible.
 
+## Goals
+
+Aracne2 is designed around three core targets:
+
+- **A structured editing environment for TEI XML documents** — providing a schema-aware code editor with tag and attribute autocomplete, validation against RNG / DTD / XSD schemas, text-image alignment (facsimile zones), bibliography management, and AI-assisted encoding, correction, and annotation.
+
+- **An academic publication platform for TEI corpora** — transforming validated collections into navigable web publications via configurable XSLT rendering, with full-text and structural search, named entity browsing, public bibliography, OAI-PMH metadata exposure, and an embeddable search widget for integration into third-party sites.
+
+- **An end-to-end editorial workflow framework** — supporting the full lifecycle of a scholarly edition, from collection creation and document ingestion through role-based review (Editor, EditorInChief, Designer, Admin) to controlled publication, with notifications, audit logging, and webhook integration for external systems.
+
 ## Architecture overview
 
 ```
