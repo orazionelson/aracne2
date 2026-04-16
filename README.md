@@ -119,7 +119,7 @@ make seed
 curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 ```
 
-> **Note on `EXIST_PASSWORD`:** eXist-db 6.2.0 ignores this variable on first boot
+> **Note on `EXIST_PASSWORD`:** eXist-db 6.4.1 ignores this variable on first boot
 > and starts with an empty admin password. Leave `EXIST_PASSWORD=` empty in `.env`.
 
 > **Full step-by-step guide** (including troubleshooting): see [quickstart.md](quickstart.md).
