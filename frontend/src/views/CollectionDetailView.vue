@@ -811,28 +811,6 @@ function statusClass(s: string): string {
               {{ t("zenodo.badge_failed") }}
             </span>
           </div>
-          <div
-            v-if="auth.hasMinRole('EditorInChief') && store.current.status === 'published'"
-            class="mt-1 flex items-center gap-2"
-          >
-            <button
-              :disabled="isForcingDeposit"
-              class="text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
-              @click="forceZenodoDeposit"
-            >
-              {{
-                zenodoStatus
-                  ? t("zenodo.redeposit_btn")
-                  : t("zenodo.deposit_btn")
-              }}
-            </button>
-            <span v-if="isForcingDeposit" class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t("zenodo.working") }}
-            </span>
-            <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
-              {{ zenodoDepositError }}
-            </span>
-          </div>
           <p class="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">{{ store.current.slug }}</p>
           <p v-if="store.current.description" class="mt-2 text-sm text-gray-700 dark:text-gray-200">
             {{ store.current.description }}
@@ -1518,7 +1496,32 @@ function statusClass(s: string): string {
             </button>
           </div>
 
-          <div class="flex justify-end">
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <!-- Left: manual (re-)deposit action, only once the collection is
+                 published and the Zenodo plugin has yielded at least a
+                 fallback vocabulary (proxying that the plugin is actually
+                 reachable for this install). -->
+            <div
+              v-if="store.current.status === 'published'"
+              class="flex flex-wrap items-center gap-2"
+            >
+              <button
+                :disabled="isForcingDeposit"
+                class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
+                @click="forceZenodoDeposit"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                </svg>
+                {{ isForcingDeposit ? t("zenodo.working") : (zenodoStatus ? t("zenodo.redeposit_btn") : t("zenodo.deposit_btn")) }}
+              </button>
+              <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
+                {{ zenodoDepositError }}
+              </span>
+            </div>
+            <span v-else />
+
+            <!-- Right: save the per-collection overrides -->
             <button
               :disabled="isSavingZenodoResourceType || !zenodoSectionDirty"
               class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
