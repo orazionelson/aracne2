@@ -646,12 +646,12 @@ onMounted(async () => {
 
 function statusClass(s: string): string {
   const map: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600",
-    assigned: "bg-blue-100 text-blue-700",
-    review: "bg-amber-100 text-amber-700",
-    published: "bg-green-100 text-green-700",
+    draft: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+    assigned: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    review: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    published: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
   };
-  return map[s] ?? "bg-gray-100 text-gray-600";
+  return map[s] ?? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
 }
 </script>
 
@@ -659,13 +659,13 @@ function statusClass(s: string): string {
   <div class="mx-auto max-w-4xl px-4 py-8">
     <!-- Back -->
     <button
-      class="mb-6 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
+      class="mb-6 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
       @click="router.push({ name: 'collections' })"
     >
       ← {{ t("collections.title") }}
     </button>
 
-    <p v-if="isLoading" class="text-sm text-gray-500">{{ t("common.loading") }}</p>
+    <p v-if="isLoading" class="text-sm text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
     <p v-else-if="error" class="text-sm text-red-600">{{ error }}</p>
 
     <template v-else-if="store.current">
@@ -673,22 +673,22 @@ function statusClass(s: string): string {
       <div class="mb-6">
         <div>
           <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-bold text-gray-900">{{ store.current.title }}</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ store.current.title }}</h1>
             <span
               class="rounded px-2 py-0.5 text-xs font-semibold"
               :class="statusClass(store.current.status)"
             >
               {{ t(`collections.status_${store.current.status}`) }}
             </span>
-            <span v-if="store.current.is_public" class="text-xs text-gray-400">
+            <span v-if="store.current.is_public" class="text-xs text-gray-400 dark:text-gray-500">
               {{ t("collections.public_badge") }}
             </span>
           </div>
-          <p class="mt-1 font-mono text-sm text-gray-500">{{ store.current.slug }}</p>
-          <p v-if="store.current.description" class="mt-2 text-sm text-gray-700">
+          <p class="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">{{ store.current.slug }}</p>
+          <p v-if="store.current.description" class="mt-2 text-sm text-gray-700 dark:text-gray-200">
             {{ store.current.description }}
           </p>
-          <p class="mt-1 text-xs text-gray-400">
+          <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
             {{ t("collections.editor_label") }}:
             {{
               (() => {
@@ -703,49 +703,49 @@ function statusClass(s: string): string {
       </div>
 
       <!-- Edit form -->
-      <section v-if="editing" class="mb-6 rounded border border-gray-200 bg-gray-50 p-5">
-        <h2 class="mb-4 text-sm font-semibold text-gray-700">{{ t("collections.edit") }}</h2>
+      <section v-if="editing" class="mb-6 rounded border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/50">
+        <h2 class="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-200">{{ t("collections.edit") }}</h2>
         <form class="space-y-3" @submit.prevent="submitEdit">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
               {{ t("collections.title_label") }}
             </label>
             <input
               v-model="editTitle"
               required
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
             />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
               {{ t("collections.description") }}
             </label>
             <textarea
               v-model="editDesc"
               rows="2"
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
             />
           </div>
           <div class="flex items-center gap-2">
             <input id="edit-public" v-model="editPublic" type="checkbox" />
-            <label for="edit-public" class="text-sm text-gray-700">
+            <label for="edit-public" class="text-sm text-gray-700 dark:text-gray-200">
               {{ t("collections.is_public") }}
             </label>
           </div>
           <div class="flex items-center gap-2">
             <input id="edit-evt-enabled" v-model="editEvtEnabled" type="checkbox" />
-            <label for="edit-evt-enabled" class="text-sm text-gray-700">
+            <label for="edit-evt-enabled" class="text-sm text-gray-700 dark:text-gray-200">
               {{ t("collections.evt_enabled_label") }}
             </label>
-            <span class="text-xs text-gray-400">{{ t("collections.evt_enabled_hint") }}</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">{{ t("collections.evt_enabled_hint") }}</span>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-600">
+            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">
               {{ t("collections.schema_label") }}
             </label>
             <select
               v-model="editSchemaId"
-              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             >
               <option :value="null">{{ t("schemas.none") }}</option>
               <option v-for="s in schemaStore.schemas" :key="s.id" :value="s.id">
@@ -756,12 +756,12 @@ function statusClass(s: string): string {
           </div>
           <!-- Body template -->
           <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-gray-600">
+            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">
               {{ t("collections.body_template_label") }}
             </label>
             <select
               v-model="editBodyTemplateId"
-              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             >
               <option :value="null">{{ t("collections.body_template_none") }}</option>
               <option
@@ -774,9 +774,9 @@ function statusClass(s: string): string {
             </select>
           </div>
           <!-- Single author -->
-          <div class="border-t border-gray-200 pt-3">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">
+              <span class="text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.single_author_question") }}
               </span>
               <button
@@ -792,7 +792,7 @@ function statusClass(s: string): string {
               </button>
             </div>
             <div v-if="editHasSingleAuthor" class="relative mt-2">
-              <label class="mb-1 block text-xs font-medium text-gray-600">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.author_label") }}
               </label>
               <div class="relative">
@@ -800,24 +800,24 @@ function statusClass(s: string): string {
                   :value="editAuthor"
                   type="text"
                   autocomplete="off"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                   @input="onAuthorInput"
                   @focus="viafOpen = true"
                   @blur="closeViafDropdown"
                 />
                 <span
                   v-if="viafLoading"
-                  class="absolute right-2 top-1.5 text-xs text-gray-400"
+                  class="absolute right-2 top-1.5 text-xs text-gray-400 dark:text-gray-500"
                 >…</span>
               </div>
               <ul
                 v-if="viafOpen && viafResults.length > 0"
-                class="absolute z-30 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-56 overflow-y-auto"
+                class="absolute z-30 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-56 overflow-y-auto dark:border-gray-700 dark:bg-gray-800"
               >
                 <li
                   v-for="name in viafResults"
                   :key="name"
-                  class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                  class="cursor-pointer px-3 py-2 text-sm text-gray-900 hover:bg-indigo-50 dark:text-gray-100 dark:hover:bg-indigo-900/30"
                   @mousedown.prevent="selectViafName(name)"
                 >
                   {{ name }}
@@ -826,9 +826,9 @@ function statusClass(s: string): string {
             </div>
           </div>
           <!-- Single primary source -->
-          <div class="border-t border-gray-200 pt-3">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">
+              <span class="text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.single_source_question") }}
               </span>
               <button
@@ -844,20 +844,20 @@ function statusClass(s: string): string {
               </button>
             </div>
             <div v-if="editHasSingleSource" class="mt-2">
-              <label class="mb-1 block text-xs font-medium text-gray-600">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.main_source_label") }}
               </label>
               <input
                 v-model="editMainSource"
                 type="text"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               />
             </div>
           </div>
           <!-- Manuscript identifier -->
-          <div class="border-t border-gray-200 pt-3">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">
+              <span class="text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.single_ms_question") }}
               </span>
               <button
@@ -873,20 +873,20 @@ function statusClass(s: string): string {
               </button>
             </div>
             <div v-if="editHasMsIdentifier" class="mt-2">
-              <label class="mb-1 block text-xs font-medium text-gray-600">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.ms_identifier_label") }}
               </label>
               <input
                 v-model="editMsIdentifier"
                 type="text"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               />
             </div>
           </div>
           <!-- Physical form (objectDesc) -->
-          <div class="border-t border-gray-200 pt-3">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">
+              <span class="text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.objectdesc_form_question") }}
               </span>
               <button
@@ -902,12 +902,12 @@ function statusClass(s: string): string {
               </button>
             </div>
             <div v-if="editHasObjectDescForm" class="mt-2">
-              <label class="mb-1 block text-xs font-medium text-gray-600">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.objectdesc_form_label") }}
               </label>
               <select
                 v-model="editObjectDescForm"
-                class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
                 <option value="">—</option>
                 <option v-for="f in OBJECTDESC_FORMS" :key="f" :value="f">{{ f }}</option>
@@ -915,23 +915,23 @@ function statusClass(s: string): string {
             </div>
           </div>
           <!-- Publication metadata -->
-          <div class="border-t border-gray-200 pt-3">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               publicationStmt
             </p>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.publisher_label") }}
                 </label>
                 <input
                   v-model="editPublisher"
                   type="text"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                 />
               </div>
               <div class="relative">
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.pub_place_label") }}
                 </label>
                 <div class="relative">
@@ -939,33 +939,33 @@ function statusClass(s: string): string {
                     :value="editPubPlace"
                     type="text"
                     autocomplete="off"
-                    class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                    class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                     @input="onPubPlaceInput"
                     @focus="geonamesOpen = true"
                     @blur="closeGeonamesDropdown"
                   />
-                  <span v-if="geonamesLoading" class="absolute right-2 top-1.5 text-xs text-gray-400">…</span>
+                  <span v-if="geonamesLoading" class="absolute right-2 top-1.5 text-xs text-gray-400 dark:text-gray-500">…</span>
                 </div>
                 <ul
                   v-if="geonamesOpen && geonamesResults.length > 0"
-                  class="absolute z-30 mt-1 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-lg"
+                  class="absolute z-30 mt-1 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                   style="max-height: 14rem;"
                 >
                   <li
                     v-for="place in geonamesResults"
                     :key="place.geonames_id"
-                    class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                    class="cursor-pointer px-3 py-2 text-sm text-gray-900 hover:bg-indigo-50 dark:text-gray-100 dark:hover:bg-indigo-900/30"
                     @mousedown.prevent="selectGeonamesPlace(place.name)"
                   >
                     <span class="font-medium">{{ place.name }}</span>
-                    <span v-if="place.region || place.country" class="ml-1 text-xs text-gray-400">
+                    <span v-if="place.region || place.country" class="ml-1 text-xs text-gray-400 dark:text-gray-500">
                       {{ [place.region, place.country].filter(Boolean).join(", ") }}
                     </span>
                   </li>
                 </ul>
               </div>
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.pub_year_label") }}
                 </label>
                 <input
@@ -974,16 +974,16 @@ function statusClass(s: string): string {
                   min="1000"
                   max="9999"
                   placeholder="YYYY"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                 />
               </div>
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.availability_label") }}
                 </label>
                 <select
                   v-model="editLicenseId"
-                  class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                 >
                   <option :value="null">{{ t("collections.no_license") }}</option>
                   <option
@@ -997,22 +997,22 @@ function statusClass(s: string): string {
               </div>
             </div>
             <div class="col-span-2 mt-1">
-              <label class="mb-1 block text-xs font-medium text-gray-600">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 {{ t("collections.identifier_url_label") }}
               </label>
               <input
                 v-model="editIdentifierUrl"
                 type="url"
                 placeholder="https://doi.org/… or https://hdl.handle.net/…"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               />
-              <p class="mt-0.5 text-xs text-gray-400">{{ t("collections.identifier_url_hint") }}</p>
+              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{{ t("collections.identifier_url_hint") }}</p>
             </div>
           </div>
           <!-- respStmt — one row per responsible party -->
-          <div class="border-t border-gray-200 pt-3">
+          <div class="border-t border-gray-200 pt-3 dark:border-gray-700">
             <div class="mb-2 flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">respStmt</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">respStmt</p>
               <button
                 type="button"
                 class="text-xs text-indigo-600 hover:text-indigo-800"
@@ -1030,10 +1030,10 @@ function statusClass(s: string): string {
             <div
               v-for="(row, i) in editRespStmts"
               :key="i"
-              class="mb-2 grid grid-cols-2 gap-3 rounded border border-gray-100 bg-white p-2"
+              class="mb-2 grid grid-cols-2 gap-3 rounded border border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-800"
             >
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.resp_label") }}
                 </label>
                 <input
@@ -1041,30 +1041,30 @@ function statusClass(s: string): string {
                   type="text"
                   list="resp-datalist"
                   autocomplete="off"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                 />
               </div>
               <div class="relative">
-                <label class="mb-1 block text-xs font-medium text-gray-600">
+                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                   {{ t("collections.resp_name_label") }}
                 </label>
                 <input
                   v-model="row.name"
                   type="text"
                   autocomplete="off"
-                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                   @focus="respNameOpen[i] = true"
                   @blur="closeRespNameDropdown(i)"
                   @input="respNameOpen[i] = true"
                 />
                 <ul
                   v-if="respNameOpen[i] && filteredRespNamesFor(i).length > 0"
-                  class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto"
+                  class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto dark:border-gray-700 dark:bg-gray-800"
                 >
                   <li
                     v-for="opt in filteredRespNamesFor(i)"
                     :key="opt.id"
-                    class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                    class="cursor-pointer px-3 py-2 text-sm text-gray-900 hover:bg-indigo-50 dark:text-gray-100 dark:hover:bg-indigo-900/30"
                     @mousedown.prevent="selectRespName(i, opt.label)"
                   >
                     {{ opt.label }}
@@ -1093,7 +1093,7 @@ function statusClass(s: string): string {
             </button>
             <button
               type="button"
-              class="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+              class="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
               @click="editing = false"
             >
               {{ t("common.cancel") }}
@@ -1107,13 +1107,13 @@ function statusClass(s: string): string {
         <RouterLink
           v-if="evtEnabled"
           :to="{ name: 'collection-read', params: { slug } }"
-          class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50"
+          class="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/40"
         >
           {{ t("evt.read_button") }}
         </RouterLink>
         <button
           v-if="isEiC && !editing"
-          class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
           @click="startEdit"
         >
           {{ t("collections.edit") }}
@@ -1133,8 +1133,8 @@ function statusClass(s: string): string {
       </div>
 
       <!-- Workflow section -->
-      <section class="mb-6 rounded border border-gray-200 p-5">
-        <h2 class="mb-4 text-sm font-semibold text-gray-700">{{ t("collections.workflow") }}</h2>
+      <section class="mb-6 rounded border border-gray-200 p-5 dark:border-gray-700">
+        <h2 class="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-200">{{ t("collections.workflow") }}</h2>
         <p v-if="workflowError" class="mb-3 text-sm text-red-600">{{ workflowError }}</p>
 
         <!-- Assign / Reassign (EiC+, draft or assigned) -->
@@ -1143,7 +1143,7 @@ function statusClass(s: string): string {
           class="mb-4"
         >
           <button
-            class="mb-2 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+            class="mb-2 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
             @click="showAssignForm = !showAssignForm"
           >
             {{ store.current.status === "assigned" ? t("collections.reassign_editor") : t("collections.assign_editor") }}
@@ -1154,7 +1154,7 @@ function statusClass(s: string): string {
                 v-model="assignUsername"
                 required
                 autocomplete="off"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
                 :placeholder="t('collections.assign_username')"
                 @focus="isEditorDropdownOpen = true"
                 @blur="closeEditorDropdown"
@@ -1162,16 +1162,16 @@ function statusClass(s: string): string {
               />
               <ul
                 v-if="isEditorDropdownOpen && filteredEditors.length > 0"
-                class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto"
+                class="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto dark:border-gray-700 dark:bg-gray-800"
               >
                 <li
                   v-for="e in filteredEditors"
                   :key="e.id"
-                  class="cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50"
+                  class="cursor-pointer px-3 py-2 text-sm text-gray-900 hover:bg-indigo-50 dark:text-gray-100 dark:hover:bg-indigo-900/30"
                   @mousedown.prevent="selectEditor(e)"
                 >
                   <span class="font-medium">{{ e.username }}</span>
-                  <span v-if="e.display_name" class="ml-2 text-xs text-gray-500">
+                  <span v-if="e.display_name" class="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     {{ e.display_name }}
                   </span>
                 </li>
@@ -1179,7 +1179,7 @@ function statusClass(s: string): string {
             </div>
             <input
               v-model="assignNote"
-              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               :placeholder="t('collections.assign_note')"
             />
             <p v-if="assignError" class="text-sm text-red-600">{{ assignError }}</p>
@@ -1193,7 +1193,7 @@ function statusClass(s: string): string {
               </button>
               <button
                 type="button"
-                class="text-sm text-gray-500 hover:text-gray-700"
+                class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 @click="showAssignForm = false"
               >
                 {{ t("common.cancel") }}
@@ -1204,11 +1204,11 @@ function statusClass(s: string): string {
 
         <!-- Submit for review (assigned editor only) -->
         <div v-if="isAssignedEditor && store.current.status === 'assigned'" class="mb-4">
-          <p class="mb-2 text-sm text-gray-600">{{ t("collections.submit_hint") }}</p>
+          <p class="mb-2 text-sm text-gray-600 dark:text-gray-300">{{ t("collections.submit_hint") }}</p>
           <div class="flex items-center gap-2">
             <input
               v-model="workflowNote"
-              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               :placeholder="t('collections.workflow_note_optional')"
             />
             <button
@@ -1226,7 +1226,7 @@ function statusClass(s: string): string {
           <div class="flex items-center gap-2">
             <input
               v-model="workflowNote"
-              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               :placeholder="t('collections.workflow_note_optional')"
             />
             <button
@@ -1247,7 +1247,7 @@ function statusClass(s: string): string {
             <input
               v-model="rejectNote"
               required
-              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               :placeholder="t('collections.reject_note')"
             />
             <button
@@ -1264,7 +1264,7 @@ function statusClass(s: string): string {
         <div v-if="isAdmin && store.current.status === 'published'">
           <button
             :disabled="isActing"
-            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
             @click="handleUnpublish"
           >
             {{ t("collections.unpublish") }}
@@ -1274,13 +1274,13 @@ function statusClass(s: string): string {
         <!-- Direct publish (Admin/EiC, any status except published) -->
         <div
           v-if="isEiC && store.current.status !== 'published'"
-          class="mt-3 border-t border-dashed border-gray-200 pt-3"
+          class="mt-3 border-t border-dashed border-gray-200 pt-3 dark:border-gray-700"
         >
-          <p class="mb-2 text-xs text-gray-400">{{ t("collections.direct_publish_hint") }}</p>
+          <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">{{ t("collections.direct_publish_hint") }}</p>
           <div class="flex items-center gap-2">
             <input
               v-model="workflowNote"
-              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               :placeholder="t('collections.workflow_note_optional')"
             />
             <button
@@ -1299,18 +1299,18 @@ function statusClass(s: string): string {
             store.current.status === 'published' && !isAdmin &&
             store.current.status === 'draft' && !isEiC
           "
-          class="text-sm text-gray-400"
+          class="text-sm text-gray-400 dark:text-gray-500"
         >
           {{ t("collections.no_actions") }}
         </p>
       </section>
 
       <!-- Documents section -->
-      <section class="rounded border border-gray-200 p-5">
+      <section class="rounded border border-gray-200 p-5 dark:border-gray-700">
         <div class="mb-4 flex items-start justify-between">
-          <h2 class="text-sm font-semibold text-gray-700">
+          <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
             {{ t("collections.documents") }}
-            <span class="ml-1 font-normal text-gray-400">({{ store.documents.length }})</span>
+            <span class="ml-1 font-normal text-gray-400 dark:text-gray-500">({{ store.documents.length }})</span>
           </h2>
           <!-- Right column: action buttons + new-doc form stacked vertically -->
           <div class="flex flex-col items-end gap-2">
@@ -1339,7 +1339,7 @@ function statusClass(s: string): string {
                 </button>
                 <button
                   :disabled="isUploading || isUploadingZip"
-                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                   @click="fileInput?.click()"
                 >
                   <span v-if="isUploading && uploadProgress.total > 1">{{ uploadProgress.done }}/{{ uploadProgress.total }}</span>
@@ -1348,7 +1348,7 @@ function statusClass(s: string): string {
                 </button>
                 <button
                   :disabled="isUploading || isUploadingZip"
-                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                   @click="zipInput?.click()"
                 >
                   {{ isUploadingZip ? t("common.loading") : t("collections.upload_zip") }}
@@ -1373,7 +1373,7 @@ function statusClass(s: string): string {
               >
                 {{ isCreatingDoc ? t("common.loading") : t("collections.new_document_create") }}
               </button>
-              <button class="text-sm text-gray-400 hover:text-gray-700" @click="showNewDocForm = false">
+              <button class="text-sm text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200" @click="showNewDocForm = false">
                 {{ t("common.cancel") }}
               </button>
               <span v-if="newDocError" class="text-xs text-red-600">{{ newDocError }}</span>
@@ -1396,18 +1396,18 @@ function statusClass(s: string): string {
           />
         </div>
 
-        <p v-if="canWrite" class="mb-3 text-xs text-gray-400">
+        <p v-if="canWrite" class="mb-3 text-xs text-gray-400 dark:text-gray-500">
           {{ t("collections.upload_hint") }}
         </p>
 
         <!-- ZIP upload result summary -->
         <div
           v-if="zipResult"
-          class="mb-3 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm"
+          class="mb-3 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-200"
         >
-          <p class="font-medium text-gray-700">
+          <p class="font-medium text-gray-700 dark:text-gray-200">
             {{ t("collections.zip_result_uploaded", { n: zipResult.uploaded }) }}
-            <span v-if="zipResult.skipped.length > 0" class="ml-2 text-gray-400">
+            <span v-if="zipResult.skipped.length > 0" class="ml-2 text-gray-400 dark:text-gray-500">
               {{ t("collections.zip_result_skipped", { n: zipResult.skipped.length }) }}
             </span>
           </p>
@@ -1428,13 +1428,13 @@ function statusClass(s: string): string {
         <div class="mb-4 flex gap-2">
           <input
             v-model="searchQuery"
-            class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
             :placeholder="t('collections.search_placeholder')"
             @keyup.enter="handleSearch"
           />
           <button
             :disabled="isSearching || !searchQuery.trim()"
-            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+            class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
             @click="handleSearch"
           >
             {{ isSearching ? t("common.loading") : t("collections.search_button") }}
@@ -1444,11 +1444,11 @@ function statusClass(s: string): string {
         <!-- Search results -->
         <div v-if="searchDone" class="mb-4">
           <div class="mb-2 flex items-center justify-between">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               {{ t("collections.search_results") }}
             </p>
             <button
-              class="text-xs text-gray-400 hover:text-gray-700"
+              class="text-xs text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200"
               @click="resetSearch"
             >
               {{ t("collections.search_reset") }}
@@ -1456,7 +1456,7 @@ function statusClass(s: string): string {
           </div>
           <p
             v-if="searchResults.length === 0"
-            class="text-sm text-gray-500"
+            class="text-sm text-gray-500 dark:text-gray-400"
           >
             {{ t("collections.no_results", { q: searchQuery }) }}
           </p>
@@ -1464,10 +1464,10 @@ function statusClass(s: string): string {
             <li
               v-for="hit in searchResults"
               :key="hit.filename"
-              class="rounded border border-gray-100 bg-gray-50 px-3 py-2"
+              class="rounded border border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50"
             >
               <div class="flex items-center justify-between">
-                <p class="font-mono text-sm font-medium text-gray-800">{{ hit.filename }}</p>
+                <p class="font-mono text-sm font-medium text-gray-800 dark:text-gray-100">{{ hit.filename }}</p>
                 <button
                   class="text-xs text-indigo-500 hover:text-indigo-700"
                   @click="handleViewDoc(hit.filename)"
@@ -1475,21 +1475,21 @@ function statusClass(s: string): string {
                   {{ t("collections.view_document") }}
                 </button>
               </div>
-              <p class="mt-0.5 text-xs text-gray-500">…{{ hit.snippet }}…</p>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">…{{ hit.snippet }}…</p>
             </li>
           </ul>
         </div>
         <p v-if="searchError" class="mb-3 text-sm text-red-600">{{ searchError }}</p>
 
         <!-- Document list -->
-        <div v-if="store.documents.length === 0" class="text-sm text-gray-500">
+        <div v-if="store.documents.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
           {{ t("collections.no_documents") }}
         </div>
 
         <template v-else>
           <!-- List controls: select-all + page size -->
-          <div class="mb-1 flex items-center justify-between border-b border-gray-100 pb-2">
-            <label v-if="canWrite" class="flex cursor-pointer items-center gap-2 text-xs text-gray-500">
+          <div class="mb-1 flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-700">
+            <label v-if="canWrite" class="flex cursor-pointer items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <input
                 type="checkbox"
                 :checked="allPageSelected"
@@ -1504,7 +1504,7 @@ function statusClass(s: string): string {
             </label>
             <span v-else />
 
-            <div class="flex items-center gap-2 text-xs text-gray-500">
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <button
                 v-if="canWrite && selectedFilenames.length > 0"
                 :disabled="isDeleting"
@@ -1515,7 +1515,7 @@ function statusClass(s: string): string {
               </button>
               <select
                 v-model.number="pageSize"
-                class="rounded border border-gray-200 px-1 py-0.5 text-xs"
+                class="rounded border border-gray-200 px-1 py-0.5 text-xs bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
               >
                 <option v-for="n in PAGE_SIZES" :key="n" :value="n">{{ n }}</option>
               </select>
@@ -1540,7 +1540,7 @@ function statusClass(s: string): string {
                     ? selectedFilenames.splice(selectedFilenames.indexOf(doc.filename), 1)
                     : selectedFilenames.push(doc.filename)"
                 />
-                <span class="font-mono text-sm text-gray-800">{{ doc.filename }}</span>
+                <span class="font-mono text-sm text-gray-800 dark:text-gray-100">{{ doc.filename }}</span>
               </div>
               <div class="flex gap-3">
                 <button
@@ -1574,7 +1574,7 @@ function statusClass(s: string): string {
           </ul>
 
           <!-- Pagination -->
-          <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <div class="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>
               {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, store.documents.length) }}
               / {{ store.documents.length }}
@@ -1582,7 +1582,7 @@ function statusClass(s: string): string {
             <div class="flex items-center gap-1">
               <button
                 :disabled="currentPage === 1"
-                class="rounded border px-2 py-0.5 disabled:opacity-40 hover:bg-gray-100"
+                class="rounded border border-gray-300 px-2 py-0.5 text-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                 @click="goToPage(currentPage - 1)"
               >
                 ←
@@ -1590,7 +1590,7 @@ function statusClass(s: string): string {
               <span class="px-2">{{ currentPage }} / {{ totalPages }}</span>
               <button
                 :disabled="currentPage === totalPages"
-                class="rounded border px-2 py-0.5 disabled:opacity-40 hover:bg-gray-100"
+                class="rounded border border-gray-300 px-2 py-0.5 text-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                 @click="goToPage(currentPage + 1)"
               >
                 →
@@ -1636,7 +1636,7 @@ function statusClass(s: string): string {
           </span>
           <span
             v-else-if="validationStore.currentRun.status === 'cancelled'"
-            class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+            class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200"
           >
             {{ t("collections.validate_all_cancelled", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
           </span>
@@ -1675,13 +1675,13 @@ function statusClass(s: string): string {
           <div
             v-for="doc in validationStore.currentRun.results.documents"
             :key="doc.filename"
-            class="rounded border border-violet-100 bg-white"
+            class="rounded border border-violet-100 bg-white dark:border-violet-900 dark:bg-gray-800"
           >
             <button
               class="flex w-full items-center justify-between px-3 py-2 text-left"
               @click="toggleValidationDoc(doc.filename)"
             >
-              <span class="font-mono text-sm text-gray-700">{{ doc.filename }}</span>
+              <span class="font-mono text-sm text-gray-700 dark:text-gray-200">{{ doc.filename }}</span>
               <span
                 :class="[
                   'rounded px-2 py-0.5 text-xs font-medium',
@@ -1705,9 +1705,9 @@ function statusClass(s: string): string {
                   <tr
                     v-for="(err, i) in doc.errors"
                     :key="i"
-                    class="border-b border-gray-100 last:border-0"
+                    class="border-b border-gray-100 last:border-0 dark:border-gray-700"
                   >
-                    <td class="w-20 whitespace-nowrap py-1 font-mono text-gray-400">
+                    <td class="w-20 whitespace-nowrap py-1 font-mono text-gray-400 dark:text-gray-500">
                       {{ err.line }}:{{ err.col }}
                     </td>
                     <td class="py-1 text-red-700">
@@ -1749,32 +1749,32 @@ function statusClass(s: string): string {
       </section>
 
       <!-- Saved bibliographies panel (EiC+) -->
-      <section v-if="isEiC" class="mb-6 rounded border border-gray-200">
+      <section v-if="isEiC" class="mb-6 rounded border border-gray-200 dark:border-gray-700">
         <button
-          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50"
+          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60"
           @click="biblioOpen = !biblioOpen"
         >
-          <span class="text-sm font-semibold text-gray-700">
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
             {{ t("bibliobuilder.panel_title") }}
             <span
               v-if="store.bibliographies.length"
-              class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700"
+              class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
             >{{ store.bibliographies.length }}</span>
           </span>
-          <span class="text-xs text-gray-400">{{ biblioOpen ? "▲" : "▼" }}</span>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ biblioOpen ? "▲" : "▼" }}</span>
         </button>
 
-        <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4">
-          <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600">{{ biblioDeleteError }}</p>
-          <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600">{{ biblioPublicError }}</p>
+        <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
+          <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioDeleteError }}</p>
+          <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioPublicError }}</p>
 
-          <p v-if="!store.bibliographies.length" class="text-sm text-gray-400">
+          <p v-if="!store.bibliographies.length" class="text-sm text-gray-400 dark:text-gray-500">
             {{ t("bibliobuilder.panel_empty") }}
           </p>
 
           <template v-else>
             <!-- Column headers -->
-            <div class="mb-1 flex items-center gap-2 px-3 text-xs font-medium text-gray-400">
+            <div class="mb-1 flex items-center gap-2 px-3 text-xs font-medium text-gray-400 dark:text-gray-500">
               <span class="w-6 text-center">{{ t("bibliobuilder.col_public") }}</span>
               <span class="flex-1">{{ t("bibliobuilder.col_version") }}</span>
               <span class="w-32 text-right">{{ t("bibliobuilder.col_actions") }}</span>
@@ -1785,7 +1785,7 @@ function statusClass(s: string): string {
                 v-for="bib in store.bibliographies"
                 :key="bib.version"
                 class="rounded border"
-                :class="bib.is_public ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white'"
+                :class="bib.is_public ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800'"
               >
                 <!-- Row header -->
                 <div class="flex items-center gap-2 px-3 py-2">
@@ -1805,14 +1805,14 @@ function statusClass(s: string): string {
                   >
                     <span
                       class="rounded px-2 py-0.5 text-xs font-mono font-medium"
-                      :class="bib.is_public ? 'bg-green-200 text-green-800' : 'bg-violet-100 text-violet-700'"
+                      :class="bib.is_public ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'"
                     >
                       v{{ bib.version }}
                     </span>
-                    <span v-if="bib.is_public" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                    <span v-if="bib.is_public" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
                       {{ t("bibliobuilder.is_public_label") }}
                     </span>
-                    <span class="text-xs text-gray-500">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
                       {{ new Date(bib.created_at).toLocaleString() }}
                     </span>
                   </button>
@@ -1823,18 +1823,18 @@ function statusClass(s: string): string {
                       v-if="bib.is_public && store.current"
                       :to="{ name: 'public-bibliography', params: { slug: store.current.slug } }"
                       target="_blank"
-                      class="text-xs text-green-600 hover:text-green-800"
+                      class="text-xs text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
                     >
                       {{ t("bibliobuilder.view_public") }}
                     </RouterLink>
                     <button
-                      class="text-xs text-gray-400 hover:text-indigo-600"
+                      class="text-xs text-gray-400 hover:text-indigo-600 dark:text-gray-500 dark:hover:text-indigo-400"
                       @click="copyBiblio(bib.content)"
                     >
                       {{ t("bibliobuilder.copy_btn") }}
                     </button>
                     <button
-                      class="text-xs text-gray-400 hover:text-red-600"
+                      class="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
                       @click="handleDeleteBiblio(bib.version)"
                     >
                       {{ t("common.delete") }}
@@ -1845,13 +1845,13 @@ function statusClass(s: string): string {
                 <!-- Expanded content -->
                 <div
                   v-if="expandedBiblioVersion === bib.version"
-                  class="border-t border-gray-100 px-3 pb-3 pt-2"
+                  class="border-t border-gray-100 px-3 pb-3 pt-2 dark:border-gray-700"
                 >
                   <textarea
                     :value="bib.content"
                     readonly
                     rows="10"
-                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800"
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                   />
                 </div>
               </div>
