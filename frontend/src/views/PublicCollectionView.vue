@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { apiClient } from "@/services/api";
 import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
+import { useJsonLd } from "@/composables/useJsonLd";
 
 interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
 interface PublicCollectionDetail {
@@ -38,6 +39,47 @@ onMounted(async () => {
     isLoading.value = false;
   }
 });
+
+// schema.org structured data: emit a CreativeWork for the collection
+// with its documents listed as ``hasPart`` CreativeWork entries. We use
+// CreativeWork (not Book) because TEI corpora range across genres (letters,
+// charters, poems, critical editions) and CreativeWork is the superclass
+// that does not mis-classify any of them.
+const origin = computed(() =>
+  typeof window !== "undefined" ? window.location.origin : "",
+);
+useJsonLd(
+  computed(() => {
+    const c = collection.value;
+    if (!c) return null;
+    const collectionUrl = `${origin.value}/browse/${c.slug}`;
+    const payload: Record<string, unknown> = {
+      "@context": "https://schema.org",
+      "@type": "CreativeWork",
+      name: c.title,
+      url: collectionUrl,
+    };
+    if (c.description) payload.description = c.description;
+    if (c.author) payload.author = { "@type": "Person", name: c.author };
+    if (c.publisher)
+      payload.publisher = { "@type": "Organization", name: c.publisher };
+    if (c.pub_year !== null && c.pub_year !== undefined)
+      payload.datePublished = String(c.pub_year);
+    if (c.documents.length > 0) {
+      payload.hasPart = c.documents.map((d) => {
+        const docUrl = `${origin.value}/browse/${c.slug}/${encodeURIComponent(d.filename)}`;
+        const doc: Record<string, unknown> = {
+          "@type": "CreativeWork",
+          name: d.title || d.filename,
+          url: docUrl,
+        };
+        if (d.author) doc.author = { "@type": "Person", name: d.author };
+        return doc;
+      });
+    }
+    return payload;
+  }),
+);
 </script>
 
 <template>

@@ -1,8 +1,21 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useUiConfigStore } from "@/stores/ui_config";
+import { apiClient } from "@/services/api";
 import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
+import { useJsonLd } from "@/composables/useJsonLd";
+
+interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
+interface PublicCollectionDetail {
+  slug: string;
+  title: string;
+  description: string | null;
+  author: string | null;
+  publisher: string | null;
+  pub_year: number | null;
+  documents: PublicDocumentInfo[];
+}
 
 const route = useRoute();
 const uiConfig = useUiConfigStore();
@@ -16,6 +29,55 @@ const renderUrl = computed(() => {
   const h = route.query.highlight;
   return h ? `${base}?highlight=${encodeURIComponent(String(h))}` : base;
 });
+
+// Fetch the collection metadata once so the JSON-LD block can include
+// isPartOf + an author / publisher inherited from the parent collection
+// (the public-document render endpoint returns HTML, not structured
+// metadata; cheapest way to get that data is reusing the collection
+// detail endpoint).
+const collection = ref<PublicCollectionDetail | null>(null);
+onMounted(async () => {
+  try {
+    collection.value = await apiClient.get<PublicCollectionDetail>(
+      `/public/collections/${slug}`,
+    );
+  } catch {
+    // Non-blocking: the page still renders; JSON-LD will simply be absent.
+    collection.value = null;
+  }
+});
+
+const origin = computed(() =>
+  typeof window !== "undefined" ? window.location.origin : "",
+);
+
+useJsonLd(
+  computed(() => {
+    const c = collection.value;
+    if (!c) return null;
+    const doc = c.documents.find((d) => d.filename === filename);
+    const docUrl = `${origin.value}/browse/${c.slug}/${encodeURIComponent(filename)}`;
+    const collectionUrl = `${origin.value}/browse/${c.slug}`;
+    const payload: Record<string, unknown> = {
+      "@context": "https://schema.org",
+      "@type": "CreativeWork",
+      name: doc?.title || filename,
+      url: docUrl,
+      isPartOf: {
+        "@type": "CreativeWork",
+        name: c.title,
+        url: collectionUrl,
+      },
+    };
+    const author = doc?.author || c.author;
+    if (author) payload.author = { "@type": "Person", name: author };
+    if (c.publisher)
+      payload.publisher = { "@type": "Organization", name: c.publisher };
+    if (c.pub_year !== null && c.pub_year !== undefined)
+      payload.datePublished = String(c.pub_year);
+    return payload;
+  }),
+);
 </script>
 
 <template>
