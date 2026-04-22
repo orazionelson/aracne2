@@ -84,6 +84,28 @@ services:
     networks:
       - aracne2
 
+  # ── Ollama local AI (optional — activate with: docker compose --profile ai-local up) ──
+  # Backend reaches it at http://ollama:11434 on the aracne2 network. Pull a model
+  # before first use with:
+  #   docker compose exec ollama ollama pull llama3.1:8b
+  # For GPU, see docs/OPERATIONS.md.
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - ai-local
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - aracne2
+
 networks:
   aracne2:
     driver: bridge
@@ -91,3 +113,4 @@ networks:
 volumes:
   postgres_data:
   existdb_data:
+  ollama_data:

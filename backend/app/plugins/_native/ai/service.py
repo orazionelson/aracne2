@@ -129,12 +129,22 @@ async def _get_provider(db: AsyncSession) -> BaseAiProvider:
     if provider_name == "disabled":
         raise AiDisabledError()
 
+    model_row = await db.get(SystemSetting, f"ai_{provider_name}_model")
+    model = model_row.value if model_row else ""
+
+    # Local provider: no API key, uses an HTTP endpoint instead.
+    if provider_name == "ollama":
+        base_row = await db.get(SystemSetting, "ai_ollama_base_url")
+        base_url = base_row.value if base_row else "http://ollama:11434"
+        if not base_url or not model:
+            raise AiDisabledError()
+        from app.plugins._native.ai.providers.ollama import OllamaProvider
+        return OllamaProvider(base_url=base_url, model=model)
+
+    # Remote providers: require a non-empty API key.
     api_key = await get_decrypted_setting(db, f"ai_{provider_name}_api_key")
     if not api_key:
         raise AiDisabledError()
-
-    model_row = await db.get(SystemSetting, f"ai_{provider_name}_model")
-    model = model_row.value if model_row else ""
 
     if provider_name == "openai":
         from app.plugins._native.ai.providers.openai import OpenAiProvider

@@ -241,6 +241,87 @@ Three layers to back up:
 
 ---
 
+## Local AI (Ollama)
+
+Aracne2 ships with an optional Ollama service for on-premise inference — the
+AI plugin can dispatch prompts to a locally-hosted model (Llama, Qwen,
+Mistral, Gemma …) instead of a remote provider. No data leaves the server.
+
+### Enable the bundled Ollama service
+
+```bash
+# Start the stack with the ai-local profile (adds the ollama container):
+docker compose --profile ai-local up -d
+
+# Pull at least one model into the volume (one-time, 4–8 GB per model):
+docker compose exec ollama ollama pull llama3.1:8b
+
+# List installed models:
+docker compose exec ollama ollama list
+```
+
+Then in the admin UI → **Settings → AI → Provider & API keys**:
+
+| Key                    | Value                         |
+| ---------------------- | ----------------------------- |
+| `ai_provider`          | `ollama`                      |
+| `ai_ollama_base_url`   | `http://ollama:11434` (default) |
+| `ai_ollama_model`      | `llama3.1:8b` (or another pulled model) |
+
+No API key is required for the `ollama` provider.
+
+### Use a host-installed Ollama instead
+
+If you already run Ollama on the host (`systemctl start ollama`), skip the
+profile and point the backend at it:
+
+```
+ai_ollama_base_url = http://host.docker.internal:11434
+```
+
+On Linux without Docker Desktop, add to the backend service in
+`docker-compose.yml`:
+
+```yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+### Performance notes
+
+- **CPU only**: works but slow. A 7–8B model quantised to Q4 takes 5–30 s
+  for a typical response on a modern x86 CPU. Acceptable for background
+  tasks (bibliography normalisation, named-entity extraction), painful for
+  interactive chat.
+- **GPU (NVIDIA)**: order-of-magnitude faster. Add to the `ollama` service:
+
+  ```yaml
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  ```
+
+  Requires the NVIDIA Container Toolkit on the host.
+- **Apple Silicon**: run Ollama on the host (Metal acceleration); the
+  bundled Docker service does not use Metal.
+
+### Model choice
+
+- `llama3.1:8b` — default, balanced general-purpose.
+- `qwen2.5:7b` — often better at Italian and multilingual.
+- `gemma2:9b` — strong reasoning for its size.
+- Larger (70B quantised) — possible on 48 GB+ RAM, very slow on CPU.
+
+For TEI-heavy tasks (complex XSLT generation, domain reasoning), local
+models below ~30B will consistently lag behind Claude / GPT-4o. Reserve
+local inference for extractive, templated, or privacy-sensitive tasks.
+
+---
+
 ## Dependency upgrades
 
 *(Placeholder — to be expanded.)*

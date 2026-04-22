@@ -61,6 +61,9 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("ai_anthropic_model", "claude-opus-4-6", "string"),
     ("ai_gemini_api_key", "", "string"),
     ("ai_gemini_model", "gemini-1.5-pro", "string"),
+    # Local inference via Ollama (no API key).
+    ("ai_ollama_base_url", "http://ollama:11434", "string"),
+    ("ai_ollama_model", "llama3.1:8b", "string"),
     ("ai_max_requests_per_hour", "20", "int"),
     ("ai_privacy_warning_enabled", "false", "bool"),
     # Dynamic/Hybrid website caching

@@ -71,7 +71,7 @@ function isEditing(key: string): boolean {
 // Settings with a fixed set of allowed values — show a <select> instead of
 // a free-text input.  Add new entries here when introducing enum-like settings.
 const SETTING_OPTIONS: Record<string, string[]> = {
-  ai_provider: ["disabled", "anthropic", "openai", "gemini"],
+  ai_provider: ["disabled", "anthropic", "openai", "gemini", "ollama"],
 };
 
 // Static per-key hint shown under the key code. Used as a fallback when the
