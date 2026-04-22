@@ -94,6 +94,8 @@ const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
   "home_show_search",
   "navbar_bg_color",
   "platform_logo_url",
+  "evt_enabled",
+  "public_registration",
 ]);
 const systemSettings = computed(() =>
   settingStore.settings.filter(
@@ -500,6 +502,12 @@ const homeShowLoginButton = computed(
 );
 const homePropagateCss = computed(
   () => settingStore.getSetting("home_propagate_css") === "true",
+);
+const evtEnabled = computed(
+  () => settingStore.getSetting("evt_enabled") === "true",
+);
+const publicRegistration = computed(
+  () => settingStore.getSetting("public_registration") === "true",
 );
 const togglingHomeSetting = ref<Record<string, boolean>>({});
 
@@ -1039,6 +1047,54 @@ onMounted(async () => {
     <template v-if="activeTab === 'settings'">
       <h1 class="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("settings.title") }}</h1>
       <p v-if="error" class="mb-4 text-red-600 dark:text-red-400">{{ error }}</p>
+
+      <!-- System-wide toggles shown as switches (also hidden from the table below) -->
+      <div class="mb-6 space-y-3">
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+              {{ t("settings.system_evt_enabled") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("settings.system_evt_enabled_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['evt_enabled']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="evtEnabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
+            @click="toggleHomeSetting('evt_enabled', evtEnabled)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="evtEnabled ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+              {{ t("settings.system_public_registration") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("settings.system_public_registration_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['public_registration']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="publicRegistration ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
+            @click="toggleHomeSetting('public_registration', publicRegistration)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="publicRegistration ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+      </div>
+
       <p v-if="settingStore.isLoading" class="text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
       <div v-else-if="systemSettings.length > 0" class="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
         <table class="w-full border-collapse text-sm">
