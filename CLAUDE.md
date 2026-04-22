@@ -7,6 +7,9 @@
 The codebase lives in a **development directory** (`repo`) from which all pushes to
 GitHub are made. A separate **test directory** is used to pull and run the app.
 
+Repo directory: /home/alfredo/GitHub/aracne2
+Test directory: /home/alfredo/aracne2test/aracne2 
+
 **After every `git push`, always tell the user which commands to run in the test
 directory.** The standard post-pull checklist is:
 
@@ -259,6 +262,10 @@ Endpoint notation used in prompts:
 
 ## Code rules (non-negotiable)
 
+### General Rules
+- **Human-readable UI**: anything shown to the user must be friendly and readable — never raw IDs, opaque codes, or internal slugs. If the domain value is an identifier (eBay category id, external listing id, UUID, …), display its human label and keep the id in the underlying data. For remote-resolved values (dynamic enums), persist the label alongside the id so it survives reloads without a refetch.
+- **Human-readable URLs**: paths shown in the browser address bar must never be bare UUIDs (`/items/d7fd…/listings` is not acceptable). When a resource has a natural label (item title, sale account username, owner name), the URL must include a slug. Use either pure slugs with a unique DB column, or a `slug-idprefix` hybrid where the id suffix handles uniqueness.
+
 ### Backend
 1. **Type hints everywhere** — no function without complete annotations
 2. **Async throughout** — no synchronous DB or I/O calls inside an async handler
@@ -447,3 +454,91 @@ quality baseline regardless of jurisdictional obligations.
   XML parsing on the backend.
 - **All code comments, docstrings, commit messages, and documentation files
   must be written in English.**
+
+## Operating rules for agentic work sessions
+
+Conflict priority: **Core Principles > Verification > Action**. When two rules collide, the one higher in this file wins.
+
+---
+
+## Core Principles
+
+- **Simplicity First**: every change as simple as possible. Minimal impact on existing code.
+- **No Laziness**: find the root cause. No temporary fixes, no stray `TODO`s, no `except: pass`. Senior developer standards.
+- **Minimal Impact**: touch only what's necessary. No side effects, no new bugs introduced.
+- **Production-Ready by Default**: if the code isn't production-ready, say so explicitly.
+
+---
+
+## When Not to Act
+
+Before acting, check whether any of these conditions hold. If yes, stop and ask.
+
+- **Substantive ambiguity**: the request admits two interpretations leading to incompatible outcomes. Don't pick at random.
+- **Irreversible architectural decision**: schema choices, public APIs, persistence formats, destructive migrations. Present the options, don't decide alone.
+- **Out of stated scope**: if the task requires touching files or systems not mentioned, ask before expanding the perimeter.
+- **Missing information that can't be inferred**: credentials, environment-specific paths, dependency versions not derivable from the repo.
+- **Conflict with prior work**: if the request seems to contradict a decision made in earlier sessions, flag it instead of silently overwriting.
+
+Distinguish legitimate ambiguity from laziness: if the answer is derivable from code, docs, or existing lesson files, **read them before asking**.
+
+---
+
+## Workflow Orchestration
+
+### 1. Plan Mode — Opt-In, Not Default
+
+Plan mode is a tool, not a default.
+
+- **Enter plan mode** for: architectural decisions, new adapters, refactors touching 3+ modules, tasks with contradictory requirements needing clarification.
+- **Don't enter plan mode** for: bug fixes with clear diagnosis, known repetitive tasks (deploy, patch, rebuild), localized changes to a single file, tasks with detailed specs already provided.
+- If unexpected complexity emerges during execution: **STOP, summarize state, re-plan**. Don't push through in the middle of doubt.
+- Specs written upfront reduce ambiguity. Short and concrete, not essays.
+
+### 2. Subagent Strategy
+
+- Use subagents to preserve the main context window when the task implies heavy reading (repo exploration, doc scraping, TEI corpus analysis, log triage).
+- One task per subagent, explicit perimeter, structured output required.
+- For complex problems parallelizable by nature (e.g. multi-source research, validation across separate datasets), launch concurrent subagents.
+- Don't use subagents for short sequential tasks — overhead exceeds benefit.
+
+### 3. Self-Improvement Loop
+
+- After **every** user correction: update `.claude/tasks/lessons.md` with the pattern + the rule that prevents it.
+- Lessons must be written as actionable rules, not narrative ("When X, do Y" — not "The user said that...").
+- At session start, read `.claude/tasks/lessons.md` for the current project before starting.
+- If a lesson is violated twice, rewrite it stronger (more specific, higher in the file, with a concrete example).
+
+### 4. Verification Before Done
+
+No task is complete until proven working.
+
+- Run the tests. If none exist, write them for the change introduced.
+- Diff before/after behavior when relevant (diff, logs, output).
+- Ask yourself: "would a senior reviewer approve this diff as-is?". If no, iterate before presenting.
+
+
+### 5. Elegance — On Request, Not By Default
+
+- **Default**: code that works, is readable, and respects Core Principles is sufficient. Don't refactor for aesthetics.
+- **Opt-in**: if the user explicitly asks ("clean this up", "is there a better way?") or if a fix visibly requires a patch-on-patch, propose the more elegant solution — but as a separate proposal, not unilaterally applied.
+- If refactoring and elegance conflict with Minimal Impact: Minimal Impact wins. Always.
+
+### 6. Autonomous Bug Fixing — With Perimeter
+
+- Bug report with clear diagnosis (stack trace, logs, failing test): proceed, fix, verify. No hand-holding needed.
+- Ambiguous bug report ("doesn't work", "something breaks"): ask for minimal reproduction before starting.
+- Red CI: read the logs, identify the cause, fix. If the cause is outside your stated perimeter, flag it instead of expanding scope.
+- Document in `.claude/tasks/todo.md` what you fixed and why — even for "small" bugs.
+
+---
+
+## Task Management
+
+1. **Track in-session**: use the native `TodoWrite` tool to break non-trivial work into a live checklist — update as you go, not at the end. No persisted file needed for short localized tasks.
+2. **Persist only when it earns its keep**: write to `.claude/tasks/todo.md` only when the task is multi-session, architectural, or leaves work-in-progress the next session must resume. One-liner fixes don't belong there.
+3. **Verify before acting**: if the task is non-trivial or interpretive decisions were made, confirm the plan with the user before implementing.
+4. **Explain changes inline**: one-line summary per step of what changed and why. No end-of-session essay.
+5. **Document outcome when persisted**: if a task earned a `.claude/tasks/todo.md` entry, close it with outcome + files touched + verifications performed.
+
+*(Lesson capture lives in the Self-Improvement Loop above — single source.)*
