@@ -191,6 +191,8 @@
     "homepage_download_css": "Scarica template CSS",
     "homepage_download_css_hint": "Scarica un foglio di stile con tutti i selettori della homepage pubblica, pronto da personalizzare.",
     "homepage_download_css_btn": "Scarica CSS",
+    "system_default_language": "Lingua predefinita",
+    "system_default_language_hint": "Lingua dell'interfaccia usata quando l'utente non ne ha impostata una esplicita. L'elenco è popolato dalle lingue installate nell'applicazione.",
     "system_evt_enabled": "Abilita viewer EVT",
     "system_evt_enabled_hint": "Rende disponibile la vista di lettura EVT sul sito pubblico. L'attivazione per singola collezione resta configurabile.",
     "system_public_registration": "Abilita registrazione pubblica",

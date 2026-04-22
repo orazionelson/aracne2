@@ -191,6 +191,8 @@
     "homepage_download_css": "Download CSS template",
     "homepage_download_css_hint": "Download a ready-to-edit stylesheet with all public homepage selectors.",
     "homepage_download_css_btn": "Download CSS",
+    "system_default_language": "Default language",
+    "system_default_language_hint": "Fallback UI language used when a user has no explicit preference set. The list is populated from the locales installed in the application.",
     "system_evt_enabled": "Enable EVT viewer",
     "system_evt_enabled_hint": "Expose the EVT-based reading view on the public site. Per-collection opt-in remains available.",
     "system_public_registration": "Enable public registration",

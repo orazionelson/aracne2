@@ -13,7 +13,7 @@ import { useXsltTemplateStore, type XsltTemplateSummary } from "@/stores/xslt_te
 import type { TeiSchema } from "@/stores/schemas";
 import type { AiPrompt } from "@/stores/ai";
 
-const { t, te } = useI18n();
+const { t, te, availableLocales, locale } = useI18n();
 const settingStore = useSettingStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
@@ -96,6 +96,7 @@ const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
   "platform_logo_url",
   "evt_enabled",
   "public_registration",
+  "default_language",
 ]);
 const systemSettings = computed(() =>
   settingStore.settings.filter(
@@ -509,6 +510,34 @@ const evtEnabled = computed(
 const publicRegistration = computed(
   () => settingStore.getSetting("public_registration") === "true",
 );
+const defaultLanguage = computed(
+  () => settingStore.getSetting("default_language") || "",
+);
+const savingDefaultLanguage = ref(false);
+
+// Human-readable locale label, translated to the UI's current locale.
+// Falls back to the raw code when Intl.DisplayNames is unavailable.
+function localeLabel(code: string): string {
+  try {
+    const dn = new Intl.DisplayNames([locale.value], { type: "language" });
+    const name = dn.of(code);
+    return name ? `${name} (${code})` : code;
+  } catch {
+    return code;
+  }
+}
+
+async function onDefaultLanguageChange(event: Event): Promise<void> {
+  const target = event.target as HTMLSelectElement;
+  const newValue = target.value;
+  savingDefaultLanguage.value = true;
+  try {
+    await settingStore.updateSetting("default_language", newValue);
+  } finally {
+    savingDefaultLanguage.value = false;
+  }
+}
+
 const togglingHomeSetting = ref<Record<string, boolean>>({});
 
 async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
@@ -1048,8 +1077,32 @@ onMounted(async () => {
       <h1 class="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("settings.title") }}</h1>
       <p v-if="error" class="mb-4 text-red-600 dark:text-red-400">{{ error }}</p>
 
-      <!-- System-wide toggles shown as switches (also hidden from the table below) -->
+      <!-- System-wide controls shown above the generic settings table. -->
       <div class="mb-6 space-y-3">
+        <!-- default_language — select driven by installed i18n locales -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+              {{ t("settings.system_default_language") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("settings.system_default_language_hint") }}
+            </p>
+          </div>
+          <select
+            :value="defaultLanguage"
+            :disabled="savingDefaultLanguage"
+            class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            @change="onDefaultLanguageChange"
+          >
+            <option
+              v-for="code in availableLocales"
+              :key="code"
+              :value="code"
+            >{{ localeLabel(code) }}</option>
+          </select>
+        </div>
+
         <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <div class="mr-4">
             <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
