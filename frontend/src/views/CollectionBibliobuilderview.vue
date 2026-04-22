@@ -19,6 +19,10 @@ const isLoading = ref(true);
 const loadError = ref<string | null>(null);
 
 onMounted(async () => {
+  // The AI store is global across views, so any leftover chat or
+  // response from (e.g.) the DocumentEditView's AI panel would otherwise
+  // appear here as a stale hallucinatory "Bibliobuilder" output.
+  aiStore.resetChat();
   try {
     await Promise.all([
       collectionsStore.fetchCollection(slug),
