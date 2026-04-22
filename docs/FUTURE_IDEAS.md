@@ -677,4 +677,85 @@ once installed.
 
 ---
 
-*Last updated: 2026-04-17*
+## 12. TEI-specialised local model via LoRA fine-tuning 🟡 Medium
+
+Fine-tune a small local model (e.g. `llama3.1:8b`, `qwen2.5:7b`) on
+TEI-specific instruction/output pairs to produce a model that internalises
+P5 conventions. Goal: shorter prompts, more consistent output, no
+per-token cost, and quality closer to remote providers on extractive
+and format-heavy tasks.
+
+### Motivation
+
+Local models in the 7–14B range are the pragmatic option for
+privacy-sensitive or air-gapped deployments (via Ollama), but they lag
+behind Claude / GPT-4 on complex TEI reasoning out of the box. Heavy
+prompts with P5 spec snippets and few-shot examples mitigate this at
+inference cost. A domain-specialised adapter captures the same knowledge
+in the weights.
+
+### Realistic path
+
+1. **Dataset (~1–10k pairs)** — the editorial corpus produced inside
+   Aracne2 is itself the natural supervision signal: every (draft,
+   validated output) pair is a training example. Synthetic augmentation
+   from a strong model (Claude) is possible but must be validated
+   against the schema to avoid hallucinated conventions.
+2. **Training** — LoRA/QLoRA adapter with `unsloth`, `axolotl`, or
+   `llama-factory` on a GPU (RTX 4090-class or cloud rental). Hours,
+   not days.
+3. **Packaging** — merge or keep the adapter separate, convert to GGUF
+   with `llama.cpp`, wrap in an Ollama Modelfile:
+
+   ```
+   FROM llama3.1:8b
+   ADAPTER ./aracne-tei.gguf
+   ```
+
+   `ollama create aracne-tei -f Modelfile` and point `ai_ollama_model`
+   at the new tag.
+
+### Open questions
+
+- **Dataset size and quality**: below ~1k high-quality pairs the
+  adapter is probably not worth the effort. What is the minimum
+  viable dataset?
+- **Base model choice**: Qwen tends to handle Italian / multilingual
+  better; Llama is more widely supported in the toolchain. Probably
+  train two adapters and compare.
+- **Evaluation harness**: held-out TEI tasks with measurable metrics
+  (schema validity, element coverage, fidelity to source). Without it,
+  iteration is blind.
+- **Distribution**: ship the model publicly (community reuse) vs
+  per-installation (respects client data).
+- **Licensing**: Llama 3.x license restricts some redistribution
+  scenarios; Qwen 2.5 is Apache-like for most sizes. Verify before
+  distribution.
+
+### Prerequisites
+
+- RAG prototype (entry #??? / under discussion) already in place — so
+  we can measure the adapter's marginal gain on top of retrieval.
+- At least ~1k validated documents in the platform corpus.
+- Access to a GPU for training (cloud is fine; training is one-off).
+- Evaluation harness defined (even a small one).
+
+### Trigger
+
+Consider this when **all** of the following hold:
+
+- Local inference is in regular use in at least one installation;
+- Prompt engineering and RAG have hit a visible quality or latency
+  plateau;
+- The corpus has grown enough to support a supervised dataset;
+- A concrete use case (airgapped deployment, high-volume extractive
+  task) justifies the engineering cost.
+
+Until then, prompt engineering and RAG give a better effort/result
+ratio and should be exhausted first.
+
+*Added: 2026-04-22*
+
+---
+
+*Last updated: 2026-04-22*
