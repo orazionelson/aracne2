@@ -14,7 +14,6 @@ const activeSearch = ref("");
 
 const showCollections = computed(() => uiConfig.config.home_show_collections);
 const showSearch = computed(() => uiConfig.config.home_show_search);
-const showLoginButton = computed(() => uiConfig.config.home_show_login_button);
 const isSearching = computed(() => activeSearch.value !== "");
 
 /** First 3 items from page 1, used as the "recent additions" feature row. */
@@ -70,28 +69,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="ph-page min-h-screen bg-gray-50">
-    <!-- Public header -->
-    <header
-      class="ph-header flex h-14 items-center gap-3 px-6 text-white shadow"
-      :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
-    >
-      <router-link to="/" class="ph-logo flex items-center gap-2 font-bold text-lg hover:opacity-80">
-        <img
-          v-if="uiConfig.config.platform_logo_url"
-          :src="uiConfig.config.platform_logo_url"
-          alt="Logo"
-          class="ph-logo-img h-8 w-auto object-contain"
-        />
-        <span class="ph-site-name">{{ uiConfig.config.platform_name }}</span>
-      </router-link>
-      <span v-if="showLoginButton" class="ph-login ml-auto text-sm opacity-80">
-        <router-link to="/login" class="hover:underline">
-          {{ t("auth.sign_in") }}
-        </router-link>
-      </span>
-    </header>
-
+  <div class="ph-page bg-gray-50">
     <main class="ph-main mx-auto max-w-4xl px-4 py-10">
       <!-- Search bar -->
       <div v-if="showSearch" class="ph-search mb-8">

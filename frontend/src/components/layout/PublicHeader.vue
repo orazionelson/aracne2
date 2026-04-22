@@ -36,7 +36,7 @@ const auth = useAuthStore();
         {{ t("nav.dashboard") }}
       </router-link>
       <router-link
-        v-else
+        v-else-if="uiConfig.config.home_show_login_button"
         to="/login"
         class="flex items-center gap-1.5 rounded px-3 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
       >
