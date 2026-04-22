@@ -561,6 +561,93 @@ export function useCodeMirror(
     return true;
   }
 
+  /**
+   * Result of ``insertEntityRef``.
+   *
+   * - ``ok: true`` — the enclosing tag was found, matched the whitelist, and
+   *   the ``@ref`` attribute was written (or replaced). ``tagName`` is the
+   *   local-name of the element that received the attribute.
+   * - ``ok: false`` — explains why the attribute could not be written:
+   *     * ``no_enclosing_tag``: cursor is not inside a well-formed opening tag
+   *       (e.g. it sits right after a ``</p>`` closure).
+   *     * ``not_entity_tag``: the enclosing tag is not in ``allowedTags``
+   *       (the tag name is returned for the caller's error message).
+   */
+  type EntityRefResult =
+    | { ok: true; tagName: string }
+    | { ok: false; reason: 'no_enclosing_tag' }
+    | { ok: false; reason: 'not_entity_tag'; tagName: string };
+
+  /**
+   * Write (or replace) a ``@ref`` attribute on the TEI entity element
+   * enclosing the cursor. Used by the "Link entity" sidebar to attach a
+   * Wikidata / VIAF / GeoNames canonical URI to a ``<persName>`` /
+   * ``<placeName>`` / ``<orgName>`` element without requiring the editor
+   * to hand-edit XML.
+   *
+   * The caller passes an explicit ``allowedTags`` whitelist so the set of
+   * "linkable" elements stays in one place (the sidebar calling code) and
+   * can be extended per project.
+   */
+  function insertEntityRef(
+    uri: string,
+    allowedTags: readonly string[],
+  ): EntityRefResult {
+    const cm = editorInstance.value;
+    if (!cm) return { ok: false, reason: 'no_enclosing_tag' };
+
+    const text = cm.getValue();
+    const cursorOffset = cm.indexFromPos(cm.getCursor());
+
+    // Scan backwards to the opening '<' of the enclosing tag. Same rule as
+    // insertFacsRef: stop on a closing '</' or PI '<?' boundary — those
+    // mean there is no enclosing opening tag at the cursor position.
+    let tagStart = -1;
+    for (let i = cursorOffset - 1; i >= 0; i--) {
+      if (text[i] === '<') {
+        if (text[i + 1] === '/' || text[i + 1] === '?') break;
+        tagStart = i;
+        break;
+      }
+    }
+    if (tagStart === -1) return { ok: false, reason: 'no_enclosing_tag' };
+
+    const tagEnd = text.indexOf('>', tagStart);
+    if (tagEnd === -1) return { ok: false, reason: 'no_enclosing_tag' };
+
+    const tagText = text.slice(tagStart, tagEnd + 1);
+    // Extract the local-name (first word after '<', stripping any namespace prefix).
+    const nameMatch = /^<([A-Za-z_][\w.-]*)(?::([\w.-]+))?/.exec(tagText);
+    if (!nameMatch) return { ok: false, reason: 'no_enclosing_tag' };
+    // local-name = part after the optional colon (XML namespace prefix).
+    const tagName = nameMatch[2] ?? nameMatch[1];
+
+    if (!allowedTags.includes(tagName)) {
+      return { ok: false, reason: 'not_entity_tag', tagName };
+    }
+
+    const safeUri = uri.replace(/"/g, '&quot;');
+    let newTag: string;
+    const existing = /\bref="([^"]*)"/.exec(tagText);
+    if (existing) {
+      if (existing[1] === safeUri) return { ok: true, tagName }; // idempotent
+      newTag = tagText.replace(/\bref="[^"]*"/, `ref="${safeUri}"`);
+    } else if (tagText.endsWith('/>')) {
+      newTag = tagText.slice(0, -2) + ` ref="${safeUri}"/>`;
+    } else {
+      newTag = tagText.slice(0, -1) + ` ref="${safeUri}">`;
+    }
+
+    cm.replaceRange(
+      newTag,
+      cm.posFromIndex(tagStart),
+      cm.posFromIndex(tagEnd + 1),
+      '+programmatic',
+    );
+    cm.focus();
+    return { ok: true, tagName };
+  }
+
   function prettyPrint(): void {
     if (!editorInstance.value) return;
     const cm = editorInstance.value;
@@ -811,5 +898,6 @@ export function useCodeMirror(
     insertFigure,
     insertPageBreak,
     insertFacsRef,
+    insertEntityRef,
   };
 }

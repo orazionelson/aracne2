@@ -12,6 +12,7 @@ import CodeMirror, { type Editor as CM5Editor } from 'codemirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
+import WikidataLinkPanel from '@/components/ui/WikidataLinkPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
 
@@ -73,6 +74,17 @@ const currentZoneSurface = ref<FacsimileSurface | null>(null);
 // ── Validation panel ──────────────────────────────────────────────────────────
 const showValidationPanel = ref(false);
 
+// ── Wikidata entity-linking panel ─────────────────────────────────────────────
+// Lets an editor resolve a <persName>/<placeName>/<orgName> selection to a
+// canonical Wikidata URI and write it back as @ref on the enclosing TEI tag.
+const showWikidataPanel = ref(false);
+const wikidataInitialQuery = ref('');
+// Whitelist of TEI entity elements that may receive an @ref via this panel.
+// Keep in sync with backend/app/db/seed.py -> entity_index_tags default; we
+// keep a local copy rather than fetching it from the settings store because
+// the helper runs synchronously against the editor buffer.
+const ENTITY_TAGS = ['persName', 'placeName', 'orgName'] as const;
+
 // ── Panel resize ──────────────────────────────────────────────────────────────
 const PANEL_MIN_PX = 240;
 const PANEL_MAX_PX = 720;
@@ -87,7 +99,8 @@ const anyPanelOpen = computed(
     showAiPanel.value ||
     showMediaPanel.value ||
     showValidationPanel.value ||
-    showZonePanel.value,
+    showZonePanel.value ||
+    showWikidataPanel.value,
 );
 
 function startPanelDrag(e: MouseEvent): void {
@@ -516,6 +529,54 @@ function handleZoneAssociate(zoneId: string): boolean {
 }
 
 /**
+ * Toggle the Wikidata entity-linking panel. On open, pre-fills the search
+ * query with the current editor selection (or, if nothing is selected, the
+ * text content of the entity element enclosing the cursor — best-effort).
+ */
+function toggleWikidataPanel(): void {
+  if (showWikidataPanel.value) {
+    showWikidataPanel.value = false;
+    return;
+  }
+  // Mutex: other panels close.
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  if (sel) {
+    wikidataInitialQuery.value = sel;
+  } else if (cm) {
+    // Extract the text inside the enclosing entity tag, if any.
+    const text = cm.getValue();
+    const offset = cm.indexFromPos(cm.getCursor());
+    const open = text.lastIndexOf('<', offset - 1);
+    const close = text.indexOf('>', open);
+    const end = text.indexOf('<', close);
+    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
+      wikidataInitialQuery.value = text.slice(close + 1, end).trim();
+    } else {
+      wikidataInitialQuery.value = '';
+    }
+  } else {
+    wikidataInitialQuery.value = '';
+  }
+  showWikidataPanel.value = true;
+}
+
+type EntityRefOutcome =
+  | { ok: true; tagName: string }
+  | { ok: false; reason: 'no_enclosing_tag' }
+  | { ok: false; reason: 'not_entity_tag'; tagName: string };
+
+/** Apply the Wikidata URI chosen by the panel to the current selection. */
+function applyWikidataRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, ENTITY_TAGS);
+}
+
+/**
  * Called when ZoneEditor successfully persists zones to eXist-db.
  *
  * ZoneEditor writes directly to eXist-db via the zones API, so the CodeMirror
@@ -579,6 +640,7 @@ function openAiPanel(): void {
   showHelpPanel.value = false;
   showMediaPanel.value = false;
   showValidationPanel.value = false;
+  showWikidataPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -875,13 +937,33 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
           </svg>
           {{ t('media.media_btn') }}
+        </button>
+
+        <button
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showWikidataPanel
+              ? 'border-amber-300 bg-amber-50 text-amber-700'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+          ]"
+          :title="t('wikidata.button_hint')"
+          @click="toggleWikidataPanel"
+        >
+          <!-- icon: globe -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+          {{ t('wikidata.button_label') }}
         </button>
 
         <!-- ── Status feedback ────────────────────────────────────────────── -->
@@ -1133,6 +1215,19 @@ async function runValidation(): Promise<void> {
     @edit-zones="(sid) => { const s = surfaces.find(x => x.id === sid); if (s) openZoneEditor(s); }"
     @close="showMediaPanel = false"
   />
+
+  <!-- Wikidata entity-linking panel -->
+  <div
+    v-if="showWikidataPanel && !isLoading"
+    class="flex flex-shrink-0 flex-col border-l border-gray-200"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <WikidataLinkPanel
+      :initial-query="wikidataInitialQuery"
+      :on-apply="applyWikidataRef"
+      @close="showWikidataPanel = false"
+    />
+  </div>
 
   <!-- Zone editor panel -->
   <ZoneEditor

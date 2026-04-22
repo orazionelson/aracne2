@@ -1002,5 +1002,19 @@
     "status_failed": "Fallito",
     "confirm_delete": "Eliminare questo archivio di backup? Operazione irreversibile.",
     "error_create": "Impossibile avviare il backup."
+  },
+  "wikidata": {
+    "button_label": "Collega entità",
+    "button_hint": "Risolve la selezione in un URI Wikidata e lo scrive come @ref",
+    "panel_title": "Collega a Wikidata",
+    "search_placeholder": "Cerca su Wikidata (etichetta o descrizione)",
+    "lang_label": "Lingua:",
+    "idle_hint": "Digita almeno due caratteri per cercare.",
+    "no_results": "Nessuna entità Wikidata corrispondente.",
+    "apply": "Applica",
+    "footer_hint": "Applica @ref=\"…\" al tag persName / placeName / orgName che contiene il cursore.",
+    "applied_success": "Collegato <{tag}> a {qid}.",
+    "apply_error_no_enclosing_tag": "Posiziona il cursore dentro un elemento TEI prima di collegare.",
+    "apply_error_not_entity_tag": "L'elemento <{tag}> non è un'entità collegabile (persName, placeName, orgName)."
   }
 }

@@ -1002,5 +1002,19 @@
     "status_failed": "Failed",
     "confirm_delete": "Delete this backup archive? This cannot be undone.",
     "error_create": "Failed to start backup."
+  },
+  "wikidata": {
+    "button_label": "Link entity",
+    "button_hint": "Resolve the current selection to a Wikidata URI and write it as @ref",
+    "panel_title": "Link to Wikidata",
+    "search_placeholder": "Search Wikidata (label or description)",
+    "lang_label": "Lang:",
+    "idle_hint": "Type at least two characters to search.",
+    "no_results": "No matching Wikidata entities.",
+    "apply": "Apply",
+    "footer_hint": "Applies @ref=\"…\" to the persName / placeName / orgName tag enclosing the cursor.",
+    "applied_success": "Linked <{tag}> to {qid}.",
+    "apply_error_no_enclosing_tag": "Place the cursor inside a TEI element before linking.",
+    "apply_error_not_entity_tag": "The enclosing element <{tag}> is not a linkable entity (persName, placeName, orgName)."
   }
 }
