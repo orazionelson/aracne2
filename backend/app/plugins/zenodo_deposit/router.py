@@ -196,7 +196,7 @@ _FALLBACK_RESOURCE_TYPES: list[ResourceTypeOption] = [
 
 @router.get("/resource-types")
 async def list_resource_types(
-    _: Annotated[None, _admin],
+    _: Annotated[None, _eic],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[list[ResourceTypeOption]]:
     """Proxy Zenodo's resource-type vocabulary for the admin dropdown.

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.collection import CollectionStatus
 
@@ -71,6 +71,10 @@ class CollectionUpdate(BaseModel):
     body_template_id: uuid.UUID | None = None
     # Per-collection EVT viewer opt-in
     evt_enabled: bool | None = None
+    # Per-collection override for the Zenodo deposit plugin's resource_type
+    # (InvenioRDM vocabulary id). Empty string means "clear the override and
+    # fall back to the global setting".
+    zenodo_resource_type: str | None = Field(default=None, max_length=128)
 
     @field_validator("title")
     @classmethod
@@ -115,6 +119,7 @@ class CollectionResponse(BaseModel):
     body_template_id: uuid.UUID | None
     doc_count: int
     evt_enabled: bool
+    zenodo_resource_type: str | None = None
     created_at: datetime
     updated_at: datetime
     # Populated only on public collection listings when a published website

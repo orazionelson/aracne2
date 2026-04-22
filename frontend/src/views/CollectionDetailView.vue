@@ -38,6 +38,13 @@ const zenodoStatus = ref<DepositStatus | null>(null);
 const isForcingDeposit = ref(false);
 const zenodoDepositError = ref<string | null>(null);
 
+// Per-collection Zenodo resource_type override. Empty string → "use default"
+// (sent as an empty string, mapped to NULL on the backend).
+const zenodoResourceTypeDraft = ref<string>("");
+const isSavingZenodoResourceType = ref(false);
+const zenodoResourceTypeError = ref<string | null>(null);
+const zenodoResourceTypeSaved = ref(false);
+
 // ── AI panel per-document ─────────────────────────────────────────────────────
 const aiDocFilename = ref<string | null>(null);
 const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== "disabled");
@@ -648,8 +655,14 @@ onMounted(async () => {
       tasks.push(aiStore.fetchConfig().catch(() => { /* non-fatal */ }));
       tasks.push(store.listBibliographies(slug).catch(() => { /* non-fatal */ }));
       tasks.push(loadZenodoStatus());
+      // Populates the dropdown used by the per-collection override below.
+      // Silent failure — the plugin may simply not be active yet.
+      tasks.push(zenodoStore.fetchResourceTypes().catch(() => undefined));
     }
     await Promise.all(tasks);
+    // Seed the override draft from the loaded collection (runs after
+    // fetchCollection has populated store.current).
+    zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
   } catch {
     error.value = t("common.error");
   } finally {
@@ -679,6 +692,41 @@ async function forceZenodoDeposit(): Promise<void> {
     zenodoDepositError.value = msg ?? t("common.error");
   } finally {
     isForcingDeposit.value = false;
+  }
+}
+
+// Group Zenodo's resource_type vocabulary into {group, options[]} buckets
+// so the UI can render a single <select> with <optgroup> sub-lists.
+const zenodoGroupedResourceTypes = computed(() => {
+  const groups = new Map<string, { id: string; label: string }[]>();
+  for (const opt of zenodoStore.resourceTypes) {
+    const bucket = groups.get(opt.group);
+    if (bucket) bucket.push({ id: opt.id, label: opt.label });
+    else groups.set(opt.group, [{ id: opt.id, label: opt.label }]);
+  }
+  return Array.from(groups, ([group, options]) => ({ group, options }));
+});
+
+async function saveZenodoResourceType(): Promise<void> {
+  if (!store.current) return;
+  zenodoResourceTypeError.value = null;
+  zenodoResourceTypeSaved.value = false;
+  isSavingZenodoResourceType.value = true;
+  try {
+    // Empty string clears the override on the backend (stored as NULL).
+    await store.updateCollection(store.current.id, {
+      zenodo_resource_type: zenodoResourceTypeDraft.value || null,
+    });
+    zenodoResourceTypeSaved.value = true;
+    setTimeout(() => {
+      zenodoResourceTypeSaved.value = false;
+    }, 3000);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    zenodoResourceTypeError.value = msg ?? t("common.error");
+  } finally {
+    isSavingZenodoResourceType.value = false;
   }
 }
 
@@ -1837,6 +1885,54 @@ function statusClass(s: string): string {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Zenodo per-collection override (EiC+, only when the plugin's
+           vocabulary has loaded so we do not show an empty dropdown) -->
+      <section
+        v-if="isEiC && zenodoGroupedResourceTypes.length > 0"
+        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <h2 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          {{ t("zenodo.collection_section_title") }}
+        </h2>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("zenodo.collection_section_hint") }}
+        </p>
+
+        <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
+          {{ zenodoResourceTypeError }}
+        </p>
+        <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
+          {{ t("zenodo.collection_section_saved") }}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <select
+            v-model="zenodoResourceTypeDraft"
+            class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <option value="">{{ t("zenodo.collection_use_default") }}</option>
+            <optgroup
+              v-for="grp in zenodoGroupedResourceTypes"
+              :key="grp.group"
+              :label="grp.group"
+            >
+              <option
+                v-for="opt in grp.options"
+                :key="opt.id"
+                :value="opt.id"
+              >{{ opt.label }}</option>
+            </optgroup>
+          </select>
+          <button
+            :disabled="isSavingZenodoResourceType || zenodoResourceTypeDraft === (store.current.zenodo_resource_type ?? '')"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+            @click="saveZenodoResourceType"
+          >
+            {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
+          </button>
         </div>
       </section>
 

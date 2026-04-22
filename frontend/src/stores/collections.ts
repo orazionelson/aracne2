@@ -44,6 +44,9 @@ export interface Collection {
   body_template_id: string | null;
   doc_count: number;
   evt_enabled: boolean;
+  // Per-collection override for the Zenodo deposit plugin's resource_type
+  // (InvenioRDM vocabulary id). NULL means "inherit the global setting".
+  zenodo_resource_type: string | null;
   created_at: string;
   updated_at: string;
   // Set on public collection listings when a published website with
@@ -264,6 +267,7 @@ export const useCollectionStore = defineStore("collections", () => {
       objectdesc_form?: string | null;
       identifier_url?: string | null;
       body_template_id?: string | null;
+      zenodo_resource_type?: string | null;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

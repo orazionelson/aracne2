@@ -123,6 +123,14 @@ class Collection(Base):
         Boolean, nullable=False, default=False, server_default="FALSE"
     )
 
+    # Per-collection override for the Zenodo deposit plugin's resource_type.
+    # When NULL the plugin falls back to the global `zenodo_resource_type`
+    # system_setting. Values are InvenioRDM vocabulary ids
+    # (e.g. "publication-book", "image-photo", "dataset").
+    zenodo_resource_type: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, default=None
+    )
+
     # Body template applied to new documents created in this collection
     body_template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

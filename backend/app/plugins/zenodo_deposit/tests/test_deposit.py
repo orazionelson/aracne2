@@ -358,6 +358,50 @@ async def test_deposit_uses_configured_resource_type(
 
 
 @pytest.mark.asyncio
+async def test_per_collection_resource_type_overrides_global_setting(
+    db_session: AsyncSession,
+    seeded_plugin_row: Plugin,
+    seeded_collection: Collection,
+) -> None:
+    """A non-NULL collection.zenodo_resource_type wins over the global setting."""
+    await _seed_settings(db_session, zenodo_resource_type="publication-other")
+    seeded_collection.zenodo_resource_type = "image-photo"
+    await db_session.flush()
+
+    fake = _FakeZenodo()
+    await deposit_collection(
+        db_session,
+        seeded_collection,
+        existdb=_fake_existdb([("a.xml", b"<a/>")]),
+        zenodo_client=fake,  # type: ignore[arg-type]
+    )
+    assert fake.last_payload is not None
+    assert fake.last_payload["metadata"]["resource_type"] == {"id": "image-photo"}
+
+
+@pytest.mark.asyncio
+async def test_null_collection_resource_type_falls_back_to_global(
+    db_session: AsyncSession,
+    seeded_plugin_row: Plugin,
+    seeded_collection: Collection,
+) -> None:
+    """NULL on the collection means "inherit the global setting"."""
+    await _seed_settings(db_session, zenodo_resource_type="dataset")
+    seeded_collection.zenodo_resource_type = None
+    await db_session.flush()
+
+    fake = _FakeZenodo()
+    await deposit_collection(
+        db_session,
+        seeded_collection,
+        existdb=_fake_existdb([("a.xml", b"<a/>")]),
+        zenodo_client=fake,  # type: ignore[arg-type]
+    )
+    assert fake.last_payload is not None
+    assert fake.last_payload["metadata"]["resource_type"] == {"id": "dataset"}
+
+
+@pytest.mark.asyncio
 async def test_deposit_restricted_access_blocks_rights_block(
     db_session: AsyncSession,
     seeded_plugin_row: Plugin,

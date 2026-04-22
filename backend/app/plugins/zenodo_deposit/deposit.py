@@ -138,11 +138,15 @@ async def deposit_collection(
         )
 
     license_obj = await _load_license(db, collection)
+    # Per-collection override for the resource_type (e.g. "publication-book"
+    # for a manuscript vs. the global default "publication-other"). NULL on
+    # the collection means "inherit the global zenodo_resource_type setting".
+    effective_resource_type = collection.zenodo_resource_type or cfg.resource_type
     meta = collection_to_metadata(
         collection=collection,
         license_obj=license_obj,
         public_base_url=cfg.public_base_url,
-        resource_type=cfg.resource_type,
+        resource_type=effective_resource_type,
         access=cfg.access,
     )
     payload = to_zenodo_payload(meta, community=cfg.default_community or None)

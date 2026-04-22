@@ -1065,6 +1065,10 @@
     "badge_failed_hint": "L'ultimo tentativo è fallito — controlla le impostazioni del plugin e riprova.",
     "deposit_btn": "Deposita su Zenodo",
     "redeposit_btn": "Ri-deposita su Zenodo",
-    "working": "Deposito in corso…"
+    "working": "Deposito in corso…",
+    "collection_section_title": "Tipo di deposito Zenodo",
+    "collection_section_hint": "Sovrascrivi il tipo di risorsa usato quando questa collezione viene depositata su Zenodo. Lascia il valore predefinito per usare l'impostazione globale.",
+    "collection_section_saved": "Tipo di risorsa Zenodo salvato per questa collezione.",
+    "collection_use_default": "— Usa predefinito (impostazione globale) —"
   }
 }
