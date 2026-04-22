@@ -379,8 +379,18 @@ const uploadLogoError = ref("");
 const currentLogoUrl = computed(() => settingStore.getSetting("platform_logo_url") ?? "");
 const currentNavbarColor = computed(() => settingStore.getSetting("navbar_bg_color") ?? "#1e40af");
 
+// Draft for the color picker / hex input. Kept in sync with the saved
+// value so the controls reflect the current setting on first render and
+// after preset clicks. A manual "Save colour" button commits the draft.
+const navbarColorDraft = ref("#1e40af");
+const isSavingNavbarColor = ref(false);
+const navbarColorError = ref("");
+const hexPattern = /^#[0-9a-fA-F]{6}$/;
+const isNavbarColorValid = computed(() => hexPattern.test(navbarColorDraft.value));
+
 function initAppearanceDraft(): void {
   logoUrlDraft.value = currentLogoUrl.value;
+  navbarColorDraft.value = currentNavbarColor.value;
 }
 
 async function saveLogoUrl(): Promise<void> {
@@ -433,11 +443,27 @@ async function restoreDefaultLogo(): Promise<void> {
 }
 
 async function selectNavbarColor(color: string): Promise<void> {
+  // Used by preset swatches — set the draft AND commit immediately.
+  navbarColorDraft.value = color;
+  await saveNavbarColor();
+}
+
+async function saveNavbarColor(): Promise<void> {
+  if (!isNavbarColorValid.value) {
+    navbarColorError.value = t("settings.appearance_color_invalid");
+    return;
+  }
+  isSavingNavbarColor.value = true;
+  navbarColorError.value = "";
   try {
-    await settingStore.updateSetting("navbar_bg_color", color);
+    await settingStore.updateSetting("navbar_bg_color", navbarColorDraft.value);
     await uiConfigStore.fetchConfig();
-  } catch {
-    // ignore — not critical
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    navbarColorError.value = msg ?? t("common.error");
+  } finally {
+    isSavingNavbarColor.value = false;
   }
 }
 
@@ -1844,21 +1870,52 @@ onMounted(async () => {
         <h2 class="mb-4 text-sm font-semibold text-gray-800">
           {{ t("settings.appearance_color_title") }}
         </h2>
-        <div class="flex flex-wrap gap-3">
-          <button
-            v-for="preset in COLOR_PRESETS"
-            :key="preset.value"
-            :title="preset.label"
-            class="flex flex-col items-center gap-1"
-            @click="selectNavbarColor(preset.value)"
-          >
-            <span
-              class="block h-9 w-14 rounded border-2 shadow-sm transition-all"
-              :class="currentNavbarColor === preset.value ? 'border-indigo-500 scale-105' : 'border-transparent hover:border-gray-400'"
-              :style="{ backgroundColor: preset.value }"
+
+        <!-- Color picker + hex input + save -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-gray-700 mb-1">
+            {{ t("settings.appearance_color_custom_label") }}
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="navbarColorDraft"
+              type="color"
+              :aria-label="t('settings.appearance_color_picker_label')"
+              class="h-9 w-12 cursor-pointer rounded border border-gray-300 bg-white p-0.5"
             />
-            <span class="text-xs text-gray-500">{{ preset.label }}</span>
-          </button>
+            <input
+              v-model="navbarColorDraft"
+              type="text"
+              placeholder="#1e40af"
+              maxlength="7"
+              class="w-32 rounded border border-gray-300 px-3 py-1.5 font-mono text-sm uppercase focus:border-indigo-500 focus:outline-none"
+              :class="isNavbarColorValid ? '' : 'border-red-400'"
+            />
+            <button
+              :disabled="isSavingNavbarColor || !isNavbarColorValid || navbarColorDraft === currentNavbarColor"
+              class="rounded bg-gray-900 px-3 py-1.5 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+              @click="saveNavbarColor"
+            >
+              {{ t("common.save") }}
+            </button>
+          </div>
+          <p v-if="navbarColorError" class="mt-1 text-xs text-red-600">{{ navbarColorError }}</p>
+        </div>
+
+        <!-- Quick picks (compact) -->
+        <div>
+          <p class="mb-2 text-xs text-gray-500">{{ t("settings.appearance_color_quick_picks") }}</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="preset in COLOR_PRESETS"
+              :key="preset.value"
+              :title="`${preset.label} — ${preset.value}`"
+              class="h-7 w-7 rounded border-2 shadow-sm transition-all"
+              :class="currentNavbarColor === preset.value ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-gray-400'"
+              :style="{ backgroundColor: preset.value }"
+              @click="selectNavbarColor(preset.value)"
+            />
+          </div>
         </div>
 
         <!-- Colour preview -->
