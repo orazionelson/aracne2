@@ -194,6 +194,49 @@ def _fill_template(template: str, context: dict[str, str]) -> str:
         )
 
 
+async def _augment_with_rag(
+    db: AsyncSession, template: str, context: dict[str, str]
+) -> dict[str, str]:
+    """If *template* references ``{rag_context}``, run semantic retrieval and
+    return a new context dict with the retrieved passages injected.
+
+    Fail-soft: if RAG is disabled, pgvector is not configured, or retrieval
+    raises at any step, the substituted value is an empty string — the base
+    prompt still reaches the provider, minus the contextual grounding.
+    """
+    if "{rag_context}" not in template:
+        return context
+
+    from app.db.pgvector import get_session_factory
+    from app.plugins._native.ai import rag as rag_module
+
+    new_context = {**context, "rag_context": ""}
+
+    if not await rag_module.is_enabled(db):
+        return new_context
+
+    session_factory = get_session_factory()
+    if session_factory is None:
+        return new_context
+
+    # Use the concatenation of all caller-provided context values as the
+    # retrieval query — the user's selection, the validation errors, the
+    # prompt metadata, etc. Everything the model is about to reason over.
+    query = "\n".join(str(v) for v in context.values() if v).strip()
+    if not query:
+        return new_context
+
+    try:
+        async with session_factory() as vector_db:
+            chunks = await rag_module.retrieve(db, vector_db, query)
+    except Exception as exc:  # noqa: BLE001 — fail-soft
+        logger.warning("rag_augment_failed", error=str(exc))
+        return new_context
+
+    new_context["rag_context"] = rag_module.format_chunks(chunks)
+    return new_context
+
+
 async def stream_completion(
     db: AsyncSession,
     prompt_slug: str,
@@ -210,6 +253,7 @@ async def stream_completion(
     await _check_rate_limit(db, user)
 
     prompt = await get_prompt(db, prompt_slug)
+    context = await _augment_with_rag(db, prompt.template, context)
     filled = _fill_template(prompt.template, context)
 
     # Build the messages list: resolved template always comes first.

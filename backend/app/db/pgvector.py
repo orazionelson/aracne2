@@ -84,6 +84,14 @@ async def get_pgvector_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
+    """Return the pgvector session factory (or None if pgvector is not
+    configured). Callers use this to open ad-hoc sessions outside the
+    FastAPI dependency flow, e.g. inside the AI service layer."""
+    _init_engine()
+    return _session_factory
+
+
 async def ensure_schema() -> None:
     """Create the ``vector`` extension and the RAG tables if they are missing.
 
