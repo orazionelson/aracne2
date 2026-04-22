@@ -380,6 +380,70 @@ async def test_per_collection_resource_type_overrides_global_setting(
 
 
 @pytest.mark.asyncio
+async def test_zip_upload_bundles_all_files_into_single_archive(
+    db_session: AsyncSession,
+    seeded_plugin_row: Plugin,
+    seeded_collection: Collection,
+) -> None:
+    """When zenodo_upload_as_zip=True the plugin uploads one ZIP instead of N xmls."""
+    import io
+    import zipfile
+
+    await _seed_settings(db_session)
+    seeded_collection.zenodo_upload_as_zip = True
+    await db_session.flush()
+
+    # Capture the bytes uploaded so we can open the ZIP and confirm it has
+    # exactly the two documents that were in the collection.
+    captured: list[tuple[str, bytes]] = []
+
+    class _ZipCapturingFake(_FakeZenodo):
+        async def upload_file(self, draft_id: str, filename: str, content: bytes) -> None:
+            captured.append((filename, content))
+            await super().upload_file(draft_id, filename, content)
+
+    files = [("a.xml", b"<a/>"), ("b.xml", b"<b/>")]
+    await deposit_collection(
+        db_session,
+        seeded_collection,
+        existdb=_fake_existdb(files),
+        zenodo_client=_ZipCapturingFake(),  # type: ignore[arg-type]
+    )
+
+    assert len(captured) == 1
+    name, body = captured[0]
+    assert name == "divina-commedia.zip"
+
+    with zipfile.ZipFile(io.BytesIO(body)) as zf:
+        assert sorted(zf.namelist()) == ["a.xml", "b.xml"]
+        assert zf.read("a.xml") == b"<a/>"
+        assert zf.read("b.xml") == b"<b/>"
+
+
+@pytest.mark.asyncio
+async def test_zip_flag_false_uploads_per_file(
+    db_session: AsyncSession,
+    seeded_plugin_row: Plugin,
+    seeded_collection: Collection,
+) -> None:
+    await _seed_settings(db_session)
+    seeded_collection.zenodo_upload_as_zip = False
+    await db_session.flush()
+
+    fake = _FakeZenodo()
+    await deposit_collection(
+        db_session,
+        seeded_collection,
+        existdb=_fake_existdb([("a.xml", b"<a/>"), ("b.xml", b"<b/>")]),
+        zenodo_client=fake,  # type: ignore[arg-type]
+    )
+    # Two upload_file calls — one per document.
+    uploads = [c for c in fake.calls if c[0] == "upload_file"]
+    assert len(uploads) == 2
+    assert {u[1] for u in uploads} == {"a.xml", "b.xml"}
+
+
+@pytest.mark.asyncio
 async def test_null_collection_resource_type_falls_back_to_global(
     db_session: AsyncSession,
     seeded_plugin_row: Plugin,

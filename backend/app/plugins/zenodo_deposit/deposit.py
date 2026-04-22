@@ -12,7 +12,9 @@ create draft → upload files (init/upload/commit) → optionally publish.
 
 from __future__ import annotations
 
+import io
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from typing import Any
 
@@ -65,6 +67,19 @@ async def _load_files(
             continue
         files.append((name, content))
     return files
+
+
+def _bundle_zip(slug: str, files: list[tuple[str, bytes]]) -> tuple[str, bytes]:
+    """Zip *files* in memory and return ``(zip_filename, zip_bytes)``.
+
+    Uses ``ZIP_DEFLATED`` — TEI XML compresses well (~10× reduction is
+    typical) so the Zenodo bucket receives a fraction of the raw bytes.
+    """
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files:
+            zf.writestr(name, content)
+    return f"{slug}.zip", buffer.getvalue()
 
 
 async def _plugin_id(db: AsyncSession) -> uuid.UUID:
@@ -159,8 +174,15 @@ async def deposit_collection(
 
     try:
         draft = await client.create_draft(payload)
-        for filename, content in files:
-            await client.upload_file(draft.id, filename, content)
+        if collection.zenodo_upload_as_zip:
+            # Per-collection opt-in: bundle every document into a single ZIP
+            # archive so the Zenodo record's Files tab has one downloadable
+            # artefact instead of N small XMLs.
+            zip_name, zip_bytes = _bundle_zip(collection.slug, files)
+            await client.upload_file(draft.id, zip_name, zip_bytes)
+        else:
+            for filename, content in files:
+                await client.upload_file(draft.id, filename, content)
 
         if cfg.auto_publish:
             result = await client.publish(draft.id)

@@ -431,6 +431,9 @@ async def update_collection(
         if new_value != col.zenodo_resource_type:
             col.zenodo_resource_type = new_value
             changed["zenodo_resource_type"] = new_value
+    if body.zenodo_upload_as_zip is not None and body.zenodo_upload_as_zip != col.zenodo_upload_as_zip:
+        col.zenodo_upload_as_zip = body.zenodo_upload_as_zip
+        changed["zenodo_upload_as_zip"] = body.zenodo_upload_as_zip
 
     if changed:
         _audit(db, "collection.updated", actor, col, changed)

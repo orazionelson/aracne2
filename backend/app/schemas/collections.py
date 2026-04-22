@@ -75,6 +75,9 @@ class CollectionUpdate(BaseModel):
     # (InvenioRDM vocabulary id). Empty string means "clear the override and
     # fall back to the global setting".
     zenodo_resource_type: str | None = Field(default=None, max_length=128)
+    # Per-collection opt-in: when true the Zenodo deposit bundles every
+    # document into a single ZIP file instead of uploading per-file.
+    zenodo_upload_as_zip: bool | None = None
 
     @field_validator("title")
     @classmethod
@@ -120,6 +123,7 @@ class CollectionResponse(BaseModel):
     doc_count: int
     evt_enabled: bool
     zenodo_resource_type: str | None = None
+    zenodo_upload_as_zip: bool = False
     created_at: datetime
     updated_at: datetime
     # Populated only on public collection listings when a published website

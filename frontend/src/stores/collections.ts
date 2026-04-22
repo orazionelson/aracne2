@@ -47,6 +47,9 @@ export interface Collection {
   // Per-collection override for the Zenodo deposit plugin's resource_type
   // (InvenioRDM vocabulary id). NULL means "inherit the global setting".
   zenodo_resource_type: string | null;
+  // When true, the Zenodo deposit plugin bundles every TEI document into
+  // a single ZIP archive ({slug}.zip) instead of uploading per-file.
+  zenodo_upload_as_zip: boolean;
   created_at: string;
   updated_at: string;
   // Set on public collection listings when a published website with
@@ -268,6 +271,7 @@ export const useCollectionStore = defineStore("collections", () => {
       identifier_url?: string | null;
       body_template_id?: string | null;
       zenodo_resource_type?: string | null;
+      zenodo_upload_as_zip?: boolean;
     },
   ): Promise<void> {
     current.value = await apiClient.patch<Collection>(`/collections/${id}`, body);

@@ -1066,9 +1066,11 @@
     "deposit_btn": "Deposit on Zenodo",
     "redeposit_btn": "Re-deposit on Zenodo",
     "working": "Depositing…",
-    "collection_section_title": "Zenodo deposit type",
-    "collection_section_hint": "Override the resource type used when this collection is deposited on Zenodo. Leave at the default to inherit the global setting.",
-    "collection_section_saved": "Zenodo resource type saved for this collection.",
-    "collection_use_default": "— Use default (from global setting) —"
+    "collection_section_title": "Zenodo deposit",
+    "collection_section_hint": "Per-collection options for how this collection is deposited on Zenodo. Leave the resource type at the default to inherit the global setting.",
+    "collection_section_saved": "Zenodo collection settings saved.",
+    "collection_use_default": "— Use default (from global setting) —",
+    "collection_upload_as_zip": "Upload as single ZIP",
+    "collection_upload_as_zip_hint": "Bundle every TEI document in the collection into one {slug}.zip file instead of uploading each XML as a separate file on the Zenodo record."
   }
 }

@@ -41,6 +41,7 @@ const zenodoDepositError = ref<string | null>(null);
 // Per-collection Zenodo resource_type override. Empty string → "use default"
 // (sent as an empty string, mapped to NULL on the backend).
 const zenodoResourceTypeDraft = ref<string>("");
+const zenodoUploadAsZipDraft = ref<boolean>(false);
 const isSavingZenodoResourceType = ref(false);
 const zenodoResourceTypeError = ref<string | null>(null);
 const zenodoResourceTypeSaved = ref(false);
@@ -663,6 +664,7 @@ onMounted(async () => {
     // Seed the override draft from the loaded collection (runs after
     // fetchCollection has populated store.current).
     zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
+    zenodoUploadAsZipDraft.value = store.current?.zenodo_upload_as_zip ?? false;
   } catch {
     error.value = t("common.error");
   } finally {
@@ -707,7 +709,17 @@ const zenodoGroupedResourceTypes = computed(() => {
   return Array.from(groups, ([group, options]) => ({ group, options }));
 });
 
-async function saveZenodoResourceType(): Promise<void> {
+const zenodoSectionDirty = computed(() => {
+  if (!store.current) return false;
+  const currentType = store.current.zenodo_resource_type ?? "";
+  const currentZip = store.current.zenodo_upload_as_zip ?? false;
+  return (
+    zenodoResourceTypeDraft.value !== currentType ||
+    zenodoUploadAsZipDraft.value !== currentZip
+  );
+});
+
+async function saveZenodoCollectionSettings(): Promise<void> {
   if (!store.current) return;
   zenodoResourceTypeError.value = null;
   zenodoResourceTypeSaved.value = false;
@@ -716,6 +728,7 @@ async function saveZenodoResourceType(): Promise<void> {
     // Empty string clears the override on the backend (stored as NULL).
     await store.updateCollection(store.current.id, {
       zenodo_resource_type: zenodoResourceTypeDraft.value || null,
+      zenodo_upload_as_zip: zenodoUploadAsZipDraft.value,
     });
     zenodoResourceTypeSaved.value = true;
     setTimeout(() => {
@@ -1461,31 +1474,59 @@ function statusClass(s: string): string {
           {{ t("zenodo.collection_section_saved") }}
         </p>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <select
-            v-model="zenodoResourceTypeDraft"
-            class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          >
-            <option value="">{{ t("zenodo.collection_use_default") }}</option>
-            <optgroup
-              v-for="grp in zenodoGroupedResourceTypes"
-              :key="grp.group"
-              :label="grp.group"
+        <div class="space-y-3">
+          <!-- Resource type dropdown -->
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              v-model="zenodoResourceTypeDraft"
+              class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             >
-              <option
-                v-for="opt in grp.options"
-                :key="opt.id"
-                :value="opt.id"
-              >{{ opt.label }}</option>
-            </optgroup>
-          </select>
-          <button
-            :disabled="isSavingZenodoResourceType || zenodoResourceTypeDraft === (store.current.zenodo_resource_type ?? '')"
-            class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
-            @click="saveZenodoResourceType"
-          >
-            {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
-          </button>
+              <option value="">{{ t("zenodo.collection_use_default") }}</option>
+              <optgroup
+                v-for="grp in zenodoGroupedResourceTypes"
+                :key="grp.group"
+                :label="grp.group"
+              >
+                <option
+                  v-for="opt in grp.options"
+                  :key="opt.id"
+                  :value="opt.id"
+                >{{ opt.label }}</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- ZIP bundle toggle -->
+          <div class="flex items-start justify-between rounded border border-gray-200 p-3 dark:border-gray-700">
+            <div class="mr-4">
+              <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                {{ t("zenodo.collection_upload_as_zip") }}
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("zenodo.collection_upload_as_zip_hint") }}
+              </p>
+            </div>
+            <button
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="zenodoUploadAsZipDraft ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
+              @click="zenodoUploadAsZipDraft = !zenodoUploadAsZipDraft"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="zenodoUploadAsZipDraft ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              :disabled="isSavingZenodoResourceType || !zenodoSectionDirty"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+              @click="saveZenodoCollectionSettings"
+            >
+              {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
+            </button>
+          </div>
         </div>
       </section>
 

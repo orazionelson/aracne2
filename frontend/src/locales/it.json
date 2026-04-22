@@ -1066,9 +1066,11 @@
     "deposit_btn": "Deposita su Zenodo",
     "redeposit_btn": "Ri-deposita su Zenodo",
     "working": "Deposito in corso…",
-    "collection_section_title": "Tipo di deposito Zenodo",
-    "collection_section_hint": "Sovrascrivi il tipo di risorsa usato quando questa collezione viene depositata su Zenodo. Lascia il valore predefinito per usare l'impostazione globale.",
-    "collection_section_saved": "Tipo di risorsa Zenodo salvato per questa collezione.",
-    "collection_use_default": "— Usa predefinito (impostazione globale) —"
+    "collection_section_title": "Deposito Zenodo",
+    "collection_section_hint": "Opzioni per collezione su come questa collezione viene depositata su Zenodo. Lascia il tipo di risorsa sul valore predefinito per ereditare l'impostazione globale.",
+    "collection_section_saved": "Impostazioni Zenodo della collezione salvate.",
+    "collection_use_default": "— Usa predefinito (impostazione globale) —",
+    "collection_upload_as_zip": "Carica come singolo ZIP",
+    "collection_upload_as_zip_hint": "Raggruppa tutti i documenti TEI della collezione in un unico file {slug}.zip invece di caricare ogni XML come file separato sul record Zenodo."
   }
 }

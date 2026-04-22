@@ -130,6 +130,13 @@ class Collection(Base):
     zenodo_resource_type: Mapped[str | None] = mapped_column(
         String(128), nullable=True, default=None
     )
+    # When true, the Zenodo deposit plugin bundles every TEI document into a
+    # single ZIP archive ({slug}.zip) instead of uploading individual files.
+    # Useful for large collections or when the editor wants the record's
+    # "files" tab to stay a single downloadable artefact.
+    zenodo_upload_as_zip: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="FALSE"
+    )
 
     # Body template applied to new documents created in this collection
     body_template_id: Mapped[uuid.UUID | None] = mapped_column(
