@@ -142,28 +142,7 @@ function typeLabel(type: EntityType): string {
 </script>
 
 <template>
-  <div class="pe-page min-h-screen bg-gray-50">
-    <!-- Public header (same as PublicBibliographyView) -->
-    <header
-      class="pe-header flex h-14 items-center gap-3 px-6 text-white shadow"
-      :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
-    >
-      <router-link to="/" class="pe-logo flex items-center gap-2 text-lg font-bold hover:opacity-80">
-        <img
-          v-if="uiConfig.config.platform_logo_url"
-          :src="uiConfig.config.platform_logo_url"
-          alt="Logo"
-          class="pe-logo-img h-8 w-auto object-contain"
-        />
-        <span class="pe-site-name">{{ uiConfig.config.platform_name }}</span>
-      </router-link>
-      <span class="pe-login ml-auto text-sm opacity-80">
-        <router-link to="/login" class="hover:underline">
-          {{ t("auth.sign_in") }}
-        </router-link>
-      </span>
-    </header>
-
+  <div class="pe-page bg-gray-50">
     <main class="pe-main mx-auto max-w-4xl px-4 py-8">
       <!-- Back link -->
       <router-link

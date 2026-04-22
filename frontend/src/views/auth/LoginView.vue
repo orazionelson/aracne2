@@ -26,7 +26,7 @@ async function handleLogin(): Promise<void> {
   try {
     await auth.login(usernameOrEmail.value, password.value);
     const raw = route.query.redirect as string | undefined;
-    const redirect = raw && isSafeRedirect(raw) ? raw : "/";
+    const redirect = raw && isSafeRedirect(raw) ? raw : "/dashboard";
     await router.push(redirect);
   } catch {
     // Generic message — do not distinguish between wrong username and wrong password

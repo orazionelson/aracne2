@@ -41,26 +41,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="pc-page min-h-screen bg-gray-50">
-    <!-- Public header -->
-    <header
-      class="pc-header flex h-14 items-center gap-3 px-6 text-white shadow"
-      :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
-    >
-      <router-link to="/" class="pc-logo flex items-center gap-2 font-bold text-lg hover:opacity-80">
-        <img
-          v-if="uiConfig.config.platform_logo_url"
-          :src="uiConfig.config.platform_logo_url"
-          alt="Logo"
-          class="pc-logo-img h-8 w-auto object-contain"
-        />
-        <span class="pc-site-name">{{ uiConfig.config.platform_name }}</span>
-      </router-link>
-      <span class="pc-login ml-auto text-sm opacity-80">
-        <router-link to="/login" class="hover:underline">{{ t("auth.sign_in") }}</router-link>
-      </span>
-    </header>
-
+  <div class="pc-page bg-gray-50">
     <main class="pc-main mx-auto max-w-4xl px-4 py-10">
       <p v-if="isLoading" class="text-gray-400 text-sm">{{ t("common.loading") }}</p>
       <p v-else-if="error" class="text-red-600 text-sm">{{ error }}</p>

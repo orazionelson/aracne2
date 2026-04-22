@@ -11,7 +11,7 @@ async function impersonate(userId: string): Promise<void> {
   impersonateError.value = null;
   try {
     await auth.startImpersonation(userId);
-    router.push({ name: "home" });
+    router.push({ name: "dashboard" });
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;

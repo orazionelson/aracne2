@@ -47,6 +47,7 @@
   },
   "nav": {
     "home": "Home",
+    "dashboard": "Dashboard",
     "collections": "Collections",
     "users": "Users",
     "plugins": "Plugins",
@@ -59,7 +60,14 @@
     "profile": "Profile",
     "menu": "Menu",
     "search_engines": "Search Engines",
-    "backup": "Backup"
+    "backup": "Backup",
+    "collapse_sidebar": "Collapse",
+    "expand_sidebar": "Expand",
+    "sections": {
+      "content": "Content",
+      "tools": "Tools",
+      "admin": "Administration"
+    }
   },
   "profile": {
     "title": "Profile",

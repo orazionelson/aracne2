@@ -62,28 +62,7 @@ const entries = computed<BibEntry[]>(() => {
 </script>
 
 <template>
-  <div class="pb-page min-h-screen bg-gray-50">
-    <!-- Public header -->
-    <header
-      class="pb-header flex h-14 items-center gap-3 px-6 text-white shadow"
-      :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
-    >
-      <router-link to="/" class="pb-logo flex items-center gap-2 text-lg font-bold hover:opacity-80">
-        <img
-          v-if="uiConfig.config.platform_logo_url"
-          :src="uiConfig.config.platform_logo_url"
-          alt="Logo"
-          class="pb-logo-img h-8 w-auto object-contain"
-        />
-        <span class="pb-site-name">{{ uiConfig.config.platform_name }}</span>
-      </router-link>
-      <span class="pb-login ml-auto text-sm opacity-80">
-        <router-link to="/login" class="hover:underline">
-          {{ t("auth.sign_in") }}
-        </router-link>
-      </span>
-    </header>
-
+  <div class="pb-page bg-gray-50">
     <main class="pb-main mx-auto max-w-3xl px-4 py-10">
       <!-- Loading -->
       <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>

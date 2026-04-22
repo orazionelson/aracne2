@@ -4,7 +4,6 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useDashboardStore } from "@/stores/dashboard";
-import PublicHomeSection from "@/components/PublicHomeSection.vue";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -12,9 +11,7 @@ const auth = useAuthStore();
 const dashboard = useDashboardStore();
 
 onMounted(() => {
-  if (auth.isAuthenticated) {
-    dashboard.fetchDashboard(auth.userRole);
-  }
+  dashboard.fetchDashboard(auth.userRole);
 });
 
 function statusClass(s: string): string {
@@ -54,8 +51,7 @@ function visibleShortcuts(): Shortcut[] {
 </script>
 
 <template>
-  <!-- Authenticated users see the dashboard. -->
-  <div v-if="auth.isAuthenticated" class="p-6 max-w-5xl mx-auto">
+  <div class="p-6 max-w-5xl mx-auto">
     <h1 class="mb-1 text-2xl font-bold">{{ t("home.title") }}</h1>
     <p class="text-gray-500 mb-6">
       {{ t("home.welcome", { name: auth.user?.display_name || auth.user?.username }) }}
@@ -195,7 +191,4 @@ function visibleShortcuts(): Shortcut[] {
       </div>
     </template>
   </div>
-
-  <!-- Unauthenticated visitors see the public home (enabled by Admin). -->
-  <PublicHomeSection v-else />
 </template>

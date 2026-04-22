@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { useI18n } from "vue-i18n";
-import { useAuthStore } from "@/stores/auth";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 
-const { t } = useI18n();
 const route = useRoute();
-const auth = useAuthStore();
 const uiConfig = useUiConfigStore();
 usePublicCustomCss();
 
@@ -23,28 +19,7 @@ const renderUrl = computed(() => {
 </script>
 
 <template>
-  <div class="pd-page flex min-h-screen flex-col bg-gray-50">
-    <!-- Public header: shown only for unauthenticated visitors.
-         Authenticated users already have AppNavbar from App.vue. -->
-    <header
-      v-if="!auth.isAuthenticated"
-      class="pd-header flex h-14 items-center gap-3 px-6 text-white shadow"
-      :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
-    >
-      <router-link to="/" class="pd-logo flex items-center gap-2 font-bold text-lg hover:opacity-80">
-        <img
-          v-if="uiConfig.config.platform_logo_url"
-          :src="uiConfig.config.platform_logo_url"
-          alt="Logo"
-          class="pd-logo-img h-8 w-auto object-contain"
-        />
-        <span class="pd-site-name">{{ uiConfig.config.platform_name }}</span>
-      </router-link>
-      <span class="pd-login ml-auto text-sm opacity-80">
-        <router-link to="/login" class="hover:underline">{{ t("auth.sign_in") }}</router-link>
-      </span>
-    </header>
-
+  <div class="pd-page flex flex-col bg-gray-50">
     <main class="pd-main mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
       <!-- Breadcrumb -->
       <nav class="pd-breadcrumb mb-6 text-sm text-gray-400">
