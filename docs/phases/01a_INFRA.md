@@ -11,8 +11,20 @@ Every file must be complete and working.
 
 ## File: docker-compose.yml
 
-Four services on internal network `aracne2`. Healthcheck on every service.
+Four always-on services on internal network `aracne2` plus two optional
+services activated through Compose profiles. Healthcheck on every service.
 Backend and frontend depend on the databases with `condition: service_healthy`.
+
+Optional services:
+
+- **`evt`** under profile `evt` — EVT 2 viewer for public reading of
+  published collections.
+- **`ollama`** and **`pgvector`** under profile `ai-local` — local LLM
+  inference (Ollama) and the RAG vector store (pgvector/pgvector:pg15).
+  Bring them up together with `docker compose --profile ai-local up -d`.
+  The backend connects lazily: if the profile is not active, AI keeps
+  working through remote providers and RAG silently falls back to an
+  empty injected context.
 
 **postgres**
 - image: `postgres:15-alpine`

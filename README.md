@@ -68,7 +68,7 @@ Aracne2 is designed around three core targets:
 | **Search Engines** | Configurable multi-collection search portals: buildable static HTML page, public API, and embeddable JS widget with per-origin access control |
 | **XSLT templates** | Designer-managed catalog of XSLT stylesheets used by the website generator |
 | **TEI schemas** | Schema catalog (upload / URL import / auto-generated CM5); bundled TEI All P5 schema |
-| **AI integration** | OpenAI, Anthropic, Gemini adapters; prompt library; streaming completion in editor and XSLT debugger |
+| **AI integration** | OpenAI, Anthropic, Gemini **and Ollama (local, no-key)** adapters; native prompt library with TEI-specific templates; optional RAG over pgvector with Ollama embeddings; streaming completion in editor and XSLT debugger |
 | **OAI-PMH** | OAI-PMH 2.0 provider for metadata harvesting |
 | **EVT viewer** | Optional EVT 2 integration for public reading of published collections |
 | **Notifications** | In-app notification inbox; event-driven dispatch via plugin hooks |
@@ -82,7 +82,7 @@ Aracne2 is designed around three core targets:
 |-------|-----------|
 | Backend | Python 3.12 · FastAPI · SQLAlchemy 2 async · Alembic · Pydantic v2 |
 | Auth | python-jose (JWT) · passlib bcrypt · httpOnly refresh cookie |
-| Databases | PostgreSQL 15 · eXist-db 6.x |
+| Databases | PostgreSQL 15 · eXist-db 6.x · pgvector (optional, RAG) |
 | XML | defusedxml (XXE prevention) · XQuery 3.1 |
 | Frontend | Vue 3 · Vite 5 · Pinia · Vue Router 4 · vue-i18n 9 · Tailwind CSS 3 |
 | Testing | pytest-asyncio · SQLite in-memory · Vitest |

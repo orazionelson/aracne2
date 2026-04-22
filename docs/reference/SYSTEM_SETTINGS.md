@@ -608,13 +608,15 @@ API call — no restart required.
 | **Type** | `string` |
 | **Default** | `"disabled"` |
 | **Editable** | Yes — Admin |
-| **Valid values** | `disabled`, `openai`, `anthropic`, `gemini` |
+| **Valid values** | `disabled`, `openai`, `anthropic`, `gemini`, `ollama` |
 
 Active AI provider. When `"disabled"`, all AI features are hidden in the UI
 (`aiStore.config` is `null`, the AI panel button does not appear).
 
-Changing this setting activates the corresponding provider immediately. The
-API key for the selected provider must also be set.
+Changing this setting activates the corresponding provider immediately.
+The API key for the selected provider must also be set — except for
+`ollama`, which runs locally and does not require an API key (it uses
+`ai_ollama_base_url` instead).
 
 **Consumed by**: `_get_provider()` and `get_ai_config()` in
 `app/plugins/_native/ai/service.py`.
@@ -696,6 +698,43 @@ Gemini model name (e.g. `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash`
 
 ---
 
+#### `ai_ollama_base_url`
+
+| | |
+|---|---|
+| **Type** | `string` |
+| **Default** | `"http://ollama:11434"` |
+| **Editable** | Yes — Admin |
+
+Base URL of the Ollama server. The default points at the bundled Compose
+service `ollama` (activated with `--profile ai-local`). To use a
+host-installed Ollama instead, set this to
+`http://host.docker.internal:11434`.
+
+Used for both chat completion (`ai_provider = "ollama"`) and RAG
+embeddings (independent of the active chat provider).
+
+**Consumed by**: `_get_provider()` (Ollama branch) and
+`embed_text()` in `app/plugins/_native/ai/embeddings.py`.
+
+---
+
+#### `ai_ollama_model`
+
+| | |
+|---|---|
+| **Type** | `string` |
+| **Default** | `"llama3.1:8b"` |
+| **Editable** | Yes — Admin |
+
+Ollama model tag used for chat. Must be pulled onto the server with
+`docker compose exec ollama ollama pull <tag>` before selection.
+Common choices: `llama3.1:8b`, `qwen2.5:7b`, `gemma2:9b`. See
+`docs/OPERATIONS.md` § "Local AI (Ollama)" for a curated list with
+sizes and RAM requirements.
+
+---
+
 #### `ai_max_requests_per_hour`
 
 | | |
@@ -728,6 +767,81 @@ an external provider.
 
 **Consumed by**: `get_ai_config()` → `AiConfigResponse.privacy_warning_enabled`
 → `AiPanel.vue`.
+
+---
+
+#### `ai_rag_enabled`
+
+| | |
+|---|---|
+| **Type** | `bool` |
+| **Default** | `false` |
+| **Editable** | Yes — Admin |
+
+Master switch for retrieval-augmented generation. When `true` **and**
+pgvector is configured (`PGVECTOR_HOST` env variable is set), prompts
+whose template contains `{rag_context}` receive top-matching passages
+from the index injected into that placeholder before reaching the
+provider. When `false`, `{rag_context}` resolves to the empty string
+and prompts run unchanged.
+
+Requires the `ai-local` Compose profile (pgvector + ollama with the
+embedding model pulled). See `docs/OPERATIONS.md` § "Local AI — RAG".
+
+**Consumed by**: `_augment_with_rag()` in
+`app/plugins/_native/ai/service.py` and `is_enabled()` in
+`app/plugins/_native/ai/rag.py`.
+
+---
+
+#### `ai_rag_top_k`
+
+| | |
+|---|---|
+| **Type** | `int` |
+| **Default** | `5` |
+| **Editable** | Yes — Admin |
+| **Unit** | chunks per query |
+
+Number of chunks returned by each retrieval call. Typical range 3–10.
+Higher values give more context but waste tokens on marginal matches.
+
+---
+
+#### `ai_rag_context_tokens`
+
+| | |
+|---|---|
+| **Type** | `int` |
+| **Default** | `1500` |
+| **Editable** | Yes — Admin |
+| **Unit** | tokens (approximate; 4 chars = 1 token heuristic) |
+
+Approximate token budget reserved for the retrieved context slice of
+the prompt. `retrieve()` truncates the list of chunks (not individual
+chunks) once the cumulative character count exceeds `value × 4`. The
+first chunk always fits, even when oversized.
+
+---
+
+#### `ai_rag_embedding_model`
+
+| | |
+|---|---|
+| **Type** | `string` |
+| **Default** | `"bge-m3"` |
+| **Editable** | Yes — Admin |
+
+Ollama tag used to compute embeddings at ingestion and retrieval time.
+Default `bge-m3` is multilingual and 1024-dimensional. Must be pulled
+once with `docker compose exec ollama ollama pull bge-m3`.
+
+Changing the model to a different dimension requires a hard reset of
+`ai_context_chunks` — see `docs/OPERATIONS.md` § "Switching the
+embedding model".
+
+**Consumed by**: `embed_text()` in
+`app/plugins/_native/ai/embeddings.py`.
 
 ---
 

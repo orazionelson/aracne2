@@ -263,23 +263,183 @@ Multi-turn chat appends alternating assistant/user turns after it.
   Gemini uses `"model"` (not `"assistant"`) for the assistant role.
 - SSE parsing: extracts `candidates[0].content.parts[].text`.
 
+### Ollama (`providers/ollama.py`)
+
+- URL: `{ai_ollama_base_url}/api/chat` (default base: `http://ollama:11434`, the
+  Compose service under profile `ai-local`; or any host-installed Ollama).
+- Auth: none — Ollama does not require an API key. `_get_provider` in
+  `service.py` skips the `ai_{provider}_api_key` lookup for `provider_name == "ollama"`.
+- Payload: `{"model": ..., "stream": true, "messages": messages}` — same
+  `{"role": ..., "content": ...}` shape as OpenAI / Anthropic.
+- NDJSON parsing: one JSON object per line; extracts `message.content` deltas;
+  stops on `done: true`. `{"error": ...}` payloads are converted to `httpx.HTTPError`
+  so the service layer surfaces a consistent error message.
+- Generous read timeout (300 s): first-token latency spikes when Ollama has to
+  load a large model into memory; subsequent tokens are fast.
+
+See `docs/OPERATIONS.md` § "Local AI (Ollama)" for the operator-facing recipe
+(profile activation, pulling models, switching models, host-installed vs
+bundled Ollama).
+
 ---
 
 ## System settings (ai_*)
 
-Stored in `system_settings` table; managed by Admin in the Settings view.
+Stored in `system_settings` table; managed by Admin in the Settings view. The
+UI groups them under the AI tab in a collapsible "Provider & API keys" panel.
 
-| Key                          | Default            | Notes                            |
-|------------------------------|--------------------|----------------------------------|
-| `ai_provider`                | `"disabled"`       | `"openai"` / `"anthropic"` / `"gemini"` / `"disabled"` |
-| `ai_openai_model`            | `"gpt-4o"`         |                                  |
-| `ai_anthropic_model`         | `"claude-opus-4-6"`|                                  |
-| `ai_gemini_model`            | `"gemini-1.5-pro"` |                                  |
-| `ai_openai_api_key`          | —                  | Stored encrypted                 |
-| `ai_anthropic_api_key`       | —                  | Stored encrypted                 |
-| `ai_gemini_api_key`          | —                  | Stored encrypted                 |
-| `ai_max_requests_per_hour`   | `20`               | Per-user rolling window          |
-| `ai_privacy_warning_enabled` | `"false"`          | Shows banner in AiPanel          |
+### Provider selection and credentials
+
+| Key                          | Default               | Notes                                                       |
+|------------------------------|-----------------------|-------------------------------------------------------------|
+| `ai_provider`                | `"disabled"`          | `"openai"` / `"anthropic"` / `"gemini"` / `"ollama"` / `"disabled"` |
+| `ai_openai_model`            | `"gpt-4o"`            |                                                             |
+| `ai_anthropic_model`         | `"claude-opus-4-6"`   |                                                             |
+| `ai_gemini_model`            | `"gemini-1.5-pro"`    |                                                             |
+| `ai_ollama_base_url`         | `"http://ollama:11434"` | Base URL of the Ollama server used for chat AND embeddings |
+| `ai_ollama_model`            | `"llama3.1:8b"`       | Pull once: `ollama pull <tag>`                              |
+| `ai_openai_api_key`          | —                     | Stored encrypted. Not used by the `ollama` provider         |
+| `ai_anthropic_api_key`       | —                     | Stored encrypted                                            |
+| `ai_gemini_api_key`          | —                     | Stored encrypted                                            |
+| `ai_max_requests_per_hour`   | `20`                  | Per-user rolling window                                     |
+| `ai_privacy_warning_enabled` | `"false"`             | Shows banner in AiPanel                                     |
+
+### Retrieval-augmented generation (RAG)
+
+Optional feature that grounds prompts referencing `{rag_context}` on a
+pgvector index. Turned off by default; see the dedicated
+[RAG](#retrieval-augmented-generation-rag) section below.
+
+| Key                         | Default              | Notes                                                             |
+|-----------------------------|----------------------|-------------------------------------------------------------------|
+| `ai_rag_enabled`            | `"false"`            | Master switch — when `"true"` and pgvector is configured, prompts containing `{rag_context}` get retrieval-injected context |
+| `ai_rag_top_k`              | `5`                  | Number of chunks retrieved per query                              |
+| `ai_rag_context_tokens`     | `1500`               | Approximate token budget for the injected context (4 chars ≈ 1 token heuristic) |
+| `ai_rag_embedding_model`    | `"bge-m3"`           | Ollama tag used for embeddings. 1024-dim multilingual. Pull once: `ollama pull bge-m3` |
+
+---
+
+## Retrieval-augmented generation (RAG)
+
+Opt-in feature that lets prompts pull context from a semantic index at
+inference time. When a prompt template contains `{rag_context}` and RAG is
+enabled, the service layer retrieves the top-matching passages and injects
+them into the prompt **before** it reaches the LLM. The retrieved block
+lives inside the same prompt turn — no extra round-trip.
+
+### Architecture
+
+```
+ prompt ── _augment_with_rag ── _fill_template ── provider.stream ──▶ client (SSE)
+               │                                         ▲
+               │  1. setting "ai_rag_enabled" = true?    │
+               │  2. pgvector configured?                │
+               │  3. template contains {rag_context}?    │
+               ▼                                         │
+         embed_text (Ollama /api/embeddings) ─────────┐  │
+               │                                      │  │
+               ▼                                      ▼  │
+          ai_context_chunks (pgvector,           base prompt
+           1024-dim vector cosine)               + retrieved chunks
+               │
+               ▼
+          top-K RetrievedChunk
+```
+
+Fail-soft at every step: if the master switch is off, pgvector is not
+configured, the embedding call fails, or retrieval raises, the service
+substitutes `{rag_context}` with an empty string and the base prompt still
+reaches the provider. The user never sees an error coming from the RAG
+path; a structured-log `warning` records the reason.
+
+### Components
+
+| File                                            | Role                                                       |
+|-------------------------------------------------|------------------------------------------------------------|
+| `app/db/pgvector.py`                            | Lazy async engine + `PgvectorBase`; `ensure_schema()` at lifespan; `get_session_factory()` for ad-hoc sessions |
+| `app/models/ai_context_chunk.py`                | `AiContextChunk` model with `Vector(1024)` + HNSW cosine index |
+| `app/plugins/_native/ai/embeddings.py`          | `embed_text(db, text)` against Ollama `/api/embeddings`; wraps errors in `EmbeddingUnavailable` |
+| `app/plugins/_native/ai/rag.py`                 | `is_enabled()`, `retrieve()` (cosine top-K + token budget), `format_chunks()` |
+| `app/plugins/_native/ai/service.py::_augment_with_rag` | Runs before `_fill_template`; injects `{rag_context}` or `""` |
+| `app/scripts/ingest_tei_p5.py`                  | CLI ingestion (walks `--source` for .html/.xml/.txt/.md → chunks → embeds → inserts) |
+
+### Vector store schema
+
+Lives in a **separate Postgres instance** (the `pgvector` Compose service,
+under profile `ai-local`). Kept disjoint from the platform DB so:
+
+- vector-only workloads (bulk ingest, ANN) do not contend with editorial traffic;
+- the schema can be dropped and rebuilt without touching user data
+  (e.g. when switching embedding dimension);
+- future embedding providers beyond Ollama do not require platform schema changes.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE ai_context_chunks (
+    id            UUID PRIMARY KEY,
+    source_type   VARCHAR(64) NOT NULL,     -- "tei_p5", "schema", …
+    source_id     VARCHAR(512) NOT NULL,    -- relative path or slug
+    chunk_index   INTEGER NOT NULL DEFAULT 0,
+    text          TEXT NOT NULL,
+    embedding     vector(1024) NOT NULL,
+    chunk_metadata JSONB NOT NULL DEFAULT '{}',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_ai_context_chunks_embedding_hnsw
+    ON ai_context_chunks USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+CREATE INDEX ix_ai_context_chunks_source
+    ON ai_context_chunks (source_type, source_id, chunk_index);
+```
+
+The 1024 dimension matches `bge-m3`. Changing the embedding model to a
+different dimension requires dropping and recreating the table (see
+`OPERATIONS.md` for the procedure).
+
+### Retrieval query
+
+```sql
+SELECT text, source_type, source_id, chunk_index,
+       1 - (embedding <=> CAST(:qvec AS vector)) AS score
+  FROM ai_context_chunks
+ ORDER BY embedding <=> CAST(:qvec AS vector)
+ LIMIT :top_k;
+```
+
+pgvector's `<=>` is cosine distance; score = 1 − distance, higher is better.
+The query vector is rendered as a `[x.y,z.w,…]` literal string on the Python
+side (`_vec_literal`) and cast to `vector` server-side, so we avoid
+registering the pgvector asyncpg codec on the connection — simpler and
+keeps the connection plain.
+
+### Token budget
+
+After retrieving `top_k` chunks, `retrieve()` truncates the **list of
+chunks** (not individual chunk text) until the cumulative character count
+reaches `ai_rag_context_tokens × 4` (rough 4-chars-per-token heuristic).
+The first chunk always fits even when oversized — better than mid-chunk
+cuts that break structured text.
+
+### Ingestion
+
+Indexing is **out-of-band**: the server never writes to
+`ai_context_chunks` during normal request handling. An operator runs
+`python -m app.scripts.ingest_tei_p5 --source DIR` from inside the
+backend container. The script is format-agnostic (html/xml/txt/md),
+chunks by paragraph at ~2000 chars with a 200-char minimum, commits
+batches of 50, and exits with a clear error if the embedder is
+unreachable. Flags: `--purge` (wipe `source_type` before insert),
+`--dry-run` (preview without embeddings/writes), `--source-type`
+(defaults to `tei_p5`; override when indexing another corpus).
+
+### What v1 explicitly does not do
+
+- No per-user / per-collection ACL on retrieval (global index in v1).
+- No citations in the model output — chunk IDs are in the injected
+  context only for operator debugging, not surfaced to the user.
+- No user-corpus indexing (TEI P5 only); see `FUTURE_IDEAS.md` for the
+  v2 plan (ACL-aware indexing, citations, multi-dim tables).
+- No ingestion UI in the admin panel; CLI only.
 
 ---
 
@@ -372,6 +532,84 @@ Used in: `WebsiteEditView` — XSLT editor, Discuss mode.
 Clicking "Discuss" switches the side panel to the `AiPanel` component with
 `chat=true` and `show-apply=false`. The stylesheet source is captured once
 at the moment the button is clicked and passed as `{ xslt_source }` context.
+
+### `tei_bibl_inline` (target_context: `"editor"`)
+
+Context vars: `filename`, `collection_slug`, `selection`
+
+```
+You are a TEI P5 expert. Convert the following free-text bibliographic
+note into a single valid <biblStruct> element.
+
+ALLOWED STRUCTURE: [minimal biblStruct with analytic / monogr / imprint / idno]
+RULES: omit empty elements; ISO dates; xml:id = bib_<surname>_<year>; do not invent.
+EXAMPLE: [one worked input→output pair]
+Respond with ONLY the <biblStruct> element. No prose, no markdown, no code fences.
+
+{rag_context}
+
+File: {filename}
+Collection: {collection_slug}
+
+Selection:
+{selection}
+```
+
+Used in: `DocumentEditView` (editor AI sidebar). Single-shot; the reply
+replaces the editor selection with a `<biblStruct>`. When RAG is enabled,
+`{rag_context}` is auto-filled with the top-K passages retrieved from the
+TEI P5 index before the template is rendered.
+
+### `tei_extract_entities` (target_context: `"editor"`)
+
+Context vars: `filename`, `collection_slug`, `selection`
+
+```
+You are a TEI P5 expert. Wrap every named entity in the following
+passage with the appropriate inline element. Do not modify the text
+itself — only add markup.
+
+ALLOWED TAGS: <persName>, <placeName>, <orgName>
+RULES: preserve exact text; nesting allowed; @cert="medium" for ambiguous; skip pronouns / dates / work titles.
+EXAMPLE: [one worked input→output pair]
+Respond with ONLY the tagged fragment. No prose, no markdown, no code fences.
+
+{rag_context}
+
+File: {filename}
+Collection: {collection_slug}
+
+Selection:
+{selection}
+```
+
+Used in: `DocumentEditView`. Selection in → selection out with inline
+entity tags, ready to paste back into the editor.
+
+### `tei_header_scaffold` (target_context: `"editor"`)
+
+Context vars: `filename`, `collection_slug`, `selection`
+
+```
+You are a TEI P5 expert. Produce a minimal <teiHeader> block from the
+free-text bibliographic metadata in the selection.
+
+REQUIRED STRUCTURE: [fileDesc with titleStmt / publicationStmt / sourceDesc]
+RULES: omit unknown elements; ISO 8601 dates; do not invent titles, authors or dates.
+EXAMPLE: [one worked input→output pair]
+Respond with ONLY the <teiHeader> block. No prose, no markdown, no code fences.
+
+{rag_context}
+
+File: {filename}
+Collection: {collection_slug}
+
+Selection:
+{selection}
+```
+
+Used in: `DocumentEditView`. Takes free-text metadata lines and emits a
+clean `<teiHeader>` scaffold.
 
 ### `bibliobuilder` (target_context: `null`)
 
@@ -590,13 +828,21 @@ No migration needed — seeding is idempotent (skips existing slugs).
 
 1. Create `backend/app/plugins/_native/ai/providers/{name}.py` implementing
    `BaseAiProvider.stream(messages: list[dict[str, str]])`.
-2. Add the provider name to the `if/elif` chain in `_get_provider()` in `service.py`.
+2. Add the provider name to the branch in `_get_provider()` in `service.py`.
 3. Add a setting entry `ai_{name}_model` with a default value in `seed.py`
    (`DEFAULT_SETTINGS`).
-4. Add `ai_{name}_api_key` handling — it is read via `get_decrypted_setting()` so no
-   schema change is needed; the key is stored/managed through the Settings UI.
-5. Update the `ai_provider` validation in the Settings view frontend if there is a
-   closed enum there.
+4. For API-key providers, add `ai_{name}_api_key` — it is read via
+   `get_decrypted_setting()` so no schema change is needed; the key is
+   stored/managed through the Settings UI.
+5. For keyless providers (local inference à la Ollama), add a dedicated
+   setting for the endpoint URL (e.g. `ai_{name}_base_url`) and branch
+   early in `_get_provider()` to skip the API-key lookup — see the
+   `provider_name == "ollama"` block for the reference pattern.
+6. Update the `SETTING_OPTIONS.ai_provider` select in
+   `frontend/src/views/admin/SettingsView.vue` so the new value appears
+   in the dropdown.
+7. Add i18n hints (`settings.hint_ai_{name}_*`) in `en.json` / `it.json`
+   so first-time operators see contextual help under each key.
 
 ---
 

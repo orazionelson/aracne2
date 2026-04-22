@@ -568,8 +568,19 @@ panel (EditorInChief+). From here you can:
 ## 14. AI assistance
 
 Aracne2 integrates AI language models to assist editors. AI features are
-**optional and configurable** — they appear only when an Admin has set up an
-API key for a supported provider (OpenAI, Anthropic/Claude, or Google Gemini).
+**optional and configurable** — they appear only when an Admin has activated
+one of the supported providers:
+
+- **OpenAI** (ChatGPT, GPT-4)
+- **Anthropic** (Claude)
+- **Google Gemini**
+- **Ollama** — local inference on a model running on your own server. No API
+  key, no data leaves your infrastructure. Slower than remote providers and
+  typically weaker on complex tasks, but the only option for privacy-sensitive
+  or air-gapped projects.
+
+The available features are the same regardless of which provider the Admin
+selected — the quality and speed of the responses change.
 
 ### Where AI assistance is available
 
@@ -594,6 +605,34 @@ Click Discuss to open a chat interface. Ask any question about the document,
 request encoding advice, or discuss philological interpretation. The AI has
 context about the current document. You can continue the conversation with
 follow-up messages. This mode never modifies the document automatically.
+
+**TEI-specific actions** (when the Admin has enabled them)
+Additional prompts are available in the AI panel when you have a selection
+in the editor:
+
+- **Normalize inline bibliography** — converts a free-text citation (e.g.
+  "Smith 1998, pp. 45–67") into a `<biblStruct>` element following TEI P5
+  conventions.
+- **Tag named entities** — wraps every person, place and organization name
+  in the selected passage with the appropriate `<persName>`, `<placeName>`
+  or `<orgName>` element, preserving the text itself.
+- **Scaffold teiHeader** — turns a paragraph of bibliographic metadata
+  (title, author, editor, publisher, date, license) into a minimal
+  `<teiHeader>` block.
+
+All three replace the current selection with the produced TEI fragment —
+review before saving.
+
+### Grounded on the TEI Guidelines (optional)
+
+If your Admin has enabled **RAG** (retrieval-augmented generation) and
+indexed the TEI P5 Guidelines, the three TEI-specific actions above
+receive relevant reference passages automatically along with your
+selection. This helps the model stay faithful to P5 conventions — it
+cites structures from the Guidelines rather than relying on what it
+"remembers" during training. You do not have to do anything different:
+when the feature is active, the AI answers are simply more consistent
+with the official Guidelines.
 
 #### In collection-wide validation (EditorInChief+)
 

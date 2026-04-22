@@ -394,9 +394,31 @@ async def _on_user_created(**kwargs: object) -> None:
 | **Hooks** | None |
 | **min_role** | Editor |
 
-Provides LLM-assisted workflows across the platform. Supports three providers
-(OpenAI, Anthropic, Google Gemini) selectable via the `ai_provider` system
-setting. All AI requests are streamed via Server-Sent Events (SSE).
+Provides LLM-assisted workflows across the platform. Supports four providers
+(OpenAI, Anthropic, Google Gemini, Ollama) selectable via the `ai_provider`
+system setting. Ollama runs locally — no API key, no data leaves the server
+— and is bundled as an optional Docker Compose service under profile
+`ai-local`. All AI requests are streamed via Server-Sent Events (SSE).
+
+Optional retrieval-augmented generation (RAG) layer — when
+`ai_rag_enabled=true` and the pgvector service is configured, prompts
+whose template contains `{rag_context}` receive top-matching passages
+from a semantic index injected before reaching the LLM. The ingestion
+pipeline (`python -m app.scripts.ingest_tei_p5`) turns a directory of
+HTML / XML / Markdown / plain-text files into embedded chunks. Fail-soft
+at every step: with RAG off or the index empty, `{rag_context}` resolves
+to an empty string and the base prompt still reaches the provider.
+
+**Seeded native prompts** (`is_native=true`, editable but not deletable):
+
+- `validate_errors_explain` — analyse validation errors (validation panel)
+- `document_edit_suggest` — improve a TEI selection (editor)
+- `document_discuss` — free multi-turn chat on a selection (editor)
+- `tei_bibl_inline` — free-text citation → `<biblStruct>` (editor, RAG-aware)
+- `tei_extract_entities` — wrap `<persName>/<placeName>/<orgName>` in a passage (editor, RAG-aware)
+- `tei_header_scaffold` — scaffold `<teiHeader>` from metadata (editor, RAG-aware)
+- `xslt_debug`, `xslt_discuss` — XSLT error analysis and free chat (WebsiteEditView)
+- `bibliobuilder` — bulk `<listBibl>` normalisation (dedicated view)
 
 **Endpoints:**
 
@@ -409,7 +431,12 @@ setting. All AI requests are streamed via Server-Sent Events (SSE).
 | `GET` | `/api/v1/ai/config` | Auth | Get active provider, model, rate limit |
 | `POST` | `/api/v1/ai/complete` | Editor+ | Stream completion (SSE) |
 
-See [AI_INTEGRATION.md](AI_INTEGRATION.md) for the full AI subsystem reference.
+See [AI_INTEGRATION.md](AI_INTEGRATION.md) for the full AI subsystem
+reference including the RAG architecture, provider adapters (Ollama
+NDJSON included) and the 9 native prompt templates. See
+[OPERATIONS.md](../OPERATIONS.md) § "Local AI" for the operator-facing
+runbook (enabling the profile, pulling models, ingesting TEI P5,
+switching models).
 
 ---
 
