@@ -72,6 +72,17 @@ function isEditing(key: string): boolean {
 // a free-text input.  Add new entries here when introducing enum-like settings.
 const SETTING_OPTIONS: Record<string, string[]> = {};
 
+// AI-related settings are shown under the AI tab (in a collapsible panel),
+// not in the generic System Settings table.
+const systemSettings = computed(() =>
+  settingStore.settings.filter((s) => !s.key.startsWith("ai_")),
+);
+const aiSettings = computed(() =>
+  settingStore.settings.filter((s) => s.key.startsWith("ai_")),
+);
+
+const aiSettingsPanelOpen = ref(false);
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const schemaError = ref<string | null>(null);
 const newSchemaName = ref("");
@@ -977,7 +988,7 @@ onMounted(async () => {
       <h1 class="mb-6 text-2xl font-bold">{{ t("settings.title") }}</h1>
       <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
       <p v-if="settingStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
-      <div v-else-if="settingStore.settings.length > 0" class="overflow-x-auto">
+      <div v-else-if="systemSettings.length > 0" class="overflow-x-auto">
         <table class="w-full border-collapse text-sm">
           <thead>
             <tr class="bg-gray-100 text-left">
@@ -989,7 +1000,7 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr
-              v-for="s in settingStore.settings"
+              v-for="s in systemSettings"
               :key="s.key"
               class="border-b align-top hover:bg-gray-50"
             >
@@ -1446,32 +1457,131 @@ onMounted(async () => {
         {{ t("settings.ai_subtitle") }}
       </p>
 
-      <!-- Provider & keys — managed via System Settings tab -->
-      <div
-        v-if="aiStore.config"
-        class="mb-6 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-sm"
-      >
-        <span class="font-medium text-gray-700">{{ t("settings.ai_provider_label") }}:</span>
-        <span
-          :class="[
-            'ml-2 rounded px-2 py-0.5 text-xs font-medium',
-            aiStore.config.provider === 'disabled'
-              ? 'bg-gray-100 text-gray-500'
-              : 'bg-green-100 text-green-700',
-          ]"
+      <!-- Provider & API keys accordion -->
+      <div class="mb-6 rounded border border-gray-200">
+        <button
+          type="button"
+          class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50"
+          :aria-expanded="aiSettingsPanelOpen"
+          @click="aiSettingsPanelOpen = !aiSettingsPanelOpen"
         >
-          {{ aiStore.config.provider }}
-        </span>
-        <span v-if="aiStore.config.provider !== 'disabled'" class="ml-2 text-gray-500">
-          {{ aiStore.config.model }}
-        </span>
-        <span class="ml-4 text-xs text-gray-400">
-          {{ t("settings.ai_rate_limit_label", { n: aiStore.config.rate_limit }) }}
-        </span>
-        <span class="ml-1 text-xs text-gray-400">·</span>
-        <span class="ml-1 text-xs text-gray-400">
-          {{ t("settings.ai_configure_hint") }}
-        </span>
+          <svg
+            class="h-3 w-3 shrink-0 transition-transform text-gray-500"
+            :class="aiSettingsPanelOpen ? 'rotate-90' : ''"
+            viewBox="0 0 12 12"
+            fill="currentColor"
+          >
+            <path d="M4 2l5 4-5 4V2z" />
+          </svg>
+          <span class="font-medium text-gray-700">{{ t("settings.ai_provider_panel_title") }}</span>
+          <template v-if="aiStore.config">
+            <span
+              :class="[
+                'ml-3 rounded px-2 py-0.5 text-xs font-medium',
+                aiStore.config.provider === 'disabled'
+                  ? 'bg-gray-100 text-gray-500'
+                  : 'bg-green-100 text-green-700',
+              ]"
+            >
+              {{ aiStore.config.provider }}
+            </span>
+            <span v-if="aiStore.config.provider !== 'disabled'" class="ml-2 text-gray-500">
+              {{ aiStore.config.model }}
+            </span>
+            <span class="ml-auto text-xs text-gray-400">
+              {{ t("settings.ai_rate_limit_label", { n: aiStore.config.rate_limit }) }}
+            </span>
+          </template>
+        </button>
+
+        <div v-if="aiSettingsPanelOpen" class="border-t border-gray-200">
+          <p v-if="error" class="px-4 pt-3 text-sm text-red-600">{{ error }}</p>
+          <div v-if="aiSettings.length > 0" class="overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th class="w-64 px-4 py-2 font-semibold">{{ t("settings.key") }}</th>
+                  <th class="px-4 py-2 font-semibold">{{ t("settings.value") }}</th>
+                  <th class="w-16 px-4 py-2 font-semibold">{{ t("settings.type") }}</th>
+                  <th class="px-4 py-2 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="s in aiSettings"
+                  :key="s.key"
+                  class="border-b align-top hover:bg-gray-50"
+                >
+                  <td class="px-4 py-3">
+                    <code class="text-xs text-gray-700">{{ s.key }}</code>
+                    <p v-if="s.description" class="mt-0.5 text-xs text-gray-400">
+                      {{ s.description }}
+                    </p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <template v-if="isEditing(s.key)">
+                      <div class="flex flex-col gap-1">
+                        <template v-if="SETTING_OPTIONS[s.key]">
+                          <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                            <option
+                              v-for="opt in SETTING_OPTIONS[s.key]"
+                              :key="opt"
+                              :value="opt"
+                            >{{ opt }}</option>
+                          </select>
+                        </template>
+                        <template v-else-if="s.type === 'bool'">
+                          <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                          </select>
+                        </template>
+                        <template v-else>
+                          <input
+                            v-model="drafts[s.key]"
+                            :type="s.type === 'int' ? 'number' : 'text'"
+                            class="rounded border px-2 py-1 text-sm"
+                          />
+                        </template>
+                        <p v-if="saveError[s.key]" class="text-xs text-red-600">
+                          {{ saveError[s.key] }}
+                        </p>
+                      </div>
+                    </template>
+                    <span v-else class="font-mono text-sm">{{ s.value || "—" }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-gray-400">{{ s.type }}</td>
+                  <td class="px-4 py-3">
+                    <template v-if="isEditing(s.key)">
+                      <div class="flex gap-2">
+                        <button
+                          :disabled="saving[s.key]"
+                          class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                          @click="save(s.key)"
+                        >
+                          {{ t("common.save") }}
+                        </button>
+                        <button
+                          class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                          @click="cancelEdit(s.key)"
+                        >
+                          {{ t("common.cancel") }}
+                        </button>
+                      </div>
+                    </template>
+                    <button
+                      v-else
+                      class="text-xs text-blue-600 hover:underline"
+                      @click="startEdit(s.key, s.value)"
+                    >
+                      {{ t("settings.edit") }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- Prompt library -->
