@@ -82,10 +82,23 @@ function settingHint(key: string): string {
   return te(k) ? t(k) : "";
 }
 
-// AI-related settings are shown under the AI tab (in a collapsible panel),
-// not in the generic System Settings table.
+// AI-related settings are shown under the AI tab (in a collapsible panel).
+// Homepage/branding settings are managed via dedicated switches and pickers
+// under the Homepage tab. Both are hidden from the generic System Settings
+// table to avoid redundant controls.
+const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
+  "public_home_enabled",
+  "home_propagate_css",
+  "home_show_collections",
+  "home_show_login_button",
+  "home_show_search",
+  "navbar_bg_color",
+  "platform_logo_url",
+]);
 const systemSettings = computed(() =>
-  settingStore.settings.filter((s) => !s.key.startsWith("ai_")),
+  settingStore.settings.filter(
+    (s) => !s.key.startsWith("ai_") && !HIDDEN_FROM_SYSTEM_TABLE.has(s.key),
+  ),
 );
 const aiSettings = computed(() =>
   settingStore.settings.filter((s) => s.key.startsWith("ai_")),
