@@ -244,6 +244,166 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
         "xslt",
     ),
     (
+        "tei_bibl_inline",
+        "Normalize inline bibliography",
+        (
+            "Converts a free-text bibliographic note in the current selection "
+            "into a TEI P5 <biblStruct> element."
+        ),
+        (
+            "You are a TEI P5 expert. Convert the following free-text bibliographic "
+            "note into a single valid <biblStruct> element.\n\n"
+            "ALLOWED STRUCTURE:\n"
+            "<biblStruct xml:id=\"bib_SURNAME_YEAR\" type=\"journalArticle|book|bookSection|webpage|manuscript|other\">\n"
+            "  <analytic>        <!-- only for articles / chapters -->\n"
+            "    <author><persName><surname/><forename/></persName></author>\n"
+            "    <title level=\"a\"/>\n"
+            "  </analytic>\n"
+            "  <monogr>\n"
+            "    <author/>       <!-- only for monographs -->\n"
+            "    <editor/>       <!-- if applicable -->\n"
+            "    <title level=\"m|j|s\"/>\n"
+            "    <imprint>\n"
+            "      <pubPlace/>\n"
+            "      <publisher/>\n"
+            "      <date when=\"YYYY[-MM[-DD]]\"/>\n"
+            "    </imprint>\n"
+            "    <biblScope unit=\"volume|issue|page\"/>\n"
+            "  </monogr>\n"
+            "  <idno type=\"DOI|URL|ISBN\"/>\n"
+            "</biblStruct>\n\n"
+            "RULES:\n"
+            "- Omit empty elements.\n"
+            "- Do not invent data. Uncertain dates: use @notBefore/@notAfter.\n"
+            "- xml:id: ASCII lowercase, bib_<surname>_<year>. No author -> bib_<first3titlewords>_<year>.\n\n"
+            "EXAMPLE INPUT:\n"
+            "Smith, J. 'The Rise of X.' Journal of Y 12.3 (1998): 45-67. doi:10.1234/xyz\n\n"
+            "EXAMPLE OUTPUT:\n"
+            "<biblStruct xml:id=\"bib_smith_1998\" type=\"journalArticle\">\n"
+            "  <analytic>\n"
+            "    <author><persName><surname>Smith</surname><forename>J.</forename></persName></author>\n"
+            "    <title level=\"a\">The Rise of X</title>\n"
+            "  </analytic>\n"
+            "  <monogr>\n"
+            "    <title level=\"j\">Journal of Y</title>\n"
+            "    <imprint><date when=\"1998\"/></imprint>\n"
+            "    <biblScope unit=\"volume\">12</biblScope>\n"
+            "    <biblScope unit=\"issue\">3</biblScope>\n"
+            "    <biblScope unit=\"page\">45-67</biblScope>\n"
+            "  </monogr>\n"
+            "  <idno type=\"DOI\">10.1234/xyz</idno>\n"
+            "</biblStruct>\n\n"
+            "Respond with ONLY the <biblStruct> element. No prose, no markdown, no code fences.\n\n"
+            "File: {filename}\n"
+            "Collection: {collection_slug}\n\n"
+            "Selection:\n{selection}"
+        ),
+        ["filename", "collection_slug", "selection"],
+        "editor",
+    ),
+    (
+        "tei_extract_entities",
+        "Tag named entities (persons, places, organizations)",
+        (
+            "Wraps every person, place and organization name in the selection with "
+            "the appropriate TEI P5 inline element."
+        ),
+        (
+            "You are a TEI P5 expert. Wrap every named entity in the following "
+            "passage with the appropriate inline element. Do not modify the text "
+            "itself — only add markup.\n\n"
+            "ALLOWED TAGS:\n"
+            "- <persName>  — people (first+last names, historical figures, authors)\n"
+            "- <placeName> — locations (cities, regions, countries, buildings)\n"
+            "- <orgName>   — organizations (institutions, publishers, companies)\n\n"
+            "RULES:\n"
+            "- Preserve the exact text content; wrap only, do not rewrite.\n"
+            "- Nested entities are allowed (e.g. a <persName> inside an <orgName>).\n"
+            "- Ambiguous mentions (could be place or organization, e.g. 'Cambridge')\n"
+            "  are wrapped with the most likely tag and flagged with @cert=\"medium\".\n"
+            "- Do not tag common nouns, pronouns, dates, or titles of works.\n"
+            "- Preserve any pre-existing XML markup in the input.\n\n"
+            "EXAMPLE INPUT:\n"
+            "Alessandro Manzoni, born in Milan in 1785, later moved to Paris to study.\n\n"
+            "EXAMPLE OUTPUT:\n"
+            "<persName>Alessandro Manzoni</persName>, born in <placeName>Milan</placeName> "
+            "in 1785, later moved to <placeName>Paris</placeName> to study.\n\n"
+            "Respond with ONLY the tagged fragment. No prose, no markdown, no code fences.\n\n"
+            "File: {filename}\n"
+            "Collection: {collection_slug}\n\n"
+            "Selection:\n{selection}"
+        ),
+        ["filename", "collection_slug", "selection"],
+        "editor",
+    ),
+    (
+        "tei_header_scaffold",
+        "Scaffold a teiHeader from metadata",
+        (
+            "Produces a minimal TEI P5 <teiHeader> block from free-text bibliographic "
+            "metadata in the selection."
+        ),
+        (
+            "You are a TEI P5 expert. Produce a minimal <teiHeader> block from the "
+            "free-text bibliographic metadata in the selection.\n\n"
+            "REQUIRED STRUCTURE:\n"
+            "<teiHeader>\n"
+            "  <fileDesc>\n"
+            "    <titleStmt>\n"
+            "      <title/>\n"
+            "      <author/>      <!-- omit if anonymous -->\n"
+            "      <respStmt>     <!-- editorial responsibility -->\n"
+            "        <resp>Edited by</resp>\n"
+            "        <name/>\n"
+            "      </respStmt>\n"
+            "    </titleStmt>\n"
+            "    <publicationStmt>\n"
+            "      <publisher/>\n"
+            "      <pubPlace/>\n"
+            "      <date when=\"YYYY[-MM[-DD]]\"/>\n"
+            "      <availability status=\"restricted|free\">\n"
+            "        <licence target=\"\"/>\n"
+            "      </availability>\n"
+            "    </publicationStmt>\n"
+            "    <sourceDesc>\n"
+            "      <bibl/>        <!-- reference to the source, if any -->\n"
+            "    </sourceDesc>\n"
+            "  </fileDesc>\n"
+            "</teiHeader>\n\n"
+            "RULES:\n"
+            "- Omit any element whose value is unknown or empty.\n"
+            "- Dates: ISO 8601 (YYYY or YYYY-MM or YYYY-MM-DD).\n"
+            "- If no source is available, omit <sourceDesc>.\n"
+            "- Do not invent titles, authors or dates.\n\n"
+            "EXAMPLE INPUT:\n"
+            "Title: Divina Commedia. Author: Dante Alighieri. Edited by: M. Rossi. "
+            "Publisher: Aracne2 Project. Year: 2026. License: CC-BY 4.0.\n\n"
+            "EXAMPLE OUTPUT:\n"
+            "<teiHeader>\n"
+            "  <fileDesc>\n"
+            "    <titleStmt>\n"
+            "      <title>Divina Commedia</title>\n"
+            "      <author>Dante Alighieri</author>\n"
+            "      <respStmt><resp>Edited by</resp><name>M. Rossi</name></respStmt>\n"
+            "    </titleStmt>\n"
+            "    <publicationStmt>\n"
+            "      <publisher>Aracne2 Project</publisher>\n"
+            "      <date when=\"2026\"/>\n"
+            "      <availability status=\"free\">\n"
+            "        <licence target=\"https://creativecommons.org/licenses/by/4.0/\"/>\n"
+            "      </availability>\n"
+            "    </publicationStmt>\n"
+            "  </fileDesc>\n"
+            "</teiHeader>\n\n"
+            "Respond with ONLY the <teiHeader> block. No prose, no markdown, no code fences.\n\n"
+            "File: {filename}\n"
+            "Collection: {collection_slug}\n\n"
+            "Selection:\n{selection}"
+        ),
+        ["filename", "collection_slug", "selection"],
+        "editor",
+    ),
+    (
         "bibliobuilder",
         "Bibliography Normalizer",
         (

@@ -758,4 +758,79 @@ ratio and should be exhausted first.
 
 ---
 
+## 13. End-to-end AI evaluation harness 🟡 Medium
+
+Automated test suite that exercises every native AI prompt against a live
+provider, scores the output against golden expectations, and gates
+regressions in the seed library.
+
+### Motivation
+
+Today's `test_ai_prompts.py` only does structural smoke tests: it verifies
+seed idempotency and that every `{variable}` in a prompt body is covered by
+`context_vars`. It does not verify that the model actually produces correct
+TEI for a given input — because running real LLMs in CI would require
+provider credentials, cost money, and yield non-deterministic output.
+
+As the prompt library grows (and especially once RAG is in place), we need
+a way to catch quality regressions: a small template tweak can quietly
+break a downstream task. The harness provides that signal.
+
+### Realistic scope
+
+- Fixture: a curated dataset of ~10–20 (prompt\_slug, context, expected)
+  triples per native prompt. Inputs and expected outputs live in
+  `backend/app/tests/fixtures/ai/<slug>/` as plain XML files.
+- Runner: a pytest plugin that, when a `--ai-eval` flag is passed, invokes
+  `stream_completion` against a configured provider and scores the
+  generated output with metrics:
+  - schema validity (against the collection's TEI schema — already available);
+  - structural match (element names, attribute presence);
+  - fuzzy text similarity to the expected output (rapidfuzz / bleurt-lite).
+- Scoring: per-prompt score plus aggregate. Fail CI if a PR drops the
+  score below a threshold.
+- Providers covered: Gemini and Ollama initially (the providers the
+  maintainer has keys / local access for); OpenAI and Anthropic later
+  if shared test credentials are available.
+
+### Open questions
+
+- **Non-determinism**: LLM output varies between runs. Threshold-based
+  pass/fail with score margins is the usual answer; fuzzy matching + a
+  wide enough band avoids flakiness.
+- **Cost**: paid providers (OpenAI / Anthropic) cost per-token. A full
+  harness over 50 prompts × 10 fixtures × 2 providers is non-trivial.
+  Keep the suite opt-in (`--ai-eval` flag) and run it outside the default
+  CI; schedule a weekly full run.
+- **Reference output curation**: who writes the golden TEI? Initial set
+  from a human editor; later pulled from the editorial corpus once
+  enough validated documents exist (same dataset as the LoRA fine-tuning
+  track in entry #12).
+- **Provider skew**: the same prompt produces different (but both valid)
+  TEI across providers. Score structure rather than exact text.
+
+### Prerequisites
+
+- Stable native prompt library (the current 10 seeded prompts are a fine
+  baseline).
+- RAG operational (entry in the roadmap above) — the harness should
+  evaluate prompts with retrieved context, not bare prompts, to reflect
+  production behaviour.
+
+### Trigger
+
+Consider this when:
+- The prompt library grows past ~15 native prompts and the risk of silent
+  regressions from template edits becomes real;
+- Multiple providers are actively used and cross-provider consistency
+  matters;
+- Shared test credentials / a budget for paid-provider calls is available.
+
+Until then, the structural smoke tests (rendering + variable coverage)
+are sufficient.
+
+*Added: 2026-04-22*
+
+---
+
 *Last updated: 2026-04-22*
