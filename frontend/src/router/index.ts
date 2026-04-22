@@ -136,6 +136,13 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
     },
     {
+      path: "/admin/plugins/:slug/config",
+      name: "admin-plugin-config",
+      component: () => import("@/views/admin/PluginConfigView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+      props: true,
+    },
+    {
       path: "/admin/settings",
       name: "admin-settings",
       component: () => import("@/views/admin/SettingsView.vue"),
