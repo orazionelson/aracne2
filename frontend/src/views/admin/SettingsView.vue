@@ -942,13 +942,13 @@ onMounted(async () => {
 <template>
   <div class="mx-auto max-w-4xl p-6">
     <!-- Tab bar -->
-    <div class="mb-6 flex gap-4 border-b">
+    <div class="mb-6 flex gap-4 border-b border-gray-200 dark:border-gray-700">
       <button
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'settings'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'settings'"
       >
@@ -958,8 +958,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'schemas'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'schemas'"
       >
@@ -969,8 +969,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'licenses'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'licenses'"
       >
@@ -980,8 +980,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'body_templates'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'body_templates'"
       >
@@ -991,8 +991,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'homepage'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'homepage'; initAppearanceDraft()"
       >
@@ -1002,8 +1002,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'ai'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'ai'"
       >
@@ -1013,8 +1013,8 @@ onMounted(async () => {
         :class="[
           'pb-2 text-sm font-medium',
           activeTab === 'design'
-            ? 'border-b-2 border-indigo-600 text-indigo-600'
-            : 'text-gray-500 hover:text-gray-800',
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
         ]"
         @click="activeTab = 'design'"
       >
@@ -1024,28 +1024,28 @@ onMounted(async () => {
 
     <!-- ── System Settings tab ── -->
     <template v-if="activeTab === 'settings'">
-      <h1 class="mb-6 text-2xl font-bold">{{ t("settings.title") }}</h1>
-      <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
-      <p v-if="settingStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
-      <div v-else-if="systemSettings.length > 0" class="overflow-x-auto">
+      <h1 class="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("settings.title") }}</h1>
+      <p v-if="error" class="mb-4 text-red-600 dark:text-red-400">{{ error }}</p>
+      <p v-if="settingStore.isLoading" class="text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
+      <div v-else-if="systemSettings.length > 0" class="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
         <table class="w-full border-collapse text-sm">
           <thead>
-            <tr class="bg-gray-100 text-left">
+            <tr class="bg-gray-100 text-left text-gray-700 dark:bg-gray-800 dark:text-gray-200">
               <th class="w-56 px-4 py-2 font-semibold">{{ t("settings.key") }}</th>
               <th class="px-4 py-2 font-semibold">{{ t("settings.value") }}</th>
               <th class="w-16 px-4 py-2 font-semibold">{{ t("settings.type") }}</th>
               <th class="px-4 py-2 font-semibold"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="bg-white dark:bg-gray-900">
             <tr
               v-for="s in systemSettings"
               :key="s.key"
-              class="border-b align-top hover:bg-gray-50"
+              class="border-t border-gray-100 align-top hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
             >
               <td class="px-4 py-3">
-                <code class="text-xs text-gray-700">{{ s.key }}</code>
-                <p v-if="s.description || settingHint(s.key)" class="mt-0.5 text-xs text-gray-400">
+                <code class="text-xs text-gray-700 dark:text-gray-200">{{ s.key }}</code>
+                <p v-if="s.description || settingHint(s.key)" class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                   {{ s.description || settingHint(s.key) }}
                 </p>
               </td>
@@ -1053,7 +1053,7 @@ onMounted(async () => {
                 <template v-if="isEditing(s.key)">
                   <div class="flex flex-col gap-1">
                     <template v-if="SETTING_OPTIONS[s.key]">
-                      <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                      <select v-model="drafts[s.key]" class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
                         <option
                           v-for="opt in SETTING_OPTIONS[s.key]"
                           :key="opt"
@@ -1062,7 +1062,7 @@ onMounted(async () => {
                       </select>
                     </template>
                     <template v-else-if="s.type === 'bool'">
-                      <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                      <select v-model="drafts[s.key]" class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
                         <option value="true">true</option>
                         <option value="false">false</option>
                       </select>
@@ -1071,29 +1071,29 @@ onMounted(async () => {
                       <input
                         v-model="drafts[s.key]"
                         :type="s.type === 'int' ? 'number' : 'text'"
-                        class="rounded border px-2 py-1 text-sm"
+                        class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                       />
                     </template>
-                    <p v-if="saveError[s.key]" class="text-xs text-red-600">
+                    <p v-if="saveError[s.key]" class="text-xs text-red-600 dark:text-red-400">
                       {{ saveError[s.key] }}
                     </p>
                   </div>
                 </template>
-                <span v-else class="font-mono text-sm">{{ s.value }}</span>
+                <span v-else class="font-mono text-sm text-gray-900 dark:text-gray-100">{{ s.value }}</span>
               </td>
-              <td class="px-4 py-3 text-xs text-gray-400">{{ s.type }}</td>
+              <td class="px-4 py-3 text-xs text-gray-400 dark:text-gray-500">{{ s.type }}</td>
               <td class="px-4 py-3">
                 <template v-if="isEditing(s.key)">
                   <div class="flex gap-2">
                     <button
                       :disabled="saving[s.key]"
-                      class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                      class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40 dark:bg-indigo-600 dark:hover:bg-indigo-700"
                       @click="save(s.key)"
                     >
                       {{ t("common.save") }}
                     </button>
                     <button
-                      class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                      class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                       @click="cancelEdit(s.key)"
                     >
                       {{ t("common.cancel") }}
@@ -1102,7 +1102,7 @@ onMounted(async () => {
                 </template>
                 <button
                   v-else
-                  class="text-xs text-blue-600 hover:underline"
+                  class="text-xs text-blue-600 hover:underline dark:text-blue-400"
                   @click="startEdit(s.key, s.value)"
                 >
                   {{ t("settings.edit") }}
@@ -1112,7 +1112,7 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
-      <p v-else class="mt-4 text-gray-500">{{ t("settings.empty") }}</p>
+      <p v-else class="mt-4 text-gray-500 dark:text-gray-400">{{ t("settings.empty") }}</p>
     </template>
 
     <!-- ── Schemas tab ── -->
@@ -1497,47 +1497,47 @@ onMounted(async () => {
       </p>
 
       <!-- Provider & API keys accordion -->
-      <div class="mb-6 rounded border border-gray-200">
+      <div class="mb-6 rounded border border-gray-200 dark:border-gray-700">
         <button
           type="button"
-          class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50"
+          class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
           :aria-expanded="aiSettingsPanelOpen"
           @click="aiSettingsPanelOpen = !aiSettingsPanelOpen"
         >
           <svg
-            class="h-3 w-3 shrink-0 transition-transform text-gray-500"
+            class="h-3 w-3 shrink-0 transition-transform text-gray-500 dark:text-gray-400"
             :class="aiSettingsPanelOpen ? 'rotate-90' : ''"
             viewBox="0 0 12 12"
             fill="currentColor"
           >
             <path d="M4 2l5 4-5 4V2z" />
           </svg>
-          <span class="font-medium text-gray-700">{{ t("settings.ai_provider_panel_title") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-200">{{ t("settings.ai_provider_panel_title") }}</span>
           <template v-if="aiStore.config">
             <span
               :class="[
                 'ml-3 rounded px-2 py-0.5 text-xs font-medium',
                 aiStore.config.provider === 'disabled'
-                  ? 'bg-gray-100 text-gray-500'
-                  : 'bg-green-100 text-green-700',
+                  ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                  : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
               ]"
             >
               {{ aiStore.config.provider }}
             </span>
-            <span v-if="aiStore.config.provider !== 'disabled'" class="ml-2 text-gray-500">
+            <span v-if="aiStore.config.provider !== 'disabled'" class="ml-2 text-gray-500 dark:text-gray-400">
               {{ aiStore.config.model }}
             </span>
-            <span class="ml-auto text-xs text-gray-400">
+            <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">
               {{ t("settings.ai_rate_limit_label", { n: aiStore.config.rate_limit }) }}
             </span>
           </template>
         </button>
 
-        <div v-if="aiSettingsPanelOpen" class="border-t border-gray-200">
-          <p v-if="error" class="px-4 pt-3 text-sm text-red-600">{{ error }}</p>
+        <div v-if="aiSettingsPanelOpen" class="border-t border-gray-200 dark:border-gray-700">
+          <p v-if="error" class="px-4 pt-3 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
           <div v-if="aiSettings.length > 0" class="overflow-x-auto">
             <table class="w-full border-collapse text-sm">
-              <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                 <tr>
                   <th class="w-64 px-4 py-2 font-semibold">{{ t("settings.key") }}</th>
                   <th class="px-4 py-2 font-semibold">{{ t("settings.value") }}</th>
@@ -1545,23 +1545,23 @@ onMounted(async () => {
                   <th class="px-4 py-2 font-semibold"></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody class="bg-white dark:bg-gray-900">
                 <tr
                   v-for="s in aiSettings"
                   :key="s.key"
-                  class="border-b align-top hover:bg-gray-50"
+                  class="border-t border-gray-100 align-top hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
                 >
                   <td class="px-4 py-3">
-                    <code class="text-xs text-gray-700">{{ s.key }}</code>
-                    <p v-if="s.description" class="mt-0.5 text-xs text-gray-400">
-                      {{ s.description }}
+                    <code class="text-xs text-gray-700 dark:text-gray-200">{{ s.key }}</code>
+                    <p v-if="s.description || settingHint(s.key)" class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                      {{ s.description || settingHint(s.key) }}
                     </p>
                   </td>
                   <td class="px-4 py-3">
                     <template v-if="isEditing(s.key)">
                       <div class="flex flex-col gap-1">
                         <template v-if="SETTING_OPTIONS[s.key]">
-                          <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                          <select v-model="drafts[s.key]" class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
                             <option
                               v-for="opt in SETTING_OPTIONS[s.key]"
                               :key="opt"
@@ -1570,7 +1570,7 @@ onMounted(async () => {
                           </select>
                         </template>
                         <template v-else-if="s.type === 'bool'">
-                          <select v-model="drafts[s.key]" class="rounded border px-2 py-1 text-sm">
+                          <select v-model="drafts[s.key]" class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
                             <option value="true">true</option>
                             <option value="false">false</option>
                           </select>
@@ -1579,29 +1579,29 @@ onMounted(async () => {
                           <input
                             v-model="drafts[s.key]"
                             :type="s.type === 'int' ? 'number' : 'text'"
-                            class="rounded border px-2 py-1 text-sm"
+                            class="rounded border border-gray-300 px-2 py-1 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                           />
                         </template>
-                        <p v-if="saveError[s.key]" class="text-xs text-red-600">
+                        <p v-if="saveError[s.key]" class="text-xs text-red-600 dark:text-red-400">
                           {{ saveError[s.key] }}
                         </p>
                       </div>
                     </template>
-                    <span v-else class="font-mono text-sm">{{ s.value || "—" }}</span>
+                    <span v-else class="font-mono text-sm text-gray-900 dark:text-gray-100">{{ s.value || "—" }}</span>
                   </td>
-                  <td class="px-4 py-3 text-xs text-gray-400">{{ s.type }}</td>
+                  <td class="px-4 py-3 text-xs text-gray-400 dark:text-gray-500">{{ s.type }}</td>
                   <td class="px-4 py-3">
                     <template v-if="isEditing(s.key)">
                       <div class="flex gap-2">
                         <button
                           :disabled="saving[s.key]"
-                          class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                          class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40 dark:bg-indigo-600 dark:hover:bg-indigo-700"
                           @click="save(s.key)"
                         >
                           {{ t("common.save") }}
                         </button>
                         <button
-                          class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                          class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                           @click="cancelEdit(s.key)"
                         >
                           {{ t("common.cancel") }}
@@ -1610,7 +1610,7 @@ onMounted(async () => {
                     </template>
                     <button
                       v-else
-                      class="text-xs text-blue-600 hover:underline"
+                      class="text-xs text-blue-600 hover:underline dark:text-blue-400"
                       @click="startEdit(s.key, s.value)"
                     >
                       {{ t("settings.edit") }}

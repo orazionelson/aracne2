@@ -13,36 +13,36 @@ function formatDate(iso: string | null): string {
 
 <template>
   <div class="p-6 max-w-xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">{{ t("profile.title") }}</h1>
+    <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">{{ t("profile.title") }}</h1>
 
     <div v-if="auth.user" class="space-y-4">
-      <div class="border rounded p-4 space-y-3 text-sm">
+      <div class="rounded border border-gray-200 bg-white p-4 space-y-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.username") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.username") }}</span>
           <span>{{ auth.user.username }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.email") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.email") }}</span>
           <span>{{ auth.user.email }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.display_name") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.display_name") }}</span>
           <span>{{ auth.user.display_name ?? "—" }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.role") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.role") }}</span>
           <span>{{ auth.user.role }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.preferred_lang") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.preferred_lang") }}</span>
           <span>{{ auth.user.preferred_lang }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.last_login") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.last_login") }}</span>
           <span>{{ formatDate(auth.user.last_login_at) }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="font-medium text-gray-700">{{ t("profile.member_since") }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.member_since") }}</span>
           <span>{{ formatDate(auth.user.created_at) }}</span>
         </div>
       </div>
