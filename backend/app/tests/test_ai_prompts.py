@@ -70,13 +70,22 @@ def test_prompt_template_renders_with_declared_context_vars(
     context_vars: list[str],
     target_context: str | None,
 ) -> None:
-    """Every {variable} in the template body must be covered by context_vars.
+    """Every {variable} in the template body must be covered by context_vars
+    or by the service layer's automatic injections.
 
     _fill_template passes the dict via ``str.format_map``; missing keys raise
     KeyError that the service wraps into DomainValidationError. This test
     catches the drift at build time.
+
+    ``rag_context`` is always injected by _augment_with_rag before
+    _fill_template sees the template, so it is treated as a pre-declared
+    variable here (substituted with an empty string, matching the
+    RAG-disabled / empty-index path).
     """
     context = {k: _SAMPLE_CONTEXT.get(k, f"<{k}>") for k in context_vars}
+    # Variables automatically provided by the service layer before _fill_template
+    # runs. Kept in sync with _augment_with_rag in plugins/_native/ai/service.py.
+    context.setdefault("rag_context", "")
     # Must not raise.
     rendered = _fill_template(template, context)
     # Sanity: rendered length > template length only if we filled variables;

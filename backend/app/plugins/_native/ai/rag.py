@@ -140,11 +140,15 @@ async def retrieve(
 
 def format_chunks(chunks: list[RetrievedChunk]) -> str:
     """Render retrieved chunks as a plain text block suitable for prompt
-    injection. Each chunk is separated by a horizontal rule and prefixed
-    with its source identifier for lightweight traceability in logs."""
+    injection. Empty when *chunks* is empty — callers can wire the block
+    unconditionally into a template (``{rag_context}``) and get no noise
+    when retrieval is disabled or returns nothing."""
     if not chunks:
         return ""
-    parts: list[str] = []
+    parts: list[str] = [
+        "REFERENCE PASSAGES (retrieved from the TEI P5 / project index; "
+        "may be partially relevant — use as guidance, not ground truth):"
+    ]
     for c in chunks:
         parts.append(f"--- {c.source_type}:{c.source_id}#{c.chunk_index} ---\n{c.text.strip()}")
     return "\n\n".join(parts)

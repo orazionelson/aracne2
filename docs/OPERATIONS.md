@@ -382,6 +382,127 @@ tasks (bibliography normalisation, named-entity extraction, proof-reading).
 
 ---
 
+## Local AI — RAG (retrieval-augmented generation)
+
+Aracne2 can ground AI prompts on a corpus of indexed reference material
+(TEI P5 Guidelines, project schemas, own corpus in future) using semantic
+retrieval via **pgvector** + **Ollama embeddings**. When enabled, every
+prompt that references `{rag_context}` receives the top-matching passages
+before reaching the LLM.
+
+RAG is an opt-in feature: off by default, enabled per setting. With RAG
+off the prompts still work — the `{rag_context}` placeholder simply
+resolves to an empty string.
+
+### Enable the infrastructure
+
+RAG rides on the same `ai-local` Compose profile as local Ollama. Enabling
+the profile brings up **both** `ollama` and `pgvector` services. Enable
+the profile first, then flip the setting.
+
+```bash
+# Start the stack with the ai-local profile (pgvector + ollama):
+docker compose --profile ai-local up -d
+
+# Pull the embedding model into the Ollama volume (one-time, ~600 MB):
+docker compose exec ollama ollama pull bge-m3
+```
+
+### Turn on RAG in the admin UI
+
+In **Settings → AI → Provider & API keys** edit the four `ai_rag_*`
+keys:
+
+| Key                       | Value                        |
+| ------------------------- | ---------------------------- |
+| `ai_rag_enabled`          | `true`                       |
+| `ai_rag_top_k`            | `5` (default; 3–10 typical)  |
+| `ai_rag_context_tokens`   | `1500` (≈ half of a 3k prompt budget) |
+| `ai_rag_embedding_model`  | `bge-m3` (multilingual, 1024-dim) |
+
+At this point the prompt pipeline is armed but the index is empty — RAG
+falls back to an empty `{rag_context}` on every call. The next step
+populates the index.
+
+### Ingest the TEI P5 Guidelines
+
+The bundled ingestion script takes a local directory of any mix of
+`.html`, `.xml`, `.txt` or `.md` files and chunks + embeds them into
+the vector store. The admin is responsible for obtaining the P5
+Guidelines in one of those formats — typical approaches:
+
+**Option A — official HTML bundle from tei-c.org** (simplest):
+
+```bash
+# Download and unpack the HTML distribution (≈30 MB).
+curl -Lo /tmp/tei-p5.zip \
+  https://tei-c.org/release/doc/tei-p5-doc/en/html/tei-p5-doc-en.zip
+unzip /tmp/tei-p5.zip -d /tmp/tei-p5-html
+
+# Ingest (runs inside the backend container; takes 2–10 min depending on
+# corpus size and hardware, mostly spent on embeddings).
+docker compose exec backend python -m app.scripts.ingest_tei_p5 \
+  --source /tmp/tei-p5-html
+```
+
+> **Note**: the container reads `/tmp/tei-p5-html` *inside* the container.
+> Either mount the host path (add a `-v /tmp/tei-p5-html:/tmp/tei-p5-html`
+> to the compose service) or copy the files into a directory that is
+> already mounted (e.g. `./backend/tmp-ingest/`).
+
+**Option B — markdown / plain text conversion**:
+
+Any text format works. Pandoc, the TEI `roma` tool, or a custom export can
+produce a directory of `.md` or `.txt` files; point `--source` at it.
+
+### Script options
+
+```
+python -m app.scripts.ingest_tei_p5 --source DIR [--source-type TYPE]
+                                    [--purge] [--dry-run]
+
+  --source       Root directory walked recursively for .html/.xml/.txt/.md
+  --source-type  Value written to ai_context_chunks.source_type
+                 (default: tei_p5). Use a distinct value when ingesting
+                 a second corpus (e.g. --source-type project_corpus).
+  --purge        Delete every row with the matching source_type before
+                 inserting — needed when switching the embedding model
+                 (vector dimensions may differ).
+  --dry-run      Walk + chunk without embeddings or DB writes. Use it
+                 to estimate corpus size before committing to the full run.
+```
+
+### Verify the index
+
+```bash
+docker compose exec pgvector psql -U aracne2 -d aracne2_vectors -c "
+  SELECT source_type, COUNT(*) AS chunks
+  FROM ai_context_chunks
+  GROUP BY source_type;
+"
+```
+
+### Switching the embedding model
+
+`bge-m3` is 1024-dim. If you switch to another embedding model with a
+different dimension, the existing vector column becomes incompatible.
+Procedure:
+
+1. Pull the new model: `docker compose exec ollama ollama pull <new-tag>`
+2. Update `ai_rag_embedding_model` in Settings.
+3. Drop the existing table (the schema hardcodes 1024; changing it
+   needs a model file edit and redeployment). For now, simplest path:
+   `docker compose exec pgvector psql -U aracne2 -d aracne2_vectors -c "DROP TABLE ai_context_chunks;"`
+4. Restart the backend: `docker compose restart backend` — the lifespan
+   hook recreates the table with the new dim.
+5. Re-ingest: `python -m app.scripts.ingest_tei_p5 --source … --purge`.
+
+This hard-reset is the price of the current simple schema. A future
+iteration (see `docs/FUTURE_IDEAS.md`) would support multi-dimension
+tables keyed by model.
+
+---
+
 ## Dependency upgrades
 
 *(Placeholder — to be expanded.)*
