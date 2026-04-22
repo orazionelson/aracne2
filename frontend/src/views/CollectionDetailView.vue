@@ -13,6 +13,12 @@ import { useCollectionValidationStore } from "@/stores/collection_validation";
 import { useAiStore } from "@/stores/ai";
 import { useSettingStore } from "@/stores/settings";
 import AiPanel from "@/components/AiPanel.vue";
+import {
+  EyeIcon,
+  PencilSquareIcon,
+  ArrowDownTrayIcon,
+  TrashIcon,
+} from "@heroicons/vue/24/outline";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -1523,12 +1529,12 @@ function statusClass(s: string): string {
             </div>
           </div>
 
-          <ul class="divide-y divide-gray-100">
+          <ul class="divide-y divide-gray-100 dark:divide-gray-800">
             <li
               v-for="doc in paginatedDocuments"
               :key="doc.filename"
               class="flex items-center justify-between py-2"
-              :class="selectedFilenames.includes(doc.filename) ? 'bg-indigo-50' : ''"
+              :class="selectedFilenames.includes(doc.filename) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''"
             >
               <div class="flex items-center gap-3">
                 <input
@@ -1542,31 +1548,35 @@ function statusClass(s: string): string {
                 />
                 <span class="font-mono text-sm text-gray-800 dark:text-gray-100">{{ doc.filename }}</span>
               </div>
-              <div class="flex gap-3">
+              <div class="flex items-center gap-1.5">
                 <button
-                  class="text-xs text-indigo-500 hover:text-indigo-700"
+                  class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
                   @click="handleViewDoc(doc.filename)"
                 >
+                  <EyeIcon class="h-3.5 w-3.5" />
                   {{ t("collections.view_document") }}
                 </button>
                 <button
                   v-if="canWrite"
-                  class="text-xs text-amber-600 hover:text-amber-800"
+                  class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
                   @click="router.push({ name: 'document-edit', params: { slug, filename: doc.filename } })"
                 >
+                  <PencilSquareIcon class="h-3.5 w-3.5" />
                   {{ t("collections.edit_document") }}
                 </button>
                 <button
-                  class="text-xs text-indigo-600 hover:text-indigo-800"
+                  class="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                   @click="handleDownload(doc.filename)"
                 >
+                  <ArrowDownTrayIcon class="h-3.5 w-3.5" />
                   {{ t("collections.download") }}
                 </button>
                 <button
                   v-if="canWrite"
-                  class="text-xs text-red-500 hover:text-red-700"
+                  class="inline-flex items-center gap-1.5 rounded border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
                   @click="handleDeleteDoc(doc.filename)"
                 >
+                  <TrashIcon class="h-3.5 w-3.5" />
                   {{ t("collections.delete_document") }}
                 </button>
               </div>
