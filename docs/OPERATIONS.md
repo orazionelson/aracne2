@@ -311,14 +311,59 @@ On Linux without Docker Desktop, add to the backend service in
 
 ### Model choice
 
-- `llama3.1:8b` — default, balanced general-purpose.
-- `qwen2.5:7b` — often better at Italian and multilingual.
-- `gemma2:9b` — strong reasoning for its size.
-- Larger (70B quantised) — possible on 48 GB+ RAM, very slow on CPU.
+Sizes below are the default quantisation (Q4\_K\_M) as published on
+[ollama.com/library](https://ollama.com/library); full-precision tags are 3–4×
+larger. Rough RAM requirement ≈ model size + 1–2 GB for context / inference
+state. Values are indicative and drift over time — always verify on the
+library page before pulling.
 
-For TEI-heavy tasks (complex XSLT generation, domain reasoning), local
-models below ~30B will consistently lag behind Claude / GPT-4o. Reserve
-local inference for extractive, templated, or privacy-sensitive tasks.
+#### General-purpose chat / instruction models
+
+| Model              | Size    | Min RAM | Notes                                                  |
+| ------------------ | ------- | ------- | ------------------------------------------------------ |
+| `llama3.2:1b`      | ~1.3 GB | 2 GB    | Tiny; only for trivial extraction / classification     |
+| `llama3.2:3b`      | ~2.0 GB | 3 GB    | Decent small model; limited reasoning                  |
+| `gemma2:2b`        | ~1.6 GB | 3 GB    | Google's small model; OK multilingual                  |
+| `qwen2.5:3b`       | ~1.9 GB | 3 GB    | Strong small multilingual (Italian passable)           |
+| `phi3:3.8b`        | ~2.2 GB | 4 GB    | Microsoft, reasoning-oriented                          |
+| `mistral:7b`       | ~4.1 GB | 6 GB    | Lightweight 7B, English-centric                        |
+| `llama3.1:8b`      | ~4.7 GB | 6 GB    | **Default**; balanced general-purpose                  |
+| `qwen2.5:7b`       | ~4.7 GB | 6 GB    | Often best Italian / multilingual at this tier         |
+| `gemma2:9b`        | ~5.4 GB | 7 GB    | Strong reasoning for its size                          |
+| `mistral-nemo:12b` | ~7.1 GB | 9 GB    | Tekken tokeniser, good on code + mixed text            |
+| `qwen2.5:14b`      | ~9.0 GB | 11 GB   | Step up in quality; best Italian at this tier          |
+| `phi4:14b`         | ~9.0 GB | 11 GB   | Strong reasoning, decent multilingual                  |
+| `gemma2:27b`       | ~16 GB  | 20 GB   | Near GPT-3.5 quality; CPU-borderline                   |
+| `qwen2.5:32b`      | ~20 GB  | 24 GB   | Large; wants lots of RAM or a GPU                      |
+| `llama3.3:70b`     | ~42 GB  | 48 GB+  | Strongest open model at this size; GPU strongly advised |
+
+#### Specialised models
+
+| Model                | Size    | Use                                             |
+| -------------------- | ------- | ----------------------------------------------- |
+| `qwen2.5-coder:7b`   | ~4.7 GB | XSLT / code generation                          |
+| `qwen2.5-coder:14b`  | ~9.0 GB | XSLT / code generation, better quality          |
+| `codellama:13b`      | ~7.4 GB | Older code model, broad language coverage       |
+| `nomic-embed-text`   | ~0.3 GB | Embeddings (future semantic search / RAG)       |
+
+#### Sweet spots for Aracne2
+
+- **Mid-range server (16 GB RAM, CPU only)**: `qwen2.5:7b` or `llama3.1:8b`.
+- **Workstation (32 GB RAM, or NVIDIA GPU 12–16 GB)**: `gemma2:9b` or `qwen2.5:14b`.
+- **Large server / GPU 24 GB+**: `qwen2.5:32b` or `llama3.3:70b`.
+
+Pull once, run many times:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5:7b
+docker compose exec ollama ollama list          # verify size on disk
+docker compose exec ollama ollama rm <tag>      # reclaim space if needed
+```
+
+For TEI-heavy tasks (complex XSLT generation, multi-step domain reasoning),
+local models below ~30B will consistently lag behind Claude / GPT-4o.
+Reserve local inference for extractive, templated, or privacy-sensitive
+tasks (bibliography normalisation, named-entity extraction, proof-reading).
 
 ---
 
