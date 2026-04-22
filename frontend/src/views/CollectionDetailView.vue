@@ -1441,6 +1441,54 @@ function statusClass(s: string): string {
         </p>
       </section>
 
+      <!-- Zenodo per-collection override (EiC+, only when the plugin's
+           vocabulary has loaded so we do not show an empty dropdown) -->
+      <section
+        v-if="isEiC && zenodoGroupedResourceTypes.length > 0"
+        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <h2 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          {{ t("zenodo.collection_section_title") }}
+        </h2>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("zenodo.collection_section_hint") }}
+        </p>
+
+        <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
+          {{ zenodoResourceTypeError }}
+        </p>
+        <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
+          {{ t("zenodo.collection_section_saved") }}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <select
+            v-model="zenodoResourceTypeDraft"
+            class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <option value="">{{ t("zenodo.collection_use_default") }}</option>
+            <optgroup
+              v-for="grp in zenodoGroupedResourceTypes"
+              :key="grp.group"
+              :label="grp.group"
+            >
+              <option
+                v-for="opt in grp.options"
+                :key="opt.id"
+                :value="opt.id"
+              >{{ opt.label }}</option>
+            </optgroup>
+          </select>
+          <button
+            :disabled="isSavingZenodoResourceType || zenodoResourceTypeDraft === (store.current.zenodo_resource_type ?? '')"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+            @click="saveZenodoResourceType"
+          >
+            {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
+          </button>
+        </div>
+      </section>
+
       <!-- Documents section -->
       <section class="rounded border border-gray-200 p-5 dark:border-gray-700">
         <div class="mb-4 flex items-start justify-between">
@@ -1885,54 +1933,6 @@ function statusClass(s: string): string {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- Zenodo per-collection override (EiC+, only when the plugin's
-           vocabulary has loaded so we do not show an empty dropdown) -->
-      <section
-        v-if="isEiC && zenodoGroupedResourceTypes.length > 0"
-        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
-      >
-        <h2 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
-          {{ t("zenodo.collection_section_title") }}
-        </h2>
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          {{ t("zenodo.collection_section_hint") }}
-        </p>
-
-        <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
-          {{ zenodoResourceTypeError }}
-        </p>
-        <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
-          {{ t("zenodo.collection_section_saved") }}
-        </p>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <select
-            v-model="zenodoResourceTypeDraft"
-            class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          >
-            <option value="">{{ t("zenodo.collection_use_default") }}</option>
-            <optgroup
-              v-for="grp in zenodoGroupedResourceTypes"
-              :key="grp.group"
-              :label="grp.group"
-            >
-              <option
-                v-for="opt in grp.options"
-                :key="opt.id"
-                :value="opt.id"
-              >{{ opt.label }}</option>
-            </optgroup>
-          </select>
-          <button
-            :disabled="isSavingZenodoResourceType || zenodoResourceTypeDraft === (store.current.zenodo_resource_type ?? '')"
-            class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
-            @click="saveZenodoResourceType"
-          >
-            {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
-          </button>
         </div>
       </section>
 
