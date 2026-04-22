@@ -5,6 +5,9 @@ handler or from the manual re-deposit endpoint.  It reads config from
 ``system_settings``, fetches the collection's documents from eXist-db,
 pushes them to Zenodo, and records the outcome in ``plugin_data`` so
 the UI can surface a DOI badge next to the collection.
+
+This flow talks to the **new** Zenodo (InvenioRDM) ``/api/records`` API:
+create draft → upload files (init/upload/commit) → optionally publish.
 """
 
 from __future__ import annotations
@@ -65,11 +68,7 @@ async def _load_files(
 
 
 async def _plugin_id(db: AsyncSession) -> uuid.UUID:
-    """Resolve the Plugin row UUID for this plugin slug.
-
-    The plugin loader inserts this row on every startup, so absence is a
-    programmer error (plugin code running before the loader ran).
-    """
+    """Resolve the Plugin row UUID for this plugin slug."""
     from sqlalchemy import select
 
     from app.models.plugin import Plugin
@@ -91,7 +90,6 @@ async def _already_deposited(
     )
     if not existing:
         return False
-    # Re-deposit after a failed attempt — but not after a successful one.
     status = existing.get("status")
     return status in {"draft", "published"}
 
@@ -144,8 +142,8 @@ async def deposit_collection(
         collection=collection,
         license_obj=license_obj,
         public_base_url=cfg.public_base_url,
-        publication_type=cfg.publication_type,
-        access_right=cfg.access_right,
+        resource_type=cfg.resource_type,
+        access=cfg.access,
     )
     payload = to_zenodo_payload(meta, community=cfg.default_community or None)
 
@@ -156,10 +154,9 @@ async def deposit_collection(
     )
 
     try:
-        draft = await client.create_draft()
+        draft = await client.create_draft(payload)
         for filename, content in files:
-            await client.upload_file(draft.bucket_url, filename, content)
-        await client.update_metadata(draft.id, payload)
+            await client.upload_file(draft.id, filename, content)
 
         if cfg.auto_publish:
             result = await client.publish(draft.id)

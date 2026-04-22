@@ -1,14 +1,23 @@
-"""Zenodo REST client used by the deposit plugin.
+"""Zenodo (InvenioRDM) REST client used by the deposit plugin.
 
-Docs: https://developers.zenodo.org/
+Docs:
+  https://inveniordm.docs.cern.ch/reference/rest_api_drafts_records/
+  https://inveniordm.docs.cern.ch/reference/rest_api_drafts_records_files/
 
-The client is intentionally small — it only implements the five calls the
-deposit flow needs (create draft, upload file to bucket, attach metadata,
-publish, read back).  Anything more elaborate belongs in its own module.
+Flow:
+  POST /api/records                                 # create draft with metadata
+  POST /api/records/{id}/draft/files                # init file entries (keys)
+  PUT  /api/records/{id}/draft/files/{key}/content  # upload bytes
+  POST /api/records/{id}/draft/files/{key}/commit   # commit upload
+  POST /api/records/{id}/draft/actions/publish      # publish
 
-Transport is httpx.AsyncClient; for testability the caller can inject a
-custom transport (e.g. ``httpx.MockTransport`` in tests) via the
-``transport`` constructor argument.
+This is the **new** Zenodo API, not the legacy ``/api/deposit/depositions``
+endpoints. It returns a richer, vocabulary-driven metadata shape and the
+record id is the same pre- and post-publish.
+
+The client is deliberately small — it only implements what the deposit
+flow needs. For testability the caller can inject an httpx transport
+(e.g. ``httpx.MockTransport``) via the ``transport`` constructor argument.
 """
 
 from __future__ import annotations
@@ -42,10 +51,9 @@ class ZenodoError(RuntimeError):
 
 @dataclass(frozen=True)
 class DepositDraft:
-    """Minimal view of a Zenodo deposition draft response."""
+    """Minimal view of a Zenodo record draft."""
 
-    id: int
-    bucket_url: str
+    id: str
     record_url: str
 
 
@@ -53,14 +61,14 @@ class DepositDraft:
 class DepositResult:
     """Outcome of a full deposit flow — draft or published."""
 
-    id: int
+    id: str
     doi: str | None
     record_url: str
     status: str  # "draft" | "published"
 
 
 class ZenodoClient:
-    """Async client for the Zenodo Deposition API."""
+    """Async client for the Zenodo (InvenioRDM) records API."""
 
     def __init__(
         self,
@@ -74,7 +82,7 @@ class ZenodoClient:
         self._base = base_url.rstrip("/")
         self._headers = {
             "Authorization": f"Bearer {api_token}",
-            "User-Agent": "Aracne2-ZenodoDeposit/1.0",
+            "User-Agent": "Aracne2-ZenodoDeposit/2.0",
         }
         self._transport = transport
 
@@ -93,14 +101,24 @@ class ZenodoClient:
         *,
         json: Any = None,
         content: bytes | None = None,
+        content_type: str | None = None,
         retry_5xx: bool = True,
     ) -> httpx.Response:
         """Issue one request with exponential backoff on 5xx + transport errors."""
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
+                extra_headers: dict[str, str] = {}
+                if content_type is not None:
+                    extra_headers["Content-Type"] = content_type
                 async with self._client() as client:
-                    resp = await client.request(method, url, json=json, content=content)
+                    resp = await client.request(
+                        method,
+                        url,
+                        json=json,
+                        content=content,
+                        headers=extra_headers or None,
+                    )
                 if 500 <= resp.status_code < 600 and retry_5xx:
                     last_exc = ZenodoError(
                         f"Zenodo {resp.status_code} at {url}",
@@ -117,63 +135,93 @@ class ZenodoClient:
                 last_exc = exc
             if attempt < _MAX_RETRIES:
                 await asyncio.sleep(_BACKOFF_BASE ** attempt)
-        # Exhausted retries — surface the last known error.
         if isinstance(last_exc, ZenodoError):
             raise last_exc
         raise ZenodoError(f"Zenodo request failed: {last_exc}") from last_exc
 
     # ── High-level operations ─────────────────────────────────────────────────
 
-    async def create_draft(self) -> DepositDraft:
-        """Create an empty deposition and return its id + bucket_url + record_url."""
+    async def create_draft(self, payload: dict[str, Any]) -> DepositDraft:
+        """Create a new draft record with initial metadata.
+
+        The payload is the full InvenioRDM record shape
+        (``{"access": {...}, "files": {...}, "metadata": {...}}``) — this
+        client does not build it, callers do that via ``mapping.py``.
+        """
         resp = await self._request(
-            "POST", f"{self._base}/api/deposit/depositions", json={}
+            "POST", f"{self._base}/api/records", json=payload
         )
-        payload = resp.json()
+        data = resp.json()
         try:
             draft = DepositDraft(
-                id=int(payload["id"]),
-                bucket_url=str(payload["links"]["bucket"]),
-                record_url=str(payload["links"]["html"]),
+                id=str(data["id"]),
+                record_url=str(data.get("links", {}).get("self_html", "")),
             )
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError) as exc:
             raise ZenodoError(f"Malformed create-draft response: {exc}") from exc
         logger.info("zenodo_draft_created", deposit_id=draft.id)
         return draft
 
     async def upload_file(
-        self, bucket_url: str, filename: str, content: bytes
+        self, draft_id: str, filename: str, content: bytes
     ) -> None:
-        """Upload a single file to a deposition's bucket using the new files API."""
-        url = f"{bucket_url.rstrip('/')}/{filename}"
-        await self._request("PUT", url, content=content)
+        """Upload one file to a draft in three phases: init, stream, commit."""
+        base = f"{self._base}/api/records/{draft_id}/draft/files"
+        # 1. Declare the file entry.
+        await self._request("POST", base, json=[{"key": filename}])
+        # 2. Stream the bytes.
+        await self._request(
+            "PUT",
+            f"{base}/{filename}/content",
+            content=content,
+            content_type="application/octet-stream",
+        )
+        # 3. Commit — the file becomes visible on the record.
+        await self._request("POST", f"{base}/{filename}/commit")
         logger.info("zenodo_file_uploaded", filename=filename, size=len(content))
 
-    async def update_metadata(self, deposit_id: int, payload: dict[str, Any]) -> None:
-        """Attach metadata to a deposition draft."""
-        url = f"{self._base}/api/deposit/depositions/{deposit_id}"
-        await self._request("PUT", url, json=payload)
-        logger.info("zenodo_metadata_attached", deposit_id=deposit_id)
-
-    async def publish(self, deposit_id: int) -> DepositResult:
-        """Publish a deposition.  Returns the finalised record with DOI."""
-        url = f"{self._base}/api/deposit/depositions/{deposit_id}/actions/publish"
+    async def publish(self, draft_id: str) -> DepositResult:
+        """Publish a draft. Returns the finalised record with DOI."""
+        url = f"{self._base}/api/records/{draft_id}/draft/actions/publish"
         resp = await self._request("POST", url)
         data = resp.json()
+        pids = data.get("pids") or {}
+        doi: str | None = None
+        if isinstance(pids.get("doi"), dict):
+            raw = pids["doi"].get("identifier")
+            if isinstance(raw, str) and raw:
+                doi = raw
         return DepositResult(
-            id=int(data.get("id", deposit_id)),
-            doi=str(data.get("doi")) if data.get("doi") else None,
-            record_url=str(data.get("links", {}).get("html", "")),
+            id=str(data.get("id", draft_id)),
+            doi=doi,
+            record_url=str(data.get("links", {}).get("self_html", "")),
             status="published",
         )
 
+    async def fetch_resource_types(self) -> list[dict[str, Any]]:
+        """Fetch the resource-type vocabulary from Zenodo.
+
+        Returns the raw ``hits.hits`` list. Caller normalises for the UI.
+        Paginates through all pages (the vocabulary is small — typically ~40
+        entries — but may grow).
+        """
+        url = f"{self._base}/api/vocabularies/resourcetypes?size=100"
+        resp = await self._request("GET", url)
+        data = resp.json()
+        hits_obj = data.get("hits") or {}
+        hits = hits_obj.get("hits") or []
+        if not isinstance(hits, list):
+            return []
+        return hits
+
 
 def _describe_error(resp: httpx.Response) -> str:
-    """Produce a compact error description from a Zenodo non-success response."""
+    """Compact error description from an InvenioRDM non-success response."""
     try:
         body = resp.json()
     except Exception:  # noqa: BLE001 — best-effort diagnosis only
         return f"Zenodo {resp.status_code}: {resp.text[:200]}"
+    # InvenioRDM error format: {"status": 400, "message": "...", "errors": [{field, messages}]}
     msg = body.get("message") or body.get("status") or resp.text[:200]
     errors = body.get("errors")
     if errors:

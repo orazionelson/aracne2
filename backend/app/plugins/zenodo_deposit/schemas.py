@@ -14,20 +14,20 @@ ZenodoBaseUrl = Literal[
     "https://zenodo.org",
 ]
 
-# Zenodo access_right values used on deposition metadata.
-AccessRight = Literal["open", "embargoed", "restricted", "closed"]
+# Record access visibility. Simplified from the legacy four values to two —
+# InvenioRDM's "embargoed" requires an ``until`` date and a separate UI
+# that we do not ship in the MVP; "closed" is not an InvenioRDM concept.
+AccessMode = Literal["open", "restricted"]
 
-# Zenodo publication_type values.  We keep a short curated subset — editors
-# can change it later via the raw setting if needed.
-PublicationType = Literal[
-    "article",
-    "book",
-    "section",
-    "preprint",
-    "thesis",
-    "report",
-    "other",
-]
+
+class ResourceTypeOption(BaseModel):
+    """One entry from the resource-type dropdown, normalised for the UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str
+    group: str
 
 
 class ZenodoConfigResponse(BaseModel):
@@ -43,8 +43,8 @@ class ZenodoConfigResponse(BaseModel):
     base_url: str
     default_community: str
     auto_publish: bool
-    access_right: AccessRight
-    publication_type: PublicationType
+    access: AccessMode
+    resource_type: str  # InvenioRDM vocabulary id, e.g. "publication-book"
     public_base_url: str
 
 
@@ -61,8 +61,8 @@ class ZenodoConfigUpdate(BaseModel):
     base_url: ZenodoBaseUrl | None = None
     default_community: str | None = Field(default=None, max_length=128)
     auto_publish: bool | None = None
-    access_right: AccessRight | None = None
-    publication_type: PublicationType | None = None
+    access: AccessMode | None = None
+    resource_type: str | None = Field(default=None, max_length=128)
     public_base_url: str | None = Field(default=None, max_length=512)
 
     @field_validator("public_base_url")
@@ -77,17 +77,11 @@ class ZenodoConfigUpdate(BaseModel):
 
 
 class DepositStatus(BaseModel):
-    """Read-only snapshot of the most recent deposit for a collection.
-
-    Tolerant of the two shapes the plugin writes to ``plugin_data``:
-    a successful / draft record carries a ``deposit_id`` and
-    ``record_url``; a failed record may carry neither but always carries
-    ``status`` and ``submitted_at``.
-    """
+    """Read-only snapshot of the most recent deposit for a collection."""
 
     model_config = ConfigDict(extra="allow")
 
-    deposit_id: int | None = None
+    deposit_id: str | None = None
     doi: str | None = None
     record_url: str | None = None
     status: Literal["draft", "published", "failed"]

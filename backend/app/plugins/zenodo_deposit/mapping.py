@@ -1,4 +1,4 @@
-"""Collection → Zenodo deposit metadata.
+"""Collection → Zenodo (InvenioRDM) deposit metadata.
 
 Design note: the intermediate ``DepositMetadata`` is deliberately
 service-agnostic.  A future DataCite or HAL plugin can reuse the same
@@ -19,16 +19,16 @@ from app.models.collection import Collection
 from app.models.license import License
 
 
-# --- Creative Commons → Zenodo SPDX slug map -----------------------------------
+# --- Creative Commons → InvenioRDM rights vocabulary id map --------------------
 #
-# Zenodo accepts a ``license`` string on the deposition metadata in SPDX-ish
-# shape (e.g. "cc-by-4.0").  Our ``licenses`` table does not carry an SPDX
-# column, so we match on the `target` URL which we seed deterministically in
-# ``db/seed.py`` (DEFAULT_LICENSES).  If the user has renamed the license or
-# replaced the target URL, the lookup falls back to None and the payload
-# omits the ``license`` field — Zenodo then defaults to "cc-zero".
+# The new Zenodo API accepts a ``rights`` array whose entries reference
+# InvenioRDM's licenses vocabulary (``GET /api/vocabularies/licenses``). The
+# SPDX-style ids below match the default seeded values in that vocabulary —
+# they are stable and documented. If the user replaces a seeded license's
+# target URL we fall back to no ``rights`` entry (the deposit still works,
+# but Zenodo will flag the record as missing a license).
 _CC_LICENSE_MAP: dict[str, str] = {
-    "https://creativecommons.org/publicdomain/zero/1.0/": "cc-zero",
+    "https://creativecommons.org/publicdomain/zero/1.0/": "cc0-1.0",
     "https://creativecommons.org/licenses/by/4.0/": "cc-by-4.0",
     "https://creativecommons.org/licenses/by-sa/4.0/": "cc-by-sa-4.0",
     "https://creativecommons.org/licenses/by-nc/4.0/": "cc-by-nc-4.0",
@@ -38,13 +38,12 @@ _CC_LICENSE_MAP: dict[str, str] = {
 }
 
 
-def zenodo_license_slug(license_target: str | None) -> str | None:
-    """Return the Zenodo license slug for a known CC URL, else None."""
+def zenodo_license_id(license_target: str | None) -> str | None:
+    """Return the InvenioRDM license vocabulary id for a CC URL, else None."""
     if not license_target:
         return None
-    return _CC_LICENSE_MAP.get(license_target.rstrip("/") + "/") or _CC_LICENSE_MAP.get(
-        license_target
-    )
+    canonical = license_target.rstrip("/") + "/"
+    return _CC_LICENSE_MAP.get(canonical) or _CC_LICENSE_MAP.get(license_target)
 
 
 # --- Reusable intermediate shape ----------------------------------------------
@@ -54,8 +53,10 @@ def zenodo_license_slug(license_target: str | None) -> str | None:
 class Creator:
     """A deposit creator (author / contributor).
 
-    The optional ``orcid`` string is accepted as a bare ORCID identifier
-    (``0000-0000-0000-0000``) and left to the serialiser to format.
+    ``name`` is a free-text full name; the Zenodo serialiser will split it
+    into given/family-name using :func:`split_name`. An optional ``orcid``
+    is accepted as a bare ORCID id (``0000-0000-0000-0000``) and emitted
+    as a ``person_or_org.identifiers`` entry.
     """
 
     name: str
@@ -67,10 +68,9 @@ class Creator:
 class DepositMetadata:
     """Service-agnostic description of a deposit.
 
-    Every field is populated from platform data that already exists
-    (Collection + License).  The Zenodo serialiser consumes this dataclass
-    and produces the exact JSON payload Zenodo expects; a sibling DataCite
-    serialiser can consume the same dataclass without extra extraction.
+    Populated by :func:`collection_to_metadata` from Collection + License.
+    Consumed by :func:`to_zenodo_payload`; a sibling DataCite serialiser
+    can consume the same dataclass without extra extraction.
     """
 
     title: str
@@ -78,35 +78,29 @@ class DepositMetadata:
     creators: list[Creator] = field(default_factory=list)
     publication_date: date = field(default_factory=lambda: datetime.now(UTC).date())
     keywords: list[str] = field(default_factory=list)
-    license_slug: str | None = None
-    access_right: str = "open"
-    publication_type: str = "other"
+    license_id: str | None = None
+    # Simplified to two values — "open" → public record+files, "restricted"
+    # → both restricted. InvenioRDM also supports "embargoed" with a date,
+    # but that requires UI we do not ship in the MVP.
+    access: str = "open"
+    # InvenioRDM resource-type vocabulary id (e.g. "publication-book",
+    # "image-photo", "dataset"). Defaults to "publication-other" for
+    # TEI editions which have no perfect match in the default vocabulary.
+    resource_type: str = "publication-other"
     related_identifier: str | None = None  # canonical public URL on Aracne2
     publisher: str | None = None
 
 
 def _split_authors(raw: str | None) -> list[str]:
-    """Split a free-text author field into individual names.
-
-    Accepts comma-separated ("Smith, J., Doe, J.") or semicolon-separated
-    ("Smith, J.; Doe, J.") inputs.  Returns the list with whitespace
-    stripped and empty entries removed.
-    """
+    """Split a free-text author field into individual names."""
     if not raw:
         return []
-    # Prefer ';' when present — it is less ambiguous than ',' with "Surname, Name"
-    # formatting.  Falls back to ',' for the classic comma-separated case.
     separator = ";" if ";" in raw else ","
     return [name.strip() for name in raw.split(separator) if name.strip()]
 
 
 def _resp_stmt_names(resp_stmts: list[dict[str, Any]] | None) -> list[str]:
-    """Extract TEI respStmt names as a flat list, preserving order.
-
-    Each entry in ``resp_stmts`` is ``{"resp": "...", "name": "..."}``.
-    We only care about the name for Zenodo — the responsibility phrase
-    (editor / curator / …) is not surfaced in the deposit metadata.
-    """
+    """Extract TEI respStmt names as a flat list, preserving order."""
     if not resp_stmts:
         return []
     names: list[str] = []
@@ -117,24 +111,42 @@ def _resp_stmt_names(resp_stmts: list[dict[str, Any]] | None) -> list[str]:
     return names
 
 
+def split_name(raw: str) -> tuple[str, str]:
+    """Heuristic split of a free-text name into ``(given, family)``.
+
+    InvenioRDM's personal-creator schema requires ``family_name``. Since
+    Aracne2 stores authors as a single free-text string we split by the
+    two most common conventions:
+
+    * ``"Last, First"``  →  ``(first.strip(), last.strip())``
+    * ``"First Middle Last"``  →  ``(first_middle, last)``
+
+    Single-token names are emitted as ``("", name)`` — the full string
+    becomes the family name, given name is empty. Zenodo accepts this.
+    """
+    raw = raw.strip()
+    if not raw:
+        return "", ""
+    if "," in raw:
+        last, first = raw.split(",", 1)
+        return first.strip(), last.strip()
+    tokens = raw.split()
+    if len(tokens) < 2:
+        return "", raw
+    return " ".join(tokens[:-1]), tokens[-1]
+
+
 def collection_to_metadata(
     *,
     collection: Collection,
     license_obj: License | None,
     public_base_url: str | None,
-    publication_type: str,
-    access_right: str,
+    resource_type: str,
+    access: str,
 ) -> DepositMetadata:
-    """Build a DepositMetadata from a Collection and its License.
-
-    ``public_base_url`` is the platform's canonical public origin
-    (``https://edition.example.org``).  When empty we simply omit the
-    related identifier — Zenodo accepts a deposit without it.
-    """
+    """Build a DepositMetadata from a Collection and its License."""
     authors: list[str] = _split_authors(collection.author)
     resp_names: list[str] = _resp_stmt_names(collection.resp_stmts)
-    # The primary author goes first; respStmt contributors follow as
-    # additional creators.  This mirrors how a TEI edition is typically cited.
     creator_names: list[str] = list(dict.fromkeys(authors + resp_names))
     creators = [Creator(name=n) for n in creator_names] or [
         Creator(name=collection.publisher or "Anonymous")
@@ -152,7 +164,7 @@ def collection_to_metadata(
     if public_base_url:
         related_identifier = f"{public_base_url.rstrip('/')}/browse/{collection.slug}"
 
-    license_slug = zenodo_license_slug(license_obj.target if license_obj else None)
+    license_id = zenodo_license_id(license_obj.target if license_obj else None)
 
     description = (
         collection.description
@@ -169,9 +181,9 @@ def collection_to_metadata(
         creators=creators,
         publication_date=pub_date,
         keywords=keywords,
-        license_slug=license_slug,
-        access_right=access_right,
-        publication_type=publication_type,
+        license_id=license_id,
+        access=access,
+        resource_type=resource_type,
         related_identifier=related_identifier,
         publisher=collection.publisher,
     )
@@ -180,49 +192,84 @@ def collection_to_metadata(
 # --- Zenodo-specific serialiser ------------------------------------------------
 
 
+def _creator_to_inveniordm(c: Creator) -> dict[str, Any]:
+    """Build one InvenioRDM creator entry from a free-text Creator."""
+    given, family = split_name(c.name)
+    person_or_org: dict[str, Any] = {
+        "type": "personal",
+        "family_name": family,
+    }
+    # InvenioRDM treats given_name as optional; omit when empty so the
+    # payload does not carry a semantically wrong empty string.
+    if given:
+        person_or_org["given_name"] = given
+    if c.orcid:
+        person_or_org["identifiers"] = [
+            {"scheme": "orcid", "identifier": c.orcid}
+        ]
+    entry: dict[str, Any] = {"person_or_org": person_or_org}
+    if c.affiliation:
+        entry["affiliations"] = [{"name": c.affiliation}]
+    return entry
+
+
 def to_zenodo_payload(
     meta: DepositMetadata,
     *,
-    community: str | None = None,
+    community: str | None = None,  # accepted for API parity; used post-publish
 ) -> dict[str, Any]:
-    """Serialise DepositMetadata into the JSON body Zenodo expects.
+    """Serialise DepositMetadata into the InvenioRDM records API body.
 
-    Reference: https://developers.zenodo.org/#representation
-    We intentionally populate only the fields Zenodo accepts unconditionally;
-    the deposit API tolerates unknown keys but we do not rely on it.
+    Reference: https://inveniordm.docs.cern.ch/reference/metadata/
+
+    Communities are attached post-publish via the review/submit flow, not
+    inline on the record body, so the ``community`` argument is accepted
+    for interface parity with the legacy implementation but not used here.
+    Leaving the parameter in place keeps caller code stable for when we
+    wire the community submit flow.
     """
-    creators_payload: list[dict[str, str]] = []
-    for c in meta.creators:
-        entry: dict[str, str] = {"name": c.name}
-        if c.orcid:
-            entry["orcid"] = c.orcid
-        if c.affiliation:
-            entry["affiliation"] = c.affiliation
-        creators_payload.append(entry)
-
+    # Access block — InvenioRDM gate is split into "record visibility"
+    # (who can see the landing page) and "files visibility" (who can
+    # download). For the MVP we keep them aligned.
+    access_is_public = meta.access == "open"
     body: dict[str, Any] = {
-        "upload_type": "publication",
-        "publication_type": meta.publication_type,
-        "title": meta.title,
-        "description": meta.description,
-        "creators": creators_payload,
-        "publication_date": meta.publication_date.isoformat(),
-        "access_right": meta.access_right,
+        "access": {
+            "record": "public" if access_is_public else "restricted",
+            "files": "public" if access_is_public else "restricted",
+        },
+        "files": {"enabled": True},
+        "metadata": {
+            "resource_type": {"id": meta.resource_type},
+            "title": meta.title,
+            "description": meta.description,
+            "publication_date": meta.publication_date.isoformat(),
+            "creators": [_creator_to_inveniordm(c) for c in meta.creators],
+        },
     }
+
+    if meta.publisher:
+        body["metadata"]["publisher"] = meta.publisher
+
     if meta.keywords:
-        body["keywords"] = list(meta.keywords)
-    if meta.license_slug and meta.access_right in {"open", "embargoed"}:
-        # Zenodo rejects 'license' for closed / restricted deposits.
-        body["license"] = meta.license_slug
+        body["metadata"]["subjects"] = [{"subject": k} for k in meta.keywords]
+
+    # Licenses are only meaningful for access=public; restricted records
+    # do not get a ``rights`` entry because the content is not
+    # redistributable as-is.
+    if meta.license_id and access_is_public:
+        body["metadata"]["rights"] = [{"id": meta.license_id}]
+
     if meta.related_identifier:
-        body["related_identifiers"] = [
+        body["metadata"]["related_identifiers"] = [
             {
                 "identifier": meta.related_identifier,
-                "relation": "isAlternateIdentifier",
-                "resource_type": "publication-other",
+                "scheme": "url",
+                "relation_type": {"id": "isalternateidentifierof"},
+                "resource_type": {"id": "publication-other"},
             }
         ]
-    if community:
-        body["communities"] = [{"identifier": community}]
 
-    return {"metadata": body}
+    # ``community`` intentionally unused here — see docstring.
+    _ = community
+
+    return body

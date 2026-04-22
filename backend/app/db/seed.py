@@ -85,14 +85,17 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # of an HTTP request context where the Request object is not available.
     # Example: "https://edition.example.org". Empty = plugin must derive it itself.
     ("public_base_url", "", "string"),
-    # Zenodo deposit plugin (non-native, opt-in). Seeded as empty / disabled so
-    # the plugin has sensible defaults before Admin fills them in.
+    # Zenodo deposit plugin (non-native, opt-in). Targets the new Zenodo
+    # (InvenioRDM) ``/api/records`` API. Seeded as empty / disabled so the
+    # plugin has sensible defaults before Admin fills them in.
     ("zenodo_api_token", "", "string"),
     ("zenodo_base_url", "https://sandbox.zenodo.org", "string"),
     ("zenodo_default_community", "", "string"),
     ("zenodo_auto_publish", "false", "bool"),
-    ("zenodo_access_right", "open", "string"),
-    ("zenodo_publication_type", "other", "string"),
+    # Simplified "record visibility" toggle — "open" or "restricted".
+    ("zenodo_access", "open", "string"),
+    # InvenioRDM resource-type vocabulary id (see /api/vocabularies/resourcetypes).
+    ("zenodo_resource_type", "publication-other", "string"),
 ]
 
 # Default Creative Commons licenses (name, target).

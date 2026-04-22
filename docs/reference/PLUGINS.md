@@ -639,24 +639,44 @@ activate them from `/admin/plugins`.
 | **Routes** | Yes — prefix `/plugins/zenodo-deposit` |
 | **Hooks** | `collection.published` |
 | **min_role** | Admin (config), EditorInChief (status / manual re-deposit) |
+| **External API** | Zenodo (InvenioRDM) `/api/records` |
 
 Deposits a published collection on [Zenodo](https://zenodo.org) — bundles the
 collection's TEI documents and metadata and returns a DOI when the
 `auto_publish` toggle is enabled (otherwise leaves the record as a draft for
 manual review on Zenodo).
 
+The plugin targets the **new Zenodo (InvenioRDM) API**, not the legacy
+`/api/deposit/depositions` endpoints. This yields a richer metadata model
+(creators split into given/family with ORCID + affiliations; live
+resource-type vocabulary; `rights` array referencing InvenioRDM's license
+vocabulary; structured `related_identifiers`).
+
+**Deposit flow:**
+1. `POST /api/records` — create draft with full InvenioRDM metadata.
+2. `POST /api/records/{id}/draft/files` — declare each filename.
+3. `PUT /api/records/{id}/draft/files/{key}/content` — stream the TEI bytes.
+4. `POST /api/records/{id}/draft/files/{key}/commit` — commit.
+5. If `zenodo_auto_publish=true`, `POST /api/records/{id}/draft/actions/publish`
+   mints the DOI; otherwise the record stays as a draft.
+
 Features:
 - Sandbox (`sandbox.zenodo.org`) and production endpoints, selected from the UI.
 - Fernet-encrypted API token stored as `zenodo_api_token` in `system_settings`
   (added to `SENSITIVE_KEYS`).
+- **Live resource-type vocabulary**: the config panel pulls Zenodo's
+  `GET /api/vocabularies/resourcetypes` via the proxied
+  `/plugins/zenodo-deposit/resource-types` endpoint and renders it as a
+  grouped dropdown ("Publication / Book", "Image / Photo", "Dataset", …).
+  Falls back to a hard-coded list when Zenodo is unreachable.
 - Per-collection deposit record stored in `plugin_data` (deposit id, DOI,
   record URL, status, submitted_at). Re-deposit is idempotent on failures
   and skipped on already-successful deposits unless forced.
 - Metadata is built by the plugin's own `mapping.py` module via a reusable
   `DepositMetadata` intermediate — so a future DataCite or HAL plugin can
   plug in a different serialiser without re-extracting from the ORM.
-- License SPDX slug mapped from the seeded Creative Commons licenses
-  (`cc-by-4.0`, `cc-by-sa-4.0`, `cc-zero`, …).
+- License vocabulary id mapped from the seeded Creative Commons licenses
+  (`cc-by-4.0`, `cc-by-sa-4.0`, `cc0-1.0`, …).
 
 **Endpoints:**
 
@@ -664,23 +684,34 @@ Features:
 |--------|------|-----|---------|
 | GET | `/plugins/zenodo-deposit/config` | Admin | Current non-sensitive config (token is never returned; only `token_set` bool) |
 | PUT | `/plugins/zenodo-deposit/config` | Admin | Partial update of any config field |
+| GET | `/plugins/zenodo-deposit/resource-types` | Admin | Proxied InvenioRDM resource-type vocabulary, normalised for the UI |
 | GET | `/plugins/zenodo-deposit/collections/{slug}/status` | EiC+ | Last deposit record for a collection, or `null` |
 | POST | `/plugins/zenodo-deposit/collections/{slug}/deposit` | EiC+ | Force a fresh deposit attempt |
 
-**Settings seeded by migration 0047:**
+**Settings:**
 
-- `zenodo_api_token` (sensitive) — personal access token
+- `zenodo_api_token` (sensitive) — personal access token with scopes
+  `deposit:actions` and `deposit:write`
 - `zenodo_base_url` — `https://sandbox.zenodo.org` or `https://zenodo.org`
 - `zenodo_default_community` — optional community slug
 - `zenodo_auto_publish` — bool
-- `zenodo_access_right` — `open` / `embargoed` / `restricted` / `closed`
-- `zenodo_publication_type` — `article` / `book` / `section` / `preprint` / `thesis` / `report` / `other`
+- `zenodo_access` — `open` / `restricted` (InvenioRDM access model; embargo
+  is not exposed in the MVP because it requires an `until` date UI)
+- `zenodo_resource_type` — InvenioRDM vocabulary id, default
+  `publication-other`
 - `public_base_url` — canonical public origin used to link each deposit back
   to the collection page on this site (also usable by other plugins)
 
+**Migrations:**
+- `0047_zenodo_deposit_settings.py` — seeds the initial rows
+- `0048_zenodo_rdm_migration.py` — renames `zenodo_publication_type` →
+  `zenodo_resource_type` (mapping legacy enum values to InvenioRDM
+  vocabulary ids) and `zenodo_access_right` → `zenodo_access` (folding
+  `embargoed`/`closed` into `restricted`).
+
 **Frontend:**
-- Config panel inside `/admin/plugins` (collapsible form; only shown when the
-  plugin is discovered).
+- Dedicated config page at `/admin/plugins/zenodo_deposit/config` (reached
+  via the "Configure" link in the plugins list).
 - A deposit badge next to the status pill in `/collections/:slug`, with a
   "Re-deposit on Zenodo" button for EditorInChief and above.
 

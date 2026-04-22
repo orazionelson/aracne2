@@ -1,18 +1,19 @@
 <script setup lang="ts">
 /**
- * Configuration panel for the Zenodo Deposit plugin.
+ * Configuration panel for the Zenodo Deposit plugin (InvenioRDM API).
  *
- * Rendered standalone under /admin/plugins/zenodo_deposit/config. The panel
- * fetches its own state from the store on mount; the parent view only has
- * to supply the page chrome (title, back link).
+ * Lives at /admin/plugins/zenodo_deposit/config. Fetches both the saved
+ * config and the live resource-type vocabulary from Zenodo on mount so
+ * the dropdown matches the authoritative list the deposit endpoint will
+ * accept.
  */
 
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   useZenodoStore,
-  type ZenodoAccessRight,
-  type ZenodoPublicationType,
+  type AccessMode,
+  type ResourceTypeOption,
 } from "@/stores/zenodo";
 
 const { t } = useI18n();
@@ -23,18 +24,39 @@ const draft = ref({
   base_url: "https://sandbox.zenodo.org" as "https://sandbox.zenodo.org" | "https://zenodo.org",
   default_community: "",
   auto_publish: false,
-  access_right: "open" as ZenodoAccessRight,
-  publication_type: "other" as ZenodoPublicationType,
+  access: "open" as AccessMode,
+  resource_type: "publication-other",
   public_base_url: "",
 });
 const loadError = ref<string | null>(null);
 const saveError = ref<string | null>(null);
 const saved = ref(false);
 
+// Resource types grouped for a <select> with <optgroup> rendering. We
+// preserve the order the backend returns (already sorted by group/label)
+// and split into an array of {group, options[]} tuples.
+const groupedResourceTypes = computed(() => {
+  const groups: Map<string, ResourceTypeOption[]> = new Map();
+  for (const opt of zenodoStore.resourceTypes) {
+    const bucket = groups.get(opt.group);
+    if (bucket) {
+      bucket.push(opt);
+    } else {
+      groups.set(opt.group, [opt]);
+    }
+  }
+  return Array.from(groups, ([group, options]) => ({ group, options }));
+});
+
 async function load(): Promise<void> {
   loadError.value = null;
   try {
-    await zenodoStore.fetchConfig();
+    await Promise.all([
+      zenodoStore.fetchConfig(),
+      zenodoStore.fetchResourceTypes().catch(() => {
+        /* fallback list still shows up via the backend */
+      }),
+    ]);
     const cfg = zenodoStore.config;
     if (cfg) {
       draft.value = {
@@ -42,15 +64,13 @@ async function load(): Promise<void> {
         base_url: (cfg.base_url as typeof draft.value.base_url) ?? "https://sandbox.zenodo.org",
         default_community: cfg.default_community ?? "",
         auto_publish: cfg.auto_publish,
-        access_right: cfg.access_right,
-        publication_type: cfg.publication_type,
+        access: cfg.access,
+        resource_type: cfg.resource_type || "publication-other",
         public_base_url: cfg.public_base_url ?? "",
       };
     }
   } catch (err) {
     const status = (err as { response?: { status?: number } })?.response?.status;
-    // 404 = router not mounted yet (plugin activated but backend not restarted).
-    // Surface an explicit, actionable message rather than the raw HTTP message.
     if (status === 404) {
       loadError.value = t("zenodo.restart_required");
     } else {
@@ -66,8 +86,6 @@ async function save(): Promise<void> {
   saved.value = false;
   try {
     const cfg = zenodoStore.config;
-    // Only send fields that actually changed, so an empty api_token draft
-    // does not wipe the stored token on save.
     const patch: Record<string, unknown> = {};
     if (draft.value.api_token) patch.api_token = draft.value.api_token;
     if (!cfg || draft.value.base_url !== cfg.base_url) patch.base_url = draft.value.base_url;
@@ -75,10 +93,9 @@ async function save(): Promise<void> {
       patch.default_community = draft.value.default_community;
     if (!cfg || draft.value.auto_publish !== cfg.auto_publish)
       patch.auto_publish = draft.value.auto_publish;
-    if (!cfg || draft.value.access_right !== cfg.access_right)
-      patch.access_right = draft.value.access_right;
-    if (!cfg || draft.value.publication_type !== cfg.publication_type)
-      patch.publication_type = draft.value.publication_type;
+    if (!cfg || draft.value.access !== cfg.access) patch.access = draft.value.access;
+    if (!cfg || draft.value.resource_type !== cfg.resource_type)
+      patch.resource_type = draft.value.resource_type;
     if (!cfg || draft.value.public_base_url !== cfg.public_base_url)
       patch.public_base_url = draft.value.public_base_url;
 
@@ -87,6 +104,8 @@ async function save(): Promise<void> {
       return;
     }
     await zenodoStore.updateConfig(patch);
+    // After saving a token, refetch the vocabulary too — the first call
+    // may have returned the fallback because no token was configured yet.
     await load();
     saved.value = true;
     setTimeout(() => {
@@ -194,38 +213,47 @@ onMounted(load);
           />
         </div>
 
-        <!-- Access right -->
+        <!-- Access mode -->
         <div>
           <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            {{ t("zenodo.access_right") }}
+            {{ t("zenodo.access") }}
           </label>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t("zenodo.access_hint") }}</p>
           <select
-            v-model="draft.access_right"
+            v-model="draft.access"
             class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
             <option value="open">{{ t("zenodo.access_open") }}</option>
-            <option value="embargoed">{{ t("zenodo.access_embargoed") }}</option>
             <option value="restricted">{{ t("zenodo.access_restricted") }}</option>
-            <option value="closed">{{ t("zenodo.access_closed") }}</option>
           </select>
         </div>
 
-        <!-- Publication type -->
+        <!-- Resource type (grouped, from live Zenodo vocabulary) -->
         <div>
           <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            {{ t("zenodo.publication_type") }}
+            {{ t("zenodo.resource_type") }}
           </label>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("zenodo.resource_type_hint") }}
+            <span v-if="zenodoStore.isLoadingResourceTypes" class="italic">
+              {{ t("common.loading") }}
+            </span>
+          </p>
           <select
-            v-model="draft.publication_type"
+            v-model="draft.resource_type"
             class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
-            <option value="article">{{ t("zenodo.pub_article") }}</option>
-            <option value="book">{{ t("zenodo.pub_book") }}</option>
-            <option value="section">{{ t("zenodo.pub_section") }}</option>
-            <option value="preprint">{{ t("zenodo.pub_preprint") }}</option>
-            <option value="thesis">{{ t("zenodo.pub_thesis") }}</option>
-            <option value="report">{{ t("zenodo.pub_report") }}</option>
-            <option value="other">{{ t("zenodo.pub_other") }}</option>
+            <optgroup
+              v-for="grp in groupedResourceTypes"
+              :key="grp.group"
+              :label="grp.group"
+            >
+              <option
+                v-for="opt in grp.options"
+                :key="opt.id"
+                :value="opt.id"
+              >{{ opt.label }}</option>
+            </optgroup>
           </select>
         </div>
 
