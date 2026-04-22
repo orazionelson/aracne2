@@ -167,3 +167,77 @@ async def test_get_public_document_not_found_returns_404(
             f"/api/v1/public/collections/{public_collection.slug}/documents/missing.xml"
         )
     assert res.status_code == 404
+
+
+# ── Document content negotiation (LOD.3c) ─────────────────────────────────────
+
+
+async def _get_public_document(
+    client: AsyncClient,
+    slug: str,
+    filename: str,
+    accept: str | None,
+) -> object:
+    """GET the document endpoint with a specific Accept header, patching
+    the existdb calls that the content-neg branch does NOT hit (the HTML
+    branch still needs them, so we patch both to be safe)."""
+    headers = {"accept": accept} if accept else None
+    minimal_tei = b"""<?xml version="1.0"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader><fileDesc><titleStmt><title>Test</title></titleStmt>
+  <publicationStmt><p>Test</p></publicationStmt>
+  <sourceDesc><p>Test</p></sourceDesc></fileDesc></teiHeader>
+  <text><body><div><p>Hello</p></div></body></text>
+</TEI>"""
+    with patch("app.services.public_view.existdb_client") as mock_db:
+        mock_db.get_document = AsyncMock(return_value=minimal_tei)
+        mock_db.xquery = AsyncMock(return_value=b"<docs/>")
+        mock_db.list_collection = AsyncMock(return_value=[filename])
+        mock_db.col_path = lambda slug: f"/db/aracne2/collections/{slug}"
+        return await client.get(
+            f"/api/v1/public/collections/{slug}/documents/{filename}",
+            headers=headers,
+        )
+
+
+@pytest.mark.asyncio
+async def test_document_default_accept_returns_html(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    """Existing behaviour preserved: default Accept still serves HTML
+    for the iframe."""
+    for accept in (None, "text/html", "*/*"):
+        res = await _get_public_document(
+            client, public_collection.slug, "test.xml", accept
+        )
+        assert res.status_code == 200, f"Accept={accept!r}"  # type: ignore[union-attr]
+        assert "text/html" in res.headers["content-type"]  # type: ignore[union-attr]
+
+
+@pytest.mark.asyncio
+async def test_document_accept_turtle_returns_turtle_with_isPartOf(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    res = await _get_public_document(
+        client, public_collection.slug, "test.xml", "text/turtle"
+    )
+    assert res.status_code == 200  # type: ignore[union-attr]
+    assert "text/turtle" in res.headers["content-type"]  # type: ignore[union-attr]
+    body = res.text  # type: ignore[union-attr]
+    # Spot-check: the collection URI appears as isPartOf of the document.
+    assert public_collection.slug in body
+    assert "isPartOf" in body or "schema:isPartOf" in body
+
+
+@pytest.mark.asyncio
+async def test_document_accept_json_ld_returns_json_ld(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    import json as _json
+
+    res = await _get_public_document(
+        client, public_collection.slug, "test.xml", "application/ld+json"
+    )
+    assert res.status_code == 200  # type: ignore[union-attr]
+    assert "application/ld+json" in res.headers["content-type"]  # type: ignore[union-attr]
+    _json.loads(res.text)  # type: ignore[union-attr]  # must parse

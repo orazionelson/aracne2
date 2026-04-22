@@ -11,9 +11,17 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.db.postgres import get_async_session
+from app.plugins._native.named_entities.models import EntityOccurrence, NamedEntity
 from app.services import media as media_svc
-from app.services.lod import collection_to_graph, negotiate_rdf, serialize_graph
+from app.services.lod import (
+    collection_to_graph,
+    document_to_graph,
+    negotiate_rdf,
+    serialize_graph,
+)
 from app.services.public_view import (
     get_public_collection,
     get_public_collection_detail,
@@ -75,17 +83,71 @@ async def public_collection_detail(
     return JSONResponse({"data": data.model_dump(mode="json")})
 
 
-@router.get("/collections/{slug}/documents/{filename}", response_class=HTMLResponse)
+@router.get("/collections/{slug}/documents/{filename}")
 async def public_document_render(
     slug: str,
     filename: str,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> HTMLResponse:
-    """Render a document to HTML via the built-in TEI XSLT stylesheet.
+) -> Response:
+    """Render a document (HTML by default) with RDF content negotiation.
 
-    Returns text/html directly so the frontend can embed it in an <iframe>.
-    No authentication required — the collection must be published and public.
+    Response shape picked from the Accept header:
+
+    - ``Accept: text/turtle`` / ``application/rdf+xml`` /
+      ``application/ld+json`` → document graph serialised in the
+      requested format. The graph includes the document's named
+      entities with ``schema:sameAs`` pointing to their Wikidata
+      (or VIAF / GeoNames) authority URIs when the editor has
+      resolved them via the LOD.1c sidebar.
+    - anything else → HTML rendered via the built-in TEI XSLT stylesheet,
+      served with ``Content-Type: text/html`` so the SPA can embed it
+      in an iframe unchanged.
     """
+    negotiated = negotiate_rdf(request.headers.get("accept"))
+    if negotiated is not None:
+        fmt, mime = negotiated
+        collection = await get_public_collection(db, slug)
+        # Document metadata — pulled from the collection detail only to
+        # resolve the document's title/author (the ORM Collection row
+        # does not know per-document titles).
+        detail = await get_public_collection_detail(db, slug)
+        doc_meta = next(
+            (d for d in detail.documents if d.filename == filename), None
+        )
+        # Entities referenced by this specific document (joined with the
+        # catalog so we get the canonical form and authority_ref).
+        stmt = (
+            select(NamedEntity)
+            .join(EntityOccurrence, EntityOccurrence.entity_id == NamedEntity.id)
+            .where(
+                EntityOccurrence.collection_id == collection.id,
+                EntityOccurrence.filename == filename,
+            )
+            .distinct()
+        )
+        entities = [
+            {
+                "type": e.type,
+                "canonical_form": e.canonical_form,
+                "authority_ref": e.authority_ref,
+            }
+            for e in await db.scalars(stmt)
+        ]
+        graph = document_to_graph(
+            base_url=_public_base_url(request),
+            slug=slug,
+            filename=filename,
+            document_title=doc_meta.title if doc_meta else None,
+            document_author=doc_meta.author if doc_meta else None,
+            collection_title=collection.title,
+            collection_author=collection.author,
+            collection_publisher=collection.publisher,
+            collection_pub_year=collection.pub_year,
+            entities=entities,
+        )
+        return Response(content=serialize_graph(graph, fmt), media_type=mime)
+
     html = await render_document_html(db, slug, filename)
     return HTMLResponse(content=html)
 

@@ -16,6 +16,7 @@ from app.services.lod import (
     SCHEMA,
     collection_to_graph,
     collection_uri,
+    document_to_graph,
     document_uri,
     negotiate_rdf,
     serialize_graph,
@@ -184,3 +185,109 @@ def test_negotiate_picks_first_match_in_header() -> None:
 
 def test_negotiate_is_case_insensitive() -> None:
     assert negotiate_rdf("TEXT/TURTLE") == ("turtle", "text/turtle")
+
+
+# ── Document graph ────────────────────────────────────────────────────────────
+
+
+def test_document_graph_has_core_triples_and_is_part_of_collection() -> None:
+    g = document_to_graph(
+        base_url=BASE,
+        slug="dante",
+        filename="inferno.xml",
+        document_title="Inferno",
+        collection_title="Divina Commedia",
+    )
+    d = document_uri(BASE, "dante", "inferno.xml")
+    c = collection_uri(BASE, "dante")
+    assert (d, RDF.type, SCHEMA.CreativeWork) in g
+    assert (d, SCHEMA.name, Literal("Inferno")) in g
+    assert (d, SCHEMA.identifier, Literal("inferno.xml")) in g
+    assert (d, SCHEMA.isPartOf, c) in g
+    # Parent collection materialised as a stub so the graph is self-contained.
+    assert (c, RDF.type, SCHEMA.CreativeWork) in g
+    assert (c, SCHEMA.name, Literal("Divina Commedia")) in g
+
+
+def test_document_graph_inherits_author_from_collection_when_document_has_none() -> None:
+    g = document_to_graph(
+        base_url=BASE,
+        slug="dante",
+        filename="inferno.xml",
+        collection_title="Divina Commedia",
+        collection_author="Dante Alighieri",
+    )
+    d = document_uri(BASE, "dante", "inferno.xml")
+    assert (d, DCTERMS.creator, Literal("Dante Alighieri")) in g
+
+
+def test_document_graph_prefers_document_author_over_collection() -> None:
+    g = document_to_graph(
+        base_url=BASE,
+        slug="lettere",
+        filename="ep_001.xml",
+        document_title="Lettera prima",
+        document_author="Niccolò Machiavelli",
+        collection_title="Lettere scelte",
+        collection_author="Editore",
+    )
+    d = document_uri(BASE, "lettere", "ep_001.xml")
+    # Exactly one dcterms:creator literal, and it is the document-level one.
+    creators = {str(o) for o in g.objects(d, DCTERMS.creator)}
+    assert creators == {"Niccolò Machiavelli"}
+
+
+def test_document_graph_emits_mentions_with_schema_class_per_entity_type() -> None:
+    g = document_to_graph(
+        base_url=BASE,
+        slug="dante",
+        filename="inferno.xml",
+        entities=[
+            {"type": "persName", "canonical_form": "Dante Alighieri",
+             "authority_ref": "http://www.wikidata.org/entity/Q1067"},
+            {"type": "placeName", "canonical_form": "Firenze", "authority_ref": None},
+            {"type": "orgName", "canonical_form": "Santa Croce", "authority_ref": ""},
+            {"type": "unknown", "canonical_form": "A thing", "authority_ref": None},
+        ],
+    )
+    d = document_uri(BASE, "dante", "inferno.xml")
+    mentioned = list(g.objects(d, SCHEMA.mentions))
+    assert len(mentioned) == 4
+    # Each mention has a schema.org type matching the TEI tag.
+    classes = {g.value(m, RDF.type) for m in mentioned}
+    assert SCHEMA.Person in classes
+    assert SCHEMA.Place in classes
+    assert SCHEMA.Organization in classes
+    # Fallback for unknown tag.
+    assert SCHEMA.Thing in classes
+
+
+def test_document_graph_links_entity_to_authority_via_sameAs() -> None:
+    wikidata = "http://www.wikidata.org/entity/Q1067"
+    g = document_to_graph(
+        base_url=BASE,
+        slug="dante",
+        filename="inferno.xml",
+        entities=[
+            {"type": "persName", "canonical_form": "Dante Alighieri",
+             "authority_ref": wikidata},
+        ],
+    )
+    d = document_uri(BASE, "dante", "inferno.xml")
+    (mention,) = list(g.objects(d, SCHEMA.mentions))
+    assert (mention, SCHEMA.sameAs, URIRef(wikidata)) in g
+
+
+def test_document_graph_skips_entities_missing_required_fields() -> None:
+    g = document_to_graph(
+        base_url=BASE,
+        slug="dante",
+        filename="inferno.xml",
+        entities=[
+            {"type": "persName"},  # no canonical_form
+            {"canonical_form": "Orphan"},  # no type
+            {"type": "persName", "canonical_form": ""},  # empty canonical_form
+        ],
+    )
+    d = document_uri(BASE, "dante", "inferno.xml")
+    assert list(g.objects(d, SCHEMA.mentions)) == []

@@ -141,6 +141,105 @@ def collection_to_graph(
     return g
 
 
+# ── Document-level graph ─────────────────────────────────────────────────────
+
+
+# Mapping from the TEI local element name stored in NamedEntity.type to the
+# schema.org class a consumer expects on a ``schema:mentions`` target. TEI
+# names outside this map fall back to ``schema:Thing`` — correct-but-generic.
+_ENTITY_TYPE_TO_SCHEMA: dict[str, URIRef] = {
+    "persName": SCHEMA.Person,
+    "placeName": SCHEMA.Place,
+    "orgName": SCHEMA.Organization,
+}
+
+
+def document_to_graph(
+    *,
+    base_url: str,
+    slug: str,
+    filename: str,
+    document_title: str | None = None,
+    document_author: str | None = None,
+    collection_title: str | None = None,
+    collection_author: str | None = None,
+    collection_publisher: str | None = None,
+    collection_pub_year: int | None = None,
+    entities: Iterable[Mapping[str, object]] | None = None,
+) -> Graph:
+    """Build an RDF graph for a single document.
+
+    Includes a compact re-statement of the parent collection's metadata
+    (``schema:isPartOf`` to a named CreativeWork, author/publisher/date
+    inherited when the document itself does not override them) so the
+    document graph is self-contained — a consumer that dereferences only
+    the document URI still gets enough context to cite.
+
+    *entities* iterates over mappings with keys ``type`` (TEI local name),
+    ``canonical_form`` (display label) and ``authority_ref`` (URI or
+    ``None``). Every entity becomes a blank-node ``schema:mentions``
+    target: ``persName`` → Person, ``placeName`` → Place, ``orgName`` →
+    Organization, anything else → Thing. When ``authority_ref`` is set —
+    typically a Wikidata URI inserted via the editor's LOD.1c panel —
+    it is attached as ``schema:sameAs`` so downstream harvesters can
+    bridge to Wikidata / VIAF / GeoNames.
+    """
+    g = Graph()
+    _bind_common(g)
+    d = document_uri(base_url, slug, filename)
+    c = collection_uri(base_url, slug)
+
+    g.add((d, RDF.type, SCHEMA.CreativeWork))
+    g.add((d, SCHEMA.identifier, Literal(filename)))
+    g.add((d, SCHEMA.url, d))
+    g.add((d, SCHEMA.isPartOf, c))
+
+    doc_name = document_title or filename
+    g.add((d, SCHEMA.name, Literal(doc_name)))
+    g.add((d, DCTERMS.title, Literal(doc_name)))
+
+    # Parent collection — keep minimal so the graph stays light; the full
+    # collection is available at its own canonical URI for consumers who
+    # want more.
+    if collection_title:
+        g.add((c, RDF.type, SCHEMA.CreativeWork))
+        g.add((c, SCHEMA.name, Literal(collection_title)))
+        g.add((c, DCTERMS.title, Literal(collection_title)))
+
+    author = document_author or collection_author
+    if author:
+        _add_person(g, d, author)
+    if collection_publisher:
+        _add_organization(g, d, collection_publisher)
+    if collection_pub_year is not None:
+        year_literal = Literal(str(collection_pub_year), datatype=XSD.gYear)
+        g.add((d, SCHEMA.datePublished, year_literal))
+        g.add((d, DCTERMS.issued, year_literal))
+
+    for entity in entities or []:
+        type_name = entity.get("type")
+        canonical = entity.get("canonical_form")
+        if not isinstance(type_name, str) or not isinstance(canonical, str):
+            continue
+        if not canonical:
+            continue
+        schema_class = _ENTITY_TYPE_TO_SCHEMA.get(type_name, SCHEMA.Thing)
+        node = BNode()
+        g.add((node, RDF.type, schema_class))
+        g.add((node, SCHEMA.name, Literal(canonical)))
+        authority_ref = entity.get("authority_ref")
+        if isinstance(authority_ref, str) and authority_ref:
+            # schema:sameAs is the canonical way to bridge a local entity
+            # representation to its authority-file URI (Wikidata Qxxx,
+            # VIAF, GeoNames, …). We intentionally keep the subject as a
+            # blank node so we do not implicitly claim the external URI
+            # as "our" entity.
+            g.add((node, SCHEMA.sameAs, URIRef(authority_ref)))
+        g.add((d, SCHEMA.mentions, node))
+
+    return g
+
+
 # ── Serialisation ─────────────────────────────────────────────────────────────
 
 # Mapping from the Accept-header mime type Aracne2 publishes to the rdflib
