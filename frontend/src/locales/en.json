@@ -63,6 +63,8 @@
     "backup": "Backup",
     "collapse_sidebar": "Collapse",
     "expand_sidebar": "Expand",
+    "theme_light": "Light mode",
+    "theme_dark": "Dark mode",
     "sections": {
       "content": "Content",
       "tools": "Tools",
@@ -162,6 +164,8 @@
     "ai_prompts_title": "Prompt library",
     "ai_no_prompts": "No prompts found.",
     "homepage_title": "Public Homepage",
+    "homepage_subtitle": "Look and behaviour of the public landing page. These settings do not affect the authenticated admin area.",
+    "homepage_section_behavior": "Behaviour",
     "homepage_public_home_enabled": "Enable public homepage",
     "homepage_public_home_enabled_hint": "Unauthenticated visitors can access the public home page",
     "homepage_show_collections": "Show collection list",

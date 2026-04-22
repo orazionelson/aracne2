@@ -63,6 +63,8 @@
     "backup": "Backup",
     "collapse_sidebar": "Riduci",
     "expand_sidebar": "Espandi",
+    "theme_light": "Tema chiaro",
+    "theme_dark": "Tema scuro",
     "sections": {
       "content": "Contenuti",
       "tools": "Strumenti",
@@ -162,6 +164,8 @@
     "ai_prompts_title": "Libreria prompt",
     "ai_no_prompts": "Nessun prompt trovato.",
     "homepage_title": "Homepage pubblica",
+    "homepage_subtitle": "Aspetto e comportamento della pagina pubblica. Queste impostazioni non influenzano l'area admin.",
+    "homepage_section_behavior": "Comportamento",
     "homepage_public_home_enabled": "Abilita homepage pubblica",
     "homepage_public_home_enabled_hint": "I visitatori non autenticati possono accedere alla homepage pubblica",
     "homepage_show_collections": "Mostra lista collezioni",

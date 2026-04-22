@@ -19,18 +19,23 @@ import {
   ChevronDownIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
+  SunIcon,
+  MoonIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
-import { useUiConfigStore } from "@/stores/ui_config";
 import { useUiStore, type SidebarSectionKey } from "@/stores/ui";
+
+// Fixed admin branding — not affected by uiConfig (which controls the public
+// face). The asset lives at frontend/public/aracne-logo.png.
+const ADMIN_LOGO_URL = "/aracne-logo.png";
+const ADMIN_PLATFORM_NAME = "Aracne2";
 
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const notif = useNotificationStore();
-const uiConfig = useUiConfigStore();
 const ui = useUiStore();
 
 onMounted(async () => {
@@ -126,6 +131,7 @@ const visibleSections = computed<NavSection[]>(() =>
 );
 
 const collapsed = computed(() => ui.isSidebarCollapsed);
+const isDark = computed(() => ui.theme === "dark");
 
 async function handleLogout(): Promise<void> {
   await auth.logout();
@@ -135,23 +141,21 @@ async function handleLogout(): Promise<void> {
 
 <template>
   <aside
-    class="flex flex-col text-white shrink-0 transition-[width] duration-200"
+    class="flex flex-col shrink-0 border-r border-gray-200 bg-white text-gray-800 transition-[width] duration-200 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
     :class="collapsed ? 'w-16' : 'w-60'"
-    :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
   >
     <!-- Brand -->
     <router-link
       to="/dashboard"
       class="flex h-14 items-center gap-2 px-4 font-bold tracking-tight hover:opacity-80"
-      :title="uiConfig.config.platform_name"
+      :title="ADMIN_PLATFORM_NAME"
     >
       <img
-        v-if="uiConfig.config.platform_logo_url"
-        :src="uiConfig.config.platform_logo_url"
-        alt="Logo"
+        :src="ADMIN_LOGO_URL"
+        alt="Aracne2"
         class="h-7 w-7 shrink-0 object-contain"
       />
-      <span v-if="!collapsed" class="truncate">{{ uiConfig.config.platform_name }}</span>
+      <span v-if="!collapsed" class="truncate">{{ ADMIN_PLATFORM_NAME }}</span>
     </router-link>
 
     <!-- Nav sections -->
@@ -160,7 +164,7 @@ async function handleLogout(): Promise<void> {
         <!-- Section header (hidden when collapsed) -->
         <button
           v-if="!collapsed"
-          class="flex w-full items-center justify-between px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-white/45 hover:text-white/80"
+          class="flex w-full items-center justify-between px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           @click="ui.toggleSection(section.key)"
         >
           <span>{{ t(section.labelKey) }}</span>
@@ -176,9 +180,9 @@ async function handleLogout(): Promise<void> {
             v-for="item in section.items"
             :key="item.labelKey"
             :to="item.to"
-            class="flex items-center gap-3 rounded px-2 py-1.5 text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            class="flex items-center gap-3 rounded px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
             :class="collapsed ? 'justify-center' : ''"
-            active-class="!text-white bg-white/10"
+            active-class="!text-indigo-700 bg-indigo-50 dark:!text-indigo-300 dark:bg-indigo-900/40"
             :title="collapsed ? t(item.labelKey) : undefined"
           >
             <component :is="item.icon" class="h-5 w-5 shrink-0" />
@@ -189,19 +193,19 @@ async function handleLogout(): Promise<void> {
     </nav>
 
     <!-- Account area (pinned to bottom) -->
-    <div class="border-t border-white/10 p-2">
+    <div class="border-t border-gray-200 p-2 dark:border-gray-800">
       <router-link
         to="/notifications"
-        class="relative flex items-center gap-3 rounded px-2 py-1.5 text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        class="relative flex items-center gap-3 rounded px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
         :class="collapsed ? 'justify-center' : ''"
-        active-class="!text-white bg-white/10"
+        active-class="!text-indigo-700 bg-indigo-50 dark:!text-indigo-300 dark:bg-indigo-900/40"
         :title="collapsed ? t('nav.notifications') : undefined"
       >
         <BellIcon class="h-5 w-5 shrink-0" />
         <span v-if="!collapsed" class="truncate">{{ t("nav.notifications") }}</span>
         <span
           v-if="notif.unreadCount > 0"
-          class="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium"
+          class="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white"
           :class="collapsed ? 'absolute right-1 top-1' : 'ml-auto'"
         >
           {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
@@ -210,20 +214,20 @@ async function handleLogout(): Promise<void> {
 
       <router-link
         to="/profile"
-        class="flex items-center gap-3 rounded px-2 py-1.5 text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        class="flex items-center gap-3 rounded px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
         :class="collapsed ? 'justify-center' : ''"
-        active-class="!text-white bg-white/10"
+        active-class="!text-indigo-700 bg-indigo-50 dark:!text-indigo-300 dark:bg-indigo-900/40"
         :title="collapsed ? (auth.user?.username ?? t('nav.profile')) : undefined"
       >
         <UserCircleIcon class="h-5 w-5 shrink-0" />
         <div v-if="!collapsed" class="min-w-0 flex-1">
           <div class="truncate text-sm leading-tight">{{ auth.user?.username }}</div>
-          <div class="truncate text-[11px] text-white/45 leading-tight">{{ auth.user?.role }}</div>
+          <div class="truncate text-[11px] leading-tight text-gray-400 dark:text-gray-500">{{ auth.user?.role }}</div>
         </div>
       </router-link>
 
       <button
-        class="mt-0.5 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        class="mt-0.5 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
         :class="collapsed ? 'justify-center' : ''"
         :title="collapsed ? t('auth.sign_out') : undefined"
         @click="handleLogout"
@@ -232,9 +236,23 @@ async function handleLogout(): Promise<void> {
         <span v-if="!collapsed" class="truncate">{{ t("auth.sign_out") }}</span>
       </button>
 
+      <!-- Theme toggle -->
+      <button
+        class="mt-1 flex w-full items-center gap-3 rounded px-2 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+        :class="collapsed ? 'justify-center' : ''"
+        :title="isDark ? t('nav.theme_light') : t('nav.theme_dark')"
+        @click="ui.toggleTheme()"
+      >
+        <SunIcon v-if="isDark" class="h-5 w-5 shrink-0" />
+        <MoonIcon v-else class="h-5 w-5 shrink-0" />
+        <span v-if="!collapsed" class="truncate">
+          {{ isDark ? t("nav.theme_light") : t("nav.theme_dark") }}
+        </span>
+      </button>
+
       <!-- Collapse toggle -->
       <button
-        class="mt-1 flex w-full items-center gap-3 rounded px-2 py-1.5 text-sm text-white/45 transition-colors hover:bg-white/10 hover:text-white/80"
+        class="mt-0.5 flex w-full items-center gap-3 rounded px-2 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
         :class="collapsed ? 'justify-center' : ''"
         :title="collapsed ? t('nav.expand_sidebar') : t('nav.collapse_sidebar')"
         @click="ui.toggleSidebar()"

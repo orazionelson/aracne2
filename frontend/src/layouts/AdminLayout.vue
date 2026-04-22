@@ -31,11 +31,7 @@ const showFooter = computed(() => !clipsOwnScroll.value);
 </script>
 
 <template>
-  <div
-    :class="[
-      'flex h-screen overflow-hidden',
-    ]"
-  >
+  <div class="flex h-screen overflow-hidden bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100">
     <AppSidebar />
 
     <div class="flex min-w-0 flex-1 flex-col">

@@ -38,38 +38,38 @@ async function handleLogin(): Promise<void> {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50">
-    <div class="w-full max-w-md bg-white rounded-xl shadow p-8">
-      <h1 class="text-2xl font-bold text-center mb-6">{{ t("auth.sign_in") }}</h1>
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <div class="w-full max-w-md bg-white rounded-xl shadow p-8 dark:bg-gray-800 dark:shadow-black/40">
+      <h1 class="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-gray-100">{{ t("auth.sign_in") }}</h1>
       <form @submit.prevent="handleLogin" novalidate>
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">{{ t("auth.username_or_email") }}</label>
+          <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{{ t("auth.username_or_email") }}</label>
           <input
             v-model="usernameOrEmail"
             type="text"
             required
             autocomplete="username"
-            class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2"
+            class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
           />
         </div>
         <div class="mb-6 relative">
-          <label class="block text-sm font-medium mb-1">{{ t("auth.password") }}</label>
+          <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{{ t("auth.password") }}</label>
           <input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             required
             autocomplete="current-password"
-            class="w-full border rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2"
+            class="w-full border rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 bg-white text-gray-900 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
           />
           <button
             type="button"
             @click="showPassword = !showPassword"
-            class="absolute right-3 top-8 text-gray-500 text-sm"
+            class="absolute right-3 top-8 text-gray-500 text-sm dark:text-gray-400"
           >
             {{ showPassword ? t("auth.hide_password") : t("auth.show_password") }}
           </button>
         </div>
-        <p v-if="errorMessage" class="text-red-600 text-sm mb-4">{{ errorMessage }}</p>
+        <p v-if="errorMessage" class="text-red-600 text-sm mb-4 dark:text-red-400">{{ errorMessage }}</p>
         <button
           type="submit"
           :disabled="isLoading"

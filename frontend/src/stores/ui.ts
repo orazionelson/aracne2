@@ -1,4 +1,4 @@
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { defineStore } from "pinia";
 import { useLocalStorage } from "@vueuse/core";
 
@@ -12,6 +12,8 @@ const DEFAULT_SECTIONS: SidebarSections = {
   tools: true,
   admin: true,
 };
+
+export type Theme = "light" | "dark";
 
 export const useUiStore = defineStore("ui", () => {
   // Persisted user preference for the sidebar collapsed state.
@@ -28,11 +30,24 @@ export const useUiStore = defineStore("ui", () => {
   // the collapsed strip regardless of the persisted user preference.
   const sidebarForceCollapsed = ref(false);
 
-  const theme = ref<"light" | "dark">("light");
+  // Persisted admin UI theme.
+  const theme = useLocalStorage<Theme>("aracne2.theme", "light");
 
   const isSidebarCollapsed = computed(
     () => sidebarForceCollapsed.value || sidebarCollapsed.value,
   );
+
+  // Apply or remove the `dark` class on <html> so Tailwind's class-based
+  // dark mode is active for every descendant.
+  function applyThemeClass(value: Theme): void {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (value === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+  }
+
+  applyThemeClass(theme.value);
+  watch(theme, (value) => applyThemeClass(value));
 
   function toggleSidebar(): void {
     // User-initiated toggle: clear any force flag so the manual preference wins.
@@ -51,7 +66,11 @@ export const useUiStore = defineStore("ui", () => {
     };
   }
 
-  function setTheme(value: "light" | "dark"): void {
+  function toggleTheme(): void {
+    theme.value = theme.value === "dark" ? "light" : "dark";
+  }
+
+  function setTheme(value: Theme): void {
     theme.value = value;
   }
 
@@ -64,6 +83,7 @@ export const useUiStore = defineStore("ui", () => {
     toggleSidebar,
     toggleSection,
     setSidebarForceCollapsed,
+    toggleTheme,
     setTheme,
   };
 });
