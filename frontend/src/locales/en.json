@@ -202,7 +202,11 @@
     "hint_ai_ollama_base_url": "Base URL of the Ollama server. Default http://ollama:11434 (bundled Compose service, enable with --profile ai-local). Use http://host.docker.internal:11434 to reach a host-installed Ollama from the backend container.",
     "hint_ai_ollama_model": "Ollama model id, e.g. llama3.1:8b, qwen2.5:7b, gemma2:9b. Pull it first with 'docker compose exec ollama ollama pull <model>'. No API key needed.",
     "hint_ai_max_requests_per_hour": "Per-user rate limit for AI requests.",
-    "hint_ai_privacy_warning_enabled": "When true, show users a warning before data is sent to the external AI provider."
+    "hint_ai_privacy_warning_enabled": "When true, show users a warning before data is sent to the external AI provider.",
+    "hint_ai_rag_enabled": "Master switch for semantic retrieval (RAG). When true, prompts that reference {rag_context} receive top-matching passages from the indexed corpus. Requires the ai-local Compose profile (pgvector + ollama with the embedding model pulled).",
+    "hint_ai_rag_top_k": "Number of chunks retrieved per query. Typical: 3–10. Higher values give more context but waste tokens on marginal matches.",
+    "hint_ai_rag_context_tokens": "Approximate token budget reserved for the retrieved context slice of the prompt (chars / 4 heuristic). Chunks are truncated once the budget is reached.",
+    "hint_ai_rag_embedding_model": "Ollama tag used to compute embeddings. Default bge-m3 (multilingual, 1024-dim). Pull once with 'docker compose exec ollama ollama pull bge-m3'. Changing the model requires re-indexing the corpus."
   },
   "plugins": {
     "title": "Plugins",

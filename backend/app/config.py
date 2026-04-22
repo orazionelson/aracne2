@@ -30,6 +30,24 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
+    # pgvector — optional vector store used for RAG. When pgvector_host is empty
+    # the backend skips all RAG machinery gracefully (no engine, no retrieval).
+    pgvector_host: str = ""
+    pgvector_port: int = 5432
+    pgvector_db: str = "aracne2_vectors"
+    pgvector_user: str = "aracne2"
+    pgvector_password: str = ""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def pgvector_url(self) -> str | None:
+        if not self.pgvector_host:
+            return None
+        return (
+            f"postgresql+asyncpg://{self.pgvector_user}:{self.pgvector_password}"
+            f"@{self.pgvector_host}:{self.pgvector_port}/{self.pgvector_db}"
+        )
+
     # eXist-db
     existdb_url: str
     existdb_user: str

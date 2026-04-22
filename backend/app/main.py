@@ -79,6 +79,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         structlog.get_logger().warning("plugin_loader_failed", error=str(exc))
 
+    # pgvector — ensure extension and RAG tables. Lazy + non-fatal: when
+    # the pgvector service is not configured or unreachable, RAG silently
+    # becomes unavailable at the service layer.
+    try:
+        from app.db.pgvector import ensure_schema as ensure_pgvector_schema
+
+        await ensure_pgvector_schema()
+    except Exception as exc:
+        structlog.get_logger().warning("pgvector_bootstrap_failed", error=str(exc))
+
     # Ensure required filesystem directories exist.
     settings.websites_root.mkdir(parents=True, exist_ok=True)
     settings.search_engines_root.mkdir(parents=True, exist_ok=True)

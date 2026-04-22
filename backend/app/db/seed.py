@@ -66,6 +66,15 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("ai_ollama_model", "llama3.1:8b", "string"),
     ("ai_max_requests_per_hour", "20", "int"),
     ("ai_privacy_warning_enabled", "false", "bool"),
+    # RAG — optional semantic retrieval on top of the AI prompts.
+    ("ai_rag_enabled", "false", "bool"),
+    ("ai_rag_top_k", "5", "int"),
+    # Target token budget for the retrieved context slice of the prompt.
+    # Rough approximation: 4 characters per token.
+    ("ai_rag_context_tokens", "1500", "int"),
+    # Ollama tag used to compute embeddings. Must be pulled once with
+    # `docker compose exec ollama ollama pull <tag>`. Default: bge-m3 (1024-dim).
+    ("ai_rag_embedding_model", "bge-m3", "string"),
     # Dynamic/Hybrid website caching
     ("dynamic_cache_ttl", "300", "int"),
     # Named entity index: TEI tag names to extract (JSON array of strings).
