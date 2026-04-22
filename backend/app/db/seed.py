@@ -80,6 +80,19 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # Named entity index: TEI tag names to extract (JSON array of strings).
     # The tag name is used directly as the entity type stored in the DB.
     ("entity_index_tags", '["persName","placeName","orgName"]', "string"),
+    # Canonical public base URL (origin, no trailing slash). Used by non-native
+    # plugins (Zenodo deposit, sitemap, …) when they need to emit URLs outside
+    # of an HTTP request context where the Request object is not available.
+    # Example: "https://edition.example.org". Empty = plugin must derive it itself.
+    ("public_base_url", "", "string"),
+    # Zenodo deposit plugin (non-native, opt-in). Seeded as empty / disabled so
+    # the plugin has sensible defaults before Admin fills them in.
+    ("zenodo_api_token", "", "string"),
+    ("zenodo_base_url", "https://sandbox.zenodo.org", "string"),
+    ("zenodo_default_community", "", "string"),
+    ("zenodo_auto_publish", "false", "bool"),
+    ("zenodo_access_right", "open", "string"),
+    ("zenodo_publication_type", "other", "string"),
 ]
 
 # Default Creative Commons licenses (name, target).

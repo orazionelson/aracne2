@@ -12,6 +12,7 @@ import { useLicenseStore } from "@/stores/licenses";
 import { useCollectionValidationStore } from "@/stores/collection_validation";
 import { useAiStore } from "@/stores/ai";
 import { useSettingStore } from "@/stores/settings";
+import { useZenodoStore, type DepositStatus } from "@/stores/zenodo";
 import AiPanel from "@/components/AiPanel.vue";
 import {
   EyeIcon,
@@ -31,6 +32,11 @@ const bodyTemplateStore = useBodyTemplateStore();
 const validationStore = useCollectionValidationStore();
 const aiStore = useAiStore();
 const settingStore = useSettingStore();
+const zenodoStore = useZenodoStore();
+
+const zenodoStatus = ref<DepositStatus | null>(null);
+const isForcingDeposit = ref(false);
+const zenodoDepositError = ref<string | null>(null);
 
 // ── AI panel per-document ─────────────────────────────────────────────────────
 const aiDocFilename = ref<string | null>(null);
@@ -641,6 +647,7 @@ onMounted(async () => {
       tasks.push(validationStore.fetchLatest(slug));
       tasks.push(aiStore.fetchConfig().catch(() => { /* non-fatal */ }));
       tasks.push(store.listBibliographies(slug).catch(() => { /* non-fatal */ }));
+      tasks.push(loadZenodoStatus());
     }
     await Promise.all(tasks);
   } catch {
@@ -649,6 +656,31 @@ onMounted(async () => {
     isLoading.value = false;
   }
 });
+
+// Zenodo deposit status — only fetched for EiC+ since it mutates plugin_data
+// and is not relevant to read-only users. Errors are silent: a 404 just means
+// the plugin is not installed or the collection was never deposited.
+async function loadZenodoStatus(): Promise<void> {
+  try {
+    zenodoStatus.value = await zenodoStore.fetchStatus(slug);
+  } catch {
+    zenodoStatus.value = null;
+  }
+}
+
+async function forceZenodoDeposit(): Promise<void> {
+  zenodoDepositError.value = null;
+  isForcingDeposit.value = true;
+  try {
+    zenodoStatus.value = await zenodoStore.forceDeposit(slug);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    zenodoDepositError.value = msg ?? t("common.error");
+  } finally {
+    isForcingDeposit.value = false;
+  }
+}
 
 function statusClass(s: string): string {
   const map: Record<string, string> = {
@@ -688,6 +720,56 @@ function statusClass(s: string): string {
             </span>
             <span v-if="store.current.is_public" class="text-xs text-gray-400 dark:text-gray-500">
               {{ t("collections.public_badge") }}
+            </span>
+            <!-- Zenodo deposit badge (EiC+ only, shown when a deposit record exists) -->
+            <a
+              v-if="zenodoStatus && zenodoStatus.status === 'published' && zenodoStatus.record_url"
+              :href="zenodoStatus.record_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/50"
+              :title="t('zenodo.badge_published_hint')"
+            >
+              {{ zenodoStatus.doi ? `DOI: ${zenodoStatus.doi}` : t("zenodo.badge_published") }}
+            </a>
+            <a
+              v-else-if="zenodoStatus && zenodoStatus.status === 'draft' && zenodoStatus.record_url"
+              :href="zenodoStatus.record_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+              :title="t('zenodo.badge_draft_hint')"
+            >
+              {{ t("zenodo.badge_draft") }}
+            </a>
+            <span
+              v-else-if="zenodoStatus && zenodoStatus.status === 'failed'"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-300"
+              :title="zenodoStatus.error ?? t('zenodo.badge_failed_hint')"
+            >
+              {{ t("zenodo.badge_failed") }}
+            </span>
+          </div>
+          <div
+            v-if="auth.hasMinRole('EditorInChief') && store.current.status === 'published'"
+            class="mt-1 flex items-center gap-2"
+          >
+            <button
+              :disabled="isForcingDeposit"
+              class="text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+              @click="forceZenodoDeposit"
+            >
+              {{
+                zenodoStatus
+                  ? t("zenodo.redeposit_btn")
+                  : t("zenodo.deposit_btn")
+              }}
+            </button>
+            <span v-if="isForcingDeposit" class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t("zenodo.working") }}
+            </span>
+            <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
+              {{ zenodoDepositError }}
             </span>
           </div>
           <p class="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">{{ store.current.slug }}</p>

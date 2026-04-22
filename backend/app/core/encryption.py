@@ -22,6 +22,7 @@ SENSITIVE_KEYS: frozenset[str] = frozenset(
         "ai_openai_api_key",
         "ai_anthropic_api_key",
         "ai_gemini_api_key",
+        "zenodo_api_token",
     }
 )
 
