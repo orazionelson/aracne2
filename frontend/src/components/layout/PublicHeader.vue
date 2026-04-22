@@ -3,16 +3,19 @@ import { useI18n } from "vue-i18n";
 import { ArrowRightOnRectangleIcon } from "@heroicons/vue/24/outline";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { useAuthStore } from "@/stores/auth";
+import { useNavbarColors } from "@/composables/useNavbarColors";
 
 const { t } = useI18n();
 const uiConfig = useUiConfigStore();
 const auth = useAuthStore();
+// Text colour auto-picked (WCAG) against the admin-configured background.
+const { bg, text } = useNavbarColors();
 </script>
 
 <template>
   <header
-    class="flex h-14 items-center gap-4 px-4 text-white"
-    :style="{ backgroundColor: uiConfig.config.navbar_bg_color }"
+    class="flex h-14 items-center gap-4 px-4"
+    :style="{ backgroundColor: bg, color: text }"
   >
     <router-link
       to="/"
@@ -31,14 +34,14 @@ const auth = useAuthStore();
       <router-link
         v-if="auth.isAuthenticated"
         to="/dashboard"
-        class="rounded px-3 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        class="rounded px-3 py-1.5 opacity-80 transition-colors hover:bg-black/10 hover:opacity-100"
       >
         {{ t("nav.dashboard") }}
       </router-link>
       <router-link
         v-else-if="uiConfig.config.home_show_login_button"
         to="/login"
-        class="flex items-center gap-1.5 rounded px-3 py-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        class="flex items-center gap-1.5 rounded px-3 py-1.5 opacity-80 transition-colors hover:bg-black/10 hover:opacity-100"
       >
         <ArrowRightOnRectangleIcon class="h-4 w-4 shrink-0" />
         {{ t("auth.sign_in") }}

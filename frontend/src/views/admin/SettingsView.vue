@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { apiClient } from "@/services/api";
+import { contrastingTextColor } from "@/utils/color";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
@@ -378,6 +379,9 @@ const uploadLogoError = ref("");
 
 const currentLogoUrl = computed(() => settingStore.getSetting("platform_logo_url") ?? "");
 const currentNavbarColor = computed(() => settingStore.getSetting("navbar_bg_color") ?? "#1e40af");
+// Auto-picked text colour for the live preview — mirrors what the public
+// header will actually render via useNavbarColors().
+const previewTextColor = computed(() => contrastingTextColor(currentNavbarColor.value));
 
 // Draft for the color picker / hex input. Kept in sync with the saved
 // value so the controls reflect the current setting on first render and
@@ -1922,8 +1926,8 @@ onMounted(async () => {
         <div class="mt-5">
           <p class="mb-2 text-xs text-gray-500">{{ t("settings.appearance_color_preview") }}</p>
           <div
-            class="flex h-12 items-center gap-3 rounded px-4 text-white"
-            :style="{ backgroundColor: currentNavbarColor }"
+            class="flex h-12 items-center gap-3 rounded px-4"
+            :style="{ backgroundColor: currentNavbarColor, color: previewTextColor }"
           >
             <img
               v-if="currentLogoUrl"
