@@ -178,8 +178,8 @@ function statusLabel(wh: WebhookEndpoint): string {
   <div class="p-6">
     <div class="mb-6 flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-bold text-gray-900">{{ t("webhooks.title") }}</h1>
-        <p class="mt-1 text-sm text-gray-500">{{ t("webhooks.subtitle") }}</p>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ t("webhooks.title") }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t("webhooks.subtitle") }}</p>
       </div>
       <button
         class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
@@ -189,37 +189,37 @@ function statusLabel(wh: WebhookEndpoint): string {
       </button>
     </div>
 
-    <p v-if="error" class="mb-4 text-sm text-red-600">{{ error }}</p>
-    <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
+    <p v-if="error" class="mb-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+    <p v-if="isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
 
     <!-- Webhook list -->
     <div v-if="!isLoading" class="space-y-3">
-      <p v-if="webhooks.length === 0" class="text-sm text-gray-500">
+      <p v-if="webhooks.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
         {{ t("webhooks.empty") }}
       </p>
 
       <div
         v-for="wh in webhooks"
         :key="wh.id"
-        class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+        class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
       >
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="font-medium text-gray-900">{{ wh.label }}</span>
+              <span class="font-medium text-gray-900 dark:text-gray-100">{{ wh.label }}</span>
               <span
                 class="rounded px-1.5 py-0.5 text-xs font-medium"
-                :class="wh.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                :class="wh.active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
               >
                 {{ wh.active ? t("webhooks.active") : t("webhooks.inactive") }}
               </span>
             </div>
-            <p class="mt-0.5 truncate font-mono text-xs text-gray-500">{{ wh.url }}</p>
+            <p class="mt-0.5 truncate font-mono text-xs text-gray-500 dark:text-gray-400">{{ wh.url }}</p>
             <div class="mt-1.5 flex flex-wrap gap-1">
               <span
                 v-for="ev in wh.events"
                 :key="ev"
-                class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700"
+                class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
               >
                 {{ ev }}
               </span>
@@ -227,7 +227,7 @@ function statusLabel(wh: WebhookEndpoint): string {
             <div class="mt-1.5 flex items-center gap-1 text-xs" :class="statusColor(wh)">
               <span>{{ t("webhooks.last_delivery") }}:</span>
               <span>{{ statusLabel(wh) }}</span>
-              <span v-if="wh.last_triggered_at" class="text-gray-400">
+              <span v-if="wh.last_triggered_at" class="text-gray-400 dark:text-gray-500">
                 · {{ new Date(wh.last_triggered_at).toLocaleString() }}
               </span>
             </div>
@@ -236,19 +236,19 @@ function statusLabel(wh: WebhookEndpoint): string {
           <div class="flex shrink-0 items-center gap-2">
             <button
               :disabled="testingId === wh.id"
-              class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
               @click="testWebhook(wh.id)"
             >
               {{ testingId === wh.id ? t("common.loading") : t("webhooks.test") }}
             </button>
             <button
-              class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              class="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
               @click="openEdit(wh)"
             >
               {{ t("common.edit") }}
             </button>
             <button
-              class="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
+              class="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/30"
               @click="deleteWebhook(wh.id)"
             >
               {{ t("common.delete") }}

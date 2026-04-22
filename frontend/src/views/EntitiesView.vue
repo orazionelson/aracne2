@@ -137,8 +137,8 @@ function typeLabel(type: EntityType): string {
     <!-- Header -->
     <div class="mb-6 flex items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">{{ t("entities.title") }}</h1>
-        <p class="mt-1 text-sm text-gray-500">{{ t("entities.subtitle") }}</p>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("entities.title") }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t("entities.subtitle") }}</p>
       </div>
       <button
         v-if="isAdmin"
@@ -153,7 +153,7 @@ function typeLabel(type: EntityType): string {
     <div class="mb-5 flex flex-wrap items-center gap-3">
       <select
         v-model="filterType"
-        class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+        class="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
       >
         <option value="">{{ t("entities.type_all") }}</option>
         <option value="person">{{ t("entities.type_person") }}</option>
@@ -164,7 +164,7 @@ function typeLabel(type: EntityType): string {
         v-model="filterQ"
         type="text"
         :placeholder="t('entities.search_placeholder')"
-        class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+        class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
         @keydown="onSearchKeydown"
       />
       <button
@@ -175,18 +175,18 @@ function typeLabel(type: EntityType): string {
       </button>
     </div>
 
-    <p v-if="error" class="mb-3 text-sm text-red-600">{{ error }}</p>
-    <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>
+    <p v-if="error" class="mb-3 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+    <p v-if="isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
 
     <!-- Entity list -->
     <div v-if="!isLoading" class="space-y-2">
-      <p v-if="entities.length === 0" class="text-sm text-gray-500">{{ t("entities.empty") }}</p>
+      <p v-if="entities.length === 0" class="text-sm text-gray-500 dark:text-gray-400">{{ t("entities.empty") }}</p>
 
       <template v-for="entity in entities" :key="entity.id">
         <!-- Entity row -->
         <div
-          class="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
-          :class="selectedEntity?.id === entity.id ? 'border-indigo-300 ring-1 ring-indigo-200' : ''"
+          class="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50/30 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/20"
+          :class="selectedEntity?.id === entity.id ? 'border-indigo-300 ring-1 ring-indigo-200 dark:border-indigo-600 dark:ring-indigo-700' : ''"
           @click="openOccurrences(entity)"
         >
           <div class="min-w-0 flex-1">
@@ -197,14 +197,14 @@ function typeLabel(type: EntityType): string {
               >
                 {{ typeLabel(entity.type) }}
               </span>
-              <span class="truncate font-medium text-gray-900">{{ entity.canonical_form }}</span>
-              <span class="shrink-0 text-xs text-gray-400">
+              <span class="truncate font-medium text-gray-900 dark:text-gray-100">{{ entity.canonical_form }}</span>
+              <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
                 {{ t("entities.occurrences", { n: entity.occurrence_count }) }}
               </span>
             </div>
             <div
               v-if="entity.authority_ref"
-              class="mt-0.5 truncate font-mono text-xs text-indigo-600"
+              class="mt-0.5 truncate font-mono text-xs text-indigo-600 dark:text-indigo-400"
             >
               <a
                 :href="entity.authority_ref"
@@ -217,7 +217,7 @@ function typeLabel(type: EntityType): string {
               </a>
             </div>
           </div>
-          <span class="shrink-0 text-xs text-gray-400">
+          <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
             {{ selectedEntity?.id === entity.id ? "▲" : "▼" }}
           </span>
         </div>
@@ -225,17 +225,17 @@ function typeLabel(type: EntityType): string {
         <!-- Inline occurrences panel (shown below the selected entity) -->
         <div
           v-if="selectedEntity?.id === entity.id"
-          class="rounded-xl border border-indigo-200 bg-indigo-50 p-4"
+          class="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-900/30"
         >
-          <h2 class="mb-3 text-sm font-semibold text-indigo-800">
+          <h2 class="mb-3 text-sm font-semibold text-indigo-800 dark:text-indigo-200">
             {{ t("entities.occurrences_title") }} —
             <span class="font-normal">{{ entity.canonical_form }}</span>
           </h2>
 
-          <p v-if="isLoadingOccurrences" class="text-xs text-gray-500">
+          <p v-if="isLoadingOccurrences" class="text-xs text-gray-500 dark:text-gray-400">
             {{ t("common.loading") }}
           </p>
-          <p v-else-if="occurrences.length === 0" class="text-xs text-gray-500">
+          <p v-else-if="occurrences.length === 0" class="text-xs text-gray-500 dark:text-gray-400">
             {{ t("entities.occurrences_empty") }}
           </p>
 
@@ -243,12 +243,12 @@ function typeLabel(type: EntityType): string {
             <div
               v-for="occ in occurrences"
               :key="occ.id"
-              class="rounded border border-indigo-100 bg-white p-3 text-xs"
+              class="rounded border border-indigo-100 bg-white p-3 text-xs dark:border-indigo-800 dark:bg-gray-800"
             >
               <div class="flex items-start justify-between gap-2">
                 <div>
-                  <span class="font-medium text-indigo-700">{{ occ.raw_form }}</span>
-                  <span class="ml-2 text-gray-400">
+                  <span class="font-medium text-indigo-700 dark:text-indigo-300">{{ occ.raw_form }}</span>
+                  <span class="ml-2 text-gray-400 dark:text-gray-500">
                     {{
                       t("entities.occurrences_in", {
                         collection: occ.collection_title,
@@ -262,13 +262,13 @@ function typeLabel(type: EntityType): string {
                     name: 'public-document',
                     params: { slug: occ.collection_slug, filename: occ.filename },
                   }"
-                  class="shrink-0 text-indigo-600 hover:underline"
+                  class="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
                   target="_blank"
                 >
                   {{ t("entities.view_in_doc") }}
                 </router-link>
               </div>
-              <p v-if="occ.context" class="mt-1 italic text-gray-500">"{{ occ.context }}"</p>
+              <p v-if="occ.context" class="mt-1 italic text-gray-500 dark:text-gray-400">"{{ occ.context }}"</p>
             </div>
 
             <!-- Occurrences pagination -->
@@ -278,7 +278,7 @@ function typeLabel(type: EntityType): string {
             >
               <button
                 :disabled="occurrencesPagination.page <= 1"
-                class="rounded border px-2 py-0.5 disabled:opacity-40"
+                class="rounded border border-gray-300 px-2 py-0.5 disabled:opacity-40 dark:border-gray-700"
                 @click.stop="fetchOccurrences(entity.id, occurrencesPagination.page - 1)"
               >
                 ←
@@ -286,7 +286,7 @@ function typeLabel(type: EntityType): string {
               <span>{{ occurrencesPagination.page }} / {{ occurrencesPagination.total_pages }}</span>
               <button
                 :disabled="occurrencesPagination.page >= occurrencesPagination.total_pages"
-                class="rounded border px-2 py-0.5 disabled:opacity-40"
+                class="rounded border border-gray-300 px-2 py-0.5 disabled:opacity-40 dark:border-gray-700"
                 @click.stop="fetchOccurrences(entity.id, occurrencesPagination.page + 1)"
               >
                 →
@@ -303,15 +303,15 @@ function typeLabel(type: EntityType): string {
       >
         <button
           :disabled="pagination.page <= 1"
-          class="rounded border px-3 py-1 disabled:opacity-40"
+          class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
           @click="fetchEntities(pagination.page - 1)"
         >
           ←
         </button>
-        <span class="text-gray-600">{{ pagination.page }} / {{ pagination.total_pages }}</span>
+        <span class="text-gray-600 dark:text-gray-300">{{ pagination.page }} / {{ pagination.total_pages }}</span>
         <button
           :disabled="pagination.page >= pagination.total_pages"
-          class="rounded border px-3 py-1 disabled:opacity-40"
+          class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
           @click="fetchEntities(pagination.page + 1)"
         >
           →

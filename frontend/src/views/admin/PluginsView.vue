@@ -63,23 +63,23 @@ onMounted(load);
 <template>
   <div class="mx-auto max-w-5xl p-6">
     <!-- Header -->
-    <h1 class="mb-2 text-2xl font-bold">{{ t("plugins.title") }}</h1>
-    <p class="mb-6 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-4 py-2">
+    <h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("plugins.title") }}</h1>
+    <p class="mb-6 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-4 py-2 dark:text-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
       {{ t("plugins.restart_notice") }}
     </p>
 
     <!-- Errors -->
-    <p v-if="error" class="mb-4 text-red-600">{{ error }}</p>
-    <p v-if="actionError" class="mb-4 text-red-600">{{ actionError }}</p>
+    <p v-if="error" class="mb-4 text-red-600 dark:text-red-400">{{ error }}</p>
+    <p v-if="actionError" class="mb-4 text-red-600 dark:text-red-400">{{ actionError }}</p>
 
     <!-- Loading -->
-    <p v-if="pluginStore.isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
+    <p v-if="pluginStore.isLoading" class="text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
 
     <!-- Table -->
-    <div v-else-if="pluginStore.plugins.length > 0" class="overflow-x-auto">
+    <div v-else-if="pluginStore.plugins.length > 0" class="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table class="w-full border-collapse text-sm">
         <thead>
-          <tr class="bg-gray-100 text-left">
+          <tr class="bg-gray-100 text-left text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <th class="px-4 py-2 font-semibold">{{ t("plugins.name") }}</th>
             <th class="px-4 py-2 font-semibold">{{ t("plugins.version") }}</th>
             <th class="px-4 py-2 font-semibold">{{ t("plugins.author") }}</th>
@@ -87,32 +87,32 @@ onMounted(load);
             <th class="px-4 py-2 font-semibold"></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody class="bg-white dark:bg-gray-900">
           <tr
             v-for="plugin in pluginStore.plugins"
             :key="plugin.name"
-            class="border-b hover:bg-gray-50"
+            class="border-t border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
           >
             <td class="px-4 py-3">
-              <div class="font-medium">{{ plugin.display_name }}</div>
-              <div v-if="plugin.description" class="text-xs text-gray-500 mt-0.5">
+              <div class="font-medium text-gray-900 dark:text-gray-100">{{ plugin.display_name }}</div>
+              <div v-if="plugin.description" class="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
                 {{ plugin.description }}
               </div>
               <span
                 v-if="plugin.is_native"
-                class="mt-1 inline-block rounded bg-gray-800 px-1.5 py-0.5 text-xs text-white"
+                class="mt-1 inline-block rounded bg-gray-800 px-1.5 py-0.5 text-xs text-white dark:bg-gray-700"
               >
                 {{ t("plugins.native_badge") }}
               </span>
             </td>
-            <td class="px-4 py-3 text-gray-500">{{ plugin.version ?? "—" }}</td>
-            <td class="px-4 py-3 text-gray-500">{{ plugin.author ?? "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ plugin.version ?? "—" }}</td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ plugin.author ?? "—" }}</td>
             <td class="px-4 py-3">
               <span
                 :class="{
-                  'text-green-600': plugin.status === 'active',
-                  'text-gray-400': plugin.status === 'inactive',
-                  'text-red-600': plugin.status === 'error',
+                  'text-green-600 dark:text-green-400': plugin.status === 'active',
+                  'text-gray-400 dark:text-gray-500': plugin.status === 'inactive',
+                  'text-red-600 dark:text-red-400': plugin.status === 'error',
                 }"
               >
                 {{
@@ -128,21 +128,21 @@ onMounted(load);
               <div v-if="!plugin.is_native" class="flex gap-3">
                 <button
                   v-if="plugin.status !== 'active'"
-                  class="text-sm text-blue-600 hover:underline"
+                  class="text-sm text-blue-600 hover:underline dark:text-blue-400"
                   @click="handleActivate(plugin.name)"
                 >
                   {{ t("plugins.activate") }}
                 </button>
                 <button
                   v-if="plugin.status === 'active'"
-                  class="text-sm text-orange-600 hover:underline"
+                  class="text-sm text-orange-600 hover:underline dark:text-orange-400"
                   @click="askConfirm(plugin.name, 'deactivate')"
                 >
                   {{ t("plugins.deactivate") }}
                 </button>
                 <button
                   v-if="plugin.status !== 'active'"
-                  class="text-sm text-red-600 hover:underline"
+                  class="text-sm text-red-600 hover:underline dark:text-red-400"
                   @click="askConfirm(plugin.name, 'delete')"
                 >
                   {{ t("plugins.delete") }}
@@ -154,7 +154,7 @@ onMounted(load);
       </table>
     </div>
 
-    <p v-else class="mt-4 text-gray-500">{{ t("plugins.no_plugins") }}</p>
+    <p v-else class="mt-4 text-gray-500 dark:text-gray-400">{{ t("plugins.no_plugins") }}</p>
 
     <!-- Confirm dialog -->
     <Teleport to="body">
@@ -163,8 +163,8 @@ onMounted(load);
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
         @click.self="cancelConfirm"
       >
-        <div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-          <p class="mb-6 text-sm text-gray-700">
+        <div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+          <p class="mb-6 text-sm text-gray-700 dark:text-gray-200">
             {{
               confirmTarget.action === "deactivate"
                 ? t("plugins.confirm_deactivate")
@@ -173,7 +173,7 @@ onMounted(load);
           </p>
           <div class="flex justify-end gap-3">
             <button
-              class="rounded border px-4 py-2 text-sm hover:bg-gray-50"
+              class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
               @click="cancelConfirm"
             >
               {{ t("common.cancel") }}

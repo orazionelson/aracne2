@@ -804,38 +804,41 @@ async function runValidation(): Promise<void> {
   <div class="flex h-[calc(100vh-3.5rem)] flex-row" :class="isDragging ? 'select-none' : ''">
   <!-- Main editor column -->
   <div class="flex min-w-0 flex-1 flex-col px-4 py-4">
-    <!-- Header bar -->
-    <div class="mb-3 flex flex-shrink-0 items-center justify-between">
-      <div class="flex items-center gap-3">
+    <!-- Header bar — two rows so the toolbar never overflows the main column
+         on narrow windows / when many panel toggles are active. -->
+    <div class="mb-3 flex flex-shrink-0 flex-col gap-2">
+      <!-- Row 1: breadcrumb + status badges -->
+      <div class="flex flex-wrap items-center gap-3">
         <button
-          class="text-sm text-gray-500 hover:text-gray-800"
+          class="text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
           @click="router.push({ name: 'collection-detail', params: { slug } })"
         >
           ← {{ slug }}
         </button>
-        <span class="text-gray-300">/</span>
-        <span class="font-mono text-sm font-semibold text-gray-800">{{ filename }}</span>
-        <span class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+        <span class="text-gray-300 dark:text-gray-600">/</span>
+        <span class="font-mono text-sm font-semibold text-gray-800 dark:text-gray-100">{{ filename }}</span>
+        <span class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
           {{ t('documents.action_edit') }}
         </span>
         <span
           v-if="!isSchemaLoading && schema"
-          class="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700"
+          class="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/40 dark:text-green-300"
           :title="t('documents.schema_loaded')"
         >
           TEI P5
         </span>
         <span
           v-if="!isSchemaLoading && schemaWarning"
-          class="max-w-sm truncate rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
+          class="max-w-sm truncate rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900/40 dark:text-red-300"
           :title="schemaWarning"
         >
           {{ t('documents.schema_error') }}
         </span>
       </div>
 
-      <!-- Toolbar -->
-      <div class="flex flex-shrink-0 items-center gap-1">
+      <!-- Row 2: action toolbar. flex-wrap so buttons spill onto extra lines
+           on narrow windows rather than being clipped. -->
+      <div class="flex flex-wrap items-center gap-1">
 
         <!-- ── Format group ────────────────────────────────────────────────── -->
         <button

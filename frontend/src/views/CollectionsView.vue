@@ -173,13 +173,13 @@ async function confirmDelete(id: string, title: string): Promise<void> {
     <div class="mb-4 flex gap-3">
       <input
         v-model="search"
-        class="w-64 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+        class="w-64 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
         :placeholder="t('collections.search_placeholder')"
         @input="onSearchInput"
       />
       <select
         v-model="statusFilter"
-        class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+        class="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
         @change="page = 1"
       >
         <option value="">{{ t("collections.all_statuses") }}</option>
@@ -191,19 +191,19 @@ async function confirmDelete(id: string, title: string): Promise<void> {
     </div>
 
     <!-- Error -->
-    <p v-if="error" class="mb-4 text-sm text-red-600">{{ error }}</p>
+    <p v-if="error" class="mb-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
 
     <!-- Loading -->
-    <p v-if="store.isLoading" class="text-sm text-gray-500">{{ t("common.loading") }}</p>
+    <p v-if="store.isLoading" class="text-sm text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
 
     <!-- Table -->
     <template v-else>
-      <div v-if="store.collections.length === 0" class="text-sm text-gray-500">
+      <div v-if="store.collections.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
         {{ t("collections.no_collections") }}
       </div>
       <table v-else class="w-full border-collapse text-sm">
         <thead>
-          <tr class="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <tr class="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
             <th class="py-2 pr-4">{{ t("collections.title_label") }}</th>
             <th class="py-2 pr-4">{{ t("collections.slug") }}</th>
             <th class="py-2 pr-4">{{ t("collections.status") }}</th>
@@ -216,17 +216,17 @@ async function confirmDelete(id: string, title: string): Promise<void> {
           <tr
             v-for="col in store.collections"
             :key="col.id"
-            class="border-b border-gray-100 hover:bg-gray-50"
+            class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
           >
-            <td class="py-2 pr-4 font-medium text-gray-900">
+            <td class="py-2 pr-4 font-medium text-gray-900 dark:text-gray-100">
               <router-link
                 :to="{ name: 'collection-detail', params: { slug: col.slug } }"
-                class="hover:text-indigo-600 hover:underline"
+                class="hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
               >
                 {{ col.title }}
               </router-link>
             </td>
-            <td class="py-2 pr-4 font-mono text-gray-500">{{ col.slug }}</td>
+            <td class="py-2 pr-4 font-mono text-gray-500 dark:text-gray-400">{{ col.slug }}</td>
             <td class="py-2 pr-4">
               <span
                 class="rounded px-2 py-0.5 text-xs font-medium"
@@ -235,14 +235,14 @@ async function confirmDelete(id: string, title: string): Promise<void> {
                 {{ t(`collections.status_${col.status}`) }}
               </span>
             </td>
-            <td class="py-2 pr-4 text-gray-500">{{ col.is_public ? "✓" : "—" }}</td>
-            <td class="py-2 pr-4 text-gray-500">
+            <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">{{ col.is_public ? "✓" : "—" }}</td>
+            <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">
               {{ new Date(col.created_at).toLocaleDateString() }}
             </td>
             <td class="py-2 text-right">
               <button
                 v-if="auth.hasMinRole('Admin')"
-                class="text-xs text-red-500 hover:text-red-700"
+                class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 @click="confirmDelete(col.id, col.title)"
               >
                 {{ t("common.delete") }}
@@ -259,17 +259,17 @@ async function confirmDelete(id: string, title: string): Promise<void> {
       >
         <button
           :disabled="page <= 1"
-          class="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+          class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
           @click="page--"
         >
           ‹
         </button>
-        <span class="text-gray-600">
+        <span class="text-gray-600 dark:text-gray-300">
           {{ page }} / {{ store.pagination.total_pages }}
         </span>
         <button
           :disabled="page >= store.pagination.total_pages"
-          class="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+          class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
           @click="page++"
         >
           ›

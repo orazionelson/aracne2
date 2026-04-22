@@ -1118,10 +1118,15 @@ function statusClass(s: string): string {
         >
           {{ t("collections.edit") }}
         </button>
+        <!-- Bibliobuilder depends on the AI provider being active (it uses
+             the bibliobuilder native prompt to normalise <bibl> entries).
+             Hide the entry point entirely when the Admin has set
+             ai_provider="disabled" — clicking into an unusable screen
+             is worse than not seeing the action. -->
         <RouterLink
-          v-if="isEiC && !editing"
+          v-if="isEiC && !editing && aiEnabled"
           :to="{ name: 'collection-bibliobuilder', params: { slug } }"
-          class="rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
+          class="rounded border border-violet-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-900/40"
         >
           {{ t("collections.bibliobuilder_btn") }}
         </RouterLink>
