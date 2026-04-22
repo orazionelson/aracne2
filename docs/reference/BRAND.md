@@ -46,12 +46,20 @@ to keep the bundle light.
 | `LH·1024`   | `/aracne-icons/lockup/aracne-lockup-horizontal-1024.png`            | Header on light background       |
 | `LH·1024·I` | `/aracne-icons/lockup/aracne-lockup-horizontal-1024-inverse.png`    | Header on dark background        |
 
-### Vertical lockup — stacked marchio + wordmark
+### Vertical lockup — stacked marchio + wordmark "Aracne"
 
-| Sigla       | Path                                                          | Use                            |
-|-------------|---------------------------------------------------------------|--------------------------------|
-| `LV·SVG`    | `/aracne-icons/lockup/aracne-lockup-vertical.svg`             | Splash screens, about pages    |
-| `LV·1024`   | `/aracne-icons/lockup/aracne-lockup-vertical-1024.png`        | Splash screens, raster         |
+Canonical format for the admin chrome and the default public-face logo.
+Size suffix picks the raster variant; use the SVG for unknown or
+non-standard target sizes.
+
+| Sigla           | Path                                                                   | Use                              |
+|-----------------|------------------------------------------------------------------------|----------------------------------|
+| `VT·SVG`        | `/aracne-icons/lockup/aracne-lockup-vertical.svg`                      | Vector; prefer for print / large |
+| `VT·WHT·512`    | `/aracne-icons/lockup/aracne-lockup-vertical-512.png`                  | **Admin sidebar (light theme); public home default** |
+| `VT·INK·512`    | `/aracne-icons/lockup/aracne-lockup-vertical-512-inverse.png`          | **Admin sidebar (dark theme)**   |
+| `VT·WHT·1024`   | `/aracne-icons/lockup/aracne-lockup-vertical-1024.png`                 | Splash / about — light bg        |
+| `VT·INK·1024`   | `/aracne-icons/lockup/aracne-lockup-vertical-1024-inverse.png`         | Splash / about — dark bg         |
+| `VT·WHT·2048`   | `/aracne-icons/lockup/aracne-lockup-vertical-2048.png`                 | Large-format / print — light bg  |
 
 ### Tagline lockup — horizontal lockup + "TEI XML encoder"
 
@@ -67,11 +75,11 @@ to keep the bundle light.
 | Area                                  | Sigla(s) in use     | Customisable? |
 |---------------------------------------|---------------------|---------------|
 | Browser tab                           | `FV·SVG`, `FV·ICO`  | No            |
-| Admin sidebar — light theme, expanded | `NM·WHT`            | No            |
-| Admin sidebar — dark theme, expanded  | `NM·INK`            | No            |
+| Admin sidebar — light theme, expanded | `VT·WHT·512`        | No            |
+| Admin sidebar — dark theme, expanded  | `VT·INK·512`        | No            |
 | Admin sidebar — collapsed (any theme) | `FV·SVG`            | No            |
-| Public homepage — default             | `NM·WHT`            | Yes — Admin can replace via Settings → Homepage |
-| Public header (`PublicHeader.vue`)    | whatever the Admin configured (defaults to `NM·WHT`) | Yes |
+| Public homepage — default             | `VT·WHT·512`        | Yes — Admin can replace via Settings → Homepage |
+| Public header (`PublicHeader.vue`)    | whatever the Admin configured (defaults to `VT·WHT·512`) | Yes |
 
 **Rule of thumb**: the admin area is not re-brandable. The public face
 (homepage, public document pages, embed widgets) is re-brandable through
@@ -90,15 +98,15 @@ that retiring or renaming a variant is a single-file change here.
 Example in Vue:
 
 ```vue
-<img src="/aracne-icons/app-icon-named/aracne-named-white-512.png" alt="Aracne" />
+<img src="/aracne-icons/lockup/aracne-lockup-vertical-512.png" alt="Aracne" />
 ```
 
 Example in the admin sidebar (already wired in
 [AppSidebar.vue](../../frontend/src/components/layout/AppSidebar.vue)):
 
 ```ts
-const ADMIN_LOGO_LIGHT = "/aracne-icons/app-icon-named/aracne-named-white-256.png";
-const ADMIN_LOGO_DARK  = "/aracne-icons/app-icon-named/aracne-named-256.png";
+const ADMIN_LOGO_LIGHT = "/aracne-icons/lockup/aracne-lockup-vertical-512.png";           // VT·WHT·512
+const ADMIN_LOGO_DARK  = "/aracne-icons/lockup/aracne-lockup-vertical-512-inverse.png";   // VT·INK·512
 ```
 
 ---

@@ -30,13 +30,13 @@ import { useUiStore, type SidebarSectionKey } from "@/stores/ui";
 // Fixed admin branding — not affected by uiConfig (which controls the public
 // face). All assets live under frontend/public/aracne-icons/.
 //
-// - Expanded sidebar: NM·WHT (light theme) / NM·INK (dark theme) — named
-//   lockup with wordmark "ARACNE" underneath, square format. The wordmark
-//   replaces the separate platform-name text span next to it.
+// - Expanded sidebar: VT·WHT·512 (light theme) / VT·INK·512 (dark theme) —
+//   vertical lockup with "Aracne" wordmark underneath the marchio. The
+//   wordmark replaces the separate platform-name text span next to it.
 // - Collapsed sidebar: favicon.svg — just the marchio (octagonal chevron),
 //   fits the icon strip without text.
-const ADMIN_LOGO_LIGHT = "/aracne-icons/app-icon-named/aracne-named-white-256.png";
-const ADMIN_LOGO_DARK = "/aracne-icons/app-icon-named/aracne-named-256.png";
+const ADMIN_LOGO_LIGHT = "/aracne-icons/lockup/aracne-lockup-vertical-512.png";
+const ADMIN_LOGO_DARK = "/aracne-icons/lockup/aracne-lockup-vertical-512-inverse.png";
 const ADMIN_LOGO_COLLAPSED = "/aracne-icons/favicon/favicon.svg";
 const ADMIN_PLATFORM_NAME = "Aracne2";
 
@@ -155,8 +155,8 @@ async function handleLogout(): Promise<void> {
     <!-- Brand -->
     <router-link
       to="/dashboard"
-      class="flex items-center justify-center px-2 py-2 font-bold tracking-tight hover:opacity-80"
-      :class="collapsed ? 'h-14' : 'h-20'"
+      class="flex items-center justify-center px-2 py-3 font-bold tracking-tight hover:opacity-80"
+      :class="collapsed ? 'h-14' : 'h-28'"
       :title="ADMIN_PLATFORM_NAME"
     >
       <img
@@ -169,7 +169,7 @@ async function handleLogout(): Promise<void> {
         v-else
         :src="isDark ? ADMIN_LOGO_DARK : ADMIN_LOGO_LIGHT"
         alt="Aracne2"
-        class="h-16 w-auto object-contain"
+        class="max-h-24 max-w-full object-contain"
       />
     </router-link>
 

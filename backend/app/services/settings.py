@@ -104,7 +104,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         platform_name=values.get("platform_name", "Aracne2"),
         platform_logo_url=values.get(
             "platform_logo_url",
-            "/aracne-icons/app-icon-named/aracne-named-white-512.png",
+            "/aracne-icons/lockup/aracne-lockup-vertical-512.png",
         ),
         navbar_bg_color=values.get("navbar_bg_color", "#1e40af"),
         public_home_enabled=values.get("public_home_enabled", "false") == "true",

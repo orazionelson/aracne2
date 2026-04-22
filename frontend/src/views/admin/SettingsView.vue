@@ -417,7 +417,7 @@ async function handleLogoUpload(event: Event): Promise<void> {
   }
 }
 
-const DEFAULT_LOGO_URL = "/aracne-icons/app-icon-named/aracne-named-white-512.png";
+const DEFAULT_LOGO_URL = "/aracne-icons/lockup/aracne-lockup-vertical-512.png";
 
 async function restoreDefaultLogo(): Promise<void> {
   logoUrlError.value = "";

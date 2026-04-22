@@ -133,7 +133,7 @@
     "tab_appearance": "Appearance",
     "appearance_logo_title": "Platform logo",
     "appearance_logo_url_label": "Logo URL",
-    "appearance_logo_url_hint": "Relative path (e.g. /aracne-icons/app-icon-named/aracne-named-white-512.png) or absolute URL",
+    "appearance_logo_url_hint": "Relative path (e.g. /aracne-icons/lockup/aracne-lockup-vertical-512.png) or absolute URL",
     "appearance_logo_upload": "Upload image",
     "appearance_logo_save_url": "Save URL",
     "appearance_logo_restore_default": "Restore default logo",

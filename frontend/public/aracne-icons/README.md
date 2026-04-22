@@ -112,3 +112,51 @@ A 16 px il marchio si riduce a un asterisco a otto punte con centro rosso — li
 python3 generate_icons.py   # favicon + app-icon
 python3 generate_lockup.py  # lockup + app-icon-named
 ```
+
+---
+
+## Tabella corrispondenze file → sigla
+
+| Sigla | File |
+|-------|------|
+| `FA·16` | `favicon/aracne-favicon-16.png` |
+| `FA·32` | `favicon/aracne-favicon-32.png` |
+| `FA·48` | `favicon/aracne-favicon-48.png` |
+| `FA·64` | `favicon/aracne-favicon-64.png` |
+| `FA·128` | `favicon/aracne-favicon-128.png` |
+| `FA·256` | `favicon/aracne-favicon-256.png` |
+| `FA·512` | `favicon/aracne-favicon-512.png` |
+| `FA·ICO` | `favicon/favicon.ico` |
+| `FA·SVG` | `favicon/favicon.svg` |
+| `AI·16` | `app-icon/aracne-appicon-16.png` |
+| `AI·32` | `app-icon/aracne-appicon-32.png` |
+| `AI·48` | `app-icon/aracne-appicon-48.png` |
+| `AI·64` | `app-icon/aracne-appicon-64.png` |
+| `AI·128` | `app-icon/aracne-appicon-128.png` |
+| `AI·256` | `app-icon/aracne-appicon-256.png` |
+| `AI·512` | `app-icon/aracne-appicon-512.png` |
+| `NM·INK·256` | `app-icon-named/aracne-named-256.png` |
+| `NM·INK·512` | `app-icon-named/aracne-named-512.png` |
+| `NM·INK·1024` | `app-icon-named/aracne-named-1024.png` |
+| `NM·WHT·256` | `app-icon-named/aracne-named-white-256.png` |
+| `NM·WHT·512` | `app-icon-named/aracne-named-white-512.png` |
+| `NM·WHT·1024` | `app-icon-named/aracne-named-white-1024.png` |
+| `NM·PCH·256` | `app-icon-named/aracne-named-parchment-256.png` |
+| `NM·PCH·512` | `app-icon-named/aracne-named-parchment-512.png` |
+| `NM·PCH·1024` | `app-icon-named/aracne-named-parchment-1024.png` |
+| `HZ·WHT·512` | `lockup/aracne-lockup-horizontal-512.png` |
+| `HZ·WHT·1024` | `lockup/aracne-lockup-horizontal-1024.png` |
+| `HZ·WHT·2048` | `lockup/aracne-lockup-horizontal-2048.png` |
+| `HZ·INK·512` | `lockup/aracne-lockup-horizontal-512-inverse.png` |
+| `HZ·INK·1024` | `lockup/aracne-lockup-horizontal-1024-inverse.png` |
+| `HZ·INK·2048` | `lockup/aracne-lockup-horizontal-2048-inverse.png` |
+| `HZ·SVG` | `lockup/aracne-lockup-horizontal.svg` |
+| `TG·WHT·1024` | `lockup/aracne-lockup-tagline-1024.png` |
+| `TG·WHT·2048` | `lockup/aracne-lockup-tagline-2048.png` |
+| `TG·SVG` | `lockup/aracne-lockup-tagline.svg` |
+| `VT·WHT·512` | `lockup/aracne-lockup-vertical-512.png` |
+| `VT·WHT·1024` | `lockup/aracne-lockup-vertical-1024.png` |
+| `VT·WHT·2048` | `lockup/aracne-lockup-vertical-2048.png` |
+| `VT·INK·512` | `lockup/aracne-lockup-vertical-512-inverse.png` |
+| `VT·INK·1024` | `lockup/aracne-lockup-vertical-1024-inverse.png` |
+| `VT·SVG` | `lockup/aracne-lockup-vertical.svg` |

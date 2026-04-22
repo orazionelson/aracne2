@@ -73,7 +73,7 @@ async def settings_logo_file(request: Request) -> FileResponse:
     """Serve the uploaded platform logo file (public, no authentication).
 
     Returns 404 if no custom logo has been uploaded yet; the frontend falls
-    back to the default /aracne-icons/app-icon-named/aracne-named-white-512.png
+    back to the default /aracne-icons/lockup/aracne-lockup-vertical-512.png
     in that case (see backend/app/services/settings.py).
     """
     path = get_logo_path()
