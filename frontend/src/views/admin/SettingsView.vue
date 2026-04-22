@@ -97,6 +97,7 @@ const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
   "evt_enabled",
   "public_registration",
   "default_language",
+  "platform_name",
 ]);
 const systemSettings = computed(() =>
   settingStore.settings.filter(
@@ -514,6 +515,38 @@ const defaultLanguage = computed(
   () => settingStore.getSetting("default_language") || "",
 );
 const savingDefaultLanguage = ref(false);
+
+const currentPlatformName = computed(
+  () => settingStore.getSetting("platform_name") ?? "",
+);
+const platformNameDraft = ref("");
+const isSavingPlatformName = ref(false);
+const platformNameError = ref("");
+
+function initPlatformNameDraft(): void {
+  platformNameDraft.value = currentPlatformName.value;
+}
+
+async function savePlatformName(): Promise<void> {
+  const trimmed = platformNameDraft.value.trim();
+  if (!trimmed) {
+    platformNameError.value = t("settings.system_platform_name_required");
+    return;
+  }
+  isSavingPlatformName.value = true;
+  platformNameError.value = "";
+  try {
+    await settingStore.updateSetting("platform_name", trimmed);
+    await uiConfigStore.fetchConfig();
+    platformNameDraft.value = trimmed;
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    platformNameError.value = msg ?? t("common.error");
+  } finally {
+    isSavingPlatformName.value = false;
+  }
+}
 
 // Human-readable locale label, translated to the UI's current locale.
 // Falls back to the raw code when Intl.DisplayNames is unavailable.
@@ -986,6 +1019,7 @@ async function deleteXsltTemplate(id: string): Promise<void> {
 onMounted(async () => {
   await Promise.all([loadSettings(), loadSchemas(), loadLicenses(), loadBodyTemplates(), loadAiPrompts(), loadXsltTemplates()]);
   initAppearanceDraft();
+  initPlatformNameDraft();
 });
 </script>
 
@@ -1079,6 +1113,35 @@ onMounted(async () => {
 
       <!-- System-wide controls shown above the generic settings table. -->
       <div class="mb-6 space-y-3">
+        <!-- platform_name — free-text input with commit button -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div class="mr-4 flex-1">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+              {{ t("settings.system_platform_name") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("settings.system_platform_name_hint") }}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input
+              v-model="platformNameDraft"
+              type="text"
+              maxlength="80"
+              class="w-56 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              :disabled="isSavingPlatformName"
+            />
+            <button
+              :disabled="isSavingPlatformName || !platformNameDraft.trim() || platformNameDraft.trim() === currentPlatformName"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+              @click="savePlatformName"
+            >
+              {{ t("common.save") }}
+            </button>
+          </div>
+        </div>
+        <p v-if="platformNameError" class="text-xs text-red-600 dark:text-red-400">{{ platformNameError }}</p>
+
         <!-- default_language — select driven by installed i18n locales -->
         <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <div class="mr-4">
@@ -1101,28 +1164,6 @@ onMounted(async () => {
               :value="code"
             >{{ localeLabel(code) }}</option>
           </select>
-        </div>
-
-        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <div class="mr-4">
-            <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
-              {{ t("settings.system_evt_enabled") }}
-            </p>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {{ t("settings.system_evt_enabled_hint") }}
-            </p>
-          </div>
-          <button
-            :disabled="togglingHomeSetting['evt_enabled']"
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-            :class="evtEnabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
-            @click="toggleHomeSetting('evt_enabled', evtEnabled)"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="evtEnabled ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
         </div>
 
         <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -2178,6 +2219,29 @@ onMounted(async () => {
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
               :class="homePropagateCss ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <!-- evt_enabled -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.system_evt_enabled") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.system_evt_enabled_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['evt_enabled']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="evtEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('evt_enabled', evtEnabled)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="evtEnabled ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
         </div>
