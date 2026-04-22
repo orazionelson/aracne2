@@ -61,6 +61,72 @@ async def test_get_nonexistent_public_collection_returns_404(
     assert res.status_code == 404
 
 
+# ── Content negotiation (LOD.3b) ──────────────────────────────────────────────
+
+
+async def _get_public(client: AsyncClient, slug: str, accept: str | None) -> object:
+    """Helper: patch existdb + issue a GET with a specific Accept header."""
+    headers = {"accept": accept} if accept else None
+    with patch("app.services.public_view.existdb_client") as mock_db:
+        mock_db.xquery = AsyncMock(return_value=b"<docs/>")
+        mock_db.list_collection = AsyncMock(return_value=[])
+        mock_db.col_path = lambda slug: f"/db/aracne2/collections/{slug}"
+        return await client.get(
+            f"/api/v1/public/collections/{slug}", headers=headers
+        )
+
+
+@pytest.mark.asyncio
+async def test_collection_default_accept_returns_json_envelope(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    """SPA behaviour preserved: no / wildcard / application/json Accept
+    still produces the historical {data: PublicCollectionDetail} envelope."""
+    for accept in (None, "*/*", "application/json"):
+        res = await _get_public(client, public_collection.slug, accept)
+        assert res.status_code == 200, f"Accept={accept!r}"  # type: ignore[union-attr]
+        assert "application/json" in res.headers["content-type"]  # type: ignore[union-attr]
+        assert res.json()["data"]["slug"] == public_collection.slug  # type: ignore[union-attr]
+
+
+@pytest.mark.asyncio
+async def test_collection_accept_turtle_returns_turtle(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    res = await _get_public(client, public_collection.slug, "text/turtle")
+    assert res.status_code == 200  # type: ignore[union-attr]
+    assert "text/turtle" in res.headers["content-type"]  # type: ignore[union-attr]
+    body = res.text  # type: ignore[union-attr]
+    # Sanity: the Turtle lists the collection as a schema:CreativeWork with
+    # the configured title as its schema:name.
+    assert "CreativeWork" in body
+    assert public_collection.title in body
+
+
+@pytest.mark.asyncio
+async def test_collection_accept_rdf_xml_returns_rdf_xml(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    res = await _get_public(client, public_collection.slug, "application/rdf+xml")
+    assert res.status_code == 200  # type: ignore[union-attr]
+    assert "application/rdf+xml" in res.headers["content-type"]  # type: ignore[union-attr]
+    assert "<rdf:RDF" in res.text  # type: ignore[union-attr]
+
+
+@pytest.mark.asyncio
+async def test_collection_accept_json_ld_returns_json_ld(
+    client: AsyncClient, public_collection: Collection
+) -> None:
+    import json as _json
+
+    res = await _get_public(client, public_collection.slug, "application/ld+json")
+    assert res.status_code == 200  # type: ignore[union-attr]
+    assert "application/ld+json" in res.headers["content-type"]  # type: ignore[union-attr]
+    # Must be valid JSON — the whole point of the format.
+    parsed = _json.loads(res.text)  # type: ignore[union-attr]
+    assert parsed, "empty JSON-LD payload"
+
+
 # ── Document render ───────────────────────────────────────────────────────────
 
 

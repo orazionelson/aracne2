@@ -7,14 +7,13 @@ published, is_public=True collections.
 import mimetypes
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_async_session
-from app.schemas.common import DataResponse
-from app.schemas.public_view import PublicCollectionDetail
 from app.services import media as media_svc
+from app.services.lod import collection_to_graph, negotiate_rdf, serialize_graph
 from app.services.public_view import (
     get_public_collection,
     get_public_collection_detail,
@@ -24,14 +23,56 @@ from app.services.public_view import (
 router = APIRouter(prefix="/public", tags=["public"])
 
 
+def _public_base_url(request: Request) -> str:
+    """Canonical site origin used as the prefix for emitted LOD URIs.
+
+    Derived from the incoming request — a reverse proxy that sets
+    ``X-Forwarded-Proto`` / ``X-Forwarded-Host`` via FastAPI's
+    ``ProxyHeadersMiddleware`` gives us the real public origin in
+    production; in local dev the backend port sneaks in, but LOD
+    consumers testing locally understand that.
+    """
+    return f"{request.url.scheme}://{request.url.netloc}"
+
+
 @router.get("/collections/{slug}")
 async def public_collection_detail(
     slug: str,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> DataResponse[PublicCollectionDetail]:
-    """Return metadata and document list for a published public collection."""
+) -> Response:
+    """Return metadata and document list for a published public collection.
+
+    Content-negotiated output:
+
+    - ``Accept: text/turtle`` → Turtle RDF
+    - ``Accept: application/rdf+xml`` → RDF/XML
+    - ``Accept: application/ld+json`` → JSON-LD (RDF serialisation)
+    - anything else (``application/json``, ``*/*``, missing, …) → the
+      platform's ``{"data": PublicCollectionDetail}`` JSON envelope,
+      unchanged behaviour for the SPA and existing API consumers.
+
+    See docs/reference/LOD_INTEGRATION.md for the RDF vocabularies used
+    (schema.org + Dublin Core mirrors).
+    """
     data = await get_public_collection_detail(db, slug)
-    return DataResponse(data=data)
+
+    negotiated = negotiate_rdf(request.headers.get("accept"))
+    if negotiated is not None:
+        fmt, mime = negotiated
+        graph = collection_to_graph(
+            base_url=_public_base_url(request),
+            slug=data.slug,
+            title=data.title,
+            description=data.description,
+            author=data.author,
+            publisher=data.publisher,
+            pub_year=data.pub_year,
+            documents=[d.model_dump() for d in data.documents],
+        )
+        return Response(content=serialize_graph(graph, fmt), media_type=mime)
+
+    return JSONResponse({"data": data.model_dump(mode="json")})
 
 
 @router.get("/collections/{slug}/documents/{filename}", response_class=HTMLResponse)
