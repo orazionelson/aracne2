@@ -24,6 +24,7 @@ from app.routers import zones as zones_router
 from app.routers import public_view as public_view_router
 from app.routers import schemas as schemas_router, settings as settings_router, users
 from app.routers import viaf as viaf_router
+from app.routers import wikidata as wikidata_router
 from app.routers import geonames as geonames_router
 from app.routers import search_engines as search_engines_router
 from app.routers import websites as websites_router
@@ -264,6 +265,7 @@ app.include_router(schemas_router.router, prefix="/api/v1")
 app.include_router(licenses_router.router, prefix="/api/v1")
 app.include_router(body_templates_router.router, prefix="/api/v1")
 app.include_router(viaf_router.router, prefix="/api/v1")
+app.include_router(wikidata_router.router, prefix="/api/v1")
 app.include_router(geonames_router.router, prefix="/api/v1")
 app.include_router(public_view_router.router, prefix="/api/v1")
 app.include_router(websites_router.router, prefix="/api/v1")

@@ -833,4 +833,73 @@ are sufficient.
 
 ---
 
+## 14. SPARQL endpoint over the published corpus 🟢 Low
+
+Expose the published TEI corpus as a SPARQL 1.1 endpoint, so external
+aggregators and researchers can run federated queries against Aracne2
+alongside DBpedia, Wikidata, VIAF and other LOD sources.
+
+### Motivation
+
+The LOD track lands inbound entity linking to Wikidata (step 1),
+schema.org JSON-LD in public pages (step 2), and content-negotiated
+RDF export (step 3) in the near term. A SPARQL endpoint is the logical
+step 4: it unlocks structured querying (e.g. "every document in the
+corpus that mentions a person also mentioned by Petrarch's *Rerum
+vulgarium fragmenta*") without requiring the consumer to first
+harvest the whole RDF dump.
+
+### Realistic scope
+
+- **Triplestore** — Apache Jena Fuseki, Oxigraph (Rust, lightweight),
+  or Blazegraph. Oxigraph is the smallest footprint and has an
+  embedded mode; Fuseki is the most widely deployed in the academic
+  LOD ecosystem.
+- **Population** — a background job converts each published TEI
+  document (and its linked entities) to RDF using the step-3 mapping
+  and writes the triples into the store. Reindex on publish event.
+- **Public endpoint** — `/sparql` with a YASGUI-style query editor
+  on the website; read-only SPARQL SELECT/ASK, no UPDATE from the
+  public surface.
+- **Named graphs per collection** so a consumer can scope queries
+  to a specific edition.
+
+### Open questions
+
+- **Triplestore pick**: Oxigraph (zero-ops, embed) vs Fuseki (full
+  features, more moving parts)?
+- **Performance vs freshness**: rebuild on publish (correct but
+  slow on big corpora) vs periodic reindex (stale windows)?
+- **Auth posture**: fully public SELECT (default), token-gated for
+  heavy queries, or IP-based throttle?
+- **Observability**: log top queries? Count unique originating
+  SPARQL sources? Privacy implications for academic usage.
+
+### Prerequisites
+
+- **Step 1 — inbound entity linking**: done (Wikidata adapter wired,
+  named-entity model carries `@ref`).
+- **Step 2 — JSON-LD in public pages**: planned (LOD.2).
+- **Step 3 — RDF content negotiation with TEI-Ontology mapping**:
+  planned (LOD.3). The SPARQL store consumes the same mapping output.
+- **Corpus size**: makes sense when at least one installation has a
+  published corpus large enough (≳ 100 documents) that flat RDF dump
+  harvesting becomes inconvenient for consumers.
+
+### Trigger
+
+Consider this when:
+- RDF export (LOD.3) is in use by a real aggregator or harvester;
+- a partner institution asks for federated SPARQL queries against
+  the Aracne2 corpus;
+- at least one installation has ≥ 100 published TEI documents with
+  meaningful `@ref` entity linking.
+
+Until then, the dump-based RDF export from LOD.3 covers the same
+use cases with an order of magnitude less operational burden.
+
+*Added: 2026-04-22*
+
+---
+
 *Last updated: 2026-04-22*
