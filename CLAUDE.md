@@ -17,7 +17,14 @@ directory.** The standard post-pull checklist is:
 2. `docker compose exec backend alembic upgrade head` — if any new Alembic migration
    was added in this session (list the migration IDs explicitly)
 3. `docker compose restart backend` — if Python dependencies or `main.py` changed
-4. Nothing else needed for frontend-only changes (Vite rebuilds on the fly in dev)
+4. `docker compose up -d --build frontend` — if any file in `frontend/` *outside*
+   `src/` or `public/` changed (e.g. `tailwind.config.js`, `vite.config.ts`,
+   `tsconfig.json`, `package.json`, `postcss.config.*`, `Dockerfile`). Only `src/`
+   and `public/` are bind-mounted into the container; root-level config files are
+   baked into the image at build time, so a `docker compose restart` is not enough —
+   the image must be rebuilt.
+5. Nothing else needed for changes confined to `frontend/src/` or
+   `frontend/public/` (Vite rebuilds on the fly in dev).
 
 If a session added no migrations and no new dependencies, say so explicitly so the
 user knows only `git pull` is needed.
