@@ -360,6 +360,21 @@ docker compose exec ollama ollama list          # verify size on disk
 docker compose exec ollama ollama rm <tag>      # reclaim space if needed
 ```
 
+#### Switching the active model
+
+Changing the model in use is a DB-only operation — no restart, no image
+rebuild. The backend reads `ai_ollama_model` on every AI request.
+
+1. Pull the new model: `docker compose exec ollama ollama pull <tag>`.
+2. In **Settings → AI → Provider & API keys**, edit `ai_ollama_model` and
+   save the new tag.
+3. (Optional) `docker compose exec ollama ollama rm <old-tag>` to free disk.
+
+The first request after the switch triggers a cold load of the new model
+into memory (~5–20 s depending on size); subsequent requests are fast.
+Ollama keeps the most recently used model resident by default and evicts
+the previous one on memory pressure.
+
 For TEI-heavy tasks (complex XSLT generation, multi-step domain reasoning),
 local models below ~30B will consistently lag behind Claude / GPT-4o.
 Reserve local inference for extractive, templated, or privacy-sensitive
