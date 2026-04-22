@@ -51,7 +51,7 @@ function visibleShortcuts(): Shortcut[] {
 </script>
 
 <template>
-  <div class="p-6 max-w-5xl mx-auto">
+  <div class="p-6">
     <h1 class="mb-1 text-2xl font-bold">{{ t("home.title") }}</h1>
     <p class="text-gray-500 dark:text-gray-400 mb-6">
       {{ t("home.welcome", { name: auth.user?.display_name || auth.user?.username }) }}

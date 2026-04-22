@@ -133,7 +133,7 @@ function typeLabel(type: EntityType): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-4xl p-6">
+  <div class="p-6">
     <!-- Header -->
     <div class="mb-6 flex items-start justify-between gap-4">
       <div>

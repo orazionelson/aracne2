@@ -95,7 +95,7 @@ async function confirmDelete(id: string, title: string): Promise<void> {
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl px-4 py-8">
+  <div class="p-6">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("collections.title") }}</h1>

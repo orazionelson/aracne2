@@ -61,7 +61,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl p-6">
+  <div class="p-6">
     <!-- Header -->
     <h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("plugins.title") }}</h1>
     <p class="mb-6 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-4 py-2 dark:text-amber-200 dark:bg-amber-900/20 dark:border-amber-800">

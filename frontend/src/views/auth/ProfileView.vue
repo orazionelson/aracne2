@@ -12,10 +12,10 @@ function formatDate(iso: string | null): string {
 </script>
 
 <template>
-  <div class="p-6 max-w-xl mx-auto">
+  <div class="p-6">
     <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">{{ t("profile.title") }}</h1>
 
-    <div v-if="auth.user" class="space-y-4">
+    <div v-if="auth.user" class="max-w-xl space-y-4">
       <div class="rounded border border-gray-200 bg-white p-4 space-y-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
         <div class="flex justify-between">
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.username") }}</span>

@@ -940,7 +940,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-4xl p-6">
+  <div class="p-6">
     <!-- Tab bar -->
     <div class="mb-6 flex gap-4 border-b border-gray-200 dark:border-gray-700">
       <button

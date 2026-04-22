@@ -149,7 +149,7 @@ onMounted(fetchUsers);
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl p-6">
+  <div class="p-6">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("users.title") }}</h1>

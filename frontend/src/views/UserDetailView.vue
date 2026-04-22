@@ -124,7 +124,8 @@ onMounted(fetchUser);
 </script>
 
 <template>
-  <div class="p-6 max-w-2xl mx-auto">
+  <div class="p-6">
+    <div class="max-w-2xl">
     <button
       class="text-sm text-blue-600 hover:underline mb-4"
       @click="router.back()"
@@ -241,5 +242,6 @@ onMounted(fetchUser);
         </p>
       </section>
     </template>
+    </div>
   </div>
 </template>

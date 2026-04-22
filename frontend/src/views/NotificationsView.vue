@@ -52,7 +52,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl p-6">
+  <div class="p-6">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-bold">{{ t("notifications.title") }}</h1>

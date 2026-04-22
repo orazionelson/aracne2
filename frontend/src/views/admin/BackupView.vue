@@ -108,7 +108,7 @@ function scopeLabel(scope: BackupScope): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl px-4 py-8">
+  <div class="p-6">
     <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("backup.title") }}</h1>
     <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">{{ t("backup.subtitle") }}</p>
 
