@@ -191,7 +191,16 @@
     "value": "Valore",
     "type": "Tipo",
     "edit": "Modifica",
-    "empty": "Nessuna impostazione trovata."
+    "empty": "Nessuna impostazione trovata.",
+    "hint_ai_provider": "Provider AI attivo. Valori ammessi: disabled, anthropic, openai, gemini. Imposta 'disabled' per disattivare le funzioni AI.",
+    "hint_ai_anthropic_api_key": "Chiave API Anthropic Claude (sk-ant-api03-…). Lascia vuoto per disabilitare questo provider.",
+    "hint_ai_anthropic_model": "Identificativo del modello Anthropic, es. claude-opus-4-6, claude-sonnet-4-5, claude-haiku-4-5.",
+    "hint_ai_openai_api_key": "Chiave API OpenAI (sk-…). Lascia vuoto per disabilitare questo provider.",
+    "hint_ai_openai_model": "Identificativo del modello OpenAI, es. gpt-4o, gpt-4o-mini, gpt-4-turbo.",
+    "hint_ai_gemini_api_key": "Chiave API Google Gemini. Lascia vuoto per disabilitare questo provider.",
+    "hint_ai_gemini_model": "Identificativo del modello Gemini, es. gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash.",
+    "hint_ai_max_requests_per_hour": "Limite di richieste AI per ora, per utente.",
+    "hint_ai_privacy_warning_enabled": "Se true, mostra un avviso all'utente prima che i dati vengano inviati al provider AI esterno."
   },
   "plugins": {
     "title": "Plugin",

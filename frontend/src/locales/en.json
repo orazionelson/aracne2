@@ -191,7 +191,16 @@
     "value": "Value",
     "type": "Type",
     "edit": "Edit",
-    "empty": "No settings found."
+    "empty": "No settings found.",
+    "hint_ai_provider": "Active AI provider. Valid values: disabled, anthropic, openai, gemini. Set to 'disabled' to turn off AI features.",
+    "hint_ai_anthropic_api_key": "Anthropic Claude API key (sk-ant-api03-…). Leave empty to disable this provider.",
+    "hint_ai_anthropic_model": "Anthropic model id, e.g. claude-opus-4-6, claude-sonnet-4-5, claude-haiku-4-5.",
+    "hint_ai_openai_api_key": "OpenAI API key (sk-…). Leave empty to disable this provider.",
+    "hint_ai_openai_model": "OpenAI model id, e.g. gpt-4o, gpt-4o-mini, gpt-4-turbo.",
+    "hint_ai_gemini_api_key": "Google Gemini API key. Leave empty to disable this provider.",
+    "hint_ai_gemini_model": "Gemini model id, e.g. gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash.",
+    "hint_ai_max_requests_per_hour": "Per-user rate limit for AI requests.",
+    "hint_ai_privacy_warning_enabled": "When true, show users a warning before data is sent to the external AI provider."
   },
   "plugins": {
     "title": "Plugins",

@@ -12,7 +12,7 @@ import { useXsltTemplateStore, type XsltTemplateSummary } from "@/stores/xslt_te
 import type { TeiSchema } from "@/stores/schemas";
 import type { AiPrompt } from "@/stores/ai";
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const settingStore = useSettingStore();
 const schemaStore = useSchemaStore();
 const licenseStore = useLicenseStore();
@@ -70,7 +70,16 @@ function isEditing(key: string): boolean {
 
 // Settings with a fixed set of allowed values — show a <select> instead of
 // a free-text input.  Add new entries here when introducing enum-like settings.
-const SETTING_OPTIONS: Record<string, string[]> = {};
+const SETTING_OPTIONS: Record<string, string[]> = {
+  ai_provider: ["disabled", "anthropic", "openai", "gemini"],
+};
+
+// Static per-key hint shown under the key code. Used as a fallback when the
+// DB row has no `description`. Looked up via i18n so it stays translated.
+function settingHint(key: string): string {
+  const k = `settings.hint_${key}`;
+  return te(k) ? t(k) : "";
+}
 
 // AI-related settings are shown under the AI tab (in a collapsible panel),
 // not in the generic System Settings table.
@@ -1006,8 +1015,8 @@ onMounted(async () => {
             >
               <td class="px-4 py-3">
                 <code class="text-xs text-gray-700">{{ s.key }}</code>
-                <p v-if="s.description" class="mt-0.5 text-xs text-gray-400">
-                  {{ s.description }}
+                <p v-if="s.description || settingHint(s.key)" class="mt-0.5 text-xs text-gray-400">
+                  {{ s.description || settingHint(s.key) }}
                 </p>
               </td>
               <td class="px-4 py-3">
