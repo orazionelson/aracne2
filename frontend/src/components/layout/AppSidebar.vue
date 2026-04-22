@@ -28,8 +28,16 @@ import { useNotificationStore } from "@/stores/notifications";
 import { useUiStore, type SidebarSectionKey } from "@/stores/ui";
 
 // Fixed admin branding — not affected by uiConfig (which controls the public
-// face). The asset lives at frontend/public/aracne-logo.png.
-const ADMIN_LOGO_URL = "/aracne-logo.png";
+// face). All assets live under frontend/public/aracne-icons/.
+//
+// - Expanded sidebar: NM·WHT (light theme) / NM·INK (dark theme) — named
+//   lockup with wordmark "ARACNE" underneath, square format. The wordmark
+//   replaces the separate platform-name text span next to it.
+// - Collapsed sidebar: favicon.svg — just the marchio (octagonal chevron),
+//   fits the icon strip without text.
+const ADMIN_LOGO_LIGHT = "/aracne-icons/app-icon-named/aracne-named-white-256.png";
+const ADMIN_LOGO_DARK = "/aracne-icons/app-icon-named/aracne-named-256.png";
+const ADMIN_LOGO_COLLAPSED = "/aracne-icons/favicon/favicon.svg";
 const ADMIN_PLATFORM_NAME = "Aracne2";
 
 const { t } = useI18n();
@@ -147,15 +155,22 @@ async function handleLogout(): Promise<void> {
     <!-- Brand -->
     <router-link
       to="/dashboard"
-      class="flex h-14 items-center gap-2 px-4 font-bold tracking-tight hover:opacity-80"
+      class="flex items-center justify-center px-2 py-2 font-bold tracking-tight hover:opacity-80"
+      :class="collapsed ? 'h-14' : 'h-20'"
       :title="ADMIN_PLATFORM_NAME"
     >
       <img
-        :src="ADMIN_LOGO_URL"
+        v-if="collapsed"
+        :src="ADMIN_LOGO_COLLAPSED"
         alt="Aracne2"
-        class="h-7 w-7 shrink-0 object-contain"
+        class="h-8 w-8 shrink-0 object-contain"
       />
-      <span v-if="!collapsed" class="truncate">{{ ADMIN_PLATFORM_NAME }}</span>
+      <img
+        v-else
+        :src="isDark ? ADMIN_LOGO_DARK : ADMIN_LOGO_LIGHT"
+        alt="Aracne2"
+        class="h-16 w-auto object-contain"
+      />
     </router-link>
 
     <!-- Nav sections -->

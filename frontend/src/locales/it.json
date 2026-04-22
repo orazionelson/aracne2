@@ -133,7 +133,7 @@
     "tab_appearance": "Aspetto",
     "appearance_logo_title": "Logo della piattaforma",
     "appearance_logo_url_label": "URL del logo",
-    "appearance_logo_url_hint": "Percorso relativo (es. /aracne-logo.png) o URL assoluto",
+    "appearance_logo_url_hint": "Percorso relativo (es. /aracne-icons/app-icon-named/aracne-named-white-512.png) o URL assoluto",
     "appearance_logo_upload": "Carica immagine",
     "appearance_logo_save_url": "Salva URL",
     "appearance_logo_restore_default": "Ripristina logo predefinito",

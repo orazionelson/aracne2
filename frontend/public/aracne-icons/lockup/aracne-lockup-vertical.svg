@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320.0 393.0" width="320" height="393">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;1,500&display=swap');
+      .wm { font-family: 'Lora', 'Iowan Old Style', Georgia, serif;
+            font-weight: 500; fill: #131A2A; }
+      .wm-i { font-style: italic; }
+      .tag { font-family: 'JetBrains Mono', 'SF Mono', monospace;
+             font-size: 14px; letter-spacing: 0.32em;
+             text-transform: uppercase; fill: #131A2A; }
+    </style>
+  <defs>
+    <g id="aracne-leg">
+      <polyline points="76,-17.55 16,0 76,17.55"/>
+    </g>
+  </defs>
+  <g transform="translate(160.0, 156.0) scale(1.2)">
+      <circle cx="0" cy="0" r="92" fill="none" stroke="#131A2A" stroke-width="1.3"/>
+      <g stroke="#131A2A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <use href="#aracne-leg" transform="rotate(0)"/>
+        <use href="#aracne-leg" transform="rotate(45)"/>
+        <use href="#aracne-leg" transform="rotate(90)"/>
+        <use href="#aracne-leg" transform="rotate(135)"/>
+        <use href="#aracne-leg" transform="rotate(180)"/>
+        <use href="#aracne-leg" transform="rotate(225)"/>
+        <use href="#aracne-leg" transform="rotate(270)"/>
+        <use href="#aracne-leg" transform="rotate(315)"/>
+      </g>
+      <circle cx="0" cy="0" r="6" fill="#A62639"/>
+    </g>
+  <text x="62.0" y="357.0" class="wm"
+        font-size="59" letter-spacing="-0.005em">Ar<tspan class="wm-i">a</tspan>cne</text>
+</svg>

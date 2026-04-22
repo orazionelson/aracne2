@@ -409,6 +409,7 @@ Technical reference documents are in [`docs/reference/`](docs/reference/).
 | [BODY_TEMPLATES.md](docs/reference/BODY_TEMPLATES.md) | Body templates for document creation |
 | [PLUGINS.md](docs/reference/PLUGINS.md) | Plugin architecture — native and third-party plugins |
 | [AI_INTEGRATION.md](docs/reference/AI_INTEGRATION.md) | AI provider adapters, prompt library, streaming |
+| [BRAND.md](docs/reference/BRAND.md) | Aracne icon set — sigla → path mapping and usage policy |
 | [WEBHOOKS.md](docs/reference/WEBHOOKS.md) | Webhook dispatcher — events, signing, retries |
 | [NOTIFICATIONS.md](docs/reference/NOTIFICATIONS.md) | In-app notification system |
 | [OAI_PMH_PROVIDER.md](docs/reference/OAI_PMH_PROVIDER.md) | OAI-PMH 2.0 metadata provider |

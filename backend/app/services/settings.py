@@ -102,7 +102,10 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     values = {r.key: r.value for r in rows}
     return UiConfigResponse(
         platform_name=values.get("platform_name", "Aracne2"),
-        platform_logo_url=values.get("platform_logo_url", "/aracne-logo.png"),
+        platform_logo_url=values.get(
+            "platform_logo_url",
+            "/aracne-icons/app-icon-named/aracne-named-white-512.png",
+        ),
         navbar_bg_color=values.get("navbar_bg_color", "#1e40af"),
         public_home_enabled=values.get("public_home_enabled", "false") == "true",
         home_show_collections=values.get("home_show_collections", "true") == "true",

@@ -45,7 +45,7 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),
     ("media_max_upload_size_mb", "50", "int"),
-    ("platform_logo_url", "/aracne-logo.png", "string"),
+    ("platform_logo_url", "/aracne-icons/app-icon-named/aracne-named-white-512.png", "string"),
     ("navbar_bg_color", "#1e40af", "string"),
     ("public_home_enabled", "false", "bool"),
     ("home_show_collections", "true", "bool"),

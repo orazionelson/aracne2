@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aracne — Identity set · preview</title>
+<link rel="icon" type="image/svg+xml" href="favicon/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --parchment:#ece2c8;--parchment-soft:#f2e9d3;
+    --ink:#131a2a;--ink-mid:#20293f;--rubric:#a62639;
+    --hair:rgba(19,26,42,.15);--hair-d:rgba(236,226,200,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{-webkit-font-smoothing:antialiased;}
+  body{
+    font-family:'Fraunces',serif;font-variation-settings:"opsz" 18;
+    background:var(--parchment);color:var(--ink);
+    padding:52px 36px 96px;min-height:100vh;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:100;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .08 0 0 0 0 .1 0 0 0 0 .16 0 0 0 .5 0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='.35'/></svg>");
+    mix-blend-mode:multiply;opacity:.45;
+  }
+  .frame{
+    max-width:1200px;margin:0 auto;
+    background:var(--parchment-soft);border:1px solid var(--hair);
+    padding:52px 44px 68px;position:relative;
+  }
+  .frame::before,.frame::after{
+    content:'';position:absolute;width:16px;height:16px;border:1px solid var(--hair);
+  }
+  .frame::before{top:-8px;left:-8px;border-right:none;border-bottom:none;}
+  .frame::after{bottom:-8px;right:-8px;border-left:none;border-top:none;}
+
+  header{text-align:center;margin-bottom:64px;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    letter-spacing:.32em;text-transform:uppercase;
+    color:var(--ink-mid);opacity:.7;margin-bottom:20px;
+  }
+  .eyebrow span{color:var(--rubric);}
+  h1{
+    font-family:'Fraunces',serif;font-variation-settings:"opsz" 144,"wght" 400;
+    font-size:clamp(48px,9vw,88px);letter-spacing:-.035em;line-height:.9;
+    font-weight:400;margin-bottom:14px;
+  }
+  h1 em{font-style:italic;font-variation-settings:"opsz" 144,"wght" 300;color:var(--rubric);}
+  .sub{
+    font-style:italic;font-size:15px;color:var(--ink-mid);
+    font-variation-settings:"opsz" 14,"wght" 300;
+  }
+  .sub::after{content:'';display:block;width:32px;height:1px;background:var(--rubric);margin:18px auto 0;}
+
+  .section{margin-bottom:72px;}
+  .section-head{
+    display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+    padding-bottom:14px;border-bottom:1px solid var(--hair);margin-bottom:28px;
+  }
+  .slabel{
+    font-family:'JetBrains Mono',monospace;font-size:9.5px;
+    letter-spacing:.28em;text-transform:uppercase;color:var(--rubric);font-weight:500;
+  }
+  h2.stitle{
+    font-family:'Fraunces',serif;font-variation-settings:"opsz" 40,"wght" 500;
+    font-size:26px;letter-spacing:-.01em;
+  }
+  .sdesc{
+    font-size:14px;color:var(--ink-mid);font-style:italic;
+    font-variation-settings:"opsz" 14,"wght" 300;margin-left:auto;
+  }
+
+  .grid{display:grid;gap:10px;}
+  .g7{grid-template-columns:repeat(7,1fr);}
+  .g4{grid-template-columns:repeat(4,1fr);}
+  .g3{grid-template-columns:repeat(3,1fr);}
+  .g2{grid-template-columns:repeat(2,1fr);}
+  .g1{grid-template-columns:1fr;}
+
+  /* CARD */
+  .card{position:relative;border:1px solid var(--hair);overflow:hidden;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .bw{background:#fff;}
+  .bp{background:var(--parchment);}
+  .bi{background:var(--ink);}
+  .bck{
+    background-color:#f7f6f3;
+    background-image:
+      linear-gradient(45deg,rgba(0,0,0,.04) 25%,transparent 25%),
+      linear-gradient(-45deg,rgba(0,0,0,.04) 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,rgba(0,0,0,.04) 75%),
+      linear-gradient(-45deg,transparent 75%,rgba(0,0,0,.04) 75%);
+    background-size:12px 12px;background-position:0 0,0 6px,6px -6px,-6px 0;
+  }
+  .cin{padding:18px 12px 26px;display:flex;align-items:center;justify-content:center;width:100%;}
+  .cin img{display:block;max-width:100%;height:auto;}
+
+  /* Badge sigla */
+  .sg{
+    position:absolute;top:8px;left:8px;
+    font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:500;
+    letter-spacing:.16em;text-transform:uppercase;padding:3px 7px;
+    border-radius:2px;line-height:1.4;z-index:10;
+  }
+  .sg-l{background:rgba(19,26,42,.09);color:var(--ink);}
+  .sg-d{background:rgba(236,226,200,.15);color:var(--parchment);}
+  .sg-r{background:var(--rubric);color:#fff;}
+
+  /* Size label */
+  .sz{
+    position:absolute;bottom:8px;right:8px;
+    font-family:'JetBrains Mono',monospace;font-size:9px;
+    letter-spacing:.14em;text-transform:uppercase;opacity:.45;
+  }
+  .sz-l{color:var(--ink);}
+  .sz-d{color:var(--parchment);}
+
+  /* Context strip */
+  .ctx{display:grid;grid-template-columns:repeat(3,1fr);
+       gap:1px;background:var(--hair);border:1px solid var(--hair);margin-top:14px;}
+  .ctx-c{padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+  .ctx-row{display:flex;gap:14px;align-items:center;}
+  .ctx-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;opacity:.5;}
+
+  /* Lockup cards */
+  .lk-img{max-width:680px;width:100%;}
+  .vt-img{max-height:300px;width:auto;}
+  .nm-img{max-height:280px;width:auto;}
+
+  footer{
+    margin-top:64px;padding-top:24px;border-top:1px solid var(--hair);
+    font-family:'JetBrains Mono',monospace;font-size:9.5px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ink-mid);opacity:.5;text-align:center;
+  }
+
+  @media(max-width:900px){
+    body{padding:24px 12px 64px;}
+    .frame{padding:24px 16px 40px;}
+    .g7{grid-template-columns:repeat(4,1fr);}
+    .g3{grid-template-columns:repeat(2,1fr);}
+    .sdesc{margin-left:0;width:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+<header>
+  <p class="eyebrow">Aracne <span>·</span> identity set <span>·</span> preview completa</p>
+  <h1>Ar<em>a</em>cne</h1>
+  <p class="sub">Tagweb · Concept II · 5 famiglie · 11 sigle</p>
+</header>
+
+<!-- ══ FA · FAVICON ══════════════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">FA</span>
+    <h2 class="stitle">Favicon · marchio trasparente</h2>
+    <span class="sdesc">inchiostro + rubrica · 7 dimensioni</span>
+  </div>
+  <div class="grid g7">
+    <div class="card bck"><span class="sg sg-l">FA·16</span>
+      <div class="cin" style="padding:36px 12px 28px"><img src="favicon/aracne-favicon-16.png" width="16" height="16"></div>
+      <span class="sz sz-l">16 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·32</span>
+      <div class="cin" style="padding:28px 12px"><img src="favicon/aracne-favicon-32.png" width="32" height="32"></div>
+      <span class="sz sz-l">32 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·48</span>
+      <div class="cin" style="padding:22px 12px"><img src="favicon/aracne-favicon-48.png" width="48" height="48"></div>
+      <span class="sz sz-l">48 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·64</span>
+      <div class="cin"><img src="favicon/aracne-favicon-64.png" width="64" height="64"></div>
+      <span class="sz sz-l">64 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·128</span>
+      <div class="cin"><img src="favicon/aracne-favicon-128.png" width="88" height="88"></div>
+      <span class="sz sz-l">128 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·256</span>
+      <div class="cin"><img src="favicon/aracne-favicon-256.png" width="88" height="88"></div>
+      <span class="sz sz-l">256 px</span></div>
+    <div class="card bck"><span class="sg sg-l">FA·512</span>
+      <div class="cin"><img src="favicon/aracne-favicon-512.png" width="88" height="88"></div>
+      <span class="sz sz-l">512 px</span></div>
+  </div>
+  <div class="ctx">
+    <div class="ctx-c" style="background:#fff">
+      <div class="ctx-row">
+        <img src="favicon/aracne-favicon-48.png" width="36" height="36">
+        <img src="favicon/aracne-favicon-64.png" width="52" height="52">
+        <img src="favicon/aracne-favicon-128.png" width="68" height="68">
+      </div>
+      <span class="ctx-lbl" style="color:#111">su bianco</span>
+    </div>
+    <div class="ctx-c" style="background:var(--parchment)">
+      <div class="ctx-row">
+        <img src="favicon/aracne-favicon-48.png" width="36" height="36">
+        <img src="favicon/aracne-favicon-64.png" width="52" height="52">
+        <img src="favicon/aracne-favicon-128.png" width="68" height="68">
+      </div>
+      <span class="ctx-lbl" style="color:var(--ink)">su pergamena</span>
+    </div>
+    <div class="ctx-c" style="background:var(--ink)">
+      <div class="ctx-row">
+        <img src="app-icon/aracne-appicon-48.png" width="36" height="36">
+        <img src="app-icon/aracne-appicon-64.png" width="52" height="52">
+        <img src="app-icon/aracne-appicon-128.png" width="68" height="68">
+      </div>
+      <span class="ctx-lbl" style="color:var(--parchment)">su inchiostro → AI</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ AI · APP ICON ══════════════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">AI</span>
+    <h2 class="stitle">App icon · marchio puro</h2>
+    <span class="sdesc">fondo inchiostro · pergamena + rubrica+</span>
+  </div>
+  <div class="grid g7">
+    <div class="card bi"><span class="sg sg-d">AI·16</span>
+      <div class="cin" style="padding:36px 12px 28px"><img src="app-icon/aracne-appicon-16.png" width="16" height="16"></div>
+      <span class="sz sz-d">16 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·32</span>
+      <div class="cin" style="padding:28px 12px"><img src="app-icon/aracne-appicon-32.png" width="32" height="32"></div>
+      <span class="sz sz-d">32 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·48</span>
+      <div class="cin" style="padding:22px 12px"><img src="app-icon/aracne-appicon-48.png" width="48" height="48"></div>
+      <span class="sz sz-d">48 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·64</span>
+      <div class="cin"><img src="app-icon/aracne-appicon-64.png" width="64" height="64"></div>
+      <span class="sz sz-d">64 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·128</span>
+      <div class="cin"><img src="app-icon/aracne-appicon-128.png" width="88" height="88"></div>
+      <span class="sz sz-d">128 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·256</span>
+      <div class="cin"><img src="app-icon/aracne-appicon-256.png" width="88" height="88"></div>
+      <span class="sz sz-d">256 px</span></div>
+    <div class="card bi"><span class="sg sg-d">AI·512</span>
+      <div class="cin"><img src="app-icon/aracne-appicon-512.png" width="88" height="88"></div>
+      <span class="sz sz-d">512 px</span></div>
+  </div>
+</section>
+
+<!-- ══ NM · NAMED ══════════════════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">NM</span>
+    <h2 class="stitle">Named · marchio + nome</h2>
+    <span class="sdesc">3 sfondi × 3 dimensioni</span>
+  </div>
+
+  <!-- tre varianti di sfondo, a 512 -->
+  <div class="grid g3" style="margin-bottom:10px;">
+    <div class="card bi"><span class="sg sg-d">NM·INK</span>
+      <div class="cin" style="padding:20px;"><img class="nm-img" src="app-icon-named/aracne-named-512.png"></div>
+      <span class="sz sz-d">fondo inchiostro</span></div>
+    <div class="card bw"><span class="sg sg-l">NM·WHT</span>
+      <div class="cin" style="padding:20px;"><img class="nm-img" src="app-icon-named/aracne-named-white-512.png"></div>
+      <span class="sz sz-l">fondo bianco</span></div>
+    <div class="card bp"><span class="sg sg-l">NM·PCH</span>
+      <div class="cin" style="padding:20px;"><img class="nm-img" src="app-icon-named/aracne-named-parchment-512.png"></div>
+      <span class="sz sz-l">fondo pergamena</span></div>
+  </div>
+
+  <!-- tutte le dimensioni per i tre sfondi -->
+  <p style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.5;margin:18px 0 10px;">Tutte le dimensioni — NM·INK · NM·WHT · NM·PCH</p>
+  <div class="grid g3" style="gap:8px;">
+    <!-- INK -->
+    <div class="card bi"><span class="sg sg-d">NM·INK·256</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-256.png"></div></div>
+    <div class="card bw"><span class="sg sg-l">NM·WHT·256</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-white-256.png"></div></div>
+    <div class="card bp"><span class="sg sg-l">NM·PCH·256</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-parchment-256.png"></div></div>
+
+    <div class="card bi"><span class="sg sg-d">NM·INK·512</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-512.png"></div></div>
+    <div class="card bw"><span class="sg sg-l">NM·WHT·512</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-white-512.png"></div></div>
+    <div class="card bp"><span class="sg sg-l">NM·PCH·512</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-parchment-512.png"></div></div>
+
+    <div class="card bi"><span class="sg sg-d">NM·INK·1024</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-1024.png"></div></div>
+    <div class="card bw"><span class="sg sg-l">NM·WHT·1024</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-white-1024.png"></div></div>
+    <div class="card bp"><span class="sg sg-l">NM·PCH·1024</span>
+      <div class="cin" style="padding:16px;"><img style="max-height:160px;width:auto;" src="app-icon-named/aracne-named-parchment-1024.png"></div></div>
+  </div>
+</section>
+
+<!-- ══ HZ · LOCKUP ORIZZONTALE ════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">HZ</span>
+    <h2 class="stitle">Lockup orizzontale</h2>
+    <span class="sdesc">marchio + «Aracne»</span>
+  </div>
+  <div class="grid g1" style="gap:8px;">
+    <div class="card bw"><span class="sg sg-l">HZ·WHT</span>
+      <div class="cin" style="padding:28px 24px;"><img class="lk-img" src="lockup/aracne-lockup-horizontal-1024.png"></div></div>
+    <div class="card bi"><span class="sg sg-d">HZ·INK</span>
+      <div class="cin" style="padding:28px 24px;"><img class="lk-img" src="lockup/aracne-lockup-horizontal-1024-inverse.png"></div></div>
+    <div class="card bp"><span class="sg sg-l">HZ·PCH</span>
+      <div class="cin" style="padding:28px 24px;"><img class="lk-img" src="lockup/aracne-lockup-horizontal-1024.png"></div></div>
+  </div>
+</section>
+
+<!-- ══ TG · LOCKUP TAGLINE ═════════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">TG</span>
+    <h2 class="stitle">Lockup tagline</h2>
+    <span class="sdesc">marchio + «Aracne» + «TEI XML encoder»</span>
+  </div>
+  <div class="grid g1">
+    <div class="card bw"><span class="sg sg-l">TG·WHT</span>
+      <div class="cin" style="padding:28px 24px;"><img class="lk-img" src="lockup/aracne-lockup-tagline-1024.png"></div></div>
+  </div>
+</section>
+
+<!-- ══ VT · LOCKUP VERTICALE ══════════════════════════════ -->
+<section class="section">
+  <div class="section-head">
+    <span class="slabel">VT</span>
+    <h2 class="stitle">Lockup verticale</h2>
+    <span class="sdesc">marchio sopra · «Aracne» sotto</span>
+  </div>
+  <div class="grid g3">
+    <div class="card bw"><span class="sg sg-l">VT·WHT·512</span>
+      <div class="cin" style="padding:24px;"><img class="vt-img" src="lockup/aracne-lockup-vertical-512.png"></div></div>
+    <div class="card bw"><span class="sg sg-l">VT·WHT·1024</span>
+      <div class="cin" style="padding:24px;"><img class="vt-img" src="lockup/aracne-lockup-vertical-1024.png"></div></div>
+    <div class="card bp"><span class="sg sg-l">VT·PCH·1024</span>
+      <div class="cin" style="padding:24px;"><img class="vt-img" src="lockup/aracne-lockup-vertical-1024.png"></div></div>
+  </div>
+</section>
+
+<!-- ══ REF · SIGLE ══════════════════════════════════════════ -->
+<section class="section" style="margin-bottom:0;">
+  <div class="section-head">
+    <span class="slabel">REF</span>
+    <h2 class="stitle">Riferimento sigle</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:2.1;">
+    <div style="padding:14px 18px;border:1px solid var(--hair);background:var(--parchment);">
+      <b style="color:var(--rubric);">FA·N</b> — Favicon trasparente N px<br>
+      <b style="color:var(--rubric);">AI·N</b> — App icon inchiostro N px<br>
+      <b style="color:var(--rubric);">NM·INK</b> — Named, fondo inchiostro<br>
+      <b style="color:var(--rubric);">NM·WHT</b> — Named, fondo bianco<br>
+      <b style="color:var(--rubric);">NM·PCH</b> — Named, fondo pergamena<br>
+      <b style="color:var(--rubric);">HZ·WHT</b> — Lockup orizzontale chiaro<br>
+      <b style="color:var(--rubric);">HZ·INK</b> — Lockup orizzontale inverso<br>
+      <b style="color:var(--rubric);">HZ·PCH</b> — Lockup orizzontale pergamena<br>
+      <b style="color:var(--rubric);">TG·WHT</b> — Lockup + tagline chiaro<br>
+      <b style="color:var(--rubric);">VT·WHT</b> — Lockup verticale chiaro<br>
+      <b style="color:var(--rubric);">VT·PCH</b> — Lockup verticale pergamena
+    </div>
+    <div style="padding:14px 18px;border:1px solid var(--hair);background:var(--parchment);">
+      <b>Font wordmark:</b><br>
+      Lora Variable 500 (PNG)<br>
+      Fraunces via CDN (SVG)<br>
+      La <i>a</i> centrale è sempre italic<br><br>
+      <b>Palette:</b><br>
+      #131A2A · Inchiostro<br>
+      #ECE2C8 · Pergamena<br>
+      #A62639 · Rubrica<br>
+      #D44A5C · Rubrica+
+    </div>
+  </div>
+</section>
+
+<footer>Aracne · identity set · 42 file · 5 famiglie · 11 sigle</footer>
+</div>
+</body>
+</html>

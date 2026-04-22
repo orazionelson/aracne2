@@ -17,7 +17,7 @@ export interface UiConfig {
 
 const DEFAULTS: UiConfig = {
   platform_name: "Aracne2",
-  platform_logo_url: "/aracne-logo.png",
+  platform_logo_url: "/aracne-icons/app-icon-named/aracne-named-white-512.png",
   navbar_bg_color: "#1e40af",
   public_home_enabled: false,
   home_show_collections: true,
