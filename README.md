@@ -386,6 +386,10 @@ Before going to production:
 
 ## Reference documentation
 
+For day-to-day operations (applying `.env` changes, rotating credentials,
+troubleshooting port/DNS/bootstrap issues, backup) see
+[docs/OPERATIONS.md](docs/OPERATIONS.md).
+
 Technical reference documents are in [`docs/reference/`](docs/reference/).
 
 | Document | Topic |

@@ -29,6 +29,11 @@ directory.** The standard post-pull checklist is:
 If a session added no migrations and no new dependencies, say so explicitly so the
 user knows only `git pull` is needed.
 
+For non-development operational tasks — rotating credentials, editing `.env`,
+troubleshooting port/DNS/bootstrap issues, backup, log access — refer to
+`docs/OPERATIONS.md` rather than this file. Keep `CLAUDE.md` focused on
+development context and conventions.
+
 ---
 
 ## Your role
