@@ -145,20 +145,42 @@ async def platform_exception_handler(request: Request, exc: PlatformException) -
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    errors = exc.errors()
     if settings.is_development:
         # Pydantic v2 includes Exception objects in ctx (e.g. ValueError).
         # Serialize with default=str to avoid TypeError in json.dumps.
         import json as _json
 
-        details = _json.loads(_json.dumps(exc.errors(), default=str))
+        details = _json.loads(_json.dumps(errors, default=str))
     else:
         details = {}
+
+    # Surface the FIRST concrete error message to the UI instead of the generic
+    # "Request validation failed" one. Without this the frontend cannot tell
+    # the user *why* the submission failed ("spaces are not allowed in the
+    # username" vs "password must be at least 8 characters" etc.) and ends up
+    # showing an opaque string. The full list of per-field errors is still
+    # available in `details` for clients that want to drill down.
+    message = "Request validation failed"
+    if errors:
+        first = errors[0]
+        loc = [str(p) for p in first.get("loc", ()) if p != "body"]
+        raw_msg = first.get("msg", "")
+        # Pydantic v2 prefixes custom-validator errors with "Value error, " —
+        # strip it for a cleaner user-facing message.
+        if raw_msg.startswith("Value error, "):
+            raw_msg = raw_msg[len("Value error, "):]
+        if loc and raw_msg:
+            message = f"{'.'.join(loc)}: {raw_msg}"
+        elif raw_msg:
+            message = raw_msg
+
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "VALIDATION_ERROR",
-                "message": "Request validation failed",
+                "message": message,
                 "details": details,
             }
         },

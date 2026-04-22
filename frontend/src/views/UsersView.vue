@@ -152,10 +152,10 @@ onMounted(fetchUsers);
   <div class="mx-auto max-w-6xl p-6">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-bold">{{ t("users.title") }}</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("users.title") }}</h1>
       <button
         v-if="auth.hasMinRole('EditorInChief')"
-        class="rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
+        class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         @click="openModal"
       >
         + {{ t("users.create") }}
@@ -168,9 +168,9 @@ onMounted(fetchUsers);
         v-model="search"
         type="text"
         :placeholder="t('users.search_placeholder')"
-        class="flex-1 rounded border px-3 py-2 text-sm"
+        class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
       />
-      <select v-model="isActiveFilter" class="rounded border px-3 py-2 text-sm">
+      <select v-model="isActiveFilter" class="rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
         <option value="">{{ t("users.all_roles") }}</option>
         <option value="true">{{ t("users.filter_active") }}</option>
         <option value="false">{{ t("users.filter_inactive") }}</option>
@@ -182,13 +182,13 @@ onMounted(fetchUsers);
     <p v-if="impersonateError" class="mb-4 text-red-600">{{ impersonateError }}</p>
 
     <!-- Loading -->
-    <p v-if="isLoading" class="text-gray-500">{{ t("common.loading") }}</p>
+    <p v-if="isLoading" class="text-gray-500 dark:text-gray-400">{{ t("common.loading") }}</p>
 
     <!-- Table -->
-    <div v-else-if="users.length > 0" class="overflow-x-auto">
+    <div v-else-if="users.length > 0" class="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table class="w-full border-collapse text-sm">
         <thead>
-          <tr class="bg-gray-100 text-left">
+          <tr class="bg-gray-100 text-left text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <th class="px-4 py-2 font-semibold">{{ t("users.username") }}</th>
             <th class="px-4 py-2 font-semibold">{{ t("users.email") }}</th>
             <th class="px-4 py-2 font-semibold">{{ t("users.role") }}</th>
@@ -197,32 +197,32 @@ onMounted(fetchUsers);
             <th v-if="auth.hasMinRole('Admin')" class="px-4 py-2 font-semibold"></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody class="bg-white dark:bg-gray-900">
           <tr
             v-for="user in users"
             :key="user.id"
-            class="border-b hover:bg-gray-50"
+            class="border-t border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
           >
-            <td class="px-4 py-2 font-medium">{{ user.username }}</td>
-            <td class="px-4 py-2 text-gray-600">{{ user.email }}</td>
-            <td class="px-4 py-2">{{ user.role }}</td>
+            <td class="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{{ user.username }}</td>
+            <td class="px-4 py-2 text-gray-600 dark:text-gray-400">{{ user.email }}</td>
+            <td class="px-4 py-2 text-gray-800 dark:text-gray-200">{{ user.role }}</td>
             <td class="px-4 py-2">
-              <span :class="user.is_active ? 'text-green-600' : 'text-gray-400'">
+              <span :class="user.is_active ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'">
                 {{ user.is_active ? t("users.active") : t("users.inactive") }}
               </span>
             </td>
-            <td class="px-4 py-2 text-gray-500">{{ formatDate(user.last_login_at) }}</td>
+            <td class="px-4 py-2 text-gray-500 dark:text-gray-400">{{ formatDate(user.last_login_at) }}</td>
             <td v-if="auth.hasMinRole('Admin')" class="px-4 py-2">
               <div class="flex items-center gap-3">
                 <button
-                  class="text-sm text-blue-600 hover:underline"
+                  class="text-sm text-blue-600 hover:underline dark:text-blue-400"
                   @click="goToDetail(user.username)"
                 >
                   {{ t("users.edit") }}
                 </button>
                 <button
                   v-if="user.role !== 'Admin' && !auth.impersonating"
-                  class="text-sm text-amber-600 hover:underline"
+                  class="text-sm text-amber-600 hover:underline dark:text-amber-400"
                   @click="impersonate(user.id)"
                 >
                   {{ t("users.impersonate") }}
@@ -234,21 +234,21 @@ onMounted(fetchUsers);
       </table>
     </div>
 
-    <p v-else class="mt-4 text-gray-500">{{ t("users.no_users") }}</p>
+    <p v-else class="mt-4 text-gray-500 dark:text-gray-400">{{ t("users.no_users") }}</p>
 
     <!-- Pagination -->
     <div v-if="pagination && pagination.total_pages > 1" class="mt-4 flex gap-2">
       <button
         :disabled="page === 1"
-        class="rounded border px-3 py-1 text-sm disabled:opacity-40"
+        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
         @click="page--; fetchUsers()"
       >
         ←
       </button>
-      <span class="px-3 py-1 text-sm">{{ page }} / {{ pagination.total_pages }}</span>
+      <span class="px-3 py-1 text-sm text-gray-700 dark:text-gray-200">{{ page }} / {{ pagination.total_pages }}</span>
       <button
         :disabled="page === pagination.total_pages"
-        class="rounded border px-3 py-1 text-sm disabled:opacity-40"
+        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200"
         @click="page++; fetchUsers()"
       >
         →
@@ -263,59 +263,59 @@ onMounted(fetchUsers);
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       @click.self="closeModal"
     >
-      <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 class="mb-5 text-lg font-semibold">{{ t("users.create") }}</h2>
+      <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+        <h2 class="mb-5 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ t("users.create") }}</h2>
 
         <div class="space-y-4">
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">{{ t("users.username") }}</span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.username") }}</span>
             <input
               v-model="form.username"
               type="text"
-              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               autocomplete="off"
             />
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">{{ t("users.email") }}</span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.email") }}</span>
             <input
               v-model="form.email"
               type="email"
-              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             />
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">{{ t("users.password") }}</span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.password") }}</span>
             <input
               v-model="form.password"
               type="password"
-              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               autocomplete="new-password"
             />
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">{{ t("users.display_name") }}</span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.display_name") }}</span>
             <input
               v-model="form.display_name"
               type="text"
-              class="mt-1 w-full rounded border px-3 py-2 text-sm"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             />
           </label>
 
           <div class="flex gap-4">
             <label class="block flex-1">
-              <span class="text-sm font-medium text-gray-700">{{ t("users.role") }}</span>
-              <select v-model="form.role" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.role") }}</span>
+              <select v-model="form.role" class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 <option v-for="r in VALID_ROLES" :key="r" :value="r">{{ r }}</option>
               </select>
             </label>
 
             <label class="block flex-1">
-              <span class="text-sm font-medium text-gray-700">{{ t("users.preferred_lang") }}</span>
-              <select v-model="form.preferred_lang" class="mt-1 w-full rounded border px-3 py-2 text-sm">
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("users.preferred_lang") }}</span>
+              <select v-model="form.preferred_lang" class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 <option value="it">Italiano</option>
                 <option value="en">English</option>
               </select>
@@ -323,18 +323,18 @@ onMounted(fetchUsers);
           </div>
         </div>
 
-        <p v-if="createError" class="mt-3 text-sm text-red-600">{{ createError }}</p>
+        <p v-if="createError" class="mt-3 text-sm text-red-600 dark:text-red-400">{{ createError }}</p>
 
         <div class="mt-6 flex justify-end gap-3">
           <button
-            class="rounded border px-4 py-2 text-sm hover:bg-gray-50"
+            class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
             @click="closeModal"
           >
             {{ t("common.cancel") }}
           </button>
           <button
             :disabled="isCreating || !form.username || !form.email || !form.password"
-            class="rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-40"
+            class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
             @click="createUser"
           >
             {{ isCreating ? t("common.loading") : t("users.create") }}

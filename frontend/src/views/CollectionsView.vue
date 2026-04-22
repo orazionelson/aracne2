@@ -98,13 +98,13 @@ async function confirmDelete(id: string, title: string): Promise<void> {
   <div class="mx-auto max-w-6xl px-4 py-8">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900">{{ t("collections.title") }}</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ t("collections.title") }}</h1>
       <button
         v-if="auth.hasMinRole('EditorInChief')"
         class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         @click="showCreate = !showCreate"
       >
-        {{ t("collections.new") }}
+        + {{ t("collections.new") }}
       </button>
     </div>
 

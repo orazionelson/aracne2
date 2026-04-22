@@ -2,7 +2,7 @@
   <div class="mx-auto max-w-5xl px-4 py-8">
     <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-semibold text-gray-900">{{ t("search_engines.title") }}</h1>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ t("search_engines.title") }}</h1>
       <button
         class="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         @click="openCreate"
