@@ -843,7 +843,7 @@ async function runValidation(): Promise<void> {
         <!-- ── Format group ────────────────────────────────────────────────── -->
         <button
           :title="t('documents.pretty_print')"
-          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700"
           @click="prettyPrint"
         >
           <!-- icon: code brackets -->
@@ -855,7 +855,7 @@ async function runValidation(): Promise<void> {
 
         <button
           :title="isFullscreen ? t('documents.exit_fullscreen') : t('documents.fullscreen')"
-          class="inline-flex items-center rounded border border-transparent p-1.5 text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100"
+          class="inline-flex items-center rounded border border-transparent p-1.5 text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700"
           @click="toggleFullscreen"
         >
           <!-- icon: arrows-pointing-out / arrows-pointing-in -->
@@ -867,13 +867,13 @@ async function runValidation(): Promise<void> {
           </svg>
         </button>
 
-        <span class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
+        <span class="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-600" aria-hidden="true"/>
 
         <!-- ── Notes group ─────────────────────────────────────────────────── -->
         <button
           :disabled="isLoading"
           :title="t('documents.note_alpha_title')"
-          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/30"
           @click="openNoteModal('alpha')"
         >
           <!-- icon: pencil -->
@@ -886,7 +886,7 @@ async function runValidation(): Promise<void> {
         <button
           :disabled="isLoading"
           :title="t('documents.note_numeric_title')"
-          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:border-amber-200 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/30"
           @click="openNoteModal('numeric')"
         >
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -896,15 +896,15 @@ async function runValidation(): Promise<void> {
         </button>
 
 
-        <span class="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true"/>
+        <span class="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-600" aria-hidden="true"/>
 
         <!-- ── Panel toggles ──────────────────────────────────────────────── -->
         <button
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors',
             showHelpPanel
-              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+              ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
           @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; }"
         >
@@ -920,8 +920,8 @@ async function runValidation(): Promise<void> {
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors',
             showAiPanel
-              ? 'border-violet-300 bg-violet-50 text-violet-700'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+              ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
           @click="showAiPanel ? closeAiPanel() : openAiPanel()"
         >
@@ -937,8 +937,8 @@ async function runValidation(): Promise<void> {
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
             showMediaPanel
-              ? 'border-teal-300 bg-teal-50 text-teal-700'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+              ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
           @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; }"
         >
@@ -954,8 +954,8 @@ async function runValidation(): Promise<void> {
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
             showWikidataPanel
-              ? 'border-amber-300 bg-amber-50 text-amber-700'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100',
+              ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
           :title="t('wikidata.button_hint')"
           @click="toggleWikidataPanel"
@@ -970,13 +970,13 @@ async function runValidation(): Promise<void> {
         </button>
 
         <!-- ── Status feedback ────────────────────────────────────────────── -->
-        <span v-if="saved" class="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+        <span v-if="saved" class="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
           </svg>
           {{ t('documents.saved') }}
         </span>
-        <span v-if="saveError" class="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-red-600 hover:underline" @click="showValidationPanel = true; showHelpPanel = false; showAiPanel = false; showMediaPanel = false;">
+        <span v-if="saveError" class="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-red-600 hover:underline dark:text-red-400" @click="showValidationPanel = true; showHelpPanel = false; showAiPanel = false; showMediaPanel = false;">
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
           {{ t('documents.save_error_see_panel') }}
         </span>
@@ -984,7 +984,7 @@ async function runValidation(): Promise<void> {
         <!-- ── Validation error re-open badge ───────────────────────────── -->
         <button
           v-if="validationResult && !validationResult.valid && !showValidationPanel"
-          class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200"
+          class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60"
           :title="t('documents.validation_errors_title')"
           @click="showValidationPanel = true; showHelpPanel = false; showAiPanel = false; showMediaPanel = false;"
         >
