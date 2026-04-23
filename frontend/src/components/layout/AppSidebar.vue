@@ -21,10 +21,12 @@ import {
   ChevronDoubleRightIcon,
   SunIcon,
   MoonIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notifications";
+import { usePluginStore } from "@/stores/plugins";
 import { useUiStore, type SidebarSectionKey } from "@/stores/ui";
 
 // Fixed admin branding — not affected by uiConfig (which controls the public
@@ -44,11 +46,15 @@ const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const notif = useNotificationStore();
+const plugins = usePluginStore();
 const ui = useUiStore();
 
 onMounted(async () => {
   if (auth.isAuthenticated) {
     await notif.fetchUnreadCount().catch(() => undefined);
+    if (plugins.plugins.length === 0) {
+      await plugins.fetchPlugins().catch(() => undefined);
+    }
   }
 });
 
@@ -74,6 +80,12 @@ const SECTIONS: NavSection[] = [
       { labelKey: "nav.dashboard", to: { name: "dashboard" }, icon: Squares2X2Icon },
       { labelKey: "nav.collections", to: { name: "collections" }, icon: FolderOpenIcon },
       { labelKey: "nav.entities", to: { name: "entities" }, icon: TagIcon },
+      {
+        labelKey: "nav.help",
+        to: { name: "help" },
+        icon: QuestionMarkCircleIcon,
+        visible: () => plugins.isActive("help"),
+      },
     ],
   },
   {

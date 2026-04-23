@@ -18,6 +18,8 @@ lxml==5.3.0
 pgvector==0.3.6
 rdflib==7.1.1
 apscheduler==3.10.4
+markdown-it-py==3.0.0
+bleach==6.2.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
 anyio==4.7.0

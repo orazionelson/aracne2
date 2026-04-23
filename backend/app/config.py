@@ -148,6 +148,11 @@ class Settings(BaseSettings):
     # to point to a persistent volume mounted outside the container.
     backup_root: Path = Path("/app/backups")
 
+    # Help docs source directory — Markdown sources for the non-native Help
+    # plugin. Lives inside the backend tree so the Dockerfile's COPY picks it
+    # up and dev bind-mounts see it automatically.
+    help_docs_root: Path = Path("/app/help_docs")
+
     # GeoNames API — used by /geonames/search to power Place-of-Publication autocomplete.
     # Register a free account at https://www.geonames.org/login and set this variable.
     geonames_username: str = "aracne"

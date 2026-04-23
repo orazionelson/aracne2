@@ -4,14 +4,19 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useDashboardStore } from "@/stores/dashboard";
+import { usePluginStore } from "@/stores/plugins";
 
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const dashboard = useDashboardStore();
+const plugins = usePluginStore();
 
-onMounted(() => {
-  dashboard.fetchDashboard(auth.userRole);
+onMounted(async () => {
+  await dashboard.fetchDashboard(auth.userRole);
+  if (plugins.plugins.length === 0) {
+    await plugins.fetchPlugins().catch(() => undefined);
+  }
 });
 
 function statusClass(s: string): string {
@@ -33,11 +38,13 @@ interface Shortcut {
   routeName: string;
   icon: string;
   minRole?: string;
+  pluginSlug?: string;
 }
 
 const SHORTCUTS: Shortcut[] = [
   { labelKey: "home.shortcut_collections", routeName: "collections", icon: "📁" },
   { labelKey: "home.shortcut_notifications", routeName: "notifications", icon: "🔔" },
+  { labelKey: "home.shortcut_help", routeName: "help", icon: "❓", pluginSlug: "help" },
   { labelKey: "home.shortcut_users", routeName: "users", icon: "👤", minRole: "EditorInChief" },
   { labelKey: "home.shortcut_websites", routeName: "admin-websites", icon: "🌐" },
   { labelKey: "home.shortcut_search_engines", routeName: "admin-search-engines", icon: "🔍" },
@@ -46,7 +53,11 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 function visibleShortcuts(): Shortcut[] {
-  return SHORTCUTS.filter((s) => !s.minRole || auth.hasMinRole(s.minRole));
+  return SHORTCUTS.filter((s) => {
+    if (s.minRole && !auth.hasMinRole(s.minRole)) return false;
+    if (s.pluginSlug && !plugins.isActive(s.pluginSlug)) return false;
+    return true;
+  });
 }
 </script>
 

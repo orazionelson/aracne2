@@ -49,6 +49,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () =>
       import("@/components/plugins/CrossrefLookupConfig.vue"),
   },
+  {
+    slug: "help",
+    titleKey: "help.panel_title",
+    component: () => import("@/components/plugins/HelpConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

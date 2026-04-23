@@ -130,6 +130,12 @@ const router = createRouter({
       meta: { requiresAuth: true, layout: "admin" },
     },
     {
+      path: "/help",
+      name: "help",
+      component: () => import("@/views/HelpView.vue"),
+      meta: { requiresAuth: true, layout: "admin" },
+    },
+    {
       path: "/admin/plugins",
       name: "admin-plugins",
       component: () => import("@/views/admin/PluginsView.vue"),
