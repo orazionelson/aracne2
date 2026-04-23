@@ -2996,6 +2996,146 @@ def _footer_parts(col: Collection | None) -> tuple[str, str]:
     return ", ".join(publisher_parts), identifier_url
 
 
+# ── Maintenance mode ──────────────────────────────────────────────────────────
+
+
+async def is_website_in_maintenance(
+    db: AsyncSession, website: Website
+) -> bool:
+    """True when the website should render its maintenance banner instead
+    of normal content.
+
+    Triggers when **both** conditions hold:
+      1. ``website.maintenance_on_unpublish`` is True (the operator wants
+         the banner behaviour for this site — STATIC defaults to False so
+         releases can outlive transient unpublishes).
+      2. The linked collection is missing, soft-deleted, or not in the
+         ``published`` + ``is_public=True`` state.
+
+    When the site has no linked collection (``collection_id is None``),
+    the flag has nothing to gate on and the function returns False.
+    """
+    if not website.maintenance_on_unpublish:
+        return False
+    if website.collection_id is None:
+        return False
+    col = await db.get(Collection, website.collection_id)
+    if col is None:
+        return True
+    is_live = (
+        col.status == CollectionStatus.published
+        and bool(col.is_public)
+    )
+    return not is_live
+
+
+def build_maintenance_html(
+    website: Website,
+    *,
+    admin_email: str,
+    default_message: str | None = None,
+) -> str:
+    """Render the 503 maintenance banner HTML for a given website.
+
+    Uses the website's own theme (logo, colour palette, custom CSS) so
+    the page visually matches the rest of the site — the banner is a
+    state, not a redirect to a generic platform page.
+
+    Fallbacks:
+      - ``maintenance_message`` on the website → first;
+      - ``default_message`` argument (i18n-resolved by the caller) → second;
+      - a hard-coded English phrase → last-resort.
+    """
+    theme = website.theme_config or {}
+    effective_email = (website.contact_email or "").strip() or admin_email
+    message = (
+        (website.maintenance_message or "").strip()
+        or (default_message or "").strip()
+        or "This edition is temporarily unavailable. Please check back soon."
+    )
+    # Show a site logo if the theme carries one; otherwise fall back to
+    # the platform mark so the banner is never blank.
+    site_logo_url = theme.get("logo_url") or ""
+    platform_logo_url = "/aracne-icons/favicon/aracne-favicon-256.png"
+
+    # Escape the message — it is Designer-authored but we still do not
+    # want newlines or angle brackets leaking raw into the template.
+    from html import escape
+
+    msg_html = escape(message).replace("\n", "<br/>")
+    email_html = escape(effective_email)
+
+    body_html = f"""
+      <main class="maint-wrap">
+        <div class="maint-card">
+          <div class="maint-logos">
+            {f'<img src="{escape(site_logo_url)}" alt="" class="maint-site-logo"/>' if site_logo_url else ""}
+            <img src="{platform_logo_url}" alt="Aracne2" class="maint-platform-logo"/>
+          </div>
+          <h1 class="maint-title">{escape(website.title)}</h1>
+          <p class="maint-message">{msg_html}</p>
+          <p class="maint-contact">
+            <a href="mailto:{email_html}">{email_html}</a>
+          </p>
+        </div>
+      </main>
+    """.strip()
+
+    return _render_page(
+        site_title=website.title,
+        page_title=f"{website.title} — Maintenance",
+        content=body_html,
+        style=_style_block(theme, website.custom_css) + _MAINT_CSS,
+        navbar="",
+        meta_tags='<meta name="robots" content="noindex, nofollow"/>',
+        custom_js=None,
+    )
+
+
+_MAINT_CSS = """
+.maint-wrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+.maint-card {
+  max-width: 520px;
+  text-align: center;
+}
+.maint-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+.maint-site-logo { max-height: 72px; width: auto; }
+.maint-platform-logo { max-height: 40px; width: auto; opacity: 0.5; }
+.maint-title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.maint-message {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #374151;
+  margin-bottom: 24px;
+}
+.maint-contact {
+  font-size: 0.95rem;
+  color: #6b7280;
+}
+.maint-contact a {
+  color: #4f46e5;
+  text-decoration: none;
+}
+.maint-contact a:hover { text-decoration: underline; }
+"""
+
+
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 async def _get_website(db: AsyncSession, slug: str) -> Website:
@@ -3029,6 +3169,18 @@ async def create_website(
     if existing is not None:
         raise ConflictError(f"Website with slug '{data.slug}' already exists.")
 
+    # Per-mode default for maintenance_on_unpublish:
+    #   STATIC  → False (the site is a "release" that may intentionally
+    #                    outlive a transient collection unpublish);
+    #   DYNAMIC → True  (dynamic rendering depends on the collection
+    #                    being published; the banner is the humane
+    #                    fallback over a raw 404);
+    #   HYBRID  → True  (same reason, for the dynamic half).
+    if data.maintenance_on_unpublish is None:
+        maint_default = data.rendering_mode != RenderingMode.STATIC
+    else:
+        maint_default = data.maintenance_on_unpublish
+
     website = Website(
         slug=data.slug,
         title=data.title,
@@ -3042,6 +3194,9 @@ async def create_website(
         xslt_schema_id=data.xslt_schema_id,
         is_published=data.is_published,
         show_in_public_home=data.show_in_public_home,
+        maintenance_on_unpublish=maint_default,
+        maintenance_message=data.maintenance_message,
+        contact_email=data.contact_email,
         created_by=user_id,
     )
     db.add(website)

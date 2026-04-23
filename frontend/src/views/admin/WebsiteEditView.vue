@@ -577,6 +577,9 @@ function initForm(site: Website): void {
     website_url: site.website_url,
     is_published: site.is_published,
     show_in_public_home: site.show_in_public_home,
+    maintenance_on_unpublish: site.maintenance_on_unpublish,
+    maintenance_message: site.maintenance_message ?? "",
+    contact_email: site.contact_email ?? "",
     theme_config: {
       font_family: 'Georgia,"Times New Roman",serif',
       footer_bg: "#ffffff",
@@ -646,6 +649,9 @@ async function saveEdit(): Promise<void> {
       website_url: (editForm.value.website_url as string) || null,
       is_published: editForm.value.is_published,
       show_in_public_home: editForm.value.show_in_public_home as boolean,
+      maintenance_on_unpublish: editForm.value.maintenance_on_unpublish as boolean,
+      maintenance_message: (editForm.value.maintenance_message as string) || null,
+      contact_email: (editForm.value.contact_email as string) || null,
       theme_config: editForm.value.theme_config as Record<string, string>,
       meta_config: editForm.value.meta_config as Record<string, string | string[]>,
       nav_config: editForm.value.nav_config as AracnePageConfig[],
@@ -796,6 +802,39 @@ onBeforeUnmount(() => {
               <label :for="`edit-sph-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_show_in_public_home") }}</label>
             </div>
             <p class="text-xs text-gray-400">{{ t("websites.field_show_in_public_home_hint") }}</p>
+          </div>
+
+          <!-- Maintenance banner on collection unpublish -->
+          <div class="sm:col-span-2 rounded border border-gray-200 bg-gray-50 p-3">
+            <div class="flex items-center gap-2">
+              <input :id="`edit-maint-${website.slug}`" v-model="editForm.maintenance_on_unpublish" type="checkbox" class="rounded border-gray-300" />
+              <label :for="`edit-maint-${website.slug}`" class="text-xs font-semibold text-gray-700">{{ t("websites.field_maintenance_on_unpublish") }}</label>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">{{ t("websites.field_maintenance_on_unpublish_hint") }}</p>
+            <div v-if="editForm.maintenance_on_unpublish" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_maintenance_message") }}</label>
+                <textarea
+                  v-model="editForm.maintenance_message"
+                  rows="2"
+                  maxlength="1024"
+                  class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  :placeholder="t('websites.field_maintenance_message_placeholder')"
+                />
+                <p class="mt-0.5 text-xs text-gray-400">{{ t("websites.field_maintenance_message_hint") }}</p>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_contact_email") }}</label>
+                <input
+                  v-model="editForm.contact_email"
+                  type="email"
+                  maxlength="256"
+                  class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                  :placeholder="t('websites.field_contact_email_placeholder')"
+                />
+                <p class="mt-0.5 text-xs text-gray-400">{{ t("websites.field_contact_email_hint") }}</p>
+              </div>
+            </div>
           </div>
 
           <!-- Metadata foldable panel -->

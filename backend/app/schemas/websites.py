@@ -72,6 +72,9 @@ class WebsiteCreate(BaseModel):
     custom_css: str | None = None
     custom_js: str | None = None
     include_jquery: bool = False
+    maintenance_on_unpublish: bool | None = None  # None → set per-mode default in service
+    maintenance_message: str | None = Field(None, max_length=1024)
+    contact_email: str | None = Field(None, max_length=256)
 
     @field_validator("website_url", mode="before")
     @classmethod
@@ -100,6 +103,9 @@ class WebsiteUpdate(BaseModel):
     custom_css: str | None = None
     custom_js: str | None = None
     include_jquery: bool | None = None
+    maintenance_on_unpublish: bool | None = None
+    maintenance_message: str | None = Field(None, max_length=1024)
+    contact_email: str | None = Field(None, max_length=256)
 
 
 # ── Website indices ───────────────────────────────────────────────────────────
@@ -158,6 +164,9 @@ class WebsiteResponse(BaseModel):
     custom_css: str | None
     custom_js: str | None
     include_jquery: bool
+    maintenance_on_unpublish: bool
+    maintenance_message: str | None
+    contact_email: str | None
     distinct_tags: dict | list | None  # dict when populated, [] when XQuery returned no results
     tags_refreshed_at: datetime | None
     created_by: uuid.UUID | None

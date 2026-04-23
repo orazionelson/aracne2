@@ -479,6 +479,36 @@ def _dynamic_html_response(html: str, etag: str, request: Request) -> Response:
     return HTMLResponse(html, headers={"ETag": etag, "Vary": "Accept-Encoding"})
 
 
+_MAINTENANCE_RETRY_AFTER_SECONDS = 3600  # 1 hour — crawlers will ret-try past this
+
+
+async def _maybe_maintenance_response(
+    db: AsyncSession, website: svc.Website,
+) -> Response | None:
+    """Return a 503 maintenance banner when the site should be hidden;
+    return ``None`` otherwise.
+
+    Centralises the check so every site-serving endpoint (dynamic
+    render + static file + catch-all) can call it in one line at the
+    top. Applies uniformly regardless of ``rendering_mode``.
+    """
+    if not await svc.is_website_in_maintenance(db, website):
+        return None
+    html = svc.build_maintenance_html(
+        website, admin_email=settings.admin_email,
+    )
+    return Response(
+        content=html,
+        status_code=503,
+        media_type="text/html",
+        headers={
+            "Retry-After": str(_MAINTENANCE_RETRY_AFTER_SECONDS),
+            "Cache-Control": "no-store",
+            "X-Robots-Tag": "noindex, nofollow",
+        },
+    )
+
+
 @router.get("/sites/{slug}", include_in_schema=False)
 async def serve_site_index_redirect(slug: str) -> RedirectResponse:
     """Redirect to the canonical URL with trailing slash.
@@ -498,6 +528,8 @@ async def serve_site_index(
     """Serve the site cover page, respecting the rendering mode and access guard."""
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         path = _resolve_site_file(slug, "index.html")
         if not path.exists():
@@ -524,6 +556,8 @@ async def serve_site_browse(
     """Serve the document list page, respecting the rendering mode and access guard."""
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         path = _resolve_site_file(slug, "browse.html")
         if not path.exists():
@@ -548,6 +582,8 @@ async def serve_site_search(
     """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     if website.rendering_mode == RenderingMode.STATIC:
         # Static path: client-side JS search page built at build time.
         path = _resolve_site_file(slug, "search.html")
@@ -575,6 +611,8 @@ async def serve_site_bibliography(
     """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     if website.rendering_mode == RenderingMode.STATIC:
         path = _resolve_site_file(slug, "bibliography.html")
         if not path.exists():
@@ -599,6 +637,8 @@ async def serve_site_doc(
     """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     # HYBRID: document pages are always dynamic, even if a static file exists.
     if website.rendering_mode == RenderingMode.STATIC:
         # Static path: look for docs/{filename}.html on disk.
@@ -630,6 +670,8 @@ async def serve_site_page(
     """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     if website.rendering_mode in (RenderingMode.STATIC, RenderingMode.HYBRID):
         # Strip trailing .html if already present (static links include the extension).
         clean_slug = page_slug[:-5] if page_slug.endswith(".html") else page_slug
@@ -656,6 +698,8 @@ async def serve_site_all_indices(
     """Serve the aggregated indices page (all built indices as tabs)."""
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     html = svc.render_all_indices_html(
         website,
         site_base_url=f"/api/v1/sites/{slug}",
@@ -678,6 +722,8 @@ async def serve_site_index_page(
 
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
 
     idx = await db.scalar(
         _select(_WebsiteIndex).where(
@@ -707,6 +753,8 @@ async def serve_site_file(
     """
     website = await svc.get_website(db, slug)
     _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
     resolved = _resolve_site_file(slug, path)
     if not resolved.exists():
         raise HTTPException(status_code=404, detail="File not found.")

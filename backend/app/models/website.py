@@ -116,6 +116,20 @@ class Website(Base):
         sa.DateTime(timezone=True), nullable=True
     )
 
+    # ── Maintenance mode ────────────────────────────────────────────────────
+    # When True, rendering flips to a 503 maintenance banner as soon as the
+    # linked collection is no longer published + public. Defaults differ by
+    # mode (STATIC=False, DYNAMIC=True, HYBRID=True) — see migration 0056.
+    maintenance_on_unpublish: Mapped[bool] = mapped_column(
+        sa.Boolean(), nullable=False, default=False
+    )
+    # Optional custom banner text. None → frontend falls back to an
+    # i18n-resolved default phrase.
+    maintenance_message: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Per-website contact email. Displayed on the maintenance banner and
+    # available to other surfaces. Empty → falls back to admin_email.
+    contact_email: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
     pages: Mapped[list["WebsitePage"]] = relationship(
         "WebsitePage",
         back_populates="website",

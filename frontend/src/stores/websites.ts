@@ -72,6 +72,9 @@ export interface Website {
   custom_css: string | null;
   custom_js: string | null;
   include_jquery: boolean;
+  maintenance_on_unpublish: boolean;
+  maintenance_message: string | null;
+  contact_email: string | null;
   distinct_tags: Record<string, string[]> | null;
   tags_refreshed_at: string | null;
   created_by: string | null;
@@ -91,6 +94,9 @@ export interface WebsiteCreate {
   meta_config?: Record<string, string | string[]>;
   is_published?: boolean;
   show_in_public_home?: boolean;
+  maintenance_on_unpublish?: boolean | null;
+  maintenance_message?: string | null;
+  contact_email?: string | null;
 }
 
 export interface WebsiteUpdate {
@@ -108,6 +114,9 @@ export interface WebsiteUpdate {
   custom_css?: string | null;
   custom_js?: string | null;
   include_jquery?: boolean;
+  maintenance_on_unpublish?: boolean;
+  maintenance_message?: string | null;
+  contact_email?: string | null;
 }
 
 export interface WebsitePageCreate {
