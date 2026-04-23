@@ -1137,4 +1137,105 @@ without introducing third-party tracking at all.
 
 ---
 
+## 16. Non-native plugin: DataCite DOI minting 🔵 To discuss
+
+Mint persistent DOIs for published collections and built websites via
+an institutional DataCite allocator. Operationally a sibling of the
+Zenodo Deposit plugin but architecturally heavier because of what
+DataCite guarantees to the scholarly community.
+
+**Why this is attractive**
+
+Most institutional customers in the target audience already have a
+DataCite allocator (university library, CNR, ministry). For them a
+Zenodo deposit is redundant; what they want is a DOI in *their own*
+prefix pointing back at their Aracne2-hosted edition. The plugin
+would close that last gap on the "make editions citable" story.
+
+**What makes it hard — and why we're not building it yet**
+
+1. **Scarcity and cost of DOIs.** DataCite allocators charge per-DOI
+   or per-year-quota. Unlike Zenodo where every deposit costs
+   nothing, DataCite consumes budget. The UX cannot "mint on publish"
+   naively — an operator mistake burns money. The plugin needs:
+   - An explicit "mint" action, not an automatic hook;
+   - Visible DOI-quota awareness in the admin UI;
+   - An audit trail of who minted what and when.
+
+2. **Pre-allocation workflow.** Real-world DataCite practice is to
+   reserve a DOI in *draft* state well before publication (so the
+   landing page, the PDF metadata, and the DOI itself can be prepared
+   in parallel), and only *findable*-flip it at publication. The
+   plugin has to model at least two DOI states (draft / findable)
+   and let an editor move between them without losing the DOI.
+
+3. **Immutability contract vs. unpublish-to-edit workflow.** This is
+   the load-bearing question. DataCite's social contract is: "once a
+   DOI is findable, the URL it resolves to is preserved forever, and
+   the content at that URL should be preserved or explicitly
+   superseded." Aracne2's current workflow lets an EditorInChief
+   *unpublish* a collection, edit it, and re-publish — with no
+   versioning on the public URL. If a DOI had already been minted,
+   either:
+   - The DOI keeps resolving to the same URL while the content
+     changes silently underneath → **breaks the scholarly contract**,
+     even if DataCite technically allows it.
+   - The DOI is retracted / marked as withdrawn → **burns a DOI**
+     for every "oops, one more document".
+   - A new DOI is minted for the re-published version and linked to
+     the old one via `related_identifiers` (`IsNewVersionOf` /
+     `IsPreviousVersionOf`) → **correct, but doubles the DOI spend
+     on every edit cycle and requires a versioning UX we do not
+     currently have**.
+
+   None of these is right by default. Zenodo sidesteps the problem
+   because it *is* the archive — it keeps every version as a separate
+   record and gives each its own DOI. Aracne2 is not an archive; a
+   public URL mutates in place.
+
+**Prerequisites before scoping this plugin**
+
+- **A DOI-minting lifecycle spec**: what does "unpublish" mean for a
+  DOI-tagged collection? Forbid it? Force re-mint on re-publish?
+  Treat every edit after publish as a minor revision under the same
+  DOI?
+- **A versioning model for the public URL**: even if we keep minting
+  one DOI per collection, the URL it points at has to remain stable
+  and the *content* has to be either preserved or clearly versioned.
+  This is a bigger change than the DataCite plugin itself — it
+  touches collection publishing, website builds, and the unpublish
+  action.
+- **Per-deployment allocator credentials** encrypted in
+  `system_settings` (same Fernet pattern as Zenodo).
+- **Quota awareness**: a DataCite allocator quota endpoint polled
+  periodically so the admin sees "DOIs remaining this year" before
+  minting.
+
+**Scope when it ships**
+
+- Mint explicit (button per collection / per website), never automatic.
+- Draft / findable state machine with operator confirmation on
+  findable-flip.
+- `related_identifiers` emission matching the chosen versioning
+  model (decided in the lifecycle spec above).
+- Reuses the `DepositMetadata` intermediate factored out for Zenodo
+  so the Pydantic model is shared; only the serialiser differs.
+- DataCite test instance (`api.test.datacite.org`) selectable in the
+  admin UI for smoke testing without consuming real DOIs.
+
+**Trigger**
+
+Build this once the institutional operator on the receiving end has:
+
+- A clear position on unpublish semantics (preserve / version / forbid);
+- A committed DataCite allocator budget and quota;
+- Agreement to use the draft-first workflow rather than mint-on-publish.
+
+Zenodo covers the "cite-this-edition" use case in the meantime,
+which is the 80 % solution for non-institutional deployments.
+
+*Added: 2026-04-23*
+
+---
+
 *Last updated: 2026-04-23*
