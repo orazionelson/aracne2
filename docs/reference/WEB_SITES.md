@@ -43,6 +43,34 @@ falls through to `FileResponse` for everything else (static mode).
 
 ---
 
+## Sitemap and `robots.txt`
+
+Every published website is automatically included in the platform's sitemap
+hierarchy — Designers do not need to generate or upload anything. The SEO
+router exposes:
+
+- `GET /sitemap.xml` — sitemap index listing the core public site and every
+  per-website sitemap below.
+- `GET /sitemap-websites.xml` — one `<url>` entry per **public** website
+  (cover page). Private or draft websites are excluded.
+- `GET /sites/{slug}/sitemap.xml` — per-site sitemap listing the cover,
+  `browse`, `search`, `bibliography`, every visible free page, every
+  document page (`/docs/{filename}`), and every index page. Hidden system
+  pages and hidden free pages are skipped.
+- `GET /robots.txt` — platform-wide robots directive; each website's own
+  pages are allowed by the default policy and referenced through the
+  sitemap index.
+
+`lastmod` is taken from `Website.updated_at` for the cover/overview entries
+and from document/page `updated_at` where available. The sitemap is served
+from the public API and is unauthenticated (no JWT required).
+
+Full technical spec: [SEO.md](./SEO.md). Designers who need a site-specific
+`robots.txt` override should document the requirement there — per-website
+overrides are not currently exposed in the admin UI.
+
+---
+
 ## Admin endpoints
 
 ```

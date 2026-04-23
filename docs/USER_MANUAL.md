@@ -114,8 +114,43 @@ there you can:
 - Change your display name
 - Change your password
 - Switch the interface language (Italian or English)
+- Set your **ORCID iD**
 
 Your language preference is saved and applied automatically every time you log in.
+
+#### ORCID iD
+
+ORCID ([orcid.org](https://orcid.org/)) is an international registry of
+persistent identifiers for researchers. Set yours once in the profile page
+and Aracne2 uses it automatically wherever your authorship is declared:
+
+- The public collection and document pages show a clickable ORCID link next
+  to your display name.
+- RDF / Linked Open Data output (JSON-LD, schema.org, Dublin Core) emits
+  `schema:sameAs` / `foaf:account` pointing at your ORCID record.
+- If the Zenodo deposit plugin is active, your ORCID is attached to the
+  `creators` entry on every record deposited for a collection you edit —
+  so Zenodo can disambiguate authorship and cross-link your other works.
+
+Expected format: `0000-0002-1825-0097` (the hyphenated short form). The
+form accepts full URLs too (`https://orcid.org/0000-…`) and stores the
+short form. Aracne2 validates the ISO 7064 Mod 11-2 checksum before
+saving — a typo in the last digit is rejected immediately.
+
+If you do not have an ORCID, leave the field empty: nothing downstream
+breaks, the public pages simply show your name without a link.
+
+**Admins** can edit another user's ORCID from the user-detail page
+(`/admin/users/:id`) if a member asks to have it corrected.
+
+#### ORCID lookup in the TEI editor
+
+Independent of the profile field above: when the **ORCID lookup plugin** is
+activated by an Admin (see §22 Plugins), the TEI editor gains an "ORCID"
+button in its toolbar that searches the public ORCID registry by name and
+writes the resulting `@ref="https://orcid.org/…"` onto the enclosing
+`<persName>`. That flow is described in §6 (The TEI editor → External
+reference lookups).
 
 ---
 
@@ -287,6 +322,29 @@ autocomplete:
 Open the help panel (right-side panel, "TEI Help" tab) and type an element name
 to see a link to its TEI P5 documentation. This works only when a CM5 schema is
 loaded.
+
+### External reference lookups
+
+Three optional buttons appear in the toolbar when the matching plugin is
+activated by your Admin. Each opens a side-panel that lets you resolve an
+external reference and insert the resulting attribute or TEI fragment
+directly into the document.
+
+| Button | Plugin | What it does |
+|--------|--------|--------------|
+| **Wikidata** | `wikidata` (always available) | Searches Wikidata by name or by the selected text; on "Apply" writes `@ref="https://www.wikidata.org/entity/Q…"` on the enclosing `<persName>`, `<placeName>`, or `<orgName>`. |
+| **ORCID** | `orcid` (non-native, Admin must activate) | Searches the public ORCID registry by researcher name or affiliation; on "Apply" writes `@ref="https://orcid.org/0000-…"` on the enclosing `<persName>`. Use this for any person with an ORCID, not just Aracne2 users — the profile field in §3 is only for your own identifier. |
+| **DOI** | `crossref_lookup` (non-native, Admin must activate) | Paste a DOI (accepts `doi:…`, `https://doi.org/…`, or the bare identifier) and CrossRef returns a ready-to-insert TEI `<biblStruct>` that is appended to the document's `<listBibl>`. |
+
+If a button is missing it is because the plugin is not currently
+activated in `/admin/plugins`. Plugin activation takes effect after the
+backend is restarted.
+
+The Wikidata and ORCID panels are mutually exclusive on a given element
+(one `@ref` per element), so only one can be applied at a time. The DOI
+resolver is deterministic — the output is whatever CrossRef has on file,
+not an AI guess — making it safer than the AI `tei_bibl_inline` prompt
+for citations you need to match a published record exactly.
 
 ---
 
