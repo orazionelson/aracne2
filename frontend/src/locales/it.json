@@ -180,6 +180,8 @@
     "homepage_show_login_button_hint": "Mostra il link di accesso nell'intestazione della homepage pubblica",
     "homepage_propagate_css": "Propaga CSS personalizzato",
     "homepage_propagate_css_hint": "Applica il foglio di stile personalizzato a tutte le pagine pubbliche (lista collezioni, documento, entità, bibliografia), non solo alla homepage.",
+    "homepage_sitemap_include_search_engines": "Includi i motori di ricerca nella sitemap",
+    "homepage_sitemap_include_search_engines_hint": "Se attivo, /sitemap.xml pubblica una sub-sitemap aggiuntiva con la landing di ogni motore di ricerca buildato. Disattivato di default perché le pagine di ricerca non sono sempre obiettivi utili per i crawler.",
     "homepage_css_title": "Foglio di stile personalizzato",
     "homepage_css_hint": "Carica un file .css per sovrascrivere gli stili della homepage pubblica. Viene iniettato come ultimo foglio di stile, quindi ha precedenza su tutti i valori predefiniti.",
     "homepage_css_status_active": "CSS personalizzato attivo",

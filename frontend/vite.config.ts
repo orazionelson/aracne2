@@ -15,6 +15,19 @@ export default defineConfig({
         target: "http://backend:8000",
         changeOrigin: true,
       },
+      // SEO endpoints live at /api/v1 on the backend but must be served
+      // from the site root for crawlers. In production nginx rewrites
+      // these paths; in dev the Vite proxy mirrors that rewrite.
+      "/robots.txt": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+        rewrite: (path) => `/api/v1${path}`,
+      },
+      "^/sitemap(-[a-z-]+)?\\.xml$": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+        rewrite: (path) => `/api/v1${path}`,
+      },
     },
   },
   build: {

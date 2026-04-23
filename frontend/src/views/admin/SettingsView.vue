@@ -98,6 +98,7 @@ const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
   "public_registration",
   "default_language",
   "platform_name",
+  "sitemap_include_search_engines",
 ]);
 const systemSettings = computed(() =>
   settingStore.settings.filter(
@@ -507,6 +508,9 @@ const homePropagateCss = computed(
 );
 const evtEnabled = computed(
   () => settingStore.getSetting("evt_enabled") === "true",
+);
+const sitemapIncludeSearchEngines = computed(
+  () => settingStore.getSetting("sitemap_include_search_engines") === "true",
 );
 const publicRegistration = computed(
   () => settingStore.getSetting("public_registration") === "true",
@@ -2242,6 +2246,29 @@ onMounted(async () => {
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
               :class="evtEnabled ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+
+        <!-- sitemap_include_search_engines -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_sitemap_include_search_engines") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_sitemap_include_search_engines_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['sitemap_include_search_engines']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="sitemapIncludeSearchEngines ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('sitemap_include_search_engines', sitemapIncludeSearchEngines)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="sitemapIncludeSearchEngines ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
         </div>

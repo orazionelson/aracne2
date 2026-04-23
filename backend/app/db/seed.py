@@ -102,6 +102,10 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("internet_archive_access_key", "", "string"),
     ("internet_archive_secret_key", "", "string"),
     ("internet_archive_auto_archive", "true", "bool"),
+    # SEO — whether /sitemap.xml includes the search-engine sub-sitemap.
+    # Off by default because built search pages are not always meaningful
+    # crawl targets; admins opt in from the Homepage tab.
+    ("sitemap_include_search_engines", "false", "bool"),
 ]
 
 # Default Creative Commons licenses (name, target).
