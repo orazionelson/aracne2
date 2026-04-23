@@ -32,6 +32,12 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () =>
       import("@/components/plugins/InternetArchiveConfig.vue"),
   },
+  {
+    slug: "zotero_import",
+    titleKey: "zotero_import.panel_title",
+    component: () =>
+      import("@/components/plugins/ZoteroImportConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

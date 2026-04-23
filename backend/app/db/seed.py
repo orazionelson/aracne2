@@ -106,6 +106,14 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # Off by default because built search pages are not always meaningful
     # crawl targets; admins opt in from the Homepage tab.
     ("sitemap_include_search_engines", "false", "bool"),
+    # Zotero import plugin (non-native, opt-in). API key is read-only
+    # (scope: access restricted to groups or user library listed below);
+    # library_type is "user" or "group"; library_id is the numeric id.
+    ("zotero_api_key", "", "string"),
+    ("zotero_library_type", "group", "string"),
+    ("zotero_library_id", "", "string"),
+    # Optional override for tests or mirrors; empty = official endpoint.
+    ("zotero_api_base", "", "string"),
 ]
 
 # Default Creative Commons licenses (name, target).

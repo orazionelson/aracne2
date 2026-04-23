@@ -17,6 +17,8 @@ import {
   useInternetArchiveStore,
   type ArchiveStatus as IaStatus,
 } from "@/stores/internet_archive";
+import { usePluginStore } from "@/stores/plugins";
+import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
 import {
   EyeIcon,
@@ -38,6 +40,16 @@ const aiStore = useAiStore();
 const settingStore = useSettingStore();
 const zenodoStore = useZenodoStore();
 const iaStore = useInternetArchiveStore();
+const pluginStore = usePluginStore();
+
+// Zotero import modal visibility + last-run summary.
+const showZoteroModal = ref(false);
+const zoteroJustImportedMsg = ref<string | null>(null);
+const zoteroImportActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "zotero_import" && p.status === "active",
+  ),
+);
 
 const zenodoStatus = ref<DepositStatus | null>(null);
 const isForcingDeposit = ref(false);
@@ -671,6 +683,12 @@ onMounted(async () => {
       // Silent failure — the plugin may simply not be active yet.
       tasks.push(zenodoStore.fetchResourceTypes().catch(() => undefined));
       tasks.push(loadInternetArchiveStatus());
+      // Needed to decide whether to render the "Import from Zotero" button.
+      tasks.push(
+        pluginStore.plugins.length === 0
+          ? pluginStore.fetchPlugins().catch(() => undefined)
+          : Promise.resolve(),
+      );
     }
     await Promise.all(tasks);
     // Seed the override draft from the loaded collection (runs after
@@ -730,6 +748,20 @@ async function forceArchive(): Promise<void> {
   } finally {
     isArchiving.value = false;
   }
+}
+
+async function onZoteroImported(payload: { imported: number; version: number }): Promise<void> {
+  zoteroJustImportedMsg.value = t("zotero_import.success_toast", {
+    n: payload.imported,
+    version: payload.version,
+  });
+  // Refresh the bibliographies list so the new version appears without a reload.
+  if (store.current) {
+    await store.listBibliographies(store.current.slug).catch(() => undefined);
+  }
+  setTimeout(() => {
+    zoteroJustImportedMsg.value = null;
+  }, 5000);
 }
 
 async function refreshArchive(): Promise<void> {
@@ -2104,6 +2136,30 @@ function statusClass(s: string): string {
         </button>
 
         <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
+          <!-- Zotero import — only visible when the plugin is active, its button
+               feeds a new CollectionBibliography version so this is the natural
+               home for the action. -->
+          <div
+            v-if="zoteroImportActive"
+            class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm dark:border-indigo-800 dark:bg-indigo-900/20"
+          >
+            <span class="text-gray-700 dark:text-gray-200">
+              {{ t("zotero_import.collection_section_hint") }}
+            </span>
+            <button
+              class="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+              @click="showZoteroModal = true"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {{ t("zotero_import.import_btn") }}
+            </button>
+          </div>
+          <p v-if="zoteroJustImportedMsg" class="mb-2 text-sm text-green-700 dark:text-green-400">
+            {{ zoteroJustImportedMsg }}
+          </p>
+
           <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioDeleteError }}</p>
           <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioPublicError }}</p>
 
@@ -2199,5 +2255,15 @@ function statusClass(s: string): string {
         </div>
       </section>
     </template>
+
+    <!-- Zotero import modal — teleports to body so it sits above the page. -->
+    <Teleport to="body">
+      <ZoteroImportModal
+        v-if="showZoteroModal && store.current"
+        :slug="store.current.slug"
+        @close="showZoteroModal = false"
+        @imported="onZoteroImported"
+      />
+    </Teleport>
   </div>
 </template>

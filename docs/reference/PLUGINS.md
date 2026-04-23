@@ -773,6 +773,75 @@ Features:
   `/collections/:slug`, with a green "Archive" / amber "Refresh"
   button for EditorInChief and above.
 
+### 6b.3 `zotero_import` — Zotero Import
+
+| | |
+|---|---|
+| **Location** | `plugins/zotero_import/` |
+| **Routes** | Yes — prefix `/plugins/zotero-import` |
+| **Hooks** | None (manual pull) |
+| **min_role** | Admin (config), EditorInChief (preview / import) |
+| **External API** | Zotero Web API v3 (`https://api.zotero.org`) |
+
+Pulls bibliographic entries from a configured Zotero group or user
+library into a collection's bibliography. Complements the AI
+Bibliobuilder (which normalises entries already present in the
+corpus) and the CrossRef resolver (which resolves one DOI at a time)
+by importing external curated bibliography in bulk.
+
+Unlike Zenodo and Internet Archive, this plugin does **not** register
+a lifecycle hook. Zotero imports are pulled manually by an EiC from
+the collection page — there is no automatic trigger.
+
+**Flow:**
+1. Admin registers a read-only Zotero API key + library type (`user`
+   or `group`) + numeric library id in the plugin config.
+2. EiC opens a collection's bibliography panel, clicks "Import from
+   Zotero". The plugin fetches **every** item in the library and
+   diffs against a per-collection "already imported" list stored in
+   `plugin_data.imported_zotero_keys`.
+3. Preview modal shows the diff; editor ticks which new items to
+   import (pre-selected by default).
+4. On confirm, the selected items are mapped to TEI biblStructs and
+   appended to the collection's **current** `<listBibl>`, producing a
+   new CollectionBibliography version. The set of imported Zotero
+   keys is updated so subsequent runs skip these items.
+
+Features:
+- Fernet-encrypted `zotero_api_key` (added to `SENSITIVE_KEYS`).
+- Paginates the Zotero library transparently via `Link: rel="next"`
+  (RFC 5988); no manual page-count config.
+- Filters out Zotero's non-bibliographic item types (`note`,
+  `attachment`, `annotation`) before mapping.
+- De-duplicates by stable Zotero item `key` — re-running an import
+  after the editor edits a generated biblStruct in the Aracne2 editor
+  will **not** re-import it.
+- Maps Zotero creators with `firstName`/`lastName` into
+  `<persName><surname><forename>`; `name`-only creators (organisations
+  or single-token creators) emit `<orgName>`. Editors and translators
+  on book sections are placed on the host monograph.
+
+**Endpoints:**
+
+| Method | Path | ACL | Purpose |
+|--------|------|-----|---------|
+| GET | `/plugins/zotero-import/config` | Admin | Current non-sensitive config |
+| PUT | `/plugins/zotero-import/config` | Admin | Partial update of any config field |
+| POST | `/plugins/zotero-import/collections/{slug}/preview` | EiC+ | Diff the library vs previously-imported keys |
+| POST | `/plugins/zotero-import/collections/{slug}/import` | EiC+ | Persist a new bibliography version with the selected items |
+
+**Settings (migration 0053):**
+- `zotero_api_key` (sensitive) — read-only Zotero API key
+- `zotero_library_type` — `user` or `group`
+- `zotero_library_id` — numeric library id
+- `zotero_api_base` — optional override for tests or mirrors
+
+**Frontend:**
+- Config page at `/admin/plugins/zotero_import/config`.
+- "Import from Zotero" button + modal inside the "Saved
+  bibliographies" panel on `/collections/:slug`, rendered only when
+  the plugin is active.
+
 ---
 
 ## 7. Native vs. non-native
