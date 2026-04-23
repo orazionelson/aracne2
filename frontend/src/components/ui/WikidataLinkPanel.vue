@@ -48,7 +48,7 @@ async function search(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    const data = await apiClient.get<WikidataHit[]>('/wikidata/search', {
+    const data = await apiClient.get<WikidataHit[]>('/plugins/wikidata/search', {
       params: { q, lang: lang.value, limit: 15 },
     });
     results.value = data;

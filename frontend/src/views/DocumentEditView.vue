@@ -35,6 +35,9 @@ const pluginStore = usePluginStore();
 // toolbar buttons (ORCID lookup, CrossRef DOI resolver) are visible
 // only when the matching plugin is active in /admin/plugins —
 // otherwise clicking them would hit endpoints mounted conditionally.
+const wikidataPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'wikidata' && p.status === 'active'),
+);
 const orcidPluginActive = computed(() =>
   pluginStore.plugins.some((p) => p.name === 'orcid' && p.status === 'active'),
 );
@@ -1148,12 +1151,15 @@ async function runValidation(): Promise<void> {
       <!-- Row 1.5: authority-lookup cluster.
            Dedicated strip so the main toolbar below stays focused on
            editor actions (Format / Notes / Help / AI / Media / Save).
-           Wikidata is always shown (core router, always available); the
-           other five are gated on their respective plugin. Service-branded
-           colours in default state make each chip legible at a glance;
-           active state inverts to a solid fill to signal the open panel. -->
+           All six buttons are gated on their respective plugin being
+           active (Wikidata too, since it was refactored from a core
+           router to a non-native plugin for consistency with the rest
+           of the authority set). Service-branded colours in default
+           state make each chip legible at a glance; active state
+           inverts to a solid fill to signal the open panel. -->
       <div class="flex flex-wrap items-center justify-end gap-1">
         <button
+          v-if="wikidataPluginActive"
           :disabled="isLoading"
           :class="[
             'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',

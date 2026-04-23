@@ -39,6 +39,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
       import("@/components/plugins/ZoteroImportConfig.vue"),
   },
   {
+    slug: "wikidata",
+    titleKey: "wikidata.panel_title",
+    component: () => import("@/components/plugins/WikidataConfig.vue"),
+  },
+  {
     slug: "orcid",
     titleKey: "orcid.panel_title",
     component: () => import("@/components/plugins/OrcidConfig.vue"),
