@@ -1034,6 +1034,22 @@
     "error_not_found": "CrossRef non conosce questo DOI. Controlla l'ortografia o prova il sito dell'editore.",
     "error_upstream": "CrossRef non è raggiungibile. Riprova fra un momento."
   },
+  "orcid": {
+    "panel_title": "Ricerca ORCID",
+    "panel_subtitle": "Cerca nel registro pubblico ORCID per risolvere un <persName> selezionato in un URI ORCID canonico.",
+    "no_config_notice": "Questo plugin non ha configurazione. Fa da proxy verso l'API pubblica di ricerca ORCID per tuo conto — nessuna credenziale richiesta. Attivalo e usa il bottone ORCID nella toolbar del TEI editor.",
+    "usage_hint": "Il TEI editor guadagna un bottone ORCID accanto a quello Wikidata. Seleziona un nome, clicca ORCID, scegli un risultato, e @ref viene scritto sul <persName> che contiene il cursore.",
+    "button_label": "ORCID",
+    "button_hint": "Trova un ORCID iD per la persona selezionata e scrivilo come @ref sul <persName> che contiene il cursore",
+    "search_placeholder": "Cerca su ORCID (nome)",
+    "idle_hint": "Digita almeno due caratteri per cercare.",
+    "no_results": "Nessun record ORCID corrispondente.",
+    "apply": "Applica",
+    "footer_hint": "Scrive @ref=\"https://orcid.org/…\" sul <persName> che contiene il cursore.",
+    "applied_success": "Collegato <{tag}> a {orcid}.",
+    "apply_error_no_enclosing_tag": "Posiziona il cursore dentro un elemento TEI prima di collegare.",
+    "apply_error_not_entity_tag": "ORCID può essere applicato solo a <persName>; l'elemento corrente è <{tag}>."
+  },
   "wikidata": {
     "button_label": "Collega entità",
     "button_hint": "Risolve la selezione in un URI Wikidata e lo scrive come @ref",

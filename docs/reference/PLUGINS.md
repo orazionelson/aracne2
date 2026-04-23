@@ -842,6 +842,56 @@ Features:
   bibliographies" panel on `/collections/:slug`, rendered only when
   the plugin is active.
 
+### 6b.4 `orcid` — ORCID lookup
+
+| | |
+|---|---|
+| **Location** | `plugins/orcid/` |
+| **Routes** | Yes — prefix `/plugins/orcid` |
+| **Hooks** | None (editor-side only) |
+| **min_role** | Admin (activation only; search is any authenticated user) |
+| **External API** | `https://pub.orcid.org/v3.0/expanded-search/` (public, no auth) |
+
+Adds an "ORCID" toggle to the TEI editor toolbar, next to the
+Wikidata button. The panel searches the public ORCID registry by name
+(or selected text), shows display names + affiliations, and on "Apply"
+writes ``@ref="https://orcid.org/0000-..."`` on the enclosing
+``<persName>`` element.
+
+Scope is deliberately narrow:
+
+- Editor-side only — attaching an ORCID to an **Aracne2 user** lives
+  on the ``User`` model, not here, because downstream consumers
+  (Zenodo creator.identifiers, LOD ``sameAs``) need a core field to
+  read rather than a cross-plugin data hop.
+- Applies only to ``<persName>`` (ORCID identifies people, not places
+  or organisations); the mutex with the Wikidata panel is the same
+  semantic as one ``@ref`` per element.
+
+Features:
+- Uses the ``expanded-search`` endpoint so names and institutions
+  land in the hit list without N+1 round-trips.
+- Fail-soft: upstream hiccups degrade to an empty result list so
+  editors never see an error banner.
+- No credentials, no migration — activating the plugin is all that
+  is required.
+
+**Endpoint:**
+
+| Method | Path | ACL | Purpose |
+|--------|------|-----|---------|
+| GET | `/plugins/orcid/search?q=...&rows=...` | User+ | Proxied public search, 30 req/min per IP |
+
+**Settings:** none.
+
+**Frontend:**
+- A minimal (information-only) config page at
+  `/admin/plugins/orcid/config` that explains the plugin has no
+  tunables. Registered in the plugin registry so "Configure" still
+  resolves to something meaningful.
+- Toolbar button in the TEI editor; panel component
+  `OrcidLinkPanel.vue` mirrors `WikidataLinkPanel` in grammar.
+
 ---
 
 ## 7. Native vs. non-native

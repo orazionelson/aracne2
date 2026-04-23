@@ -38,6 +38,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () =>
       import("@/components/plugins/ZoteroImportConfig.vue"),
   },
+  {
+    slug: "orcid",
+    titleKey: "orcid.panel_title",
+    component: () => import("@/components/plugins/OrcidConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(
