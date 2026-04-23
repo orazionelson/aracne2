@@ -80,7 +80,13 @@
     "preferred_lang": "Lingua",
     "last_login": "Ultimo accesso",
     "never": "Mai",
-    "member_since": "Membro dal"
+    "member_since": "Membro dal",
+    "orcid": "ORCID iD",
+    "orcid_add": "Aggiungi",
+    "orcid_edit": "Modifica",
+    "orcid_placeholder": "0000-0000-0000-0000",
+    "orcid_hint": "Puoi incollare anche l'URL completo https://orcid.org/… — il backend toglie il prefisso. Lascia vuoto per rimuoverlo.",
+    "orcid_saved": "ORCID salvato. Apparirà su ogni collezione di cui sei editor."
   },
   "users": {
     "title": "Utenti",
@@ -94,6 +100,9 @@
     "inactive": "Inattivo",
     "verified": "Verificato",
     "not_verified": "Non verificato",
+    "orcid": "ORCID iD",
+    "orcid_placeholder": "0000-0000-0000-0000",
+    "orcid_hint": "ORCID canonico opzionale di questo utente. Fluisce in Zenodo (creator.identifiers) e in LOD (schema:sameAs) quando è l'editor di una collezione depositata / pubblicata.",
     "created_at": "Creato",
     "last_login": "Ultimo accesso",
     "never": "Mai",

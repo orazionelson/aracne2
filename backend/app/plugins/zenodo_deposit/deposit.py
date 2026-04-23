@@ -53,6 +53,32 @@ async def _load_license(db: AsyncSession, col: Collection) -> License | None:
     return await db.get(License, col.license_id)
 
 
+async def _build_orcid_map(db: AsyncSession) -> dict[str, str]:
+    """Load every User that has an ORCID into a name→ORCID map.
+
+    Keyed on both ``display_name`` and ``username`` so either form of
+    the creator name in the Collection (free-text author, resp_stmt
+    name) can match a user. For a platform with tens of users this
+    is cheap enough to run on every deposit.
+    """
+    from sqlalchemy import select
+
+    from app.models.user import User
+
+    rows = list(
+        await db.scalars(
+            select(User).where(User.orcid.is_not(None))
+        )
+    )
+    out: dict[str, str] = {}
+    for u in rows:
+        if u.orcid:
+            if u.display_name:
+                out[u.display_name] = u.orcid
+            out[u.username] = u.orcid
+    return out
+
+
 async def _load_files(
     existdb: ExistDBClient, slug: str
 ) -> list[tuple[str, bytes]]:
@@ -153,6 +179,7 @@ async def deposit_collection(
         )
 
     license_obj = await _load_license(db, collection)
+    orcid_map = await _build_orcid_map(db)
     # Per-collection override for the resource_type (e.g. "publication-book"
     # for a manuscript vs. the global default "publication-other"). NULL on
     # the collection means "inherit the global zenodo_resource_type setting".
@@ -163,6 +190,7 @@ async def deposit_collection(
         public_base_url=cfg.public_base_url,
         resource_type=effective_resource_type,
         access=cfg.access,
+        orcid_by_name=orcid_map,
     )
     payload = to_zenodo_payload(meta, community=cfg.default_community or None)
 

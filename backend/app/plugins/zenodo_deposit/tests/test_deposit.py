@@ -304,6 +304,59 @@ async def test_deposit_force_overrides_already_deposited_guard(
 
 
 @pytest.mark.asyncio
+async def test_creator_orcid_overlay_from_user_table(
+    db_session: AsyncSession,
+    seeded_plugin_row: Plugin,
+) -> None:
+    """A User whose display_name matches a creator name has their ORCID
+    propagated into the Zenodo creator.identifiers payload."""
+    from app.core.password import hash_password
+    from app.models.user import User
+
+    await _seed_settings(db_session)
+    # Seed a user with an ORCID whose display_name matches the collection
+    # author string ("Dante Alighieri" → matches exactly, case-folded).
+    u = User(
+        username="dante",
+        email="dante@example.org",
+        password_hash=hash_password("irrelevant1"),
+        display_name="Dante Alighieri",
+        is_active=True,
+        is_verified=True,
+        orcid="0000-0002-1825-0097",
+    )
+    db_session.add(u)
+    await db_session.flush()
+
+    col = Collection(
+        slug="commedia",
+        title="Divina Commedia",
+        author="Dante Alighieri",
+        status=CollectionStatus.published,
+    )
+    db_session.add(col)
+    await db_session.flush()
+
+    fake = _FakeZenodo()
+    await deposit_collection(
+        db_session,
+        col,
+        existdb=_fake_existdb([("doc.xml", b"<tei/>")]),
+        zenodo_client=fake,  # type: ignore[arg-type]
+    )
+    assert fake.last_payload is not None
+    creators = fake.last_payload["metadata"]["creators"]
+    dante = next(
+        c for c in creators
+        if c["person_or_org"].get("family_name") == "Alighieri"
+    )
+    identifiers = dante["person_or_org"]["identifiers"]
+    assert identifiers == [
+        {"scheme": "orcid", "identifier": "0000-0002-1825-0097"}
+    ]
+
+
+@pytest.mark.asyncio
 async def test_license_id_ends_up_in_inveniordm_payload(
     db_session: AsyncSession,
     seeded_plugin_row: Plugin,

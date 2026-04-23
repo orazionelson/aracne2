@@ -35,6 +35,11 @@ class User(Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Canonical ORCID identifier in the XXXX-XXXX-XXXX-XXXX form (the final
+    # character may be X as checksum). Null = user has no ORCID on file.
+    # Flows through to Zenodo creator.identifiers and LOD schema:sameAs when
+    # this user is the editor of a deposited / published collection.
+    orcid: Mapped[str | None] = mapped_column(String(19), default=None)
 
     user_roles: Mapped[list["UserRole"]] = relationship(  # type: ignore[name-defined]
         "UserRole",

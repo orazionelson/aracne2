@@ -60,13 +60,29 @@ def _bind_common(g: Graph) -> None:
     g.bind("dcterms", DCTERMS)
 
 
-def _add_person(g: Graph, subject: URIRef, name: str) -> None:
-    """Attach a schema:Person (and a dcterms:creator literal) to *subject*."""
+def _add_person(
+    g: Graph,
+    subject: URIRef,
+    name: str,
+    *,
+    orcid_by_name: dict[str, str] | None = None,
+) -> None:
+    """Attach a schema:Person (and a dcterms:creator literal) to *subject*.
+
+    When ``orcid_by_name`` contains a matching entry for *name*, the
+    person node also carries a ``schema:sameAs`` edge to the ORCID URI
+    so harvesters can round-trip to the canonical identity. Lookup is
+    case-insensitive on the author name.
+    """
     person = BNode()
     g.add((person, RDF.type, SCHEMA.Person))
     g.add((person, SCHEMA.name, Literal(name)))
     g.add((subject, SCHEMA.author, person))
     g.add((subject, DCTERMS.creator, Literal(name)))
+    if orcid_by_name:
+        orcid = orcid_by_name.get(name.casefold()) or orcid_by_name.get(name)
+        if orcid:
+            g.add((person, SCHEMA.sameAs, URIRef(f"https://orcid.org/{orcid}")))
 
 
 def _add_organization(g: Graph, subject: URIRef, name: str) -> None:
@@ -87,6 +103,7 @@ def collection_to_graph(
     publisher: str | None = None,
     pub_year: int | None = None,
     documents: Iterable[Mapping[str, object]] | None = None,
+    orcid_by_name: dict[str, str] | None = None,
 ) -> Graph:
     """Build an RDF graph describing a single collection and its documents.
 
@@ -110,8 +127,16 @@ def collection_to_graph(
     if description:
         g.add((c, SCHEMA.description, Literal(description)))
         g.add((c, DCTERMS.description, Literal(description)))
+    # Normalise the optional ORCID map once to a case-insensitive
+    # lookup dict so the per-author _add_person call is O(1).
+    ci_orcid = (
+        {k.casefold(): v for k, v in orcid_by_name.items()}
+        if orcid_by_name
+        else None
+    )
+
     if author:
-        _add_person(g, c, author)
+        _add_person(g, c, author, orcid_by_name=ci_orcid)
     if publisher:
         _add_organization(g, c, publisher)
     if pub_year is not None:
@@ -136,7 +161,7 @@ def collection_to_graph(
         g.add((d, SCHEMA.url, d))
         doc_author = doc.get("author")
         if isinstance(doc_author, str) and doc_author:
-            _add_person(g, d, doc_author)
+            _add_person(g, d, doc_author, orcid_by_name=ci_orcid)
 
     return g
 
@@ -166,6 +191,7 @@ def document_to_graph(
     collection_publisher: str | None = None,
     collection_pub_year: int | None = None,
     entities: Iterable[Mapping[str, object]] | None = None,
+    orcid_by_name: dict[str, str] | None = None,
 ) -> Graph:
     """Build an RDF graph for a single document.
 
@@ -206,9 +232,14 @@ def document_to_graph(
         g.add((c, SCHEMA.name, Literal(collection_title)))
         g.add((c, DCTERMS.title, Literal(collection_title)))
 
+    ci_orcid = (
+        {k.casefold(): v for k, v in orcid_by_name.items()}
+        if orcid_by_name
+        else None
+    )
     author = document_author or collection_author
     if author:
-        _add_person(g, d, author)
+        _add_person(g, d, author, orcid_by_name=ci_orcid)
     if collection_publisher:
         _add_organization(g, d, collection_publisher)
     if collection_pub_year is not None:

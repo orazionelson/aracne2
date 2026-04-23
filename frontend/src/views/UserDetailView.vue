@@ -27,6 +27,7 @@ interface UserResponse {
   updated_at: string;
   last_login_at: string | null;
   deleted_at: string | null;
+  orcid: string | null;
 }
 
 const user = ref<UserResponse | null>(null);
@@ -41,6 +42,7 @@ const formDisplayName = ref("");
 const formPreferredLang = ref("it");
 const formIsActive = ref(true);
 const formIsVerified = ref(false);
+const formOrcid = ref("");
 
 // Role assignment
 const roleToAssign = ref("");
@@ -57,6 +59,7 @@ async function fetchUser(): Promise<void> {
     formPreferredLang.value = data.preferred_lang;
     formIsActive.value = data.is_active;
     formIsVerified.value = data.is_verified;
+    formOrcid.value = data.orcid ?? "";
   } catch {
     error.value = t("users.not_found");
   } finally {
@@ -76,11 +79,16 @@ async function saveUser(): Promise<void> {
       preferred_lang: formPreferredLang.value,
       is_active: formIsActive.value,
       is_verified: formIsVerified.value,
+      // Empty string clears the stored ORCID on the backend.
+      orcid: formOrcid.value.trim(),
     });
     user.value = updated;
+    formOrcid.value = updated.orcid ?? "";
     successMsg.value = t("users.save");
-  } catch {
-    error.value = t("common.error");
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    error.value = msg ?? t("common.error");
   } finally {
     isSaving.value = false;
   }
@@ -173,6 +181,17 @@ onMounted(fetchUser);
               <option value="it">Italiano</option>
               <option value="en">English</option>
             </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">{{ t("users.orcid") }}</span>
+            <input
+              v-model="formOrcid"
+              type="text"
+              :placeholder="t('users.orcid_placeholder')"
+              class="mt-1 w-full border rounded px-3 py-2 text-sm font-mono"
+            />
+            <span class="mt-1 block text-xs text-gray-500">{{ t("users.orcid_hint") }}</span>
           </label>
 
           <div class="flex gap-6">

@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from app.core.orcid import is_valid_orcid, normalise_orcid
 
 
 class RoleInfo(BaseModel):
@@ -29,6 +31,7 @@ class UserResponse(BaseModel):
     updated_at: datetime
     last_login_at: datetime | None
     deleted_at: datetime | None
+    orcid: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -81,6 +84,7 @@ class UserUpdate(BaseModel):
     preferred_lang: str | None = None
     is_active: bool | None = None
     is_verified: bool | None = None
+    orcid: str | None = Field(default=None, max_length=80)
 
     @field_validator("preferred_lang")
     @classmethod
@@ -88,6 +92,20 @@ class UserUpdate(BaseModel):
         if v is not None and v not in ("it", "en"):
             raise ValueError("preferred_lang must be 'it' or 'en'")
         return v
+
+    @field_validator("orcid")
+    @classmethod
+    def orcid_valid(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = normalise_orcid(v)
+        if cleaned == "":
+            return ""
+        if not is_valid_orcid(cleaned):
+            raise ValueError(
+                "orcid must be in the form XXXX-XXXX-XXXX-XXXX with a valid checksum"
+            )
+        return cleaned
 
 
 class RoleAssignRequest(BaseModel):

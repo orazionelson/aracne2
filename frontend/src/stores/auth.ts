@@ -22,6 +22,7 @@ interface UserMe {
   display_name: string | null;
   role: string;
   preferred_lang: string;
+  orcid: string | null;
   created_at: string;
   last_login_at: string | null;
 }
@@ -97,6 +98,18 @@ export const useAuthStore = defineStore("auth", () => {
     applyLocale(res.data.data.preferred_lang);
   }
 
+  async function updateMe(patch: {
+    display_name?: string | null;
+    preferred_lang?: string;
+    orcid?: string | null;
+  }): Promise<void> {
+    const res = await api.patch<UserMe>("/auth/me", patch);
+    user.value = res.data.data;
+    if (res.data.data.preferred_lang) {
+      applyLocale(res.data.data.preferred_lang);
+    }
+  }
+
   async function startImpersonation(userId: string): Promise<void> {
     const res = await api.post<{ access_token: string; impersonated_user: UserMe }>(
       `/auth/impersonate/${userId}`,
@@ -153,6 +166,7 @@ export const useAuthStore = defineStore("auth", () => {
     logout,
     refresh,
     loadMe,
+    updateMe,
     hydrate,
     startImpersonation,
     exitImpersonation,

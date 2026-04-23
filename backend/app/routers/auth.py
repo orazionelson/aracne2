@@ -11,7 +11,14 @@ from app.middleware.acl import get_current_user, require_role
 from app.middleware.rate_limiter import STRICT_LIMIT, limiter
 from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.auth import ImpersonationResponse, LoginRequest, PasswordChangeRequest, TokenResponse, UserMeResponse
+from app.schemas.auth import (
+    ImpersonationResponse,
+    LoginRequest,
+    PasswordChangeRequest,
+    TokenResponse,
+    UserMeResponse,
+    UserMeUpdate,
+)
 from app.schemas.common import DataResponse
 from app.services.auth import (
     authenticate_user,
@@ -80,6 +87,7 @@ async def login(
                 display_name=user.display_name,
                 role=role,
                 preferred_lang=user.preferred_lang,
+                orcid=user.orcid,
                 created_at=user.created_at.isoformat(),
                 last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
             ).model_dump(),
@@ -137,6 +145,46 @@ async def logout(
     return DataResponse(data={"message": "Logged out successfully"})
 
 
+@router.patch("/me")
+async def update_me(
+    body: UserMeUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[UserMeResponse]:
+    """Self-service patch: display_name, preferred_lang, orcid.
+
+    An empty-string ``orcid`` clears the stored value; any other value
+    is validated upstream (Pydantic) for format + checksum, so here we
+    just apply it verbatim.
+    """
+    if "display_name" in body.model_fields_set:
+        current_user.display_name = body.display_name
+    if body.preferred_lang is not None:
+        current_user.preferred_lang = body.preferred_lang
+    if "orcid" in body.model_fields_set:
+        current_user.orcid = body.orcid or None
+    await db.flush()
+    role = request.state.role
+    return DataResponse(
+        data=UserMeResponse(
+            id=str(current_user.id),
+            username=current_user.username,
+            email=current_user.email,
+            display_name=current_user.display_name,
+            role=role,
+            preferred_lang=current_user.preferred_lang,
+            orcid=current_user.orcid,
+            created_at=current_user.created_at.isoformat(),
+            last_login_at=(
+                current_user.last_login_at.isoformat()
+                if current_user.last_login_at
+                else None
+            ),
+        )
+    )
+
+
 @router.get("/me")
 async def me(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -155,6 +203,7 @@ async def me(
             display_name=current_user.display_name,
             role=role,
             preferred_lang=current_user.preferred_lang,
+            orcid=current_user.orcid,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -243,6 +292,7 @@ async def impersonate(
                 display_name=target.display_name,
                 role=target_role,
                 preferred_lang=target.preferred_lang,
+                orcid=target.orcid,
                 created_at=target.created_at.isoformat(),
                 last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
             ),

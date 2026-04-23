@@ -43,6 +43,29 @@ def _public_base_url(request: Request) -> str:
     return f"{request.url.scheme}://{request.url.netloc}"
 
 
+async def _orcid_map(db: AsyncSession) -> dict[str, str]:
+    """Collect every User with an ORCID as a name→ORCID lookup.
+
+    Keys the map by both ``display_name`` and ``username`` so either
+    form in ``Collection.author`` / ``document.author`` can match.
+    The deployment is invite-only so this is a tiny table (tens of
+    rows) — issuing the query on every LOD request is cheap and
+    sidesteps the cache-invalidation problem on profile edits.
+    """
+    from app.models.user import User
+
+    rows = list(
+        await db.scalars(select(User).where(User.orcid.is_not(None)))
+    )
+    out: dict[str, str] = {}
+    for u in rows:
+        if u.orcid:
+            if u.display_name:
+                out[u.display_name] = u.orcid
+            out[u.username] = u.orcid
+    return out
+
+
 @router.get("/collections/{slug}")
 async def public_collection_detail(
     slug: str,
@@ -77,6 +100,7 @@ async def public_collection_detail(
             publisher=data.publisher,
             pub_year=data.pub_year,
             documents=[d.model_dump() for d in data.documents],
+            orcid_by_name=await _orcid_map(db),
         )
         return Response(content=serialize_graph(graph, fmt), media_type=mime)
 
@@ -145,6 +169,7 @@ async def public_document_render(
             collection_publisher=collection.publisher,
             collection_pub_year=collection.pub_year,
             entities=entities,
+            orcid_by_name=await _orcid_map(db),
         )
         return Response(content=serialize_graph(graph, fmt), media_type=mime)
 

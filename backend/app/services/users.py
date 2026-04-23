@@ -77,6 +77,7 @@ async def _build_response(db: AsyncSession, user: User) -> UserResponse:
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
         deleted_at=user.deleted_at,
+        orcid=user.orcid,
     )
 
 
@@ -111,6 +112,7 @@ def _build_response_from_loaded(user: User) -> UserResponse:
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
         deleted_at=user.deleted_at,
+        orcid=user.orcid,
     )
 
 
@@ -278,6 +280,13 @@ async def update_user(
     if body.is_verified is not None:
         user.is_verified = body.is_verified
         changed["is_verified"] = body.is_verified
+    if "orcid" in body.model_fields_set:
+        # Empty string clears the stored ORCID; anything non-empty has
+        # already been validated by the schema's checksum test.
+        new_orcid = body.orcid or None
+        if new_orcid != user.orcid:
+            user.orcid = new_orcid
+            changed["orcid"] = new_orcid
 
     action = (
         "user.deactivated"

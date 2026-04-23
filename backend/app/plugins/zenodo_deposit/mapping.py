@@ -143,13 +143,29 @@ def collection_to_metadata(
     public_base_url: str | None,
     resource_type: str,
     access: str,
+    orcid_by_name: dict[str, str] | None = None,
 ) -> DepositMetadata:
-    """Build a DepositMetadata from a Collection and its License."""
+    """Build a DepositMetadata from a Collection and its License.
+
+    ``orcid_by_name`` is an optional case-insensitive map from author
+    name (free-text, as it appears in Collection.author / resp_stmts)
+    to an ORCID identifier. Any Creator whose name matches a key gets
+    its ``orcid`` field populated — downstream the Zenodo payload
+    carries it under ``creator.identifiers`` and the LOD graph under
+    ``schema:sameAs``. The map is built by the caller from the User
+    table (there is no in-collection ORCID storage).
+    """
     authors: list[str] = _split_authors(collection.author)
     resp_names: list[str] = _resp_stmt_names(collection.resp_stmts)
     creator_names: list[str] = list(dict.fromkeys(authors + resp_names))
-    creators = [Creator(name=n) for n in creator_names] or [
-        Creator(name=collection.publisher or "Anonymous")
+    orcid_map = {k.casefold(): v for k, v in (orcid_by_name or {}).items()}
+    creators = [
+        Creator(name=n, orcid=orcid_map.get(n.casefold())) for n in creator_names
+    ] or [
+        Creator(
+            name=collection.publisher or "Anonymous",
+            orcid=orcid_map.get((collection.publisher or "").casefold()),
+        )
     ]
 
     pub_date: date
