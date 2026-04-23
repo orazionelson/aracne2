@@ -6,6 +6,16 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.events import (
+    EVENT_IMPERSONATION_STARTED,
+    EVENT_LOGIN_FAILED,
+    EVENT_LOGIN_SUCCESS,
+    EVENT_LOGOUT,
+    EVENT_TOKEN_REFRESHED,
+    emit_event,
+)
+from app.core.exceptions import PlatformException
+from app.core.metrics import LOGIN_ATTEMPTS
 from app.db.postgres import get_async_session
 from app.middleware.acl import get_current_user, require_role
 from app.middleware.rate_limiter import STRICT_LIMIT, limiter
@@ -70,12 +80,27 @@ async def login(
     Returns the access token in the response body and sets the refresh token
     in an httpOnly, SameSite=Strict cookie scoped to /api/v1/auth.
     """
-    user = await authenticate_user(db, body.username_or_email, body.password)
+    try:
+        user = await authenticate_user(db, body.username_or_email, body.password)
+    except PlatformException:
+        LOGIN_ATTEMPTS.labels(outcome="failure").inc()
+        emit_event(
+            EVENT_LOGIN_FAILED,
+            username_or_email=body.username_or_email,
+        )
+        raise
     role = await get_active_role(db, user.id)
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
     user_agent = request.headers.get("User-Agent")
     access_token, refresh_token = await create_session(db, user, role, ip, user_agent)
     _set_refresh_cookie(response, refresh_token)
+    LOGIN_ATTEMPTS.labels(outcome="success").inc()
+    emit_event(
+        EVENT_LOGIN_SUCCESS,
+        user_id=str(user.id),
+        username=user.username,
+        role=role,
+    )
     return DataResponse(
         data={
             "access_token": access_token,
@@ -117,6 +142,7 @@ async def refresh(
     user_agent = request.headers.get("User-Agent")
     access_token, new_refresh_token = await refresh_session(db, refresh_token, ip, user_agent)
     _set_refresh_cookie(response, new_refresh_token)
+    emit_event(EVENT_TOKEN_REFRESHED)
     return DataResponse(data=TokenResponse(access_token=access_token))
 
 
@@ -142,6 +168,7 @@ async def logout(
     except Exception:  # noqa: BLE001
         logger.debug("logout_token_revoke_skipped", reason="invalid or expired token")
     _clear_refresh_cookie(response)
+    emit_event(EVENT_LOGOUT)
     return DataResponse(data={"message": "Logged out successfully"})
 
 
@@ -276,11 +303,13 @@ async def impersonate(
         payload={"target_role": target_role},
     ))
 
-    logger.info(
-        "impersonation_started",
-        admin=current_user.username,
-        target=target.username,
-        target_role=target_role,
+    emit_event(
+        EVENT_IMPERSONATION_STARTED,
+        actor_user_id=str(current_user.id),
+        actor_username=current_user.username,
+        user_id=str(target.id),
+        username=target.username,
+        role=target_role,
     )
     return DataResponse(
         data=ImpersonationResponse(

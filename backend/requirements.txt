@@ -20,6 +20,7 @@ rdflib==7.1.1
 apscheduler==3.10.4
 markdown-it-py==3.0.0
 bleach==6.2.0
+prometheus-client==0.21.1
 pytest==8.3.4
 pytest-asyncio==0.24.0
 anyio==4.7.0

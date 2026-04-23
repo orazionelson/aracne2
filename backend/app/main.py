@@ -5,12 +5,13 @@ import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.core.exceptions import PlatformException
 from app.core.logging import configure_logging
+from app.core.metrics import MetricsMiddleware, UNHANDLED_EXCEPTIONS, render_metrics
 from app.core.plugin_loader import plugin_loader
 from app.core.scheduler import register_jobs, scheduler
 from app.db.existdb import existdb_client
@@ -130,6 +131,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestLoggerMiddleware)
+app.add_middleware(MetricsMiddleware)
+
+
+# ── Prometheus metrics endpoint ─────────────────────────────────────────────
+# Intentionally unauthenticated — firewall the port or front with an
+# allow-list at the reverse proxy. Exposing it at /api/v1/metrics keeps
+# routing consistent with the rest of the API surface.
+@app.get("/api/v1/metrics", include_in_schema=False)
+async def metrics_endpoint() -> Response:
+    body, content_type = render_metrics()
+    return Response(content=body, media_type=content_type)
 
 
 # Exception handlers
@@ -220,6 +232,7 @@ app.add_exception_handler(405, _http_exception_handler)  # type: ignore[arg-type
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    UNHANDLED_EXCEPTIONS.inc()
     structlog.get_logger().error("unhandled_exception", exc=str(exc))
     detail: object = str(exc) if settings.is_development else {}
     return JSONResponse(

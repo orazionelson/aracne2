@@ -3,6 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.events import (
+    EVENT_PLUGIN_ACTIVATED,
+    EVENT_PLUGIN_DEACTIVATED,
+    EVENT_PLUGIN_DELETED,
+    emit_event,
+)
+from app.core.metrics import PLUGIN_LIFECYCLE
 from app.db.postgres import get_async_session
 from app.middleware.acl import require_role
 from app.models.user import User
@@ -36,6 +43,12 @@ async def plugin_activate(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[PluginResponse]:
     data = await activate_plugin(db, name)
+    PLUGIN_LIFECYCLE.labels(action="activated", plugin=name).inc()
+    emit_event(
+        EVENT_PLUGIN_ACTIVATED,
+        plugin=name,
+        actor_user_id=str(current_user.id),
+    )
     return DataResponse(data=data)
 
 
@@ -46,6 +59,12 @@ async def plugin_deactivate(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[PluginResponse]:
     data = await deactivate_plugin(db, name)
+    PLUGIN_LIFECYCLE.labels(action="deactivated", plugin=name).inc()
+    emit_event(
+        EVENT_PLUGIN_DEACTIVATED,
+        plugin=name,
+        actor_user_id=str(current_user.id),
+    )
     return DataResponse(data=data)
 
 
@@ -56,3 +75,9 @@ async def plugin_delete(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
     await delete_plugin(db, name)
+    PLUGIN_LIFECYCLE.labels(action="deleted", plugin=name).inc()
+    emit_event(
+        EVENT_PLUGIN_DELETED,
+        plugin=name,
+        actor_user_id=str(current_user.id),
+    )
