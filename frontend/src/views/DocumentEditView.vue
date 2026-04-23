@@ -1258,128 +1258,7 @@ async function runValidation(): Promise<void> {
           {{ t('media.media_btn') }}
         </button>
 
-        <button
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showWikidataPanel
-              ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('wikidata.button_hint')"
-          @click="toggleWikidataPanel"
-        >
-          <!-- icon: globe -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-          </svg>
-          {{ t('wikidata.button_label') }}
-        </button>
-
-        <button
-          v-if="orcidPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showOrcidPanel
-              ? 'border-lime-400 bg-lime-50 text-lime-700 dark:border-lime-600 dark:bg-lime-900/40 dark:text-lime-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('orcid.button_hint')"
-          @click="toggleOrcidPanel"
-        >
-          <!-- icon: ORCID-like ring with "iD" -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 7v10" />
-            <path d="M8 17h4" />
-            <path d="M8 12a4 4 0 0 1 4-4" />
-          </svg>
-          {{ t('orcid.button_label') }}
-        </button>
-
-        <button
-          v-if="rorPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showRorPanel
-              ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('ror.button_hint')"
-          @click="toggleRorPanel"
-        >
-          <!-- icon: building / institution -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="4" y="5" width="16" height="15" rx="1" />
-            <path d="M8 9h8M8 13h8M8 17h5" />
-            <path d="M10 5V3h4v2" />
-          </svg>
-          {{ t('ror.button_label') }}
-        </button>
-
-        <button
-          v-if="viafPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showViafPanel
-              ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('viaf.button_hint')"
-          @click="toggleViafPanel"
-        >
-          <!-- icon: triangular flag ≈ VIAF logotype -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 20 L12 4 L20 20 Z" />
-            <path d="M8 14 h8" />
-          </svg>
-          {{ t('viaf.button_label') }}
-        </button>
-
-        <button
-          v-if="geonamesPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showGeonamesPanel
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('geonames.button_hint')"
-          @click="toggleGeonamesPanel"
-        >
-          <!-- icon: map pin -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 2 C7 2 3 6 3 11 c0 7 9 11 9 11 s9-4 9-11 c0-5-4-9-9-9 z" />
-            <circle cx="12" cy="11" r="3" />
-          </svg>
-          {{ t('geonames.button_label') }}
-        </button>
-
-        <button
-          v-if="crossrefPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-            showCrossrefPanel
-              ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
-          ]"
-          :title="t('crossref.button_hint')"
-          @click="toggleCrossrefPanel"
-        >
-          <!-- icon: link (DOI) -->
-          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
-          {{ t('crossref.button_label') }}
-        </button>
+        <!-- Authority-lookup cluster moved below, right-aligned before the Save button. -->
 
         <!-- ── Status feedback ────────────────────────────────────────────── -->
         <span v-if="saved" class="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
@@ -1405,6 +1284,131 @@ async function runValidation(): Promise<void> {
           </svg>
           {{ validationResult.errors.length }}
         </button>
+
+        <!-- ── Authority lookups (right-aligned, compact) ───────────────────
+             Wikidata is always available (core router). The other five are
+             gated on their respective plugin being active; the ml-auto on
+             this wrapper pushes the whole cluster and the Save button to
+             the right, keeping the left half of the toolbar uncluttered
+             when all plugins are on. -->
+        <div class="ml-auto flex flex-wrap items-center gap-0.5">
+          <button
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showWikidataPanel
+                ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('wikidata.button_hint')"
+            @click="toggleWikidataPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            {{ t('wikidata.button_label') }}
+          </button>
+
+          <button
+            v-if="orcidPluginActive"
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showOrcidPanel
+                ? 'border-lime-400 bg-lime-50 text-lime-700 dark:border-lime-600 dark:bg-lime-900/40 dark:text-lime-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('orcid.button_hint')"
+            @click="toggleOrcidPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 7v10" />
+              <path d="M8 17h4" />
+              <path d="M8 12a4 4 0 0 1 4-4" />
+            </svg>
+            {{ t('orcid.button_label') }}
+          </button>
+
+          <button
+            v-if="rorPluginActive"
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showRorPanel
+                ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('ror.button_hint')"
+            @click="toggleRorPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="15" rx="1" />
+              <path d="M8 9h8M8 13h8M8 17h5" />
+              <path d="M10 5V3h4v2" />
+            </svg>
+            {{ t('ror.button_label') }}
+          </button>
+
+          <button
+            v-if="viafPluginActive"
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showViafPanel
+                ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('viaf.button_hint')"
+            @click="toggleViafPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20 L12 4 L20 20 Z" />
+              <path d="M8 14 h8" />
+            </svg>
+            {{ t('viaf.button_label') }}
+          </button>
+
+          <button
+            v-if="geonamesPluginActive"
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showGeonamesPanel
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('geonames.button_hint')"
+            @click="toggleGeonamesPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 C7 2 3 6 3 11 c0 7 9 11 9 11 s9-4 9-11 c0-5-4-9-9-9 z" />
+              <circle cx="12" cy="11" r="3" />
+            </svg>
+            {{ t('geonames.button_label') }}
+          </button>
+
+          <button
+            v-if="crossrefPluginActive"
+            :disabled="isLoading"
+            :class="[
+              'inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+              showCrossrefPanel
+                ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+            ]"
+            :title="t('crossref.button_hint')"
+            @click="toggleCrossrefPanel"
+          >
+            <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            {{ t('crossref.button_label') }}
+          </button>
+        </div>
 
         <!-- ── Save (& Validate) ─────────────────────────────────────────── -->
         <button

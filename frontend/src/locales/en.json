@@ -1045,8 +1045,8 @@
     "error_create": "Failed to start backup."
   },
   "crossref": {
-    "button_label": "DOI",
-    "button_hint": "Paste a DOI and insert the corresponding TEI <biblStruct> fragment",
+    "button_label": "CrossRef",
+    "button_hint": "Paste a DOI and insert the corresponding TEI <biblStruct> fragment via CrossRef",
     "panel_title": "CrossRef Lookup",
     "panel_subtitle": "Proxies the public CrossRef /works/{doi} API. No credentials needed — CrossRef identifies the operator through a contact email in the User-Agent (polite pool).",
     "contact_email": "Contact email (polite pool)",
@@ -1153,7 +1153,7 @@
     "apply_error_not_entity_tag": "ORCID can only be applied to <persName>; the enclosing element is <{tag}>."
   },
   "wikidata": {
-    "button_label": "Link entity",
+    "button_label": "Wikidata",
     "button_hint": "Resolve the current selection to a Wikidata URI and write it as @ref",
     "panel_title": "Link to Wikidata",
     "search_placeholder": "Search Wikidata (label or description)",

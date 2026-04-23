@@ -1045,8 +1045,8 @@
     "error_create": "Impossibile avviare il backup."
   },
   "crossref": {
-    "button_label": "DOI",
-    "button_hint": "Incolla un DOI e inserisci il frammento TEI <biblStruct> corrispondente",
+    "button_label": "CrossRef",
+    "button_hint": "Incolla un DOI e inserisci il frammento TEI <biblStruct> corrispondente via CrossRef",
     "panel_title": "CrossRef Lookup",
     "panel_subtitle": "Fa da proxy all'API pubblica /works/{doi} di CrossRef. Nessuna credenziale — CrossRef identifica l'operatore tramite un'email di contatto nello User-Agent (polite pool).",
     "contact_email": "Email di contatto (polite pool)",
@@ -1153,7 +1153,7 @@
     "apply_error_not_entity_tag": "ORCID può essere applicato solo a <persName>; l'elemento corrente è <{tag}>."
   },
   "wikidata": {
-    "button_label": "Collega entità",
+    "button_label": "Wikidata",
     "button_hint": "Risolve la selezione in un URI Wikidata e lo scrive come @ref",
     "panel_title": "Collega a Wikidata",
     "search_placeholder": "Cerca su Wikidata (etichetta o descrizione)",
