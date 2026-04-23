@@ -92,6 +92,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         structlog.get_logger().warning("pgvector_bootstrap_failed", error=str(exc))
 
+    # GeoNames username nudge — warn once at boot when the deployment
+    # is still using the shared "aracne" default, so operators watching
+    # the logs know to register their own free username.
+    try:
+        from app.db.postgres import AsyncSessionLocal
+        from app.services.geonames_auth import (
+            SHARED_DEFAULT_USERNAME,
+            get_geonames_username,
+        )
+
+        async with AsyncSessionLocal() as db:
+            current = await get_geonames_username(db)
+        if current == SHARED_DEFAULT_USERNAME:
+            structlog.get_logger().warning(
+                "geonames_using_shared_default",
+                username=current,
+                hint="register a free username at https://www.geonames.org/login "
+                "and update 'geonames_username' in /admin/settings",
+            )
+    except Exception as exc:
+        structlog.get_logger().warning(
+            "geonames_username_check_failed", error=str(exc),
+        )
+
     # Ensure required filesystem directories exist.
     settings.websites_root.mkdir(parents=True, exist_ok=True)
     settings.search_engines_root.mkdir(parents=True, exist_ok=True)

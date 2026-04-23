@@ -4,12 +4,14 @@ import httpx
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.db.postgres import get_async_session
 from app.middleware.acl import require_role
 from app.middleware.rate_limiter import limiter
 from app.models.user import User
 from app.schemas.common import DataResponse
+from app.services.geonames_auth import get_geonames_username
 
 router = APIRouter(prefix="/geonames", tags=["geonames"])
 
@@ -36,15 +38,19 @@ async def geonames_search(
     request: Request,
     q: Annotated[str, Query(min_length=2, max_length=100)],
     current_user: Annotated[User, Depends(require_role(min_role="User"))],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> DataResponse[list[GeonamesPlace]]:
     """Proxy for GeoNames searchJSON — returns populated places matching *q*.
 
     Results are limited to ``featureClass=P`` (populated places) and capped at
-    10 rows.  The GeoNames username is read from ``settings.geonames_username``.
-    On any upstream error the endpoint returns an empty list rather than failing,
-    so the UI degrades gracefully to a plain text input.
+    10 rows.  The GeoNames username is read from ``system_settings`` (key
+    ``geonames_username``) so an Admin can edit it at runtime without a
+    container restart. On any upstream error the endpoint returns an empty
+    list rather than failing, so the UI degrades gracefully to a plain
+    text input.
     """
     places: list[GeonamesPlace] = []
+    username = await get_geonames_username(db)
     async with httpx.AsyncClient(
         timeout=_TIMEOUT, follow_redirects=True, headers=_HEADERS
     ) as client:
@@ -56,7 +62,7 @@ async def geonames_search(
                     "featureClass": "P",
                     "maxRows": 10,
                     "style": "medium",
-                    "username": settings.geonames_username,
+                    "username": username,
                 },
             )
             logger.info("geonames_search", status=resp.status_code)

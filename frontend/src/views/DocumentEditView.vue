@@ -16,6 +16,8 @@ import MediaPanel from '@/components/ui/MediaPanel.vue';
 import WikidataLinkPanel from '@/components/ui/WikidataLinkPanel.vue';
 import OrcidLinkPanel from '@/components/ui/OrcidLinkPanel.vue';
 import RorLinkPanel from '@/components/ui/RorLinkPanel.vue';
+import ViafLinkPanel from '@/components/ui/ViafLinkPanel.vue';
+import GeonamesLinkPanel from '@/components/ui/GeonamesLinkPanel.vue';
 import CrossrefPanel from '@/components/ui/CrossrefPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
@@ -38,6 +40,12 @@ const orcidPluginActive = computed(() =>
 );
 const rorPluginActive = computed(() =>
   pluginStore.plugins.some((p) => p.name === 'ror' && p.status === 'active'),
+);
+const viafPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'viaf' && p.status === 'active'),
+);
+const geonamesPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'geonames' && p.status === 'active'),
 );
 const crossrefPluginActive = computed(() =>
   pluginStore.plugins.some(
@@ -120,6 +128,22 @@ const ROR_TAGS = ['orgName'] as const;
 const showRorPanel = ref(false);
 const rorInitialQuery = ref('');
 
+// ── VIAF lookup panel ─────────────────────────────────────────────────────────
+// Resolves a <persName> or <orgName> selection to a canonical VIAF URI.
+// VIAF covers both persons and corporate bodies; the panel shows the
+// returned name-type so the editor can pick the right record.
+const VIAF_TAGS = ['persName', 'orgName'] as const;
+const showViafPanel = ref(false);
+const viafInitialQuery = ref('');
+
+// ── GeoNames lookup panel ─────────────────────────────────────────────────────
+// Resolves a <placeName> selection to a canonical GeoNames URI. URI
+// format (web vs semantic-web) comes from the plugin's config — the
+// panel renders whatever the backend returns.
+const GEO_TAGS = ['placeName'] as const;
+const showGeonamesPanel = ref(false);
+const geonamesInitialQuery = ref('');
+
 // ── CrossRef DOI resolver panel ───────────────────────────────────────────────
 // Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
 // backend via CrossRef's /works/{doi}). Complements the AI `tei_bibl_inline`
@@ -147,6 +171,8 @@ const anyPanelOpen = computed(
     showWikidataPanel.value ||
     showOrcidPanel.value ||
     showRorPanel.value ||
+    showViafPanel.value ||
+    showGeonamesPanel.value ||
     showCrossrefPanel.value,
 );
 
@@ -598,6 +624,8 @@ function toggleWikidataPanel(): void {
   showCrossrefPanel.value = false;
   showOrcidPanel.value = false;
   showRorPanel.value = false;
+  showViafPanel.value = false;
+  showGeonamesPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -649,6 +677,8 @@ function toggleOrcidPanel(): void {
   showWikidataPanel.value = false;
   showCrossrefPanel.value = false;
   showRorPanel.value = false;
+  showViafPanel.value = false;
+  showGeonamesPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -696,6 +726,8 @@ function toggleRorPanel(): void {
   showWikidataPanel.value = false;
   showCrossrefPanel.value = false;
   showOrcidPanel.value = false;
+  showViafPanel.value = false;
+  showGeonamesPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -724,6 +756,99 @@ function applyRorRef(uri: string): EntityRefOutcome {
 }
 
 /**
+ * Toggle the VIAF lookup panel. Pre-fills the search query with the
+ * current editor selection (or the text of the enclosing persName /
+ * orgName, if any), same heuristic the ORCID and ROR panels use.
+ */
+function toggleViafPanel(): void {
+  if (showViafPanel.value) {
+    showViafPanel.value = false;
+    return;
+  }
+  // Mutex: other panels close.
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+  showWikidataPanel.value = false;
+  showCrossrefPanel.value = false;
+  showOrcidPanel.value = false;
+  showRorPanel.value = false;
+  showGeonamesPanel.value = false;
+
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  if (sel) {
+    viafInitialQuery.value = sel;
+  } else if (cm) {
+    const text = cm.getValue();
+    const offset = cm.indexFromPos(cm.getCursor());
+    const open = text.lastIndexOf('<', offset - 1);
+    const close = text.indexOf('>', open);
+    const end = text.indexOf('<', close);
+    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
+      viafInitialQuery.value = text.slice(close + 1, end).trim();
+    } else {
+      viafInitialQuery.value = '';
+    }
+  } else {
+    viafInitialQuery.value = '';
+  }
+  showViafPanel.value = true;
+}
+
+/** Apply the VIAF URI — targets persName or orgName (the two VIAF name types). */
+function applyViafRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, VIAF_TAGS);
+}
+
+/**
+ * Toggle the GeoNames lookup panel. Pre-fills with the current
+ * editor selection (or the text of the enclosing placeName, if any).
+ */
+function toggleGeonamesPanel(): void {
+  if (showGeonamesPanel.value) {
+    showGeonamesPanel.value = false;
+    return;
+  }
+  // Mutex: other panels close.
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+  showWikidataPanel.value = false;
+  showCrossrefPanel.value = false;
+  showOrcidPanel.value = false;
+  showRorPanel.value = false;
+  showViafPanel.value = false;
+
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  if (sel) {
+    geonamesInitialQuery.value = sel;
+  } else if (cm) {
+    const text = cm.getValue();
+    const offset = cm.indexFromPos(cm.getCursor());
+    const open = text.lastIndexOf('<', offset - 1);
+    const close = text.indexOf('>', open);
+    const end = text.indexOf('<', close);
+    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
+      geonamesInitialQuery.value = text.slice(close + 1, end).trim();
+    } else {
+      geonamesInitialQuery.value = '';
+    }
+  } else {
+    geonamesInitialQuery.value = '';
+  }
+  showGeonamesPanel.value = true;
+}
+
+/** Apply the GeoNames URI — only to <placeName> elements. */
+function applyGeonamesRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, GEO_TAGS);
+}
+
+/**
  * Toggle the CrossRef DOI resolver panel. On open, pre-fills the DOI
  * input with the current editor selection when it looks like a DOI —
  * otherwise leaves it empty for the editor to paste.
@@ -741,6 +866,8 @@ function toggleCrossrefPanel(): void {
   showWikidataPanel.value = false;
   showOrcidPanel.value = false;
   showRorPanel.value = false;
+  showViafPanel.value = false;
+  showGeonamesPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -821,6 +948,8 @@ function openAiPanel(): void {
   showCrossrefPanel.value = false;
   showOrcidPanel.value = false;
   showRorPanel.value = false;
+  showViafPanel.value = false;
+  showGeonamesPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -1086,7 +1215,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1120,7 +1249,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1190,6 +1319,46 @@ async function runValidation(): Promise<void> {
             <path d="M10 5V3h4v2" />
           </svg>
           {{ t('ror.button_label') }}
+        </button>
+
+        <button
+          v-if="viafPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showViafPanel
+              ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+          ]"
+          :title="t('viaf.button_hint')"
+          @click="toggleViafPanel"
+        >
+          <!-- icon: triangular flag ≈ VIAF logotype -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 20 L12 4 L20 20 Z" />
+            <path d="M8 14 h8" />
+          </svg>
+          {{ t('viaf.button_label') }}
+        </button>
+
+        <button
+          v-if="geonamesPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showGeonamesPanel
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+          ]"
+          :title="t('geonames.button_hint')"
+          @click="toggleGeonamesPanel"
+        >
+          <!-- icon: map pin -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2 C7 2 3 6 3 11 c0 7 9 11 9 11 s9-4 9-11 c0-5-4-9-9-9 z" />
+            <circle cx="12" cy="11" r="3" />
+          </svg>
+          {{ t('geonames.button_label') }}
         </button>
 
         <button
@@ -1498,6 +1667,32 @@ async function runValidation(): Promise<void> {
       :initial-query="rorInitialQuery"
       :on-apply="applyRorRef"
       @close="showRorPanel = false"
+    />
+  </div>
+
+  <!-- VIAF lookup panel (persName + orgName) -->
+  <div
+    v-if="showViafPanel && !isLoading"
+    class="flex flex-shrink-0 flex-col border-l border-gray-200"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <ViafLinkPanel
+      :initial-query="viafInitialQuery"
+      :on-apply="applyViafRef"
+      @close="showViafPanel = false"
+    />
+  </div>
+
+  <!-- GeoNames lookup panel (placeName only) -->
+  <div
+    v-if="showGeonamesPanel && !isLoading"
+    class="flex flex-shrink-0 flex-col border-l border-gray-200"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <GeonamesLinkPanel
+      :initial-query="geonamesInitialQuery"
+      :on-apply="applyGeonamesRef"
+      @close="showGeonamesPanel = false"
     />
   </div>
 

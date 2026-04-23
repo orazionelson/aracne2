@@ -153,9 +153,12 @@ class Settings(BaseSettings):
     # up and dev bind-mounts see it automatically.
     help_docs_root: Path = Path("/app/help_docs")
 
-    # GeoNames API — used by /geonames/search to power Place-of-Publication autocomplete.
-    # Register a free account at https://www.geonames.org/login and set this variable.
-    geonames_username: str = "aracne"
+    # GeoNames username — moved to system_settings in migration 0057.
+    # Set it at runtime from /admin/settings (key: "geonames_username").
+    # Default seed is "aracne" for backward compatibility; each deployment
+    # should register its own free username at https://www.geonames.org/login
+    # because the shared default is subject to a ~20k/day quota across
+    # every installation that never changed it.
 
 
     # Admin seed — required only for `make seed`; None skips admin creation with warning

@@ -49,6 +49,16 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () => import("@/components/plugins/RorConfig.vue"),
   },
   {
+    slug: "viaf",
+    titleKey: "viaf.panel_title",
+    component: () => import("@/components/plugins/ViafConfig.vue"),
+  },
+  {
+    slug: "geonames",
+    titleKey: "geonames.panel_title",
+    component: () => import("@/components/plugins/GeonamesConfig.vue"),
+  },
+  {
     slug: "crossref_lookup",
     titleKey: "crossref.panel_title",
     component: () =>
