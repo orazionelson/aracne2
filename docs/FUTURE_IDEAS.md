@@ -902,4 +902,163 @@ use cases with an order of magnitude less operational burden.
 
 ---
 
-*Last updated: 2026-04-22*
+## 15. Non-native plugin: GROBID — PDF → TEI import 🟡 Medium
+
+Many editions begin from PDFs (prior printed editions, OCR-ed manuscript
+transcriptions, scholarly articles cited as sources) and converting them
+to TEI by hand is weeks of work. [GROBID](https://grobid.readthedocs.io/)
+is an open-source Java service that extracts metadata, body text, and
+bibliographic references from scholarly PDFs and emits valid TEI P5.
+A non-native plugin wiring GROBID into the collection's upload flow
+would give editors a "Import from PDF" starting point — imperfect but
+weeks better than nothing.
+
+### Motivation and use cases
+
+- **Primary source digitisation**: a PDF of a 19th-century critical
+  edition becomes a pre-populated TEI document the editor can then
+  refine manually in the CodeMirror editor.
+- **Reference mining**: drop a scholarly PDF of an article and let
+  `/api/processReferences` return its `<listBibl>`, importable into
+  the collection's bibliography (alternative path to the Zotero and
+  CrossRef plugins).
+- **OCR round-trip**: text from an OCR pipeline, wrapped in minimal
+  PDF, becomes a skeleton TEI with approximate structure — faster
+  than typing the `<div>` / `<p>` / `<pb>` skeleton by hand.
+
+### Plugin shape
+
+Non-native, same scaffolding as `zenodo_deposit`, `internet_archive`,
+and `zotero_import`. Directory:
+
+```
+backend/app/plugins/grobid_import/
+├── __init__.py
+├── plugin.py        # Plugin class (no hook — manual-pull)
+├── service.py       # httpx multipart POST to GROBID
+├── config.py        # runtime config loader
+├── schemas.py       # Pydantic
+├── importer.py      # orchestration: upload → TEI → new document in eXist-db
+├── router.py        # admin config + per-collection import endpoint
+└── tests/
+    ├── conftest.py
+    ├── test_service.py
+    └── test_importer.py
+```
+
+### External API
+
+GROBID exposes:
+
+| Endpoint | Purpose | MVP? |
+|----------|---------|------|
+| `POST /api/processFulltextDocument` | metadata + body + biblio → TEI | ✅ primary |
+| `POST /api/processHeaderDocument` | metadata only | ➖ nice-to-have |
+| `POST /api/processReferences` | biblio only → `<listBibl>` | ➖ biblio-only route |
+| `POST /api/processCitationList` | parse a text list of refs | ✖ out of scope |
+
+Multipart form with the PDF as `input` field; response is
+`application/xml` (TEI). No auth, no API key — GROBID is unauthenticated
+by default; operators rate-limit / restrict access at the network layer.
+
+### Settings (hypothetical Alembic migration)
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `grobid_endpoint` | string | Base URL, e.g. `https://grobid.example.org` |
+| `grobid_timeout_seconds` | int | Default 120 — GROBID is slow on multi-page PDFs |
+| `grobid_max_pdf_size_mb` | int | Default 50; guards both Aracne2 and GROBID |
+| `grobid_consolidate_citations` | bool | Passthrough for the GROBID ``consolidateCitations`` query param (0/1) |
+
+No credentials. Nothing to add to `SENSITIVE_KEYS`.
+
+### Flow
+
+1. Admin stands up a GROBID instance (standard Docker image
+   `lfoppiano/grobid:latest`, ~2 GB), reachable from the backend. Config
+   panel in `/admin/plugins/grobid_import/config` lets Admin paste the
+   endpoint URL.
+2. Editor (EiC+) opens a collection, clicks "Import from PDF", picks a
+   file. The plugin POSTs the PDF multipart-encoded to
+   `POST {endpoint}/api/processFulltextDocument`.
+3. On success (`200 application/xml`), the plugin validates the
+   response is well-formed TEI (defusedxml parse), assigns a filename
+   (`{original_basename}.xml`, collision-aware), and writes it to
+   eXist-db under the collection's slug via the existing document
+   upload service (same code path as a manual upload).
+4. Editor is redirected to the new document in the TEI editor where
+   they can refine the skeleton GROBID produced.
+
+### Scope caveats
+
+- **OCR quality drives output quality**: a PDF without proper text
+  layer (pure image scans) yields essentially empty TEI. The plugin
+  should detect and surface this case ("the PDF appears to be
+  image-only; GROBID cannot extract text without OCR"). Detection is
+  cheap — zero `<p>` children or empty `<text>` body.
+- **Size limit + timeout**: GROBID scales poorly with page count; cap
+  uploads at ~50 MB and bump the HTTP timeout to at least 120 s.
+- **Filename collisions**: if a `{basename}.xml` already exists in the
+  collection, append a numeric suffix — no overwrite without an
+  explicit "replace" affordance.
+- **Bibliography-only mode**: the second variant that only calls
+  `/api/processReferences` and appends a `<listBibl>` to an existing
+  `CollectionBibliography` is a natural follow-up; sits happily next
+  to the Zotero + CrossRef import paths.
+
+### Open questions
+
+- **Hosting GROBID**: every deployment needs its own GROBID instance
+  (there is no universally-accessible free SaaS). Document the Docker
+  Compose snippet in `docs/OPERATIONS.md` when the plugin ships;
+  without a reachable endpoint the plugin is dead weight.
+- **Response streaming vs buffered**: GROBID responses for large PDFs
+  can be 10 MB+ of TEI. Streaming into eXist-db rather than buffering
+  in memory would help — but adds async complexity. Defer to buffered
+  for MVP, revisit if it bites.
+- **Variant for biblio-only route**: first iteration only wires
+  `/processFulltextDocument`; `/processReferences` is a second
+  iteration if editors ask. Bundling both from day one risks UI
+  bloat on a feature that hasn't yet proved itself.
+- **Security**: the plugin must forward the PDF to GROBID, so
+  operators run a GROBID instance that trusts Aracne2. If the GROBID
+  instance is shared across projects, firewall rules or a dedicated
+  instance per deployment are advisable.
+
+### Effort
+
+~1.5–2 days once an operator has a reachable GROBID instance. The
+plugin itself is glue: the hard part is standing up GROBID in the
+deployment stack, which the plugin itself cannot automate.
+
+### Prerequisites
+
+| Prerequisite | Status |
+|---|---|
+| Non-native plugin scaffolding (Zenodo/IA/Zotero pattern) | ✅ |
+| `PluginDataService` for per-collection state (if we want to track imports) | ✅ |
+| eXist-db document upload service | ✅ (existing, used by all document-upload paths) |
+| Reachable GROBID instance in the deployment | ❌ per-deployment |
+
+### Trigger
+
+Consider this when:
+
+- A deployment explicitly needs to import non-trivial volumes of PDFs
+  (edition digitisation campaign, OCR corpus intake);
+- An operator has the infrastructure to run a GROBID instance next to
+  the backend (roughly 4 GB RAM, a few GB of disk);
+- The editors have understood the "GROBID is a skeleton, you still
+  refine manually" expectation — otherwise the UX will feel broken
+  on first contact with a poor-quality PDF.
+
+Until then, manual TEI authoring plus the CrossRef / Zotero import
+paths cover the bibliography-mining subset of what GROBID would do,
+and full-body extraction from PDF is a niche that Aracne2 does not
+need to solve in-platform.
+
+*Added: 2026-04-23*
+
+---
+
+*Last updated: 2026-04-23*
