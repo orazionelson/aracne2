@@ -243,7 +243,6 @@
     "status_active": "Active",
     "status_inactive": "Inactive",
     "status_error": "Error",
-    "native_badge": "Native",
     "activate": "Activate",
     "deactivate": "Deactivate",
     "delete": "Delete",
@@ -253,7 +252,16 @@
     "no_plugins": "No plugins found.",
     "restart_notice": "Changes take effect after the next server restart.",
     "confirm_deactivate": "Deactivate this plugin? It will stop working after the next restart.",
-    "confirm_delete": "Delete this plugin record? This cannot be undone."
+    "confirm_delete": "Delete this plugin record? This cannot be undone.",
+    "tab_core": "Core",
+    "tab_extensions": "Extensions",
+    "tab_count": "{count}",
+    "search_placeholder": "Search plugins",
+    "filter_status": "Status",
+    "filter_all": "All",
+    "no_results": "No plugins match the current filters.",
+    "core_intro": "Foundational plugins that ship with Aracne2. Always active — they cannot be deactivated or removed.",
+    "extensions_intro": "Optional plugins you can install, activate, configure, and remove. A backend restart is required after activation before their routes are mounted."
   },
   "collections": {
     "title": "Collections",
