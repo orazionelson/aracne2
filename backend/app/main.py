@@ -26,7 +26,6 @@ from app.routers import schemas as schemas_router, settings as settings_router, 
 from app.routers import viaf as viaf_router
 from app.routers import wikidata as wikidata_router
 from app.routers import geonames as geonames_router
-from app.routers import bibliography as bibliography_router
 from app.routers import seo as seo_router
 from app.routers import search_engines as search_engines_router
 from app.routers import websites as websites_router
@@ -291,7 +290,6 @@ app.include_router(body_templates_router.router, prefix="/api/v1")
 app.include_router(viaf_router.router, prefix="/api/v1")
 app.include_router(wikidata_router.router, prefix="/api/v1")
 app.include_router(geonames_router.router, prefix="/api/v1")
-app.include_router(bibliography_router.router, prefix="/api/v1")
 app.include_router(seo_router.router, prefix="/api/v1")
 app.include_router(public_view_router.router, prefix="/api/v1")
 app.include_router(websites_router.router, prefix="/api/v1")

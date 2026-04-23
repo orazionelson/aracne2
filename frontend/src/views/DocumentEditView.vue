@@ -6,6 +6,7 @@ import { useCollectionStore } from '@/stores/collections';
 import { useSchemaStore } from '@/stores/schemas';
 import { useSettingStore } from '@/stores/settings';
 import { useAiStore } from '@/stores/ai';
+import { usePluginStore } from '@/stores/plugins';
 import type { ValidationResult } from '@/stores/schemas';
 import { useCodeMirror } from '@/composables/useCodeMirror';
 import CodeMirror, { type Editor as CM5Editor } from 'codemirror';
@@ -25,6 +26,20 @@ const store = useCollectionStore();
 const schemaStore = useSchemaStore();
 const settingStore = useSettingStore();
 const aiStore = useAiStore();
+const pluginStore = usePluginStore();
+
+// Editor-side integrations that live as non-native plugins. The
+// toolbar buttons (ORCID lookup, CrossRef DOI resolver) are visible
+// only when the matching plugin is active in /admin/plugins —
+// otherwise clicking them would hit endpoints mounted conditionally.
+const orcidPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'orcid' && p.status === 'active'),
+);
+const crossrefPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === 'crossref_lookup' && p.status === 'active',
+  ),
+);
 
 // settingStore imported above to keep the store registered; not used directly here.
 void settingStore;
@@ -357,6 +372,11 @@ onMounted(async () => {
 
   if (schemaStore.schemas.length === 0) {
     try { await schemaStore.fetchSchemas(); } catch { /* non-fatal */ }
+  }
+
+  // Needed for the plugin-gated toolbar buttons (ORCID / CrossRef).
+  if (pluginStore.plugins.length === 0) {
+    try { await pluginStore.fetchPlugins(); } catch { /* non-fatal */ }
   }
 
   if (xmlResult.status === 'fulfilled') {
@@ -1069,6 +1089,7 @@ async function runValidation(): Promise<void> {
         </button>
 
         <button
+          v-if="orcidPluginActive"
           :disabled="isLoading"
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
@@ -1090,6 +1111,7 @@ async function runValidation(): Promise<void> {
         </button>
 
         <button
+          v-if="crossrefPluginActive"
           :disabled="isLoading"
           :class="[
             'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',

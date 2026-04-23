@@ -16,8 +16,8 @@ import httpx
 import pytest
 
 from app.core.exceptions import ExternalServiceError, NotFoundError
-from app.services import crossref
-from app.services.crossref import (
+from app.plugins.crossref_lookup import service as crossref
+from app.plugins.crossref_lookup.service import (
     crossref_to_biblstruct,
     looks_like_doi,
     resolve_doi,

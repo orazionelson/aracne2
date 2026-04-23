@@ -43,6 +43,12 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "orcid.panel_title",
     component: () => import("@/components/plugins/OrcidConfig.vue"),
   },
+  {
+    slug: "crossref_lookup",
+    titleKey: "crossref.panel_title",
+    component: () =>
+      import("@/components/plugins/CrossrefLookupConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

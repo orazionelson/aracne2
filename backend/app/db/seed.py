@@ -114,6 +114,10 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("zotero_library_id", "", "string"),
     # Optional override for tests or mirrors; empty = official endpoint.
     ("zotero_api_base", "", "string"),
+    # CrossRef Lookup plugin (non-native). Contact email for the polite
+    # pool — appears as ``mailto:…`` in the User-Agent. Empty value falls
+    # back to admin_email at call time.
+    ("crossref_contact_email", "", "string"),
 ]
 
 # Default Creative Commons licenses (name, target).

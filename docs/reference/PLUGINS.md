@@ -892,6 +892,58 @@ Features:
 - Toolbar button in the TEI editor; panel component
   `OrcidLinkPanel.vue` mirrors `WikidataLinkPanel` in grammar.
 
+### 6b.5 `crossref_lookup` — CrossRef DOI resolver
+
+| | |
+|---|---|
+| **Location** | `plugins/crossref_lookup/` |
+| **Routes** | Yes — prefix `/plugins/crossref-lookup` |
+| **Hooks** | None (editor-side only) |
+| **min_role** | Admin (config); EditorInChief (lookup) |
+| **External API** | `https://api.crossref.org/works/{doi}` (public, no auth) |
+
+Adds a "DOI" toggle to the TEI editor toolbar. The panel fetches the
+canonical CrossRef record for a pasted DOI and produces a
+ready-to-insert TEI ``<biblStruct>``. Complements the AI
+``tei_bibl_inline`` prompt: deterministic, not subject to
+hallucination, keyed on the opaque DOI.
+
+Features:
+- Three TEI shapes driven by CrossRef's ``type``:
+  ``journal-article`` / ``proceedings-article`` → ``journalArticle``;
+  ``book`` / ``monograph`` / ``reference-book`` / ``edited-book`` →
+  ``book``; ``book-chapter`` / ``book-section`` / ``reference-entry``
+  → ``bookSection``. Everything else collapses to ``type="other"``.
+- Extracts year from the most reliable CrossRef date field
+  (``published-print`` > ``published-online`` > ``issued`` >
+  ``created``).
+- ``xml:id`` generated as ``bib_{surname_ascii_slug}_{year}``, with
+  a 3-word title fallback and unicode surname ASCII-slugging so ids
+  stay stable across locales.
+- DOI prefix tolerance: accepts bare DOI, ``doi:…``, and
+  ``https://doi.org/…``.
+- "Polite pool" identification: contact email goes into the
+  ``User-Agent`` ``mailto:`` token so CrossRef can reach the operator
+  if the service misbehaves.
+
+**Endpoints:**
+
+| Method | Path | ACL | Purpose |
+|--------|------|-----|---------|
+| GET | `/plugins/crossref-lookup/config` | Admin | Current non-sensitive config (contact email + platform fallback) |
+| PUT | `/plugins/crossref-lookup/config` | Admin | Update the contact email |
+| GET | `/plugins/crossref-lookup/lookup?doi=…` | EiC+ | Resolve a DOI to a biblStruct (30 req/min) |
+
+**Settings (migration 0055):**
+- `crossref_contact_email` — polite-pool contact email; empty falls
+  back to `admin_email`.
+
+**Frontend:**
+- Config page at `/admin/plugins/crossref_lookup/config`.
+- Toolbar button in the TEI editor, conditional on plugin activation
+  via `usePluginStore` (same pattern as the ORCID lookup button).
+- Panel component `CrossrefPanel.vue` (editor UI).
+
 ---
 
 ## 7. Native vs. non-native

@@ -152,10 +152,6 @@ class Settings(BaseSettings):
     # Register a free account at https://www.geonames.org/login and set this variable.
     geonames_username: str = "aracne"
 
-    # CrossRef "polite pool" contact email. Sent as mailto: in the User-Agent
-    # on every /works/{doi} call so CrossRef can reach the operator if the
-    # service misbehaves. Leave empty to fall back to admin_email.
-    crossref_contact_email: str = ""
 
     # Admin seed — required only for `make seed`; None skips admin creation with warning
     admin_username: str = "admin"

@@ -12,9 +12,9 @@
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-  useBibliographyStore,
+  useCrossrefStore,
   type CrossrefLookupResult,
-} from '@/stores/bibliography';
+} from '@/stores/crossref';
 
 const props = defineProps<{
   /** Pre-filled DOI — usually the editor's current selection when it looks like one. */
@@ -29,7 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 const { t } = useI18n();
-const biblio = useBibliographyStore();
+const biblio = useCrossrefStore();
 
 // Strip common pastes of the form "https://doi.org/10.x/y" or "doi:10.x/y"
 // so the editor does not have to clean the input before hitting Resolve.
