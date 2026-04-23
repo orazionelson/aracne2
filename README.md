@@ -416,7 +416,7 @@ Technical reference documents are in [`docs/reference/`](docs/reference/).
 | [NOTIFICATIONS.md](docs/reference/NOTIFICATIONS.md) | In-app notification system |
 | [OAI_PMH_PROVIDER.md](docs/reference/OAI_PMH_PROVIDER.md) | OAI-PMH 2.0 metadata provider |
 | [EVT_INTEGRATION.md](docs/reference/EVT_INTEGRATION.md) | EVT 2 viewer integration |
-| [STYLING_PUBLIC_HOMEPAGE.md](docs/reference/STYLING_PUBLIC_HOMEPAGE.md) | CSS classes for the public homepage |
+| [PUBLIC_PAGES.md](docs/reference/PUBLIC_PAGES.md) | CSS classes for the public pages (homepage, collection, document, entities, bibliography) |
 | [HEALTH_CHECK.md](docs/reference/HEALTH_CHECK.md) | Health check endpoint |
 | [EXISTDB_SETUP.md](docs/reference/EXISTDB_SETUP.md) | eXist-db user model, bootstrap, collection namespace, environment variables |
 

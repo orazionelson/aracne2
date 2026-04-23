@@ -10,7 +10,7 @@ import { contrastingTextColor } from "@/utils/color";
  * Consumers apply `:style="{ backgroundColor: bg, color: text }"` on
  * their header/root element and can drop any hard-coded `text-white`
  * classes. A custom brand colour can still be forced through the
- * public homepage CSS override (see docs/reference/STYLING_PUBLIC_HOMEPAGE.md).
+ * public pages CSS override (see docs/reference/PUBLIC_PAGES.md).
  */
 export function useNavbarColors(): {
   bg: ComputedRef<string>;
