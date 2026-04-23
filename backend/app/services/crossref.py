@@ -91,7 +91,11 @@ class BiblStructResult:
 # --- DOI shape guard (defensive) ----------------------------------------------
 
 
-_DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$", re.IGNORECASE)
+# The DOI spec (ANSI/NISO Z39.84) does not fix a digit count for the
+# registrant prefix; most DOIs in the wild use 4–5 digits, but short
+# prefixes (``10.9``, ``10.12``) are valid too. Be permissive here —
+# stricter validation belongs to CrossRef itself.
+_DOI_RE = re.compile(r"^10\.\d+/[-._;()/:A-Z0-9]+$", re.IGNORECASE)
 
 
 def looks_like_doi(value: str) -> bool:

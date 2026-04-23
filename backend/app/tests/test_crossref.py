@@ -206,8 +206,9 @@ def test_mapping_xml_id_falls_back_to_title_words_when_no_author() -> None:
         "issued": {"date-parts": [[1975]]},
     }
     result = crossref_to_biblstruct(message)
-    # First three words, lowercased, ASCII-slugged.
-    assert re.match(r"^bib_grammarofoldoccitan_1975$", result.xml_id)
+    # First three words ("Grammar", "of", "Old") joined, lowercased, ASCII-slugged.
+    # "Occitan" is dropped because we cap at 3 tokens to keep ids short.
+    assert result.xml_id == "bib_grammarofold_1975"
 
 
 def test_mapping_empty_author_list_is_tolerated() -> None:

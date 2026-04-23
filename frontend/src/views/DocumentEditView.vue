@@ -93,7 +93,7 @@ const ENTITY_TAGS = ['persName', 'placeName', 'orgName'] as const;
 // deterministic.
 const showCrossrefPanel = ref(false);
 const crossrefInitialDoi = ref('');
-const _DOI_RE = /^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:)?10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+$/;
+const _DOI_RE = /^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:)?10\.\d+\/[-._;()/:A-Za-z0-9]+$/;
 
 // ── Panel resize ──────────────────────────────────────────────────────────────
 const PANEL_MIN_PX = 240;
