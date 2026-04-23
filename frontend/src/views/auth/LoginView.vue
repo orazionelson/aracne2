@@ -60,9 +60,7 @@ async function handleLogin(): Promise<void> {
       </router-link>
 
       <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:shadow-black/40">
-        <h1 class="mb-6 text-center text-xl font-semibold text-gray-800 dark:text-gray-100">
-          {{ t("auth.sign_in") }}
-        </h1>
+        <h1 class="sr-only">{{ t("auth.sign_in") }}</h1>
         <form @submit.prevent="handleLogin" novalidate>
           <div class="mb-4">
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
