@@ -4,10 +4,11 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
+from app.db.types import JsonbType
 
 
 def _now() -> datetime:
@@ -22,8 +23,9 @@ class WebhookEndpoint(Base):
     )
     label: Mapped[str] = mapped_column(String(256), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
-    # List of event names this endpoint subscribes to — stored as JSONB array.
-    events: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # List of event names this endpoint subscribes to — stored as JSONB array
+    # on PostgreSQL; JSON on SQLite (tests) via the JsonbType TypeDecorator.
+    events: Mapped[list] = mapped_column(JsonbType, nullable=False, default=list)
     # Shared secret for HMAC-SHA256 request signing (optional).
     # Stored in plaintext — Admin-only access, no public exposure.
     secret: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
