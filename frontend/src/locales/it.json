@@ -1077,6 +1077,22 @@
     "refresh": "Aggiorna cache",
     "refresh_done": "Cache della guida svuotata — la prossima richiesta riparserà."
   },
+  "ror": {
+    "panel_title": "Ricerca ROR",
+    "panel_subtitle": "Ricerca nel registro pubblico ROR (Research Organization Registry) per risolvere una selezione <orgName> in un URI ROR canonico.",
+    "no_config_notice": "Questo plugin non ha configurazione. Inoltra la ricerca alla API pubblica di ROR — nessuna credenziale richiesta. Attivalo e usa il pulsante ROR nella toolbar dell'editor TEI.",
+    "usage_hint": "L'editor TEI mostra un pulsante ROR accanto a ORCID. Seleziona il nome di un'istituzione, clicca ROR, scegli un risultato, e @ref viene scritto sul <orgName> che racchiude il cursore.",
+    "button_label": "ROR",
+    "button_hint": "Trova un identificativo ROR per l'istituzione selezionata e scrivilo come @ref sul <orgName>",
+    "search_placeholder": "Cerca ROR (nome istituzione)",
+    "idle_hint": "Digita almeno due caratteri per cercare.",
+    "no_results": "Nessuna organizzazione corrispondente.",
+    "apply": "Applica",
+    "footer_hint": "Scrive @ref=\"https://ror.org/…\" sul <orgName> che racchiude il cursore.",
+    "applied_success": "Collegato <{tag}> a {ror}.",
+    "apply_error_no_enclosing_tag": "Posiziona il cursore dentro un elemento TEI prima di applicare.",
+    "apply_error_not_entity_tag": "ROR si applica solo a <orgName>; l'elemento che racchiude il cursore è <{tag}>."
+  },
   "orcid": {
     "panel_title": "Ricerca ORCID",
     "panel_subtitle": "Cerca nel registro pubblico ORCID per risolvere un <persName> selezionato in un URI ORCID canonico.",

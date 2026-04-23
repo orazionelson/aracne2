@@ -638,7 +638,7 @@ lives in its own document:
 → [NON_NATIVE_PLUGINS.md](./NON_NATIVE_PLUGINS.md)
 
 Currently bundled: `zenodo_deposit`, `internet_archive`, `zotero_import`,
-`orcid`, `crossref_lookup`. See that file for the canonical specs.
+`orcid`, `ror`, `crossref_lookup`. See that file for the canonical specs.
 
 The rest of this document continues to describe the **plugin subsystem itself**
 (loader, hook registry, native vs. non-native lifecycle, signed webhook

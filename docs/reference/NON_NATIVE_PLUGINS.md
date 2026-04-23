@@ -398,6 +398,60 @@ Features:
 
 ---
 
+## 6. `ror` — ROR affiliation lookup
+
+| | |
+|---|---|
+| **Location** | `plugins/ror/` |
+| **Routes** | Yes — prefix `/plugins/ror` |
+| **Hooks** | None (editor-side only) |
+| **min_role** | Admin (activation only; search is any authenticated user) |
+| **External API** | `https://api.ror.org/v2/organizations` (public, no auth) |
+
+Adds a "ROR" toggle to the TEI editor toolbar, next to the ORCID
+button. The panel searches the Research Organization Registry by name
+(or selected text), shows display names with aliases, country, and
+institution types, and on "Apply" writes
+``@ref="https://ror.org/..."`` on the enclosing ``<orgName>``
+element.
+
+Scope mirrors the ORCID plugin but for institutions:
+
+- Editor-side only — this is an encoding aid. A user-level ROR
+  affiliation on the ``User`` model could make sense later (parallel
+  to ``User.orcid``) but is not currently a platform need.
+- Applies only to ``<orgName>`` (ROR identifies institutions, not
+  people or places).
+
+Features:
+- Uses ROR API **v2** — v1 was deprecated in early 2025. The v2 item
+  model splits names into typed entries (`ror_display`, `alias`,
+  `acronym`, `label`); the service picks the `ror_display` as the
+  canonical name and surfaces the rest as aliases in the UI.
+- Skips items without a usable display name rather than showing
+  blank rows.
+- Fail-soft: upstream hiccups (timeout, 5xx, parse error) degrade to
+  an empty result list — editors never see an error banner.
+- No credentials, no migration — activating the plugin is all that
+  is required.
+
+**Endpoint:**
+
+| Method | Path | ACL | Purpose |
+|--------|------|-----|---------|
+| GET | `/plugins/ror/search?q=...&rows=...` | User+ | Proxied public search, 30 req/min per IP |
+
+**Settings:** none.
+
+**Frontend:**
+- Information-only config page at `/admin/plugins/ror/config` — the
+  plugin has no tunables.
+- Toolbar button in the TEI editor, **conditional on plugin
+  activation** (`usePluginStore` check); panel component
+  `RorLinkPanel.vue` mirrors `OrcidLinkPanel` in grammar.
+
+---
+
 ## Summary
 
 | Slug | Purpose | Trigger | External auth |
@@ -406,6 +460,7 @@ Features:
 | `internet_archive` | Captures collections on Wayback Machine | `collection.published` + manual + refresh | S3-style keys (Fernet) |
 | `zotero_import` | Imports Zotero library into bibliography | Manual pull (preview + commit) | Zotero read-only API key (Fernet) |
 | `orcid` | Resolves `<persName>` → ORCID URI | Editor-side | None |
+| `ror` | Resolves `<orgName>` → ROR URI | Editor-side | None |
 | `crossref_lookup` | Resolves DOI → `<biblStruct>` | Editor-side | Polite-pool contact email (plain) |
 
 Each plugin is self-contained: its directory, its settings, its
@@ -420,5 +475,5 @@ outside the plugin directory has to change.
   hook registry, native plugins catalogue, how to write a new
   non-native plugin from scratch).
 - [`FUTURE_IDEAS.md`](../FUTURE_IDEAS.md) — proposed but not-yet-shipped
-  non-native plugins (GROBID PDF → TEI, DataCite DOI, ROR
-  affiliations, GitHub integration, …).
+  non-native plugins (GROBID PDF → TEI, DataCite DOI, GitHub
+  integration, Matomo/Plausible analytics, …).

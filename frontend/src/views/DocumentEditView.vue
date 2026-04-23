@@ -15,6 +15,7 @@ import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
 import WikidataLinkPanel from '@/components/ui/WikidataLinkPanel.vue';
 import OrcidLinkPanel from '@/components/ui/OrcidLinkPanel.vue';
+import RorLinkPanel from '@/components/ui/RorLinkPanel.vue';
 import CrossrefPanel from '@/components/ui/CrossrefPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
@@ -34,6 +35,9 @@ const pluginStore = usePluginStore();
 // otherwise clicking them would hit endpoints mounted conditionally.
 const orcidPluginActive = computed(() =>
   pluginStore.plugins.some((p) => p.name === 'orcid' && p.status === 'active'),
+);
+const rorPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'ror' && p.status === 'active'),
 );
 const crossrefPluginActive = computed(() =>
   pluginStore.plugins.some(
@@ -109,6 +113,13 @@ const ORCID_TAGS = ['persName'] as const;
 const showOrcidPanel = ref(false);
 const orcidInitialQuery = ref('');
 
+// ── ROR lookup panel ──────────────────────────────────────────────────────────
+// Resolves an <orgName> selection to a canonical ROR URI. Scoped to
+// institutions only — ROR does not identify people or places.
+const ROR_TAGS = ['orgName'] as const;
+const showRorPanel = ref(false);
+const rorInitialQuery = ref('');
+
 // ── CrossRef DOI resolver panel ───────────────────────────────────────────────
 // Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
 // backend via CrossRef's /works/{doi}). Complements the AI `tei_bibl_inline`
@@ -135,6 +146,7 @@ const anyPanelOpen = computed(
     showZonePanel.value ||
     showWikidataPanel.value ||
     showOrcidPanel.value ||
+    showRorPanel.value ||
     showCrossrefPanel.value,
 );
 
@@ -585,6 +597,7 @@ function toggleWikidataPanel(): void {
   showValidationPanel.value = false;
   showCrossrefPanel.value = false;
   showOrcidPanel.value = false;
+  showRorPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -635,6 +648,7 @@ function toggleOrcidPanel(): void {
   showValidationPanel.value = false;
   showWikidataPanel.value = false;
   showCrossrefPanel.value = false;
+  showRorPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -665,6 +679,51 @@ function applyOrcidRef(uri: string): EntityRefOutcome {
 }
 
 /**
+ * Toggle the ROR lookup panel. Pre-fills the search query with the
+ * current editor selection (or the text of the enclosing orgName, if
+ * any), same heuristic the ORCID panel uses.
+ */
+function toggleRorPanel(): void {
+  if (showRorPanel.value) {
+    showRorPanel.value = false;
+    return;
+  }
+  // Mutex: other panels close.
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+  showWikidataPanel.value = false;
+  showCrossrefPanel.value = false;
+  showOrcidPanel.value = false;
+
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  if (sel) {
+    rorInitialQuery.value = sel;
+  } else if (cm) {
+    const text = cm.getValue();
+    const offset = cm.indexFromPos(cm.getCursor());
+    const open = text.lastIndexOf('<', offset - 1);
+    const close = text.indexOf('>', open);
+    const end = text.indexOf('<', close);
+    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
+      rorInitialQuery.value = text.slice(close + 1, end).trim();
+    } else {
+      rorInitialQuery.value = '';
+    }
+  } else {
+    rorInitialQuery.value = '';
+  }
+  showRorPanel.value = true;
+}
+
+/** Apply the ROR URI chosen by the panel — only to <orgName> elements. */
+function applyRorRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, ROR_TAGS);
+}
+
+/**
  * Toggle the CrossRef DOI resolver panel. On open, pre-fills the DOI
  * input with the current editor selection when it looks like a DOI —
  * otherwise leaves it empty for the editor to paste.
@@ -681,6 +740,7 @@ function toggleCrossrefPanel(): void {
   showValidationPanel.value = false;
   showWikidataPanel.value = false;
   showOrcidPanel.value = false;
+  showRorPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -760,6 +820,7 @@ function openAiPanel(): void {
   showWikidataPanel.value = false;
   showCrossrefPanel.value = false;
   showOrcidPanel.value = false;
+  showRorPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -1025,7 +1086,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1059,7 +1120,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1108,6 +1169,27 @@ async function runValidation(): Promise<void> {
             <path d="M8 12a4 4 0 0 1 4-4" />
           </svg>
           {{ t('orcid.button_label') }}
+        </button>
+
+        <button
+          v-if="rorPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showRorPanel
+              ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+          ]"
+          :title="t('ror.button_hint')"
+          @click="toggleRorPanel"
+        >
+          <!-- icon: building / institution -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="5" width="16" height="15" rx="1" />
+            <path d="M8 9h8M8 13h8M8 17h5" />
+            <path d="M10 5V3h4v2" />
+          </svg>
+          {{ t('ror.button_label') }}
         </button>
 
         <button
@@ -1403,6 +1485,19 @@ async function runValidation(): Promise<void> {
       :initial-query="orcidInitialQuery"
       :on-apply="applyOrcidRef"
       @close="showOrcidPanel = false"
+    />
+  </div>
+
+  <!-- ROR lookup panel (orgName only) -->
+  <div
+    v-if="showRorPanel && !isLoading"
+    class="flex flex-shrink-0 flex-col border-l border-gray-200"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <RorLinkPanel
+      :initial-query="rorInitialQuery"
+      :on-apply="applyRorRef"
+      @close="showRorPanel = false"
     />
   </div>
 

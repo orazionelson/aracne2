@@ -1077,6 +1077,22 @@
     "refresh": "Refresh cache",
     "refresh_done": "Help cache cleared — next request will re-parse."
   },
+  "ror": {
+    "panel_title": "ROR lookup",
+    "panel_subtitle": "Searches the public Research Organization Registry (ROR) so editors can resolve an <orgName> selection to a canonical ROR URI.",
+    "no_config_notice": "This plugin has no configuration. It proxies the public ROR search API on your behalf — no credentials required. Activate it and use the ROR button in the TEI editor toolbar.",
+    "usage_hint": "The TEI editor gains a ROR button next to the ORCID button. Select an institution name, click ROR, pick a hit, and @ref is written on the enclosing <orgName>.",
+    "button_label": "ROR",
+    "button_hint": "Find a ROR identifier for the selected institution and write it as @ref on the enclosing <orgName>",
+    "search_placeholder": "Search ROR (institution name)",
+    "idle_hint": "Type at least two characters to search.",
+    "no_results": "No matching organisations.",
+    "apply": "Apply",
+    "footer_hint": "Writes @ref=\"https://ror.org/…\" on the <orgName> enclosing the cursor.",
+    "applied_success": "Linked <{tag}> to {ror}.",
+    "apply_error_no_enclosing_tag": "Place the cursor inside a TEI element before linking.",
+    "apply_error_not_entity_tag": "ROR can only be applied to <orgName>; the enclosing element is <{tag}>."
+  },
   "orcid": {
     "panel_title": "ORCID lookup",
     "panel_subtitle": "Searches the public ORCID registry so editors can resolve a <persName> selection to a canonical ORCID URI.",

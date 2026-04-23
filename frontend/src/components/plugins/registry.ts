@@ -44,6 +44,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () => import("@/components/plugins/OrcidConfig.vue"),
   },
   {
+    slug: "ror",
+    titleKey: "ror.panel_title",
+    component: () => import("@/components/plugins/RorConfig.vue"),
+  },
+  {
     slug: "crossref_lookup",
     titleKey: "crossref.panel_title",
     component: () =>
