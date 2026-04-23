@@ -883,6 +883,39 @@ export function useCodeMirror(
     editorInstance.value = null;
   });
 
+  /**
+   * Insert a pre-formatted XML fragment at the current cursor position,
+   * re-indenting every line to match the current line's leading whitespace
+   * so the fragment visually fits the surrounding document.
+   *
+   * Used by the CrossRef resolver to drop a ``<biblStruct>`` into a
+   * ``<listBibl>`` / ``<sourceDesc>`` without the editor having to re-tab
+   * the block by hand. The caller is responsible for positioning the cursor
+   * at a valid insertion point (typically an empty line at the right
+   * nesting depth) — this helper does not attempt structural validation.
+   */
+  function insertXmlFragment(xml: string): void {
+    const cm = editorInstance.value;
+    if (!cm || !xml) return;
+    const cursor = cm.getCursor();
+    const line = cm.getLine(cursor.line) ?? '';
+    const leadingMatch = /^(\s*)/.exec(line);
+    const indent = leadingMatch ? leadingMatch[1] : '';
+    // Trim one trailing newline so the caller does not have to care about
+    // whether the fragment ends with '\n'.
+    const trimmed = xml.replace(/\n+$/, '');
+    const lines = trimmed.split('\n');
+    // Re-indent every line EXCEPT the first — the first takes the
+    // indentation of the cursor's current column. This matches what the
+    // editor would do if they had pasted the fragment onto a blank
+    // properly-indented line.
+    const reindented = lines
+      .map((l, idx) => (idx === 0 ? l : indent + l))
+      .join('\n');
+    cm.replaceRange(reindented, cursor, undefined, '+programmatic');
+    cm.focus();
+  }
+
   return {
     editorInstance,
     isFullscreen,
@@ -899,5 +932,6 @@ export function useCodeMirror(
     insertPageBreak,
     insertFacsRef,
     insertEntityRef,
+    insertXmlFragment,
   };
 }

@@ -1015,6 +1015,23 @@
     "confirm_delete": "Delete this backup archive? This cannot be undone.",
     "error_create": "Failed to start backup."
   },
+  "crossref": {
+    "button_label": "DOI",
+    "button_hint": "Paste a DOI and insert the corresponding TEI <biblStruct> fragment",
+    "panel_title": "CrossRef DOI resolver",
+    "doi_label": "DOI",
+    "doi_placeholder": "10.1234/xyz or https://doi.org/10.1234/xyz",
+    "doi_hint": "Accepts bare DOIs or the full doi.org URL. The platform contacts CrossRef on your behalf.",
+    "resolve": "Resolve",
+    "reset": "Reset",
+    "insert": "Insert at cursor",
+    "show_xml": "Show raw <biblStruct> XML",
+    "inserted": "Inserted at cursor as xml:id={id}.",
+    "idle_hint": "Paste a DOI and click Resolve to preview the biblStruct that will be inserted.",
+    "footer_hint": "Insert drops the fragment at the cursor position and re-indents it to match the surrounding document.",
+    "error_not_found": "CrossRef does not know this DOI. Check the spelling or try the publisher's website.",
+    "error_upstream": "CrossRef could not be reached. Try again in a moment."
+  },
   "wikidata": {
     "button_label": "Link entity",
     "button_hint": "Resolve the current selection to a Wikidata URI and write it as @ref",

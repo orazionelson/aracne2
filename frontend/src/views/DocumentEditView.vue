@@ -13,6 +13,7 @@ import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
 import WikidataLinkPanel from '@/components/ui/WikidataLinkPanel.vue';
+import CrossrefPanel from '@/components/ui/CrossrefPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
 
@@ -85,6 +86,15 @@ const wikidataInitialQuery = ref('');
 // the helper runs synchronously against the editor buffer.
 const ENTITY_TAGS = ['persName', 'placeName', 'orgName'] as const;
 
+// ── CrossRef DOI resolver panel ───────────────────────────────────────────────
+// Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
+// backend via CrossRef's /works/{doi}). Complements the AI `tei_bibl_inline`
+// prompt which takes free prose and guesses structure — CrossRef is
+// deterministic.
+const showCrossrefPanel = ref(false);
+const crossrefInitialDoi = ref('');
+const _DOI_RE = /^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:)?10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+$/;
+
 // ── Panel resize ──────────────────────────────────────────────────────────────
 const PANEL_MIN_PX = 240;
 const PANEL_MAX_PX = 720;
@@ -100,7 +110,8 @@ const anyPanelOpen = computed(
     showMediaPanel.value ||
     showValidationPanel.value ||
     showZonePanel.value ||
-    showWikidataPanel.value,
+    showWikidataPanel.value ||
+    showCrossrefPanel.value,
 );
 
 function startPanelDrag(e: MouseEvent): void {
@@ -543,6 +554,7 @@ function toggleWikidataPanel(): void {
   showAiPanel.value = false;
   showMediaPanel.value = false;
   showValidationPanel.value = false;
+  showCrossrefPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -574,6 +586,34 @@ type EntityRefOutcome =
 /** Apply the Wikidata URI chosen by the panel to the current selection. */
 function applyWikidataRef(uri: string): EntityRefOutcome {
   return singleCm.insertEntityRef(uri, ENTITY_TAGS);
+}
+
+/**
+ * Toggle the CrossRef DOI resolver panel. On open, pre-fills the DOI
+ * input with the current editor selection when it looks like a DOI —
+ * otherwise leaves it empty for the editor to paste.
+ */
+function toggleCrossrefPanel(): void {
+  if (showCrossrefPanel.value) {
+    showCrossrefPanel.value = false;
+    return;
+  }
+  // Mutex: other panels close.
+  showHelpPanel.value = false;
+  showAiPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+  showWikidataPanel.value = false;
+
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  crossrefInitialDoi.value = sel && _DOI_RE.test(sel) ? sel : '';
+  showCrossrefPanel.value = true;
+}
+
+/** Insert the biblStruct XML returned by the CrossRef panel at the cursor. */
+function applyCrossrefFragment(xml: string): void {
+  singleCm.insertXmlFragment(xml);
 }
 
 /**
@@ -641,6 +681,7 @@ function openAiPanel(): void {
   showMediaPanel.value = false;
   showValidationPanel.value = false;
   showWikidataPanel.value = false;
+  showCrossrefPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -906,7 +947,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -940,7 +981,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -967,6 +1008,25 @@ async function runValidation(): Promise<void> {
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
           {{ t('wikidata.button_label') }}
+        </button>
+
+        <button
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showCrossrefPanel
+              ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+          ]"
+          :title="t('crossref.button_hint')"
+          @click="toggleCrossrefPanel"
+        >
+          <!-- icon: link (DOI) -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          {{ t('crossref.button_label') }}
         </button>
 
         <!-- ── Status feedback ────────────────────────────────────────────── -->
@@ -1229,6 +1289,19 @@ async function runValidation(): Promise<void> {
       :initial-query="wikidataInitialQuery"
       :on-apply="applyWikidataRef"
       @close="showWikidataPanel = false"
+    />
+  </div>
+
+  <!-- CrossRef DOI resolver panel -->
+  <div
+    v-if="showCrossrefPanel && !isLoading"
+    class="flex flex-shrink-0 flex-col border-l border-gray-200"
+    :style="{ width: panelWidth + 'px' }"
+  >
+    <CrossrefPanel
+      :initial-doi="crossrefInitialDoi"
+      :on-insert="applyCrossrefFragment"
+      @close="showCrossrefPanel = false"
     />
   </div>
 

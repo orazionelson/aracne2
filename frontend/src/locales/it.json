@@ -1015,6 +1015,23 @@
     "confirm_delete": "Eliminare questo archivio di backup? Operazione irreversibile.",
     "error_create": "Impossibile avviare il backup."
   },
+  "crossref": {
+    "button_label": "DOI",
+    "button_hint": "Incolla un DOI e inserisci il frammento TEI <biblStruct> corrispondente",
+    "panel_title": "Risolutore DOI CrossRef",
+    "doi_label": "DOI",
+    "doi_placeholder": "10.1234/xyz oppure https://doi.org/10.1234/xyz",
+    "doi_hint": "Accetta DOI nudi o l'URL completo doi.org. La piattaforma contatta CrossRef per te.",
+    "resolve": "Risolvi",
+    "reset": "Azzera",
+    "insert": "Inserisci al cursore",
+    "show_xml": "Mostra il <biblStruct> raw",
+    "inserted": "Inserito al cursore come xml:id={id}.",
+    "idle_hint": "Incolla un DOI e clicca Risolvi per vedere l'anteprima del biblStruct da inserire.",
+    "footer_hint": "Inserisci aggiunge il frammento al cursore e lo re-indenta per allinearlo al documento.",
+    "error_not_found": "CrossRef non conosce questo DOI. Controlla l'ortografia o prova il sito dell'editore.",
+    "error_upstream": "CrossRef non è raggiungibile. Riprova fra un momento."
+  },
   "wikidata": {
     "button_label": "Collega entità",
     "button_hint": "Risolve la selezione in un URI Wikidata e lo scrive come @ref",
