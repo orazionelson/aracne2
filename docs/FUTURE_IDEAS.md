@@ -1238,4 +1238,123 @@ which is the 80 % solution for non-institutional deployments.
 
 ---
 
+## 17. Non-native plugin: IIIF integration (+ Mirador / OpenSeadragon) 🔵 To discuss
+
+Let Aracne2 consume — and optionally serve — IIIF (International Image
+Interoperability Framework) resources, so editors can reference
+high-resolution facsimiles already digitised by cultural institutions
+without re-uploading, and so external aggregators can harvest Aracne2
+content through the DH standard.
+
+**Motivation**
+
+The target audience — philologists, archivists, DH researchers —
+routinely works with manuscripts that have already been digitised and
+exposed via IIIF by institutions like the Vatican Library, BnF
+Gallica, British Library, Library of Congress, or DH aggregators.
+Today, Aracne2 editors either re-upload copies locally (wasteful,
+legally grey) or link out with a plain URL. A IIIF integration would
+let them reference the canonical manifest and render a zoomable,
+tiled viewer inside the platform.
+
+**Three possible scopes with very different costs**
+
+| Scope | What Aracne2 does | Effort | Value |
+|---|---|---|---|
+| **A — Consumer** | Opens remote IIIF manifests in an embedded viewer on public reader + TEI editor. No local tile server. | ~1 week | 🟢 High |
+| **B — Provider** | Exposes Aracne2's own uploaded images as IIIF Image API endpoints + per-collection IIIF Presentation API manifests. Requires a tile server (pyvips / Cantaloupe / Serverless IIIF). | ~3 weeks | 🟡 Medium — depends on how many aggregators the operator needs to reach |
+| **C — Full** | A + B + round-trip between TEI `<zone>` and W3C Web Annotations so zones author-ed in Aracne2 surface in Mirador, and remote annotations import into the TEI zone editor. | ~6+ weeks | 🟡 Very high but far out |
+
+MVP recommendation is **A**: it is the 70 % of the value at a fraction
+of the cost, and it does not touch Aracne2 storage.
+
+**Viewer choice is itself an open question**
+
+"IIIF integration" does not automatically mean Mirador. Three
+realistic options, each with a different footprint:
+
+| Viewer | Bundle size | Stack | Strengths | Weaknesses |
+|---|---|---|---|---|
+| **Mirador 4** | ~1.2 MB | React | Multi-window workbench, manuscript comparison, annotation editor, DH de-facto standard | Heavy; React-in-Vue requires iframe or isolated mount |
+| **Clover IIIF** | ~400 KB | React | Modern UI, better DX, audio/video support | Smaller community, less mature |
+| **OpenSeadragon + IIIF plugin** | ~150 KB | Vanilla JS | Drops into Vue natively, deep zoom, simple API | Viewer only — no comparison, no annotation editor, consumes IIIF Image API but not full Presentation manifest |
+
+For the single-manuscript-at-a-time workflow that dominates Aracne2
+usage, **OpenSeadragon** is likely sufficient. Mirador pays off
+only when the audience needs the multi-window comparison
+workbench — which is a real but niche use-case.
+
+**Co-existence with the current facsimile system**
+
+Aracne2 already has a mature facsimile pipeline: `<pb facs="#fN">`,
+`<surface>`/`<zone>` editor, the one-to-one viewer mode. The IIIF
+plugin must **not** replace it. Design it as a parallel channel:
+
+- If a document has a `iiif_manifest_url` (new optional field), the
+  public reader renders the configured IIIF viewer on the manifest.
+- Otherwise the existing surface/zone flow stays unchanged.
+- If both are present, either the editor picks the active one per
+  document, or the plugin config chooses a global default.
+
+**Open questions that must be resolved before scoping code**
+
+1. **Scope A vs B vs C** — confirm we start with A only. B and C are
+   cost-multipliers that can be added later if a concrete demand
+   appears.
+2. **Viewer choice** — Mirador (heavy, full toolkit) vs OpenSeadragon
+   (light, viewer-only) vs Clover (middle ground). Each has
+   downstream implications for bundle size, annotation support, and
+   how close the Vue frontend feels to the rest of Aracne2. The
+   answer depends on whether the target audience actually uses
+   Mirador's workbench features or just wants "zoomable pages next
+   to transcription".
+3. **Where does the manifest URL live?** Three options, each
+   reasonable:
+   - **a) In the TEI** — e.g. `<graphic url="…iiif-manifest.json"/>`
+     recognised by the editor. Cleanest, data lives inside the
+     document.
+   - **b) As an Aracne2 field on `document`** — extra column or a
+     `plugin_data` row. Easier to edit in the UI, but outside the
+     TEI, so harder to round-trip to external tools.
+   - **c) Collection-level default + per-document override** — the
+     most flexible but the most UI to build.
+4. **Annotations** — for the MVP the plugin can display annotations
+   already present in a remote manifest but does **not** author new
+   ones (no TEI zone ⇄ W3C Web Annotations mapping). Confirm this
+   scope cut is acceptable. Doing annotations round-trip properly is
+   the hard part of scope C.
+5. **Access control** — are the referenced IIIF manifests always
+   public, or do we need to support the IIIF Auth API (institutional
+   collections with subscription or login gates)? Auth support is
+   non-trivial and should be out of MVP.
+
+**Prerequisites**
+
+- **Decisions on the five open questions above.**
+- If scope B is ever scoped: a tile server story (pyvips-in-FastAPI
+  vs sidecar Cantaloupe vs pre-generated tiles) — all non-trivial
+  operationally.
+- If scope C is ever scoped: a concrete mapping spec between TEI
+  `<zone>` + `<pb facs>` and W3C Web Annotations. The data models
+  differ; round-tripping losslessly is not free.
+
+**Trigger**
+
+Build scope A once:
+
+- The five open questions have concrete answers;
+- A concrete first project / deployment actually references a IIIF
+  manifest that would be re-hosted locally today;
+- The viewer trade-off has been tested on a sample manifest to
+  confirm the chosen viewer handles the real-world bundle size /
+  UX expectation.
+
+Until then, the existing facsimile pipeline covers the in-platform
+"page image next to transcription" case, and external links to the
+owning institution's viewer cover the referenced-manuscript case.
+
+*Added: 2026-04-23*
+
+---
+
 *Last updated: 2026-04-23*
