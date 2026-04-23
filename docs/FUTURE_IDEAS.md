@@ -1236,8 +1236,6 @@ which is the 80 % solution for non-institutional deployments.
 
 *Added: 2026-04-23*
 
----
-
 ## 17. Non-native plugin: IIIF integration (+ Mirador / OpenSeadragon) 🔵 To discuss
 
 Let Aracne2 consume — and optionally serve — IIIF (International Image
@@ -1488,6 +1486,104 @@ Build this when any of these happens:
 
 The refactor is additive: `LocalFilesystemBackend` remains the
 default and the existing deployments keep working unchanged.
+
+*Added: 2026-04-23*
+
+---
+
+## 19. CI pipeline on GitHub Actions 🟡 Medium
+
+Add a `.github/workflows/ci.yml` that runs lint + tests + dependency
+scans on every push and pull request. Today every pre-merge check is
+manual: `pytest` locally, the periodic maintainer-triggered
+`Security_review_YYYY-MM-DD.md` audits for `pip-audit` / `npm audit`,
+code review by eye for formatting drift.
+
+**Motivation**
+
+The manual flow works at the current pace (small team, one or two
+PRs a week, disciplined maintainer). It stops scaling when any of
+these changes:
+
+- PR throughput increases (catching a formatting issue in code review
+  becomes time a reviewer doesn't have);
+- New contributors join (onboarding "run these seven commands locally
+  before committing" is brittle);
+- A CVE lands between two scheduled security reviews (today the
+  window is ~monthly; CI closes it to "next PR merge");
+- Coverage gates start mattering for regression insurance.
+
+**Shape**
+
+Four jobs running in parallel per trigger:
+
+1. **backend-lint** — `ruff check`, `ruff format --check`, `mypy app`.
+   ~1 minute.
+2. **backend-test** — `pytest app/tests app/plugins --cov=app
+   --cov-fail-under=70`. Uses GitHub Actions `services:` sidecars to
+   spin up Postgres 15 + eXist-db 6.2 alongside the runner. ~3-4
+   minutes.
+3. **security-scan** — `pip-audit -r backend/requirements.txt`,
+   `npm audit --audit-level=high` in `frontend/`. ~1 minute.
+4. **frontend-typecheck** — `npx vue-tsc --noEmit`, `npm run lint`,
+   `npm run test`. ~2 minutes.
+
+Total wall-clock on a PR: ~4 minutes (jobs run concurrently).
+
+**What it intercepts** (and what it doesn't)
+
+Blocks PRs for: CVE in a pinned dependency, broken pytest, mypy type
+error, TypeScript type error, ruff formatting drift. Does **not**
+block for: bugs not covered by a test, performance regressions,
+UX regressions, accidental exposure of secrets beyond a `.env` leak.
+CI is the first net, not the only one.
+
+**Open questions**
+
+1. **Branch protection policy** — the workflow is informative unless
+   `main` is gated. Options: none (status check advisory), required
+   checks before merge, required + at least one approval. Decide
+   based on whether direct push to `main` is still acceptable.
+2. **Test environment parity** — the current tests run under SQLite
+   in-memory, not PostgreSQL. CI could bring up Postgres but the
+   tests would need to accept a real DB and run migrations. Scope
+   decision: run the existing SQLite-based suite (matches today) vs
+   upgrade tests to Postgres in CI (closer to prod, more setup
+   work).
+3. **Dependency scanner severity threshold** — `--audit-level=high`
+   lets moderate-severity findings through for now. Strictness
+   should match the maintainer's tolerance for false positives.
+4. **Coverage gate number** — the suite currently has generous
+   coverage; a 70 % floor is safe. Ratcheting up over time (80 %,
+   90 %) is the usual pattern, but requires more frontend tests
+   first.
+5. **Docker image build in CI** — not strictly CI, but often bundled.
+   Only worth it if the repo starts publishing images to a registry
+   (Docker Hub, GHCR). Defer until then.
+
+**Prerequisites**
+
+- A concrete position on branch protection (see §1 above).
+- Env var plumbing: `config.py` reads ~15 required vars; CI needs a
+  `ci.env` sample or inline `env:` block. For this repo nothing
+  listed there is a real secret — they are all dev placeholders —
+  so a committed sample is fine.
+
+**Trigger**
+
+Build this once:
+
+- A second regular contributor is onboarding and the "run X commands
+  locally" friction is real, or
+- A CVE lands between scheduled reviews and nobody noticed until a
+  security review caught it after-the-fact, or
+- Branch protection on `main` becomes a governance requirement (e.g.
+  for an institutional deployment that audits the repo).
+
+Until then, the manual `Security_review_YYYY-MM-DD.md` cadence —
+triggered locally via Claude on the maintainer's cadence — produces
+a durable paper trail of exactly what was checked and when, which is
+a credential a green ✅ badge does not replicate.
 
 *Added: 2026-04-23*
 
