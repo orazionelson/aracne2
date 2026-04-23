@@ -96,6 +96,12 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("zenodo_access", "open", "string"),
     # InvenioRDM resource-type vocabulary id (see /api/vocabularies/resourcetypes).
     ("zenodo_resource_type", "publication-other", "string"),
+    # Internet Archive "Save Page Now" plugin (non-native, opt-in). Keys
+    # come from https://archive.org/account/s3.php; auto_archive defaults
+    # to true so activation alone is enough to start archiving on publish.
+    ("internet_archive_access_key", "", "string"),
+    ("internet_archive_secret_key", "", "string"),
+    ("internet_archive_auto_archive", "true", "bool"),
 ]
 
 # Default Creative Commons licenses (name, target).

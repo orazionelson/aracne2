@@ -717,6 +717,64 @@ Features:
 
 ---
 
+### 6b.2 `internet_archive` — Internet Archive (Wayback Machine)
+
+| | |
+|---|---|
+| **Location** | `plugins/internet_archive/` |
+| **Routes** | Yes — prefix `/plugins/internet-archive` |
+| **Hooks** | `collection.published` |
+| **min_role** | Admin (config), EditorInChief (status / manual archive / refresh) |
+| **External API** | Save Page Now 2 (`https://web.archive.org/save/`) |
+
+Submits a published collection's public URL to the Wayback Machine
+and records the resulting snapshot URL on the collection. A small green
+"Archived on Wayback" badge appears next to the Zenodo DOI badge.
+
+**Lifecycle:**
+1. On `ON_COLLECTION_PUBLISHED` (and `auto_archive=true`), the plugin
+   builds `{public_base_url}/browse/{slug}` and `POST`s it to SPN2.
+2. SPN2 returns a `job_id`; the plugin writes a `pending` record to
+   `plugin_data` immediately so the UI has something to show if the
+   backend crashes.
+3. It then polls `GET /save/status/{job_id}` every 5s for up to 60s.
+4. On a terminal response (`success` or `error`), the record is
+   upgraded. On timeout the record stays `pending` — the editor can
+   click "Aggiorna stato archivio" on the collection page to re-poll.
+
+Features:
+- Fernet-encrypted `internet_archive_access_key` and
+  `internet_archive_secret_key` in `system_settings` (both added to
+  `SENSITIVE_KEYS`).
+- `auto_archive` toggle (default `true`) — turn off to archive only
+  via the manual button on each collection.
+- Idempotent on success: re-publishing a collection that already has a
+  successful snapshot skips the call. Force re-archive from the UI or
+  `POST .../collections/{slug}/archive`.
+
+**Endpoints:**
+
+| Method | Path | ACL | Purpose |
+|--------|------|-----|---------|
+| GET | `/plugins/internet-archive/config` | Admin | Current non-sensitive config (both keys masked; only `*_set` booleans exposed) |
+| PUT | `/plugins/internet-archive/config` | Admin | Partial update of any config field |
+| GET | `/plugins/internet-archive/collections/{slug}/status` | EiC+ | Last archive record for a collection, or `null` |
+| POST | `/plugins/internet-archive/collections/{slug}/archive` | EiC+ | Force a fresh capture attempt |
+| POST | `/plugins/internet-archive/collections/{slug}/refresh` | EiC+ | Re-poll a pending SPN2 job |
+
+**Settings (migration 0051):**
+- `internet_archive_access_key` (sensitive)
+- `internet_archive_secret_key` (sensitive)
+- `internet_archive_auto_archive` (bool, default `true`)
+
+**Frontend:**
+- Dedicated config page at `/admin/plugins/internet_archive/config`.
+- Archived-on-Wayback badge next to the Zenodo badge on
+  `/collections/:slug`, with a green "Archive" / amber "Refresh"
+  button for EditorInChief and above.
+
+---
+
 ## 7. Native vs. non-native
 
 | Aspect | Native | Non-native |

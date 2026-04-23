@@ -13,6 +13,10 @@ import { useCollectionValidationStore } from "@/stores/collection_validation";
 import { useAiStore } from "@/stores/ai";
 import { useSettingStore } from "@/stores/settings";
 import { useZenodoStore, type DepositStatus } from "@/stores/zenodo";
+import {
+  useInternetArchiveStore,
+  type ArchiveStatus as IaStatus,
+} from "@/stores/internet_archive";
 import AiPanel from "@/components/AiPanel.vue";
 import {
   EyeIcon,
@@ -33,10 +37,17 @@ const validationStore = useCollectionValidationStore();
 const aiStore = useAiStore();
 const settingStore = useSettingStore();
 const zenodoStore = useZenodoStore();
+const iaStore = useInternetArchiveStore();
 
 const zenodoStatus = ref<DepositStatus | null>(null);
 const isForcingDeposit = ref(false);
 const zenodoDepositError = ref<string | null>(null);
+
+// Internet Archive — same pattern as Zenodo: status fetched for EiC+ on
+// mount, manual archive + refresh buttons live in the same footer row.
+const iaStatus = ref<IaStatus | null>(null);
+const isArchiving = ref(false);
+const iaError = ref<string | null>(null);
 
 // Per-collection Zenodo resource_type override. Empty string → "use default"
 // (sent as an empty string, mapped to NULL on the backend).
@@ -659,6 +670,7 @@ onMounted(async () => {
       // Populates the dropdown used by the per-collection override below.
       // Silent failure — the plugin may simply not be active yet.
       tasks.push(zenodoStore.fetchResourceTypes().catch(() => undefined));
+      tasks.push(loadInternetArchiveStatus());
     }
     await Promise.all(tasks);
     // Seed the override draft from the loaded collection (runs after
@@ -694,6 +706,43 @@ async function forceZenodoDeposit(): Promise<void> {
     zenodoDepositError.value = msg ?? t("common.error");
   } finally {
     isForcingDeposit.value = false;
+  }
+}
+
+// ── Internet Archive controls ────────────────────────────────────────────
+async function loadInternetArchiveStatus(): Promise<void> {
+  try {
+    iaStatus.value = await iaStore.fetchStatus(slug);
+  } catch {
+    iaStatus.value = null;
+  }
+}
+
+async function forceArchive(): Promise<void> {
+  iaError.value = null;
+  isArchiving.value = true;
+  try {
+    iaStatus.value = await iaStore.forceArchive(slug);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    iaError.value = msg ?? t("common.error");
+  } finally {
+    isArchiving.value = false;
+  }
+}
+
+async function refreshArchive(): Promise<void> {
+  iaError.value = null;
+  isArchiving.value = true;
+  try {
+    iaStatus.value = await iaStore.refreshArchive(slug);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    iaError.value = msg ?? t("common.error");
+  } finally {
+    isArchiving.value = false;
   }
 }
 
@@ -809,6 +858,32 @@ function statusClass(s: string): string {
               :title="zenodoStatus.error ?? t('zenodo.badge_failed_hint')"
             >
               {{ t("zenodo.badge_failed") }}
+            </span>
+
+            <!-- Internet Archive badge (EiC+ only, shown when a record exists) -->
+            <a
+              v-if="iaStatus && iaStatus.status === 'success' && iaStatus.wayback_url"
+              :href="iaStatus.wayback_url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+              :title="t('internet_archive.badge_success_hint')"
+            >
+              {{ t("internet_archive.badge_success") }}
+            </a>
+            <span
+              v-else-if="iaStatus && iaStatus.status === 'pending'"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300"
+              :title="t('internet_archive.badge_pending_hint')"
+            >
+              {{ t("internet_archive.badge_pending") }}
+            </span>
+            <span
+              v-else-if="iaStatus && iaStatus.status === 'failed'"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-300"
+              :title="iaStatus.error ?? t('internet_archive.badge_failed_hint')"
+            >
+              {{ t("internet_archive.badge_failed") }}
             </span>
           </div>
           <p class="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">{{ store.current.slug }}</p>
@@ -1517,6 +1592,38 @@ function statusClass(s: string): string {
               </button>
               <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
                 {{ zenodoDepositError }}
+              </span>
+
+              <!-- Internet Archive: Archive / Re-archive (terminal states)
+                   or Refresh (pending state, re-polls the SPN2 job). -->
+              <button
+                v-if="!iaStatus || iaStatus.status !== 'pending'"
+                :disabled="isArchiving"
+                class="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
+                @click="forceArchive"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
+                </svg>
+                {{
+                  isArchiving
+                    ? t('internet_archive.working')
+                    : (iaStatus ? t('internet_archive.rearchive_btn') : t('internet_archive.archive_btn'))
+                }}
+              </button>
+              <button
+                v-else
+                :disabled="isArchiving"
+                class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                @click="refreshArchive"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12a9 9 0 1 1-6.22-8.56"/><path d="M21 3v6h-6"/>
+                </svg>
+                {{ isArchiving ? t('internet_archive.working') : t('internet_archive.refresh_btn') }}
+              </button>
+              <span v-if="iaError" class="text-xs text-red-600 dark:text-red-400">
+                {{ iaError }}
               </span>
             </div>
             <span v-else />

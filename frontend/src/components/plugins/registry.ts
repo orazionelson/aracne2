@@ -26,6 +26,12 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "zenodo.panel_title",
     component: () => import("@/components/plugins/ZenodoDepositConfig.vue"),
   },
+  {
+    slug: "internet_archive",
+    titleKey: "internet_archive.panel_title",
+    component: () =>
+      import("@/components/plugins/InternetArchiveConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(
