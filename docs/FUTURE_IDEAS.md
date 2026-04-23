@@ -1357,4 +1357,140 @@ owning institution's viewer cover the referenced-manuscript case.
 
 ---
 
+## 18. S3-compatible media backend (read + write, private buckets) 🟡 Medium
+
+Swap Aracne2's filesystem-backed media storage (`documents_media_root`)
+for a pluggable `StorageBackend` with an S3-compatible implementation
+alongside the current local one. Deployment chooses at install time;
+buckets are **private**, reads use server-generated signed URLs.
+
+**Motivation**
+
+Facsimile-heavy projects (manuscripts, archives, codex imaging) push
+media volumes into tens or hundreds of gigabytes per collection. Local
+disk scales poorly in that range:
+
+- **Operational cost** — single-volume filesystem vs cheap object
+  storage (R2 / B2 / MinIO self-hosted) tips hard towards cloud
+  beyond ~50 GB.
+- **Backup** — the current backup plugin zips the local tree, which
+  becomes unworkable at scale; S3-level snapshots are a solved
+  problem.
+- **Durability** — a local disk is a single point of failure; S3
+  providers quote 11 nines durability.
+- **Horizontal scale** — with local storage every backend container
+  needs either shared storage or pinned affinity. S3 removes that
+  constraint.
+- **Jurisdictional compliance** — some institutions are required to
+  keep assets in-region; S3-compatible providers exist in every
+  jurisdiction (AWS regions, Cloudflare regions, SURF for NL/EU,
+  MinIO on-prem for "never leaves the building").
+
+A previous discussion explored a simpler model (public bucket with
+URL references, no upload through Aracne2 — see the "Remote images
+base URL" proposal archived on 2026-04-23) and rejected it because:
+
+- Public buckets leak draft-stage facsimiles;
+- GDrive / Dropbox / pCloud do not fit the `{base_url}/{filename}`
+  pattern and fragmenting support per provider is not worth it;
+- Aracne2 lost the ability to list / verify images, degrading the
+  editor UX;
+- Website ZIP downloads and backups stopped being self-contained.
+
+The right direction is a proper **private S3 backend with signed
+reads** that keeps Aracne2 in control of the upload/read lifecycle.
+
+**Scope**
+
+Backend:
+- Introduce a `StorageBackend` ABC with three methods: `put(path,
+  content) -> None`, `open(path) -> AsyncIterator[bytes]`,
+  `url_for(path, *, public: bool = False) -> str`. Plus `delete`,
+  `exists`, `list_prefix`.
+- Implementations: `LocalFilesystemBackend` (current behaviour,
+  URLs point at the FastAPI media router) and `S3Backend` (uses
+  `aioboto3` or `aiobotocore`, generates pre-signed URLs for reads).
+- Single global backend selected by env var, not per-collection —
+  simpler ops, and institutions rarely mix.
+- Private bucket by default. Signed URLs with a configurable TTL
+  (default: 15 minutes). Public-bucket mode as an opt-in for
+  deployments that want direct CDN serving.
+- All existing paths that touch `documents_media_root` route through
+  the backend interface — the `documents`, `websites` (build-time
+  media copy), and `backup` plugins each need targeted changes.
+
+Frontend:
+- Upload flow stays visually identical — the backend handles the
+  dispatch.
+- Rendered pages use signed URLs transparently. Signed URL refresh
+  strategy: re-mint on each page render (accept some latency
+  overhead) or cache per session (more complex).
+
+Admin:
+- One-shot migration tool: "move local media to S3 and update
+  references". Opt-in, idempotent, dry-run mode.
+- Config panel showing backend health (can the process reach the
+  bucket? is the signer configured?).
+
+**Open questions**
+
+1. **Async client choice** — `aioboto3` (maintained, follows
+   boto3's API shape) vs `aiobotocore` (lower-level, lighter, but
+   less ergonomic). Either works with AWS / R2 / B2 / MinIO / SURF
+   because all speak the S3 protocol.
+2. **Signed URL TTL and caching** — 15 min default is conservative
+   but forces re-minting on long-lived editor sessions. Longer TTL
+   (1 h, 24 h) simplifies UX but increases blast radius if a URL
+   leaks. Probably configurable with a safe default.
+3. **Website ZIP downloads** — currently self-contained. With S3
+   reads, the build step either (a) downloads all referenced
+   objects into the ZIP (restoring self-containedness, doubling
+   bandwidth on build), or (b) writes URLs into the ZIP and the
+   downloaded site depends on the bucket staying up. Decision
+   needed — probably (a) as default with an opt-out.
+4. **Backup plugin changes** — stop zipping `documents_media_root`;
+   instead, document the expectation that S3-level snapshots /
+   versioning are the backup. Or keep an optional "include media in
+   backup ZIP" for admins who still want a single archive.
+5. **Failure mode when S3 is unreachable** — current upload returns
+   immediately after `write()`. An S3 PUT that times out should not
+   eat the editor's file without feedback. Retries + clear error
+   surfacing are part of scope.
+6. **Bucket layout** — mirror the current `{collection_slug}/
+   {doc_filename}/{image_file}` tree verbatim, or flatten with a
+   content-hash scheme? Mirroring is easier to debug by hand; hashes
+   are immutable. Probably mirror for familiarity.
+7. **Multi-tenant** — if a single Aracne2 deployment eventually
+   hosts multiple institutions (not today's model), they likely
+   want separate buckets. Parking this sub-question — one backend
+   config is enough for the one-institution deployment model.
+
+**Prerequisites**
+
+- A real deployment that has outgrown local disk (or is about to).
+  Until then, local storage is simpler, cheaper for small corpora,
+  and less coupled to cloud provider trust.
+- A concrete decision on signed URL TTL policy (see §2 above).
+- Budget for re-visiting the backup plugin and the website ZIP
+  generator — both depend on "media lives on the filesystem next
+  to the backend" assumption.
+
+**Trigger**
+
+Build this when any of these happens:
+
+- A deployment reports filesystem pressure (> 100 GB, slow
+  backups, disk-full outages);
+- An institution explicitly asks for S3 / R2 / SURF to keep data in
+  their controlled infrastructure;
+- Horizontal scaling is needed (multiple backend containers behind
+  a load balancer) — local disk becomes a hard blocker.
+
+The refactor is additive: `LocalFilesystemBackend` remains the
+default and the existing deployments keep working unchanged.
+
+*Added: 2026-04-23*
+
+---
+
 *Last updated: 2026-04-23*
