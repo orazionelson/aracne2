@@ -3112,7 +3112,7 @@ _MAINT_CSS = """
   margin-bottom: 28px;
 }
 .maint-site-logo { max-height: 72px; width: auto; }
-.maint-platform-logo { max-height: 40px; width: auto; opacity: 0.5; }
+.maint-platform-logo { max-height: 256px; width: auto; opacity: 0.5; }
 .maint-title {
   font-size: 1.6rem;
   font-weight: 600;
