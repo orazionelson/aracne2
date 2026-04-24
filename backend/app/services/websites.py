@@ -301,9 +301,10 @@ body.home-cover main {
   max-width: none;
   margin: 0;
   padding: 0;
-  /* Ensure the bg fills at least one viewport even on short pages. */
-  min-height: calc(100vh - 3.5rem);
-  min-height: calc(100dvh - 3.5rem);
+  /* No min-height here: ``background-attachment: fixed`` on the body
+     keeps the bg image glued to the viewport regardless of how short
+     the content is, so the page can fit the screen naturally without
+     a padded gap when the title + lead are the only content. */
 }
 /* Hero in cover mode carries no bg of its own — ``has-bg`` styling
    is overridden so the body image shines through. The per-hero
