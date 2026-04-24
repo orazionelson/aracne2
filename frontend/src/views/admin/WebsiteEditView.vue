@@ -98,6 +98,29 @@ function onLogoPicked(ref: string): void {
   (editForm.value.theme_config as Record<string, string>).logo_url = ref;
 }
 
+// Quick-pick navbar colours — mirrors the set offered under
+// /admin/settings → Homepage pubblica, so a Designer who uses both
+// surfaces recognises the palette.
+const NAVBAR_PRESETS: string[] = [
+  "#111827", "#1e40af", "#3730a3", "#1e3a5f",
+  "#166534", "#991b1b", "#6b21a8", "#1e293b",
+];
+
+// Preview URL for the header logo. ``media://…`` refs are translated
+// into the site-media API URL for admin-preview purposes; other
+// forms (http(s):// or a site-local ``/…`` path) are passed
+// through unchanged.
+const headerLogoPreviewUrl = computed<string | null>(() => {
+  const raw = (editForm.value?.theme_config as Record<string, string> | undefined)?.logo_url;
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const mediaMatch = trimmed.match(/^media:\/\/([a-z0-9][a-z0-9._-]*)$/i);
+  if (mediaMatch) {
+    return `/api/v1/websites/${slug.value}/media/${encodeURIComponent(mediaMatch[1])}`;
+  }
+  return trimmed;
+});
+
 // Second picker instance for the home-page background image.
 const homeBgPickerOpen = ref(false);
 
@@ -1039,74 +1062,173 @@ onBeforeUnmount(() => {
 
       <!-- Tab: Theme -->
       <div v-if="editTab === 'theme'" class="bg-indigo-50 p-4 space-y-5">
-        <!-- Colours -->
-        <div>
-          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.field_theme") }}</p>
-          <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-            <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_primary") }}<input v-model="(editForm.theme_config as Record<string, string>).primary_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
+        <!-- ═══════════════════ GENERALE ══════════════════════ -->
+        <section class="rounded border border-gray-200 bg-white p-4">
+          <h3 class="mb-3 text-sm font-semibold text-gray-800">
+            {{ t("websites.theme_section_general") }}
+          </h3>
+          <!-- Font family -->
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_font") }}</label>
+            <select v-model="(editForm.theme_config as Record<string, string>).font_family" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+              <option value='Georgia,"Times New Roman",serif'>Georgia (serif)</option>
+              <option value='"Palatino Linotype",Palatino,serif'>Palatino (serif)</option>
+              <option value='"Times New Roman",Times,serif'>Times New Roman (serif)</option>
+              <option value='Arial,Helvetica,sans-serif'>Arial (sans-serif)</option>
+              <option value='"Helvetica Neue",Helvetica,Arial,sans-serif'>Helvetica (sans-serif)</option>
+              <option value='Verdana,Geneva,sans-serif'>Verdana (sans-serif)</option>
+              <option value='"Trebuchet MS",Tahoma,Geneva,sans-serif'>Trebuchet MS (sans-serif)</option>
+              <option value='system-ui,-apple-system,BlinkMacSystemFont,sans-serif'>System UI</option>
+              <option value='"Courier New",Courier,monospace'>Courier New (monospace)</option>
+            </select>
+          </div>
+          <!-- Page colours -->
+          <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_text") }}<input v-model="(editForm.theme_config as Record<string, string>).text_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_bg") }}<input v-model="(editForm.theme_config as Record<string, string>).bg_color" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_doc_banner_bg") }}<input v-model="(editForm.theme_config as Record<string, string>).doc_banner_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_doc_banner_text") }}<input v-model="(editForm.theme_config as Record<string, string>).doc_banner_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
           </div>
-        </div>
-        <!-- Font family -->
-        <div>
-          <label class="block text-xs font-medium text-gray-700">{{ t("websites.theme_font") }}</label>
-          <select v-model="(editForm.theme_config as Record<string, string>).font_family" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-            <option value='Georgia,"Times New Roman",serif'>Georgia (serif)</option>
-            <option value='"Palatino Linotype",Palatino,serif'>Palatino (serif)</option>
-            <option value='"Times New Roman",Times,serif'>Times New Roman (serif)</option>
-            <option value='Arial,Helvetica,sans-serif'>Arial (sans-serif)</option>
-            <option value='"Helvetica Neue",Helvetica,Arial,sans-serif'>Helvetica (sans-serif)</option>
-            <option value='Verdana,Geneva,sans-serif'>Verdana (sans-serif)</option>
-            <option value='"Trebuchet MS",Tahoma,Geneva,sans-serif'>Trebuchet MS (sans-serif)</option>
-            <option value='system-ui,-apple-system,BlinkMacSystemFont,sans-serif'>System UI</option>
-            <option value='"Courier New",Courier,monospace'>Courier New (monospace)</option>
-          </select>
-        </div>
-        <!-- Footer -->
-        <div>
-          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_footer_section") }}</p>
+        </section>
+
+        <!-- ═══════════════════ HEADER ════════════════════════ -->
+        <section class="rounded border border-gray-200 bg-white p-4 space-y-5">
+          <h3 class="text-sm font-semibold text-gray-800">
+            {{ t("websites.theme_section_header") }}
+          </h3>
+
+          <!-- Logo: preview square + pick-from-library + clear + text URL
+               (mirrors the platform-logo pattern from admin Impostazioni
+               → Homepage pubblica, minus the direct-upload: uploads
+               happen once in the Media tab and every image is picked
+               from that library). -->
+          <div>
+            <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_logo") }}</p>
+            <div class="flex items-start gap-4">
+              <div
+                class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50"
+              >
+                <img
+                  v-if="headerLogoPreviewUrl"
+                  :src="headerLogoPreviewUrl"
+                  alt=""
+                  class="max-h-full max-w-full object-contain"
+                />
+                <span v-else class="text-[10px] text-gray-400">{{ t("websites.theme_header_logo_empty") }}</span>
+              </div>
+              <div class="flex-1 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                    @click="logoPickerOpen = true"
+                  >
+                    {{ t("website_media.choose_from_library") }}
+                  </button>
+                  <button
+                    v-if="(editForm.theme_config as Record<string, string>).logo_url"
+                    type="button"
+                    class="rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+                    @click="(editForm.theme_config as Record<string, string>).logo_url = ''"
+                  >
+                    {{ t("common.delete") }}
+                  </button>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-700">{{ t("websites.theme_header_logo_url") }}</label>
+                  <input
+                    v-model="(editForm.theme_config as Record<string, string>).logo_url"
+                    type="text"
+                    class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-xs"
+                    :placeholder="t('websites.theme_logo_hint')"
+                  />
+                </div>
+              </div>
+            </div>
+            <MediaPicker
+              :slug="slug"
+              mode="modal"
+              :open="logoPickerOpen"
+              @update:open="logoPickerOpen = $event"
+              @selected="onLogoPicked"
+            />
+          </div>
+
+          <!-- Navbar colour — custom hex input + swatches + preview, same
+               pattern as /admin/settings → Homepage pubblica. The global
+               "Salva" button of the form commits; no per-field save. -->
+          <div>
+            <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_navbar_color") }}</p>
+            <div class="mb-3 flex items-center gap-2">
+              <input
+                v-model="(editForm.theme_config as Record<string, string>).primary_color"
+                type="color"
+                :aria-label="t('websites.theme_header_navbar_color')"
+                class="h-9 w-12 cursor-pointer rounded border border-gray-300 bg-white p-0.5"
+              />
+              <input
+                v-model="(editForm.theme_config as Record<string, string>).primary_color"
+                type="text"
+                maxlength="7"
+                placeholder="#1e40af"
+                class="w-32 rounded border border-gray-300 px-3 py-1.5 font-mono text-sm uppercase focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <p class="mb-2 text-xs text-gray-500">{{ t("websites.theme_header_navbar_color_quick") }}</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="preset in NAVBAR_PRESETS"
+                :key="preset"
+                type="button"
+                :title="preset"
+                class="h-7 w-7 rounded border-2 shadow-sm transition-all"
+                :class="(editForm.theme_config as Record<string, string>).primary_color === preset ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-gray-400'"
+                :style="{ backgroundColor: preset }"
+                @click="(editForm.theme_config as Record<string, string>).primary_color = preset"
+              />
+            </div>
+            <!-- Preview row -->
+            <div class="mt-4">
+              <p class="mb-1 text-xs text-gray-500">{{ t("websites.theme_header_navbar_preview") }}</p>
+              <div
+                class="flex h-12 items-center gap-3 rounded px-4 text-sm text-white"
+                :style="{ backgroundColor: (editForm.theme_config as Record<string, string>).primary_color || '#1e40af' }"
+              >
+                <img
+                  v-if="headerLogoPreviewUrl"
+                  :src="headerLogoPreviewUrl"
+                  alt=""
+                  class="h-7 w-auto object-contain"
+                />
+                <span class="font-semibold">{{ website?.title || t("websites.theme_header_navbar_preview") }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Behaviour toggles -->
+          <div>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).hide_header" class="rounded border-gray-300 text-indigo-600" />
+              {{ t("websites.theme_hide_header") }}
+            </label>
+            <label class="mt-1.5 flex items-center gap-2 text-xs text-gray-600">
+              <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).fixed_header" class="rounded border-gray-300 text-indigo-600" />
+              {{ t("websites.theme_fixed_header") }}
+            </label>
+            <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.theme_fixed_header_hint") }}</p>
+          </div>
+        </section>
+
+        <!-- ═══════════════════ FOOTER ════════════════════════ -->
+        <section class="rounded border border-gray-200 bg-white p-4">
+          <h3 class="mb-3 text-sm font-semibold text-gray-800">
+            {{ t("websites.theme_section_footer") }}
+          </h3>
           <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_footer_bg") }}<input v-model="(editForm.theme_config as Record<string, string>).footer_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
             <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_footer_text") }}<input v-model="(editForm.theme_config as Record<string, string>).footer_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
           </div>
-        </div>
-        <!-- Header -->
-        <div>
-          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_header_section") }}</p>
-          <label class="flex items-center gap-2 text-xs text-gray-600">
-            <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).hide_header" class="rounded border-gray-300 text-indigo-600" />
-            {{ t("websites.theme_hide_header") }}
-          </label>
-          <label class="mt-1.5 flex items-center gap-2 text-xs text-gray-600">
-            <input type="checkbox" v-model="(editForm.theme_config as Record<string, unknown>).fixed_header" class="rounded border-gray-300 text-indigo-600" />
-            {{ t("websites.theme_fixed_header") }}
-          </label>
-          <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.theme_fixed_header_hint") }}</p>
-          <div class="mt-2">
-            <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
-            <div class="mt-1 flex items-center gap-2">
-              <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
-              <button
-                type="button"
-                class="shrink-0 rounded border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
-                :title="t('website_media.pick_tooltip')"
-                @click="logoPickerOpen = true"
-              >
-                {{ t("website_media.choose_from_library") }}
-              </button>
-            </div>
-          </div>
-          <MediaPicker
-            :slug="slug"
-            mode="modal"
-            :open="logoPickerOpen"
-            @update:open="logoPickerOpen = $event"
-            @selected="onLogoPicked"
-          />
-        </div>
+        </section>
       </div>
 
       <!-- Tab: Home page — layout + widget palette + per-column WYSIWYG
