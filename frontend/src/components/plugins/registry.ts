@@ -109,6 +109,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "evt.panel_title",
     component: () => import("@/components/plugins/EvtConfig.vue"),
   },
+  {
+    slug: "codeberg_integration",
+    titleKey: "codeberg.panel_title",
+    component: () => import("@/components/plugins/CodebergConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

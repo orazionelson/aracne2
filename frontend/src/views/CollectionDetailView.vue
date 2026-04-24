@@ -17,6 +17,11 @@ import {
   useInternetArchiveStore,
   type ArchiveStatus as IaStatus,
 } from "@/stores/internet_archive";
+import {
+  useCodebergStore,
+  type CodebergLink,
+  type CodebergPushResponse,
+} from "@/stores/codeberg";
 import { usePluginStore } from "@/stores/plugins";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
@@ -40,6 +45,7 @@ const aiStore = useAiStore();
 const settingStore = useSettingStore();
 const zenodoStore = useZenodoStore();
 const iaStore = useInternetArchiveStore();
+const codebergStore = useCodebergStore();
 const pluginStore = usePluginStore();
 
 // Zotero import modal visibility + last-run summary.
@@ -60,6 +66,27 @@ const zenodoDepositError = ref<string | null>(null);
 const iaStatus = ref<IaStatus | null>(null);
 const isArchiving = ref(false);
 const iaError = ref<string | null>(null);
+
+// Codeberg (git forge deposit) — visible only when the plugin is active
+// and the viewer is EditorInChief+. The link is optional; when null, the
+// panel renders the "connect" form.
+const codebergPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "codeberg_integration" && p.status === "active",
+  ),
+);
+const codebergLink = ref<CodebergLink | null>(null);
+const codebergPushResult = ref<CodebergPushResponse | null>(null);
+const codebergError = ref<string | null>(null);
+const codebergEditing = ref(false);
+const codebergEditDraft = ref({
+  base_url: "https://codeberg.org",
+  repo_owner: "",
+  repo_name: "",
+  branch: "main",
+  pat_override: "",
+  use_override: false,
+});
 
 // Per-collection Zenodo resource_type override. Empty string → "use default"
 // (sent as an empty string, mapped to NULL on the backend).
@@ -687,7 +714,8 @@ onMounted(async () => {
       // Silent failure — the plugin may simply not be active yet.
       tasks.push(zenodoStore.fetchResourceTypes().catch(() => undefined));
       tasks.push(loadInternetArchiveStatus());
-      // Needed to decide whether to render the "Import from Zotero" button.
+      // Needed to decide whether to render the "Import from Zotero" button
+      // and to gate the Codeberg / git-forge sections.
       tasks.push(
         pluginStore.plugins.length === 0
           ? pluginStore.fetchPlugins().catch(() => undefined)
@@ -695,6 +723,9 @@ onMounted(async () => {
       );
     }
     await Promise.all(tasks);
+    // Codeberg link is gated on plugin activation — load after the plugin
+    // list is populated.
+    await loadCodebergLink().catch(() => undefined);
     // Seed the override draft from the loaded collection (runs after
     // fetchCollection has populated store.current).
     zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
@@ -751,6 +782,100 @@ async function forceArchive(): Promise<void> {
     iaError.value = msg ?? t("common.error");
   } finally {
     isArchiving.value = false;
+  }
+}
+
+// ── Codeberg deposit controls ─────────────────────────────────────────────
+async function loadCodebergLink(): Promise<void> {
+  if (!codebergPluginActive.value) { codebergLink.value = null; return; }
+  try {
+    codebergLink.value = await codebergStore.getLink(slug);
+  } catch {
+    codebergLink.value = null;
+  }
+}
+
+function openCodebergEdit(): void {
+  codebergEditing.value = true;
+  codebergError.value = null;
+  codebergPushResult.value = null;
+  if (codebergLink.value) {
+    codebergEditDraft.value = {
+      base_url: codebergLink.value.base_url,
+      repo_owner: codebergLink.value.repo_owner,
+      repo_name: codebergLink.value.repo_name,
+      branch: codebergLink.value.branch,
+      pat_override: "",
+      use_override: codebergLink.value.pat_override_set,
+    };
+  } else {
+    codebergEditDraft.value = {
+      base_url: "https://codeberg.org",
+      repo_owner: "",
+      repo_name: "",
+      branch: "main",
+      pat_override: "",
+      use_override: false,
+    };
+  }
+}
+
+async function saveCodebergLink(): Promise<void> {
+  codebergError.value = null;
+  const d = codebergEditDraft.value;
+  // pat_override wire value:
+  //   use_override=false → send "" (clear)
+  //   use_override=true + non-empty input → send the input
+  //   use_override=true + empty input → send undefined (leave existing)
+  let patOverride: string | null | undefined;
+  if (!d.use_override) {
+    patOverride = "";
+  } else if (d.pat_override.trim()) {
+    patOverride = d.pat_override.trim();
+  } else {
+    patOverride = undefined;
+  }
+  try {
+    codebergLink.value = await codebergStore.writeLink(slug, {
+      base_url: d.base_url.trim(),
+      repo_owner: d.repo_owner.trim(),
+      repo_name: d.repo_name.trim(),
+      branch: d.branch.trim() || "main",
+      pat_override: patOverride,
+    });
+    codebergEditing.value = false;
+  } catch (err) {
+    codebergError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function disconnectCodeberg(): Promise<void> {
+  codebergError.value = null;
+  try {
+    await codebergStore.deleteLink(slug);
+    codebergLink.value = null;
+    codebergEditing.value = false;
+    codebergPushResult.value = null;
+  } catch (err) {
+    codebergError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function pushCodeberg(): Promise<void> {
+  codebergError.value = null;
+  codebergPushResult.value = null;
+  try {
+    codebergPushResult.value = await codebergStore.pushCollection(slug);
+    // Refresh the link to pick up last_push_sha / last_push_at from the backend.
+    codebergLink.value = await codebergStore.getLink(slug);
+  } catch (err) {
+    codebergError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
   }
 }
 
@@ -1671,6 +1796,162 @@ function statusClass(s: string): string {
               @click="saveZenodoCollectionSettings"
             >
               {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Codeberg deposit (EiC+, only when the plugin is active) -->
+      <section
+        v-if="isEiC && codebergPluginActive"
+        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-start justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {{ t("codeberg.section_title") }}
+            </h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("codeberg.section_hint") }}
+            </p>
+          </div>
+        </div>
+
+        <p v-if="codebergError" class="mb-3 text-sm text-red-600 dark:text-red-400">
+          {{ codebergError }}
+        </p>
+
+        <!-- ── Not linked: show the connect form ── -->
+        <div v-if="!codebergLink && !codebergEditing">
+          <button
+            type="button"
+            class="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+            @click="openCodebergEdit"
+          >
+            {{ t("codeberg.connect_btn") }}
+          </button>
+        </div>
+
+        <!-- ── Edit form (also used for initial connect) ── -->
+        <div v-else-if="codebergEditing" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("codeberg.field_base_url") }}</span>
+              <input
+                v-model="codebergEditDraft.base_url"
+                type="url"
+                class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("codeberg.field_branch") }}</span>
+              <input
+                v-model="codebergEditDraft.branch"
+                type="text"
+                class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("codeberg.field_owner") }}</span>
+              <input
+                v-model="codebergEditDraft.repo_owner"
+                type="text"
+                class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("codeberg.field_repo") }}</span>
+              <input
+                v-model="codebergEditDraft.repo_name"
+                type="text"
+                class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </label>
+          </div>
+          <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <input v-model="codebergEditDraft.use_override" type="checkbox" />
+            <span>{{ t("codeberg.use_per_link_pat") }}</span>
+          </label>
+          <input
+            v-if="codebergEditDraft.use_override"
+            v-model="codebergEditDraft.pat_override"
+            type="password"
+            autocomplete="off"
+            class="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            :placeholder="codebergLink?.pat_override_set ? t('codeberg.override_replace_hint') : t('codeberg.field_pat_placeholder')"
+          />
+          <div class="flex gap-2 pt-2">
+            <button
+              type="button"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              @click="saveCodebergLink"
+            >
+              {{ t("common.save") }}
+            </button>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+              @click="codebergEditing = false"
+            >
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Linked: summary + push / disconnect ── -->
+        <div v-else-if="codebergLink" class="space-y-3 text-sm">
+          <p class="font-mono text-gray-700 dark:text-gray-200">
+            <a :href="codebergLink.html_url" target="_blank" rel="noopener" class="hover:underline">
+              {{ codebergLink.repo_owner }}/{{ codebergLink.repo_name }}
+            </a>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              · {{ codebergLink.branch }} · {{ codebergLink.base_url }}
+            </span>
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            <span v-if="codebergLink.last_push_sha">
+              {{ t("codeberg.last_push") }}:
+              <code class="font-mono">{{ codebergLink.last_push_sha.slice(0, 10) }}</code>
+              <span v-if="codebergLink.last_push_at"> ({{ new Date(codebergLink.last_push_at).toLocaleString() }})</span>
+            </span>
+            <span v-else>{{ t("codeberg.never_pushed") }}</span>
+            <span v-if="codebergLink.pat_override_set" class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              {{ t("codeberg.pat_override_badge") }}
+            </span>
+          </p>
+
+          <p v-if="codebergPushResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("codeberg.push_success", {
+              n: codebergPushResult.file_count,
+              sha: codebergPushResult.sha.slice(0, 10),
+            }) }}
+            <a v-if="codebergPushResult.html_url" :href="codebergPushResult.html_url" target="_blank" rel="noopener" class="underline">
+              {{ t("codeberg.view_commit") }}
+            </a>
+          </p>
+
+          <div class="flex gap-2">
+            <button
+              type="button"
+              :disabled="codebergStore.isPushing"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              @click="pushCodeberg"
+            >
+              {{ codebergStore.isPushing ? t("common.loading") : t("codeberg.push_btn") }}
+            </button>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+              @click="openCodebergEdit"
+            >
+              {{ t("codeberg.edit_btn") }}
+            </button>
+            <button
+              type="button"
+              class="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/40"
+              @click="disconnectCodeberg"
+            >
+              {{ t("codeberg.disconnect_btn") }}
             </button>
           </div>
         </div>

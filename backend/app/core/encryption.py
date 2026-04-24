@@ -26,6 +26,7 @@ SENSITIVE_KEYS: frozenset[str] = frozenset(
         "internet_archive_access_key",
         "internet_archive_secret_key",
         "zotero_api_key",
+        "codeberg_integration_pat",
     }
 )
 
