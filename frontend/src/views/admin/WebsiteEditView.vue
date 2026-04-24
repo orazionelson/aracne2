@@ -24,6 +24,7 @@ import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
 import { usePluginStore } from "@/stores/plugins";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
+import MediaPicker from "@/components/ui/MediaPicker.vue";
 import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
 import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
 import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
@@ -85,8 +86,16 @@ const website = computed<Website | null>(
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
 
-const editTab = ref<"general" | "theme" | "pages" | "document" | "xslt_edit" | "indices" | "cssjs" | "deposit">("general");
+const editTab = ref<"general" | "theme" | "pages" | "media" | "document" | "xslt_edit" | "indices" | "cssjs" | "deposit">("general");
 const showMetaPanel = ref(true);
+
+// Media picker dialog — opened by the logo field "Scegli" button. The
+// selected ref is written back into ``theme_config.logo_url``.
+const logoPickerOpen = ref(false);
+
+function onLogoPicked(ref: string): void {
+  (editForm.value.theme_config as Record<string, string>).logo_url = ref;
+}
 
 // ── XSLT AI panel ─────────────────────────────────────────────────────────────
 
@@ -783,7 +792,7 @@ onBeforeUnmount(() => {
     <!-- Tab bar -->
     <div class="flex shrink-0 overflow-x-auto border-b border-gray-200 bg-white px-4">
       <button
-        v-for="tab in (['general', 'theme', 'pages', 'document', 'xslt_edit', 'indices', 'cssjs', 'deposit'] as const)"
+        v-for="tab in (['general', 'theme', 'pages', 'media', 'document', 'xslt_edit', 'indices', 'cssjs', 'deposit'] as const)"
         :key="tab"
         :disabled="tab === 'xslt_edit' && !isCustomSource"
         class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
@@ -1058,8 +1067,25 @@ onBeforeUnmount(() => {
           <p class="mt-0.5 pl-5 text-xs text-gray-400">{{ t("websites.theme_fixed_header_hint") }}</p>
           <div class="mt-2">
             <label class="block text-xs text-gray-700">{{ t("websites.theme_logo") }}</label>
-            <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+            <div class="mt-1 flex items-center gap-2">
+              <input v-model="(editForm.theme_config as Record<string, string>).logo_url" type="text" class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.theme_logo_hint')" />
+              <button
+                type="button"
+                class="shrink-0 rounded border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                :title="t('website_media.pick_tooltip')"
+                @click="logoPickerOpen = true"
+              >
+                {{ t("website_media.choose_from_library") }}
+              </button>
+            </div>
           </div>
+          <MediaPicker
+            :slug="slug"
+            mode="modal"
+            :open="logoPickerOpen"
+            @update:open="logoPickerOpen = $event"
+            @selected="onLogoPicked"
+          />
         </div>
         <!-- Home layout -->
         <div>
@@ -1083,15 +1109,15 @@ onBeforeUnmount(() => {
           <div class="grid gap-3" :class="(editForm.theme_config as Record<string,string>).home_layout === 'single' ? 'grid-cols-1' : (editForm.theme_config as Record<string,string>).home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
             <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
-              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" />
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" :website-slug="slug" />
             </div>
             <div>
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
-              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" />
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" :website-slug="slug" />
             </div>
             <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
-              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" />
+              <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" :website-slug="slug" />
             </div>
           </div>
         </div>
@@ -1157,7 +1183,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-              <WysiwygEditor :model-value="newPage.content_md ?? ''" @update:model-value="newPage.content_md = $event" />
+              <WysiwygEditor :model-value="newPage.content_md ?? ''" @update:model-value="newPage.content_md = $event" :website-slug="slug" />
             </div>
           </div>
           <div v-else class="mb-2 space-y-2">
@@ -1167,7 +1193,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.page_content") }}</label>
-              <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" />
+              <WysiwygEditor :model-value="pageEditForm.content_md ?? ''" @update:model-value="pageEditForm.content_md = $event" :website-slug="slug" />
             </div>
           </div>
           <p v-if="pageError" class="mb-1 text-xs text-red-600">{{ pageError }}</p>
@@ -1178,6 +1204,18 @@ onBeforeUnmount(() => {
             <button class="rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100" @click="cancelPageForm">{{ t("common.cancel") }}</button>
           </div>
         </div>
+      </div>
+
+      <!-- Tab: Media — per-website image library. Uploads land on the
+           server at ``media/websites/<slug>/``; clicking a file copies
+           its ``media://filename`` ref to the clipboard so the Designer
+           can paste it into the custom-CSS textarea or the logo field
+           when preferred over the picker dialog. -->
+      <div v-if="editTab === 'media'" class="bg-indigo-50 p-4">
+        <div class="mb-3 text-xs text-gray-600">
+          {{ t("website_media.tab_intro") }}
+        </div>
+        <MediaPicker :slug="slug" mode="inline" />
       </div>
 
       <!-- Tab: Document -->

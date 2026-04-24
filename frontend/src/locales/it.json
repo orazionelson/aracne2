@@ -733,6 +733,7 @@
     "tab_general": "Generale",
     "tab_theme": "Tema",
     "tab_pages": "Pagine",
+    "tab_media": "Media",
     "tab_document": "Documento",
     "tab_xslt_edit": "XSLT Edit",
     "tab_indices": "Indici",
@@ -1427,6 +1428,19 @@
     "applied_success": "Collegato <{tag}> a {qid}.",
     "apply_error_no_enclosing_tag": "Posiziona il cursore dentro un elemento TEI prima di collegare.",
     "apply_error_not_entity_tag": "L'elemento <{tag}> non è un'entità collegabile (persName, placeName, orgName)."
+  },
+  "website_media": {
+    "tab_intro": "Carica qui una volta sola le immagini che servono al sito — logo, copertina, illustrazioni — e poi le ripeschi dalla libreria ovunque servano. Clicca un file per copiarne il riferimento 'media://'; il renderer lo trasforma in URL reale al momento del serve/build.",
+    "picker_title": "Libreria media del sito",
+    "choose_from_library": "Scegli dalla libreria",
+    "upload": "Carica immagine",
+    "uploading": "Caricamento…",
+    "upload_hint": "JPG, PNG, WebP, AVIF, GIF o SVG · fino a 8 MB",
+    "empty": "Nessuna immagine caricata. Clicca 'Carica immagine' per aggiungere la prima.",
+    "pick_tooltip": "Inserisci questa immagine",
+    "copy_tooltip": "Copia riferimento media:// negli appunti",
+    "ref_copied": "Riferimento copiato",
+    "confirm_delete": "Eliminare '{filename}'? Le pagine che la referenziano mostreranno un'immagine rotta finché il riferimento non viene rimosso."
   },
   "zotero_import": {
     "panel_title": "Importa da Zotero",

@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
+import MediaPicker from "@/components/ui/MediaPicker.vue";
 
 // ── Widget nodes ──────────────────────────────────────────────────────────────
 
@@ -96,7 +97,18 @@ const IndexListWidget = Node.create({
   },
 });
 
-const props = defineProps<{ modelValue: string }>();
+const props = defineProps<{
+  modelValue: string;
+  /**
+   * When set, a second image-insert button appears in the toolbar
+   * that opens the per-website media picker. Picking an image there
+   * emits ``setImage({ src: "media://filename" })`` so the website
+   * renderer can rewrite the pseudo-URL to a real URL at serve /
+   * build time. Leave undefined to hide the library button (the free
+   * URL dialog remains available).
+   */
+  websiteSlug?: string;
+}>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
 // Fullscreen state
@@ -204,6 +216,15 @@ function applyImage(): void {
   showImageDialog.value = false;
   imageUrl.value = "";
   imageAlt.value = "";
+}
+
+// Media-library picker — only wired when ``websiteSlug`` is provided.
+// The picker emits the ``media://filename`` pseudo-URL; inserted as-is,
+// the website renderer translates it to a real URL at serve/build time.
+const mediaPickerOpen = ref(false);
+
+function onMediaPicked(ref: string): void {
+  editor.value?.chain().focus().setImage({ src: ref }).run();
 }
 
 function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<string, unknown>): boolean {
@@ -316,11 +337,25 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
       <!-- Image -->
       <button
         type="button"
-        title="Insert image"
+        title="Insert image from URL"
         class="toolbar-btn"
         @click="openImageDialog"
       >
         🖼
+      </button>
+
+      <!-- Media library picker — appears only when the editor was
+           mounted with a website slug (e.g. inside the website editor).
+           Clicking it opens the per-site image library; picking a file
+           inserts it with the stable ``media://filename`` ref. -->
+      <button
+        v-if="websiteSlug"
+        type="button"
+        title="Insert image from website media library"
+        class="toolbar-btn"
+        @click="mediaPickerOpen = true"
+      >
+        📁
       </button>
 
       <span class="toolbar-sep" />
@@ -467,6 +502,16 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
         </div>
       </div>
     </div>
+
+    <!-- Media library picker — Teleport'd to body by the component itself. -->
+    <MediaPicker
+      v-if="websiteSlug"
+      :slug="websiteSlug"
+      mode="modal"
+      :open="mediaPickerOpen"
+      @update:open="mediaPickerOpen = $event"
+      @selected="onMediaPicked"
+    />
   </div>
 </template>
 
