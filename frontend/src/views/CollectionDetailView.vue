@@ -3,7 +3,12 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useCollectionStore, type ZipUploadResult, type DocumentMeta } from "@/stores/collections";
+import {
+  useCollectionStore,
+  type ZipUploadResult,
+  type DocumentMeta,
+  type WorkflowHistoryEntry,
+} from "@/stores/collections";
 import { useBodyTemplateStore } from "@/stores/body_templates";
 import { useSchemaStore } from "@/stores/schemas";
 import { useLicenseStore } from "@/stores/licenses";
@@ -21,6 +26,7 @@ import { useGitlabStore } from "@/stores/gitlab";
 import { usePluginStore } from "@/stores/plugins";
 import ForgeCollectionSection from "@/components/ui/ForgeCollectionSection.vue";
 import DataverseCollectionSection from "@/components/ui/DataverseCollectionSection.vue";
+import WorkflowTimeline from "@/components/ui/WorkflowTimeline.vue";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
 import {
@@ -151,6 +157,54 @@ const revisionNote = ref("");
 const isEiC = computed(() => auth.hasMinRole("EditorInChief"));
 const isAdmin = computed(() => auth.hasMinRole("Admin"));
 
+// ── Workflow history (EiC+) ───────────────────────────────────────────────
+// Powers the timeline stepper, the inline "latest revision request" note,
+// and the SLA "stuck for N days" badge. One fetch feeds all three surfaces.
+const workflowHistory = ref<WorkflowHistoryEntry[]>([]);
+
+async function loadWorkflowHistory(): Promise<void> {
+  if (!auth.hasMinRole("EditorInChief") || !store.current) return;
+  try {
+    workflowHistory.value = await store.fetchCollectionHistory(store.current.id);
+  } catch {
+    workflowHistory.value = [];
+  }
+}
+
+// The most recent ``collection.rejected`` entry — only surfaced as a
+// prominent "revisions requested" card when the collection is back in
+// ``assigned`` and the rejection is more recent than the last submit
+// (otherwise the editor already addressed it).
+const lastRevisionRequest = computed<WorkflowHistoryEntry | null>(() => {
+  if (store.current?.status !== "assigned") return null;
+  const history = workflowHistory.value;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const e = history[i];
+    if (e.action === "collection.submitted") return null;
+    if (e.action === "collection.rejected") return e;
+  }
+  return null;
+});
+
+// "Stuck for X days": days elapsed since the last transition for
+// collections sitting in ``review`` or ``assigned``. Over the threshold,
+// the workflow panel shows an amber nudge.
+const STUCK_THRESHOLD_DAYS = 14;
+
+const stuckDays = computed<number | null>(() => {
+  const status = store.current?.status;
+  if (status !== "review" && status !== "assigned") return null;
+  const history = workflowHistory.value;
+  if (history.length === 0) return null;
+  const last = history[history.length - 1];
+  const ms = Date.now() - new Date(last.occurred_at).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+});
+
+const isStuck = computed(
+  () => stuckDays.value !== null && stuckDays.value >= STUCK_THRESHOLD_DAYS,
+);
+
 // ── Saved bibliographies panel ────────────────────────────────────────────────
 const biblioOpen = ref(false);
 const expandedBiblioVersion = ref<number | null>(null);
@@ -253,6 +307,7 @@ async function submitAssign(): Promise<void> {
     showAssignForm.value = false;
     assignUsername.value = "";
     assignNote.value = "";
+    await loadWorkflowHistory();
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -281,6 +336,7 @@ async function doWorkflow(
 async function handleSubmit(): Promise<void> {
   await doWorkflow(() => store.submitCollection(slug, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
+  await loadWorkflowHistory();
 }
 
 async function handleRequestRevisions(): Promise<void> {
@@ -291,22 +347,26 @@ async function handleRequestRevisions(): Promise<void> {
   await doWorkflow(() => store.rejectCollection(slug, revisionNote.value.trim()));
   showRequestRevisionsForm.value = false;
   revisionNote.value = "";
+  await loadWorkflowHistory();
 }
 
 async function handlePublish(): Promise<void> {
   await doWorkflow(() => store.publishCollection(slug, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
+  await loadWorkflowHistory();
 }
 
 async function handleUnpublish(): Promise<void> {
   if (!confirm(t("collections.confirm_unpublish"))) return;
   await doWorkflow(() => store.unpublishCollection(slug));
+  await loadWorkflowHistory();
 }
 
 async function handleDirectPublish(): Promise<void> {
   if (!confirm(t("collections.direct_publish_confirm"))) return;
   await doWorkflow(() => store.directPublishCollection(slug, workflowNote.value.trim() || undefined));
   workflowNote.value = "";
+  await loadWorkflowHistory();
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -567,6 +627,9 @@ onMounted(async () => {
     // fetchCollection has populated store.current).
     zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
     zenodoUploadAsZipDraft.value = store.current?.zenodo_upload_as_zip ?? false;
+    // Workflow history fetched after store.current is populated because the
+    // endpoint is keyed on the UUID, not the slug.
+    await loadWorkflowHistory();
   } catch {
     error.value = t("common.error");
   } finally {
@@ -888,18 +951,79 @@ function statusClass(s: string): string {
         </RouterLink>
       </div>
 
-      <!-- Workflow section -->
-      <section class="mb-6 rounded border border-gray-200 p-5 dark:border-gray-700">
-        <h2 class="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-200">{{ t("collections.workflow") }}</h2>
+      <!-- Workflow section — the heart of the page: status, timeline,
+           inline revision-note and all editorial actions. A thicker
+           indigo accent bar on the left visually separates it from the
+           other cards (assign / submit / publish / revisions are the
+           high-value actions users come here to do). -->
+      <section
+        class="mb-6 rounded border border-gray-200 border-l-4 border-l-indigo-500 bg-indigo-50/40 p-5 dark:border-gray-700 dark:border-l-indigo-400 dark:bg-indigo-900/10"
+      >
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+            <svg class="h-4 w-4 text-indigo-600 dark:text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/>
+            </svg>
+            {{ t("collections.workflow") }}
+          </h2>
+          <!-- SLA "stuck for N days" badge (EiC+, only on review/assigned) -->
+          <span
+            v-if="isEiC && isStuck"
+            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+            :title="t('collections.sla_stuck_hint', { days: stuckDays, state: t(`collections.status_${store.current.status}`) })"
+          >
+            ⏱ {{ t("collections.sla_stuck_label", { days: stuckDays }) }}
+          </span>
+        </div>
+
+        <!-- Inline timeline of past transitions (EiC+). Click any step
+             to see who did what and any attached note. -->
+        <WorkflowTimeline
+          v-if="isEiC && workflowHistory.length > 0"
+          :entries="workflowHistory"
+          class="mb-4"
+        />
+
+        <!-- Prominent revision-request card: only when the collection
+             is back in ``assigned`` after an EiC "Request revisions".
+             Surfaces the note directly so the editor does not have to
+             dig through notifications or audit log. -->
+        <div
+          v-if="lastRevisionRequest"
+          class="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-900/20"
+        >
+          <p class="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/>
+            </svg>
+            {{ t("collections.last_revision_note_title") }}
+          </p>
+          <p class="mb-1 text-xs text-amber-700 dark:text-amber-300">
+            {{ t("collections.last_revision_note_hint", {
+              actor: lastRevisionRequest.actor_display_name ?? lastRevisionRequest.actor_username ?? t("collections.history_actor_unknown"),
+              when: new Date(lastRevisionRequest.occurred_at).toLocaleString(),
+            }) }}
+          </p>
+          <p class="whitespace-pre-wrap text-amber-900 dark:text-amber-100">
+            {{ lastRevisionRequest.note }}
+          </p>
+        </div>
+
         <p v-if="workflowError" class="mb-3 text-sm text-red-600">{{ workflowError }}</p>
 
-        <!-- Assign / Reassign (EiC+, draft or assigned) -->
+        <!-- Assign / Reassign (EiC+, draft or assigned). Primary on
+             ``draft`` (that is the obvious next step); demoted to
+             outlined secondary on ``assigned``. -->
         <div
           v-if="isEiC && (store.current.status === 'draft' || store.current.status === 'assigned')"
           class="mb-4"
         >
           <button
-            class="mb-2 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+            :class="
+              store.current.status === 'draft'
+                ? 'mb-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700'
+                : 'mb-2 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700'
+            "
             @click="showAssignForm = !showAssignForm"
           >
             {{ store.current.status === "assigned" ? t("collections.reassign_editor") : t("collections.assign_editor") }}
@@ -1027,7 +1151,9 @@ function statusClass(s: string): string {
           </button>
         </div>
 
-        <!-- Direct publish (Admin/EiC, any status except published) -->
+        <!-- Direct publish (EiC+, any status except published). Shortcut
+             that bypasses the review step — visually muted on purpose so
+             the standard workflow is what catches the eye. -->
         <div
           v-if="isEiC && store.current.status !== 'published'"
           class="mt-3 border-t border-dashed border-gray-200 pt-3 dark:border-gray-700"
@@ -1041,7 +1167,7 @@ function statusClass(s: string): string {
             />
             <button
               :disabled="isActing"
-              class="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              class="rounded border border-emerald-400 px-3 py-1.5 text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
               @click="handleDirectPublish"
             >
               {{ t("collections.direct_publish") }}

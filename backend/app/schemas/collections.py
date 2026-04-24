@@ -151,6 +151,23 @@ class RejectAction(BaseModel):
     note: str
 
 
+class WorkflowHistoryEntry(BaseModel):
+    """One workflow transition as displayed by the history timeline.
+
+    Projects the relevant subset of ``audit_log`` rows that correspond to
+    collection-level workflow actions. ``note`` is extracted from the
+    payload JSONB when present (submit / reject / publish flows attach
+    one). ``actor_display_name`` falls back to ``actor_username`` on
+    the frontend if null.
+    """
+
+    action: str
+    actor_username: str | None
+    actor_display_name: str | None
+    occurred_at: datetime
+    note: str | None
+
+
 class DocumentInfo(BaseModel):
     filename: str
 

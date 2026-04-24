@@ -39,6 +39,7 @@ from app.schemas.collections import (
     RejectAction,
     SearchHit,
     WorkflowAction,
+    WorkflowHistoryEntry,
     ZipUploadResult,
 )
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
@@ -68,6 +69,7 @@ from app.services.xmldb import (
     list_collections,
     list_documents,
     list_permissions,
+    list_workflow_history,
     publish_collection,
     reject_collection,
     revoke_permission,
@@ -358,6 +360,24 @@ async def collection_unpublish(
     role: str = request.state.role
     data = await unpublish_collection(db, collection_id, body, current_user, role)
     return DataResponse(data=data)
+
+
+@router.get("/{collection_id}/history")
+async def collection_workflow_history(
+    collection_id: str,
+    request: Request,
+    current_user: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[list[WorkflowHistoryEntry]]:
+    """Return the editorial workflow transitions for a collection.
+
+    Backs the timeline + inline revision-note surface on the detail
+    page. Restricted to EiC+ because the payload can include
+    revision-request notes addressed to the assigned editor.
+    """
+    role: str = request.state.role
+    entries = await list_workflow_history(db, collection_id, current_user, role)
+    return DataResponse(data=entries)
 
 
 # ── Document CRUD ─────────────────────────────────────────────────────────────

@@ -67,6 +67,7 @@ from app.schemas.collections import (
     RespStmtItem,
     SearchHit,
     WorkflowAction,
+    WorkflowHistoryEntry,
     ZipUploadError,
     ZipUploadResult,
 )
@@ -314,6 +315,70 @@ async def get_collection(
     col = await _get_or_404(db, collection_id)
     await _assert_read_access(db, col, actor, role)
     return CollectionResponse.model_validate(col)
+
+
+# Workflow actions that show up in the editorial history panel. Kept as a
+# module-level tuple so the history endpoint and (future) any exporter agree on
+# which audit_log rows are "workflow" vs. noise (e.g. collection.updated or
+# document.* events, which we deliberately skip).
+_WORKFLOW_HISTORY_ACTIONS = (
+    "collection.created",
+    "collection.assigned",
+    "collection.reassigned",
+    "collection.submitted",
+    "collection.rejected",
+    "collection.published",
+    "collection.direct_published",
+    "collection.unpublished",
+)
+
+
+async def list_workflow_history(
+    db: AsyncSession,
+    collection_id: str,
+    actor: User,
+    role: str,
+) -> list[WorkflowHistoryEntry]:
+    """Return the editorial workflow transitions for a collection, oldest first.
+
+    Backs the Collection detail page's timeline + inline revision-note
+    surface. EiC+ only — the audit_log is not readable by editors, and
+    exposing rejection/revision notes outside the editorial chain would
+    leak internal review text.
+    """
+    _assert_eic(role)
+    col = await _get_or_404(db, collection_id)
+
+    stmt = (
+        select(AuditLog, User.display_name)
+        .join(User, User.id == AuditLog.actor_id, isouter=True)
+        .where(
+            AuditLog.target_type == "collection",
+            AuditLog.target_id == str(col.id),
+            AuditLog.action.in_(_WORKFLOW_HISTORY_ACTIONS),
+        )
+        .order_by(AuditLog.occurred_at.asc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    entries: list[WorkflowHistoryEntry] = []
+    for audit, display_name in rows:
+        payload = audit.payload if isinstance(audit.payload, dict) else None
+        note = None
+        if payload:
+            raw_note = payload.get("note")
+            if isinstance(raw_note, str) and raw_note.strip():
+                note = raw_note
+        entries.append(
+            WorkflowHistoryEntry(
+                action=audit.action,
+                actor_username=audit.actor_username,
+                actor_display_name=display_name,
+                occurred_at=audit.occurred_at,
+                note=note,
+            )
+        )
+    return entries
 
 
 async def create_collection(

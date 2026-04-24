@@ -2,6 +2,19 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api, { apiClient } from "@/services/api";
 
+export interface WorkflowHistoryEntry {
+  /**
+   * Dotted action name from the backend audit_log (e.g.
+   * ``"collection.submitted"``, ``"collection.rejected"``). The
+   * timeline maps this to a localised label and an icon.
+   */
+  action: string;
+  actor_username: string | null;
+  actor_display_name: string | null;
+  occurred_at: string;  // ISO-8601
+  note: string | null;
+}
+
 export interface EditorOption {
   id: string;
   username: string;
@@ -323,6 +336,18 @@ export const useCollectionStore = defineStore("collections", () => {
     });
   }
 
+  // ── Workflow history (EiC+) ─────────────────────────────────────────────────
+  //
+  // Backs the timeline stepper, the inline "last revision request" note, and
+  // the SLA "stuck for N days" badge on the Collection detail page. A single
+  // fetch feeds all three — don't call this on mount for non-EiC users since
+  // the endpoint is 403 for them.
+  async function fetchCollectionHistory(id: string): Promise<WorkflowHistoryEntry[]> {
+    return await apiClient.get<WorkflowHistoryEntry[]>(
+      `/collections/${id}/history`,
+    );
+  }
+
   // ── Documents ────────────────────────────────────────────────────────────────
 
   async function fetchDocuments(collectionId: string): Promise<void> {
@@ -507,6 +532,7 @@ export const useCollectionStore = defineStore("collections", () => {
     publishCollection,
     unpublishCollection,
     directPublishCollection,
+    fetchCollectionHistory,
     fetchDocuments,
     createDocument,
     uploadDocument,
