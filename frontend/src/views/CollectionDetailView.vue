@@ -125,7 +125,12 @@ function openAiForDoc(docFilename: string): void {
 }
 
 // ── Validation report expand state ────────────────────────────────────────────
+// Per-document error expansion (click a filename row to expand its errors).
 const validationExpandedDoc = ref<string | null>(null);
+// Foldable state for the whole validation-report panel. Defaults to open
+// because the user just triggered the run — the result is what they came
+// here to see. Collapsing is one click away.
+const validationReportOpen = ref(true);
 
 function toggleValidationDoc(filename: string): void {
   validationExpandedDoc.value = validationExpandedDoc.value === filename ? null : filename;
@@ -1900,62 +1905,81 @@ function statusClass(s: string): string {
         </template>
       </section>
 
-      <!-- Validation report panel — EiC+ only, shown when a run exists -->
+      <!-- Validation report panel — EiC+ only, shown when a run exists.
+           Foldable to match the other panels on this page; summary badge
+           sits in the header so the fold-closed state still shows status
+           at a glance. -->
       <section
         v-if="isEiC && validationStore.currentRun"
-        class="rounded border border-violet-200 bg-violet-50 p-5"
+        class="rounded border border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-900/20"
       >
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-violet-800">
-            {{ t("collections.validate_all_report") }}
-          </h2>
-          <!-- Summary badge -->
-          <span
-            v-if="validationStore.currentRun.status === 'done'"
-            :class="[
-              'rounded px-2 py-0.5 text-xs font-medium',
-              validationStore.currentRun.error_count === 0
-                ? 'bg-green-100 text-green-700'
-                : 'bg-red-100 text-red-700',
-            ]"
-          >
-            {{
-              validationStore.currentRun.error_count === 0
-                ? t("collections.validate_all_done_ok", { total: validationStore.currentRun.doc_count })
-                : t("collections.validate_all_done_errors", {
-                    errors: validationStore.currentRun.error_count,
-                    total: validationStore.currentRun.doc_count,
-                  })
-            }}
+        <button
+          class="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-violet-100/60 dark:hover:bg-violet-900/40"
+          @click="validationReportOpen = !validationReportOpen"
+        >
+          <span class="flex items-center gap-3">
+            <span class="text-sm font-semibold text-violet-800 dark:text-violet-200">
+              {{ t("collections.validate_all_report") }}
+            </span>
+            <!-- Summary badge — stays visible in the header even when
+                 the panel is collapsed, so the report's outcome is
+                 legible at a glance. -->
+            <span
+              v-if="validationStore.currentRun.status === 'done'"
+              :class="[
+                'rounded px-2 py-0.5 text-xs font-medium',
+                validationStore.currentRun.error_count === 0
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200',
+              ]"
+            >
+              {{
+                validationStore.currentRun.error_count === 0
+                  ? t("collections.validate_all_done_ok", { total: validationStore.currentRun.doc_count })
+                  : t("collections.validate_all_done_errors", {
+                      errors: validationStore.currentRun.error_count,
+                      total: validationStore.currentRun.doc_count,
+                    })
+              }}
+            </span>
+            <span
+              v-else-if="validationStore.currentRun.status === 'running'"
+              class="text-xs text-violet-600 dark:text-violet-300"
+            >
+              {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+            </span>
+            <span
+              v-else-if="validationStore.currentRun.status === 'cancelled'"
+              class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200"
+            >
+              {{ t("collections.validate_all_cancelled", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+            </span>
+            <span
+              v-else-if="validationStore.currentRun.status === 'failed'"
+              class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900/40 dark:text-red-200"
+            >
+              {{ t("collections.validate_all_failed", { msg: validationStore.currentRun.error_message ?? '' }) }}
+            </span>
           </span>
-          <span
-            v-else-if="validationStore.currentRun.status === 'running'"
-            class="text-xs text-violet-600"
-          >
-            {{ t("collections.validate_all_running", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
+          <span class="flex items-center gap-3">
+            <!-- Stop button — visible while the run is in progress.
+                 ``@click.stop`` prevents the header-button fold toggle
+                 from firing when the user hits Stop. -->
+            <span
+              v-if="validationStore.currentRun.status === 'pending' || validationStore.currentRun.status === 'running'"
+              class="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50"
+              role="button"
+              tabindex="0"
+              @click.stop="handleCancelValidation"
+              @keydown.enter.stop="handleCancelValidation"
+            >
+              {{ t("collections.validate_all_cancel") }}
+            </span>
+            <span class="text-xs text-violet-400 dark:text-violet-500">{{ validationReportOpen ? "▲" : "▼" }}</span>
           </span>
-          <span
-            v-else-if="validationStore.currentRun.status === 'cancelled'"
-            class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200"
-          >
-            {{ t("collections.validate_all_cancelled", { n: validationStore.currentRun.validated_count, total: validationStore.currentRun.doc_count }) }}
-          </span>
-          <span
-            v-else-if="validationStore.currentRun.status === 'failed'"
-            class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700"
-          >
-            {{ t("collections.validate_all_failed", { msg: validationStore.currentRun.error_message ?? '' }) }}
-          </span>
-          <!-- Stop button — visible while the run is in progress -->
-          <button
-            v-if="validationStore.currentRun.status === 'pending' || validationStore.currentRun.status === 'running'"
-            class="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
-            @click="handleCancelValidation"
-          >
-            {{ t("collections.validate_all_cancel") }}
-          </button>
-        </div>
+        </button>
 
+      <div v-show="validationReportOpen" class="border-t border-violet-200 px-5 py-4 dark:border-violet-900">
         <!-- Progress bar while running -->
         <div
           v-if="validationStore.currentRun.status === 'running' && validationStore.currentRun.doc_count > 0"
@@ -2046,6 +2070,7 @@ function statusClass(s: string): string {
             </div>
           </div>
         </div>
+      </div>
       </section>
 
     </template>
