@@ -121,6 +121,38 @@ const headerLogoPreviewUrl = computed<string | null>(() => {
   return trimmed;
 });
 
+/**
+ * Return a light or dark text colour that reads well on *bgHex*, or
+ * ``null`` when the input is not a parseable 3- or 6-digit hex (the
+ * caller falls back to a neutral grey). Mirrors the sRGB luminance
+ * formula used server-side in ``_readable_text_on`` so the admin
+ * preview matches what the browser will eventually render.
+ */
+function readableTextOn(bgHex: string): string | null {
+  let h = (bgHex || "").trim().replace(/^#/, "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some((v) => Number.isNaN(v))) return null;
+  const lin = (c: number): number => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.5 ? "#1f2937" : "#e5e7eb";
+}
+
+// Auto-derived footer text colour for the preview chip. ``null`` bg
+// (transparent) renders with the historical muted-grey used by the
+// renderer when no bg is set.
+const footerPreviewText = computed<string>(() => {
+  const bg = (editForm.value?.theme_config as Record<string, string> | undefined)?.footer_bg ?? "";
+  if (!bg.trim()) return "#9ca3af";
+  return readableTextOn(bg) ?? "#9ca3af";
+});
+
 // Second picker instance for the home-page background image.
 const homeBgPickerOpen = ref(false);
 
@@ -1220,13 +1252,54 @@ onBeforeUnmount(() => {
         </section>
 
         <!-- ═══════════════════ FOOTER ════════════════════════ -->
-        <section class="rounded border border-gray-200 bg-white p-4">
-          <h3 class="mb-3 text-sm font-semibold text-gray-800">
+        <section class="rounded border border-gray-200 bg-white p-4 space-y-4">
+          <h3 class="text-sm font-semibold text-gray-800">
             {{ t("websites.theme_section_footer") }}
           </h3>
-          <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-            <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_footer_bg") }}<input v-model="(editForm.theme_config as Record<string, string>).footer_bg" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
-            <label class="flex items-center gap-2 text-xs text-gray-600">{{ t("websites.theme_footer_text") }}<input v-model="(editForm.theme_config as Record<string, string>).footer_text" type="color" class="h-7 w-10 cursor-pointer rounded border border-gray-300" /></label>
+          <!-- Background colour only. The foreground is auto-derived
+               from background luminance server-side (see
+               ``_readable_text_on``) so text stays readable whatever
+               hue the Designer picks. -->
+          <div>
+            <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.theme_footer_bg") }}</p>
+            <div class="flex items-center gap-2">
+              <input
+                v-model="(editForm.theme_config as Record<string, string>).footer_bg"
+                type="color"
+                :aria-label="t('websites.theme_footer_bg')"
+                class="h-9 w-12 cursor-pointer rounded border border-gray-300 bg-white p-0.5"
+              />
+              <input
+                v-model="(editForm.theme_config as Record<string, string>).footer_bg"
+                type="text"
+                maxlength="7"
+                :placeholder="t('websites.theme_footer_bg_placeholder')"
+                class="w-32 rounded border border-gray-300 px-3 py-1.5 font-mono text-sm uppercase focus:border-indigo-500 focus:outline-none"
+              />
+              <button
+                v-if="(editForm.theme_config as Record<string, string>).footer_bg"
+                type="button"
+                class="rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+                @click="(editForm.theme_config as Record<string, string>).footer_bg = ''"
+              >
+                {{ t("common.delete") }}
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-400">{{ t("websites.theme_footer_text_auto_hint") }}</p>
+          </div>
+          <!-- Preview strip -->
+          <div>
+            <p class="mb-1 text-xs text-gray-500">{{ t("websites.theme_footer_preview") }}</p>
+            <div
+              class="flex h-12 items-center justify-center rounded px-4 text-xs"
+              :style="{
+                backgroundColor: (editForm.theme_config as Record<string, string>).footer_bg || 'transparent',
+                color: footerPreviewText,
+                border: '1px solid #e5e7eb',
+              }"
+            >
+              {{ t("websites.theme_footer_preview_text") }}
+            </div>
           </div>
         </section>
       </div>

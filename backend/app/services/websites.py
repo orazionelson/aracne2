@@ -1565,6 +1565,35 @@ def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
     return gallery + doc_body
 
 
+def _readable_text_on(bg_hex: str) -> str | None:
+    """Return a light or dark text colour that reads well on *bg_hex*.
+
+    Uses the sRGB relative-luminance formula from WCAG 2.0 G18 and
+    returns ``"#e5e7eb"`` (slate-200) for dark backgrounds or
+    ``"#1f2937"`` (slate-800) for light ones. Returns ``None`` when
+    the input is not a parseable 3- or 6-digit hex — the caller
+    falls back to a neutral default in that case.
+    """
+    h = (bg_hex or "").strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        return None
+    try:
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+    except ValueError:
+        return None
+
+    def _linear(c: int) -> float:
+        v = c / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    lum = 0.2126 * _linear(r) + 0.7152 * _linear(g) + 0.0722 * _linear(b)
+    return "#1f2937" if lum > 0.5 else "#e5e7eb"
+
+
 def _style_block(
     theme: dict,
     custom_css: str | None = None,
@@ -1578,9 +1607,17 @@ def _style_block(
     doc_banner_text = _html.escape(theme.get("doc_banner_text", "#ffffff"))
     # Font family — sanitize to strip HTML injection chars but keep CSS syntax intact
     font = re.sub(r"[<>&]", "", theme.get("font_family", _DEFAULT_FONT) or _DEFAULT_FONT)
-    # Footer colours — fall back to current hard-coded defaults when unset
-    footer_bg = _html.escape(theme.get("footer_bg", "transparent") or "transparent")
-    footer_color = _html.escape(theme.get("footer_text", "#9ca3af") or "#9ca3af")
+    # Footer colours — the background is Designer-chosen; the foreground
+    # is auto-derived from the background luminance so text stays
+    # readable whatever hue the Designer picks. When the bg is unset /
+    # transparent we fall back to the historical muted-grey default
+    # which reads well against both white and most dark page bgs.
+    footer_bg_raw = (theme.get("footer_bg") or "").strip()
+    footer_bg = _html.escape(footer_bg_raw) if footer_bg_raw else "transparent"
+    if footer_bg_raw:
+        footer_color = _readable_text_on(footer_bg_raw) or "#9ca3af"
+    else:
+        footer_color = "#9ca3af"
     root_vars = (
         f":root{{--primary:{primary};--text:{text};--bg:{bg};"
         f"--doc-banner-bg:{doc_banner_bg};--doc-banner-text:{doc_banner_text};"
