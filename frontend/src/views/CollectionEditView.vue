@@ -45,6 +45,7 @@ const editTitle = ref("");
 const editDesc = ref("");
 const editPublic = ref(false);
 const editEvtEnabled = ref(false);
+const editTargetPublishDate = ref<string>("");  // "YYYY-MM-DD" or ""
 const editSchemaId = ref<string | null>(null);
 const editPublisher = ref("");
 const editPubPlace = ref("");
@@ -167,6 +168,7 @@ function seedFromCurrent(): void {
   editIdentifierUrl.value = store.current.identifier_url ?? "";
   editBodyTemplateId.value = store.current.body_template_id ?? null;
   editEvtEnabled.value = store.current.evt_enabled;
+  editTargetPublishDate.value = store.current.target_publish_date ?? "";
   editRespStmts.value = store.current.resp_stmts
     ? store.current.resp_stmts.map((r) => ({ ...r }))
     : [];
@@ -221,6 +223,7 @@ async function submitEdit(): Promise<void> {
       identifier_url: editIdentifierUrl.value.trim() || null,
       body_template_id: editBodyTemplateId.value,
       evt_enabled: editEvtEnabled.value,
+      target_publish_date: editTargetPublishDate.value || null,
     });
     router.push({ name: "collection-detail", params: { slug } });
   } catch (err) {
@@ -295,6 +298,20 @@ function cancel(): void {
             {{ t("collections.evt_enabled_label") }}
           </label>
           <span class="text-xs text-gray-400 dark:text-gray-500">{{ t("collections.evt_enabled_hint") }}</span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="edit-target-publish-date" class="text-xs font-medium text-gray-600 dark:text-gray-300">
+            {{ t("collections.target_publish_date_label") }}
+          </label>
+          <input
+            id="edit-target-publish-date"
+            v-model="editTargetPublishDate"
+            type="date"
+            class="w-48 rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          />
+          <p class="text-xs text-gray-400 dark:text-gray-500">
+            {{ t("collections.target_publish_date_hint") }}
+          </p>
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs font-medium text-gray-600 dark:text-gray-300">

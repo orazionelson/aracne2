@@ -205,6 +205,23 @@ const isStuck = computed(
   () => stuckDays.value !== null && stuckDays.value >= STUCK_THRESHOLD_DAYS,
 );
 
+// Target publish date (set in the edit view). When present we render a
+// small countdown chip in the workflow header: neutral while there is
+// time, amber once the date has passed. Does nothing if the collection
+// is already published — the date has served its purpose.
+const targetDaysLeft = computed<number | null>(() => {
+  const iso = store.current?.target_publish_date;
+  if (!iso) return null;
+  if (store.current?.status === "published") return null;
+  const target = new Date(iso + "T00:00:00Z").getTime();
+  const today = Date.now();
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+});
+
+const isTargetOverdue = computed(
+  () => targetDaysLeft.value !== null && targetDaysLeft.value < 0,
+);
+
 // ── Saved bibliographies panel ────────────────────────────────────────────────
 const biblioOpen = ref(false);
 const expandedBiblioVersion = ref<number | null>(null);
@@ -966,14 +983,40 @@ function statusClass(s: string): string {
             </svg>
             {{ t("collections.workflow") }}
           </h2>
-          <!-- SLA "stuck for N days" badge (EiC+, only on review/assigned) -->
-          <span
-            v-if="isEiC && isStuck"
-            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-            :title="t('collections.sla_stuck_hint', { days: stuckDays, state: t(`collections.status_${store.current.status}`) })"
-          >
-            ⏱ {{ t("collections.sla_stuck_label", { days: stuckDays }) }}
-          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Target publish date countdown. Neutral while there is
+                 time, amber once overdue. Published collections suppress
+                 the chip since the target has served its purpose. -->
+            <span
+              v-if="targetDaysLeft !== null"
+              class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              :class="
+                isTargetOverdue
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                  : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200'
+              "
+              :title="t('collections.target_publish_date_tooltip', { date: store.current.target_publish_date })"
+            >
+              📅
+              <template v-if="isTargetOverdue">
+                {{ t("collections.target_overdue_label", { days: Math.abs(targetDaysLeft) }) }}
+              </template>
+              <template v-else-if="targetDaysLeft === 0">
+                {{ t("collections.target_today_label") }}
+              </template>
+              <template v-else>
+                {{ t("collections.target_countdown_label", { days: targetDaysLeft }) }}
+              </template>
+            </span>
+            <!-- SLA "stuck for N days" badge (EiC+, only on review/assigned) -->
+            <span
+              v-if="isEiC && isStuck"
+              class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+              :title="t('collections.sla_stuck_hint', { days: stuckDays, state: t(`collections.status_${store.current.status}`) })"
+            >
+              ⏱ {{ t("collections.sla_stuck_label", { days: stuckDays }) }}
+            </span>
+          </div>
         </div>
 
         <!-- Inline timeline of past transitions (EiC+). Click any step

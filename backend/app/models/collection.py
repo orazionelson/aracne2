@@ -1,9 +1,9 @@
 import enum
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -136,6 +136,14 @@ class Collection(Base):
     # "files" tab to stay a single downloadable artefact.
     zenodo_upload_as_zip: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="FALSE"
+    )
+
+    # Soft target date for publication, set by the EiC to flag work that
+    # should be out by a certain day. The workflow panel renders a
+    # countdown badge based on this value and nudges (amber) when it
+    # goes overdue. Purely informational — no backend enforcement.
+    target_publish_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, default=None
     )
 
     # Body template applied to new documents created in this collection

@@ -490,6 +490,11 @@ async def update_collection(
     if body.evt_enabled is not None and body.evt_enabled != col.evt_enabled:
         col.evt_enabled = body.evt_enabled
         changed["evt_enabled"] = body.evt_enabled
+    if "target_publish_date" in body.model_fields_set:
+        col.target_publish_date = body.target_publish_date
+        changed["target_publish_date"] = (
+            body.target_publish_date.isoformat() if body.target_publish_date else None
+        )
     if "zenodo_resource_type" in body.model_fields_set:
         # Empty string → clear the override (fall back to the global setting).
         new_value = body.zenodo_resource_type or None

@@ -57,6 +57,12 @@ export interface Collection {
   body_template_id: string | null;
   doc_count: number;
   evt_enabled: boolean;
+  /**
+   * Soft editorial target date for publication (ISO ``YYYY-MM-DD`` or
+   * null). Displayed as a countdown in the workflow panel; amber
+   * when overdue. Not enforced by the backend — purely informational.
+   */
+  target_publish_date: string | null;
   // Per-collection override for the Zenodo deposit plugin's resource_type
   // (InvenioRDM vocabulary id). NULL means "inherit the global setting".
   zenodo_resource_type: string | null;
@@ -283,6 +289,8 @@ export const useCollectionStore = defineStore("collections", () => {
       objectdesc_form?: string | null;
       identifier_url?: string | null;
       body_template_id?: string | null;
+      evt_enabled?: boolean;
+      target_publish_date?: string | null;
       zenodo_resource_type?: string | null;
       zenodo_upload_as_zip?: boolean;
     },

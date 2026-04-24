@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -71,6 +71,10 @@ class CollectionUpdate(BaseModel):
     body_template_id: uuid.UUID | None = None
     # Per-collection EVT viewer opt-in
     evt_enabled: bool | None = None
+    # Soft editorial target for publication (purely informational).
+    # Present in payload (even null) means "set/clear"; absent means
+    # "leave unchanged" — matches the other set-or-clear columns.
+    target_publish_date: date | None = None
     # Per-collection override for the Zenodo deposit plugin's resource_type
     # (InvenioRDM vocabulary id). Empty string means "clear the override and
     # fall back to the global setting".
@@ -122,6 +126,7 @@ class CollectionResponse(BaseModel):
     body_template_id: uuid.UUID | None
     doc_count: int
     evt_enabled: bool
+    target_publish_date: date | None = None
     zenodo_resource_type: str | None = None
     zenodo_upload_as_zip: bool = False
     created_at: datetime
