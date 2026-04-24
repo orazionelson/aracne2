@@ -42,16 +42,29 @@ intelligent autocomplete:
 
 ## External reference lookups
 
-Three optional buttons appear in the toolbar when the matching plugin
-is activated by your Admin. Each opens a side-panel that resolves an
-external reference and inserts the result directly into the document.
+A family of optional buttons ("chips") appears in the toolbar when
+the matching plugins are activated by your Admin. Each opens a
+side-panel that resolves an external reference and inserts the
+result directly into the document — either as a `@ref="…"` URI on
+the enclosing tag, or as a new `<biblStruct>` for bibliographic
+lookups.
 
-| Button | What it does |
-|--------|-------------|
-| Wikidata | Searches Wikidata by name; writes `@ref="https://www.wikidata.org/entity/Q…"` on `<persName>`, `<placeName>`, or `<orgName>` |
-| ORCID | Searches the public ORCID registry by researcher name; writes `@ref="https://orcid.org/0000-…"` on `<persName>` |
-| DOI | Resolves a pasted DOI via CrossRef and appends the resulting TEI `<biblStruct>` to the document's `<listBibl>` |
+The full per-plugin guide lives in
+[External reference lookups](/help/page?path=03-advanced/05-external-reference-lookups).
+Quick per-tag map:
 
-If a button is missing, the plugin is not activated in
-`/admin/plugins`. Plugin activation requires a backend restart to take
-effect.
+| TEI tag | Lookups you can wire up |
+|---|---|
+| `<persName>` | **Wikidata**, **ORCID** (researchers), **VIAF**, **GND**, **CERL**, **Trismegistos** (ancient world) |
+| `<placeName>` | **GeoNames**, **Wikidata**, **GND**, **Peripleo** (Pelagios, ancient), **CERL**, **Trismegistos** |
+| `<orgName>` | **ROR** (academic), **Wikidata**, **GND**, **CERL** |
+| `<term>` | **Getty AAT** (art / architecture / material culture), **Wikidata** |
+| `<bibl>` / `<biblStruct>` | **CrossRef** (paste a DOI), **OpenAlex** (free-text search), **Trismegistos** (ancient texts) |
+
+Each chip shows the authority's short name in the toolbar (e.g.
+**WIKI**, **ORCID**, **ROR**). Every result is written as a
+canonical URI — no free-text ever lands in the XML.
+
+If a chip is missing, the matching plugin is not activated in
+`/admin/plugins`. Plugin activation requires a backend restart to
+take effect.
