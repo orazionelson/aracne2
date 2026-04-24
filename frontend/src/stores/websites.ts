@@ -23,6 +23,19 @@ export interface NoteRenderingConfig {
   mode: NoteDisplayMode;
 }
 
+export interface EntityHoverConfig {
+  /**
+   * When true, hovering a TEI-anchor with a ``@ref`` pointing to a
+   * supported authority opens a small popover with label + description
+   * (+ image when the source returns one) fetched on demand. MVP scope:
+   * Wikidata only, entirely client-side (Wikidata's wbgetentities API
+   * is CORS-open). Further authorities (ORCID, GeoNames, ROR, VIAF, …)
+   * would need a backend proxy because their endpoints block cross-
+   * origin browser calls.
+   */
+  enabled: boolean;
+}
+
 export interface XsltConfig {
   source: XsltSource;
   content: string | null;
@@ -31,6 +44,7 @@ export interface XsltConfig {
   processor: XsltProcessor;
   image_rendering?: ImageRenderingConfig;
   note_rendering?: NoteRenderingConfig;
+  entity_hover?: EntityHoverConfig;
 }
 
 export interface AracnePageConfig {

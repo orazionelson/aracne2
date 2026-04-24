@@ -19,6 +19,7 @@ import {
   type XsltConfig,
   type ImageRenderingConfig,
   type NoteRenderingConfig,
+  type EntityHoverConfig,
 } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
@@ -665,11 +666,19 @@ function initForm(site: Website): void {
         enabled: exNR?.enabled ?? false,
         mode: exNR?.mode ?? "end-of-text",
       };
+      const exEH = ex.entity_hover;
+      const eh: EntityHoverConfig = {
+        enabled: exEH?.enabled ?? false,
+      };
       const defaults: XsltConfig = {
         source: "default", content: null, url: null, catalog_id: null,
         processor: "lxml", image_rendering: ir, note_rendering: nr,
+        entity_hover: eh,
       };
-      return { ...defaults, ...ex, image_rendering: ir, note_rendering: nr };
+      return {
+        ...defaults, ...ex,
+        image_rendering: ir, note_rendering: nr, entity_hover: eh,
+      };
     })(),
     meta_config: normaliseMeta({ ...DEFAULT_META_CONFIG, ...(site.meta_config ?? {}) }),
     custom_css: site.custom_css ?? "",
@@ -1607,6 +1616,19 @@ onBeforeUnmount(() => {
               </label>
             </div>
           </template>
+        </div>
+
+        <!-- Entity-hover preview (Wikidata, MVP) -->
+        <div class="border-t border-indigo-100 pt-4">
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-xs font-semibold text-gray-700">{{ t("websites.doc_entity_hover_section") }}</p>
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+              <input type="checkbox" class="rounded text-indigo-600" v-model="(editForm.xslt_config as XsltConfig).entity_hover!.enabled" />
+              {{ t("websites.doc_entity_hover_enabled") }}
+            </label>
+          </div>
+          <p class="text-xs text-gray-400">{{ t("websites.doc_entity_hover_hint") }}</p>
+          <p class="mt-1 text-xs text-amber-700 dark:text-amber-400">{{ t("websites.doc_entity_hover_privacy") }}</p>
         </div>
 
         <!-- Preview -->

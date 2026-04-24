@@ -570,6 +570,55 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
 .index__filter { width: 100%; padding: 0.4rem 0.75rem; font-size: 0.9rem; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 1rem; font-family: var(--font); }
 .index__filter:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,0,0,0.06); }
 .index__filter-empty { color: #9ca3af; font-style: italic; font-size: 0.875rem; margin-top: 0.5rem; display: none; }
+/* ── Entity hover preview tooltip ───────────────────────────────────
+   Floating popover for the opt-in Wikidata hover feature. Created
+   and positioned at runtime by the JS in _build_entity_hover_js
+   when ``xslt_config.entity_hover.enabled`` is true on the site.
+   The styles are unconditional — they only take effect once a
+   ``.tei-entity-hover-tip`` element is actually inserted. */
+.tei-entity-hover-tip {
+  position: absolute;
+  z-index: 1000;
+  max-width: 280px;
+  background: #1e293b;
+  color: #f8fafc;
+  padding: .5rem .7rem;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
+  font-size: .82rem;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.tei-entity-hover-tip img.tei-entity-hover-img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: 3px;
+  margin-bottom: .4rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.tei-entity-hover-tip .tei-entity-hover-label {
+  font-weight: 600;
+  margin-bottom: .15rem;
+  color: #f8fafc;
+}
+.tei-entity-hover-tip .tei-entity-hover-desc {
+  color: #cbd5e1;
+  font-size: .78rem;
+  font-style: italic;
+}
+.tei-entity-hover-tip .tei-entity-hover-src {
+  color: #94a3b8;
+  font-size: .7rem;
+  margin-top: .35rem;
+  letter-spacing: .02em;
+}
+.tei-entity-hover-tip .tei-entity-hover-loading,
+.tei-entity-hover-tip .tei-entity-hover-error {
+  color: #cbd5e1;
+  font-style: italic;
+}
 """
 
 
@@ -1329,6 +1378,104 @@ def _build_note_rendering_js(cfg: dict) -> str:
             "})();"
         )
     return ""  # end-of-text: no JS needed
+
+
+def _build_entity_hover_js(cfg: dict | None) -> str:
+    """Return JS that enables Wikidata hover previews on entity links.
+
+    When ``xslt_config.entity_hover.enabled`` is true on the website,
+    this JS is appended to the page's ``custom_js``. It attaches a
+    single delegated ``mouseover`` / ``mouseout`` listener to the
+    document, filters for ``<a class="tei-persname|tei-placename|
+    tei-orgname">`` with a ``href`` pointing at Wikidata
+    (``wikidata.org/wiki/Qxxx`` or ``wikidata.org/entity/Qxxx``), and
+    on a 200-ms dwell opens a small popover populated from
+    ``wbgetentities`` — label, description and the first P18 image
+    when present. Results are cached per-session in a module-scope
+    object so repeated hovers on the same Q-ID don't re-fetch.
+
+    Scope is MVP-limited to Wikidata because its API exposes open
+    CORS (``origin=*``) and no key is needed; other authorities
+    (ORCID, GeoNames, ROR, VIAF, GND, Getty AAT) block cross-origin
+    browser calls and would need a backend proxy — planned for a
+    follow-up. Feature is opt-in per site because hovering over any
+    entity link triggers an HTTP request to a third-party service,
+    which some deployments prefer to advertise to visitors first.
+    """
+    if not cfg or not cfg.get("enabled"):
+        return ""
+    return (
+        "(function(){"
+        "var cache={};"
+        "var currentTip=null;"
+        "var hoverTimer=null;"
+        # Supports both common URL shapes: /wiki/Q123 and /entity/Q123.
+        "var WD_RE=/wikidata\\.org\\/(?:wiki|entity)\\/(Q[0-9]+)/i;"
+        "var lang=(document.documentElement.lang||'en').split('-')[0];"
+        "var langs=lang==='en'?'en':(lang+'|en');"
+        "var selectors='a.tei-persname,a.tei-placename,a.tei-orgname';"
+        "function escHtml(s){return String(s).replace(/[&<>\"']/g,function(c){"
+        "return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'})[c];});}"
+        "function extractQid(href){if(!href)return null;"
+        "var m=href.match(WD_RE);return m?m[1]:null;}"
+        "function fetchEntity(qid){"
+        "if(cache[qid])return Promise.resolve(cache[qid]);"
+        "var url='https://www.wikidata.org/w/api.php?action=wbgetentities&ids='+qid+"
+        "'&props=labels|descriptions|claims&languages='+langs+"
+        "'&format=json&origin=*';"
+        "return fetch(url).then(function(r){return r.json();}).then(function(data){"
+        "var ent=data.entities&&data.entities[qid];if(!ent)return null;"
+        "var L=ent.labels||{};var D=ent.descriptions||{};"
+        "var label=((L[lang]||L.en)||{}).value||qid;"
+        "var desc=((D[lang]||D.en)||{}).value||'';"
+        "var thumb=null;"
+        "try{if(ent.claims&&ent.claims.P18&&ent.claims.P18[0]){"
+        "var fn=ent.claims.P18[0].mainsnak.datavalue.value;"
+        "thumb='https://commons.wikimedia.org/wiki/Special:FilePath/'+"
+        "encodeURIComponent(fn)+'?width=240';}}catch(e){}"
+        "var result={label:label,desc:desc,thumb:thumb};"
+        "cache[qid]=result;return result;"
+        "}).catch(function(){return null;});}"
+        "function positionTip(tip,target){"
+        "var rect=target.getBoundingClientRect();"
+        "tip.style.top=(rect.bottom+window.scrollY+6)+'px';"
+        "tip.style.left=(rect.left+window.scrollX)+'px';"
+        # If tooltip overflows viewport right, shift it left
+        "var tr=tip.getBoundingClientRect();"
+        "var ov=tr.right-window.innerWidth;"
+        "if(ov>0){tip.style.left=(rect.left+window.scrollX-ov-12)+'px';}}"
+        "function removeTip(){if(currentTip){currentTip.remove();currentTip=null;}}"
+        "function showTip(target,qid){"
+        "removeTip();"
+        "var tip=document.createElement('div');"
+        "tip.className='tei-entity-hover-tip';"
+        "tip.innerHTML='<div class=\"tei-entity-hover-loading\">\\u2026</div>';"
+        "document.body.appendChild(tip);"
+        "positionTip(tip,target);currentTip=tip;"
+        "fetchEntity(qid).then(function(data){"
+        "if(currentTip!==tip)return;"
+        "if(!data){tip.innerHTML='<div class=\"tei-entity-hover-error\">Wikidata: '+escHtml(qid)+'</div>';positionTip(tip,target);return;}"
+        "var h='';"
+        "if(data.thumb){h+='<img class=\"tei-entity-hover-img\" src=\"'+escHtml(data.thumb)+'\" alt=\"\">';}"
+        "h+='<div class=\"tei-entity-hover-label\">'+escHtml(data.label)+'</div>';"
+        "if(data.desc){h+='<div class=\"tei-entity-hover-desc\">'+escHtml(data.desc)+'</div>';}"
+        "h+='<div class=\"tei-entity-hover-src\">Wikidata \\u00b7 '+escHtml(qid)+'</div>';"
+        "tip.innerHTML=h;positionTip(tip,target);});}"
+        "document.addEventListener('mouseover',function(e){"
+        "var a=e.target.closest&&e.target.closest(selectors);"
+        "if(!a)return;"
+        "var qid=extractQid(a.getAttribute('href'));if(!qid)return;"
+        "clearTimeout(hoverTimer);"
+        "hoverTimer=setTimeout(function(){showTip(a,qid);},200);});"
+        "document.addEventListener('mouseout',function(e){"
+        "var a=e.target.closest&&e.target.closest(selectors);"
+        "if(!a)return;"
+        "var to=e.relatedTarget;"
+        "if(to&&(a.contains(to)||(currentTip&&currentTip.contains(to))))return;"
+        "clearTimeout(hoverTimer);removeTip();});"
+        "window.addEventListener('scroll',removeTip,{passive:true});"
+        "})();"
+    )
 
 
 def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
@@ -3307,6 +3454,8 @@ async def render_dynamic_doc(
     _nr_cfg: dict = _xslt_cfg.get("note_rendering") or {}
     _nr_css: str = _build_note_rendering_css(_nr_cfg)
     _nr_js: str = _build_note_rendering_js(_nr_cfg)
+    _eh_cfg: dict = _xslt_cfg.get("entity_hover") or {}
+    _eh_js: str = _build_entity_hover_js(_eh_cfg)
     _doc_extra_css: str | None = (_ir_css + "\n" + _nr_css).strip() or None
 
     custom_js = website.custom_js
@@ -3318,6 +3467,8 @@ async def render_dynamic_doc(
         custom_js = (custom_js or "") + "\n" + _build_one_to_one_js(_ir_cfg)
     if _nr_js:
         custom_js = (custom_js or "") + "\n" + _nr_js
+    if _eh_js:
+        custom_js = (custom_js or "") + "\n" + _eh_js
 
     navbar = "" if hide_header else _render_navbar(
         site_title=website.title,
@@ -4488,13 +4639,17 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     _nr_cfg: dict = (website.xslt_config or {}).get("note_rendering") or {}
     _nr_css: str = _build_note_rendering_css(_nr_cfg)
     _nr_js:  str = _build_note_rendering_js(_nr_cfg)
+    # Entity-hover (Wikidata preview) configuration.
+    _eh_cfg: dict = (website.xslt_config or {}).get("entity_hover") or {}
+    _eh_js: str = _build_entity_hover_js(_eh_cfg)
     # Combine image and note rendering CSS for doc pages.
     _doc_extra_css: str | None = (_ir_css + "\n" + _nr_css).strip() or None
     # Append image-rendering CSS to the per-site style block (doc pages only;
     # non-doc pages share the same style but show no TEI content).
     doc_style = _style_block(theme, website.custom_css, _doc_extra_css)
     style = _style_block(theme, website.custom_css)
-    # Append modal, column, OTO and note-rendering JS to site's custom JS when active.
+    # Append modal, column, OTO, note-rendering, and entity-hover JS to the
+    # site's custom JS when the matching feature is active.
     # base_custom_js is the un-enhanced value used for non-document pages (e.g. bibliography)
     # so that image/note rendering scripts do not appear on pages with no documents.
     base_custom_js = website.custom_js
@@ -4507,6 +4662,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         custom_js = (custom_js or "") + "\n" + _build_one_to_one_js(_ir_cfg)
     if _nr_js:
         custom_js = (custom_js or "") + "\n" + _nr_js
+    if _eh_js:
+        custom_js = (custom_js or "") + "\n" + _eh_js
     include_jquery = website.include_jquery
 
     # Only visible free pages appear in the navigation.

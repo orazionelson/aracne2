@@ -107,6 +107,30 @@ OpenAlex is especially useful when you know a reference exists but
 don't have its DOI handy, or for books and chapters that CrossRef
 doesn't cover.
 
+## Hover preview on the public site
+
+Once a `@ref` is in place and the collection is published on a
+website, readers see the name as a link. The Designer can
+optionally enable a **hover preview**: passing the mouse over a
+link opens a small popover that fetches label + description
+(+ image when available) straight from the authority and shows
+them inline.
+
+Toggle it under **Sito** → the site's **Documento** tab →
+*"Enable hover preview"*. Default is off.
+
+**Scope at the moment:** Wikidata only. The Wikidata API allows
+the browser to call it directly (no backend proxy needed), so the
+feature costs nothing to the server. Other authorities (ORCID,
+GeoNames, ROR, VIAF, GND, Getty AAT) block cross-origin browser
+calls and will land in a later release via a backend proxy.
+
+**Privacy note:** every hover fires an HTTP request to Wikidata.
+Deployments that need to announce third-party data calls to their
+visitors (GDPR-style cookie / data policy disclosures) should
+leave the toggle off or update the site's policy before enabling.
+
+
 ## Troubleshooting
 
 ### "The enclosing element is `<p>`, not `<persName>`"
