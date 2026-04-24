@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,6 +73,8 @@ from app.schemas.websites import (
     WebsiteUpdate,
 )
 from app.services import websites as svc
+from app.services import website_media as media_svc
+from app.schemas.websites import WebsiteMediaFile
 
 logger = structlog.get_logger()
 
@@ -506,6 +508,102 @@ async def _maybe_maintenance_response(
             "Cache-Control": "no-store",
             "X-Robots-Tag": "noindex, nofollow",
         },
+    )
+
+
+# ── Per-website media library ────────────────────────────────────────────────
+#
+# Storage is filesystem-only (no DB index). The stable ``media://filename``
+# pseudo-URL lives in theme/Markdown/WYSIWYG content and is rewritten to a
+# real URL at render/build time by ``website_media.rewrite_media_refs``.
+
+
+@router.get("/websites/{slug}/media")
+async def list_website_media(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> DataResponse[list[WebsiteMediaFile]]:
+    """List the media files uploaded for a website [D+]."""
+    await svc.get_website(db, slug)  # 404 if the slug is unknown
+    files = media_svc.list_media(slug)
+    return DataResponse(
+        data=[
+            WebsiteMediaFile(
+                filename=f.filename,
+                size_bytes=f.size_bytes,
+                content_type=f.content_type,
+                uploaded_at=f.uploaded_at,
+                ref=f"media://{f.filename}",
+            )
+            for f in files
+        ]
+    )
+
+
+@router.post("/websites/{slug}/media", status_code=201)
+async def upload_website_media(
+    slug: str,
+    file: UploadFile,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> DataResponse[WebsiteMediaFile]:
+    """Upload one image into the website's media folder [D+].
+
+    Accepted extensions: jpg / jpeg / png / gif / webp / avif / svg.
+    SVG uploads are scrubbed (scripts / event handlers / external refs
+    removed) before being written to disk.
+    """
+    await svc.get_website(db, slug)
+    payload = await file.read()
+    m = media_svc.save_media(slug, file.filename or "file", payload)
+    return DataResponse(
+        data=WebsiteMediaFile(
+            filename=m.filename,
+            size_bytes=m.size_bytes,
+            content_type=m.content_type,
+            uploaded_at=m.uploaded_at,
+            ref=f"media://{m.filename}",
+        )
+    )
+
+
+@router.delete("/websites/{slug}/media/{filename}", status_code=204)
+async def delete_website_media(
+    slug: str,
+    filename: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: DesignerPlus,
+) -> None:
+    """Remove a file from the website's media folder [D+]."""
+    await svc.get_website(db, slug)
+    media_svc.delete_media(slug, filename)
+
+
+@router.get("/websites/{slug}/media/{filename}", include_in_schema=False)
+async def serve_website_media(
+    slug: str,
+    filename: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> Response:
+    """Serve a media file to site visitors.
+
+    Matches ``_check_site_access`` semantics: anonymous callers see a
+    404 on unpublished sites so their existence is not leaked. Staff
+    (level >= 2) can preview media on draft sites.
+    """
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
+    payload, content_type = media_svc.read_media(slug, filename)
+    # ``Cache-Control: public, max-age=3600`` — media is immutable from
+    # the client's point of view (deleting and re-uploading with the
+    # same name is rare enough that a 1-hour staleness window is fine).
+    return Response(
+        content=payload,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 

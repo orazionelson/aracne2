@@ -1823,7 +1823,17 @@ def _render_page(
     meta_tags: str = "",
     custom_js: str | None = None,
     include_jquery: bool = False,
+    website_slug: str | None = None,
+    static_media_collected: set[str] | None = None,
 ) -> str:
+    """Render the outer HTML shell around *content*.
+
+    If ``website_slug`` is provided, ``media://filename`` references in
+    the final HTML are rewritten. When ``static_media_collected`` is
+    a set, STATIC mode is assumed and referenced filenames are added
+    to it (for the builder to copy into the output tree). Otherwise
+    DYNAMIC mode: references become absolute API URLs.
+    """
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
     footer_extra = f'<span class="footer-publisher">{footer_note}</span> · ' if footer_note else ""
@@ -1846,7 +1856,7 @@ def _render_page(
     custom_js_tag = (
         f"<script>\n{custom_js.replace('</script>', '')}\n</script>" if custom_js else ""
     )
-    return f"""<!DOCTYPE html>
+    html_out = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1866,6 +1876,19 @@ def _render_page(
   {custom_js_tag}
 </body>
 </html>"""
+
+    if website_slug:
+        from app.services import website_media as _wm
+
+        mode = "static" if static_media_collected is not None else "dynamic"
+        html_out = _wm.rewrite_media_refs(
+            html_out,
+            website_slug,
+            mode=mode,
+            collected=static_media_collected,
+        )
+
+    return html_out
 
 
 def _md_to_html(content_md: str) -> str:
@@ -2697,6 +2720,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     _set_cached_page(website.slug, "index", html)
     return html
@@ -2743,6 +2767,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     _set_cached_page(website.slug, "browse", html)
     return html
@@ -2825,6 +2850,7 @@ async def render_dynamic_search(
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     if q:
         _set_cached_page(website.slug, path_key, html)
@@ -2890,6 +2916,7 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     _set_cached_page(website.slug, "bibliography", html)
     return html
@@ -2969,6 +2996,7 @@ async def render_dynamic_doc(
         tei_valid_badge=tei_valid_badge,
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -3020,6 +3048,7 @@ async def render_dynamic_page(
         tei_valid_badge=tei_valid_badge,
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
+        website_slug=website.slug,
     )
     _set_cached_page(website.slug, path_key, html)
     return html
@@ -4083,6 +4112,12 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
     (site_dir / "docs").mkdir(exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
+    # Per-website managed-media references collected across every page
+    # rendered in this build. At the end we copy just these files into
+    # ``site_dir/media/`` so the static tree stays self-contained
+    # without dumping the whole media folder into the output.
+    referenced_media: set[str] = set()
+
     # ── Image rendering configuration ─────────────────────────────────────
     _ir_cfg: dict = (website.xslt_config or {}).get("image_rendering") or {}
     _ir_css: str = _build_image_rendering_css(_ir_cfg)
@@ -4226,6 +4261,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         meta_tags=meta_tags,
         custom_js=custom_js,
         include_jquery=include_jquery,
+        website_slug=slug,
+        static_media_collected=referenced_media,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -4244,6 +4281,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -4273,6 +4312,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             meta_tags=meta_tags,
             custom_js=base_custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
 
@@ -4355,6 +4396,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 tei_valid_badge=tei_valid_badge,
                 custom_js=custom_js,
                 include_jquery=include_jquery,
+                website_slug=slug,
+                static_media_collected=referenced_media,
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -4373,6 +4416,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             tei_valid_badge=tei_valid_badge,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
@@ -4391,6 +4436,8 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "search.html").write_text(search_html, encoding="utf-8")
 
@@ -4420,6 +4467,13 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         indices_html = render_all_indices_html(website)
         (site_dir / "indices.html").write_text(indices_html, encoding="utf-8")
 
+    # Copy every ``media://`` file referenced by any rendered page into
+    # ``site_dir/media/``. Files not referenced stay out of the build,
+    # keeping the static tree lean.
+    from app.services import website_media as _wm
+
+    _wm.copy_referenced_media_to_build(slug, site_dir, referenced_media)
+
 
 async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     """Build the structural pages for a HYBRID website.
@@ -4447,6 +4501,10 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         raise DomainValidationError(code="INVALID_SLUG", message="Slug resolves outside the allowed directory")
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
+
+    # Collect ``media://`` references emitted by _render_page across all
+    # built pages — see the comment in _build_static_site for the rationale.
+    referenced_media: set[str] = set()
 
     style = _style_block(theme, website.custom_css)
     custom_js = website.custom_js
@@ -4505,6 +4563,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         meta_tags=meta_tags,
         custom_js=custom_js,
         include_jquery=include_jquery,
+        website_slug=slug,
+        static_media_collected=referenced_media,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -4523,6 +4583,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -4552,6 +4614,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
 
@@ -4572,6 +4636,8 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             tei_valid_badge=tei_valid_badge,
             custom_js=custom_js,
             include_jquery=include_jquery,
+            website_slug=slug,
+            static_media_collected=referenced_media,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(
             page_html, encoding="utf-8"
@@ -4582,6 +4648,12 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     if not indices_hidden and built_indices:
         indices_page_html = render_all_indices_html(website, site_base_url=base)
         (site_dir / "indices.html").write_text(indices_page_html, encoding="utf-8")
+
+    # Copy referenced ``media://`` files into the build output, same as
+    # the STATIC builder.
+    from app.services import website_media as _wm
+
+    _wm.copy_referenced_media_to_build(slug, site_dir, referenced_media)
 
     # After build, invalidate the dynamic render cache so any cached doc pages
     # are refreshed from eXist-db on the next request.

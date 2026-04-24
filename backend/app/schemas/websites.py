@@ -229,3 +229,21 @@ class WebsiteTagsResponse(BaseModel):
     """
     distinct_tags: dict | list | None
     tags_refreshed_at: datetime | None
+
+
+# ── Per-website media library ─────────────────────────────────────────────────
+
+
+class WebsiteMediaFile(BaseModel):
+    """One file in a website's media folder.
+
+    ``ref`` is the stable pseudo-URL (``media://<filename>``) that the
+    frontend pastes into theme / Markdown / WYSIWYG content. The
+    rendering pipeline rewrites it into a real URL at serve/build time.
+    """
+
+    filename: str
+    size_bytes: int
+    content_type: str
+    uploaded_at: datetime
+    ref: str
