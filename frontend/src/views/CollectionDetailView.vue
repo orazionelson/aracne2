@@ -29,6 +29,12 @@ import {
   type GithubLink,
   type GithubPushResponse,
 } from "@/stores/github";
+import {
+  useGitlabStore,
+  type GitlabInitializeResponse,
+  type GitlabLink,
+  type GitlabPushResponse,
+} from "@/stores/gitlab";
 import { usePluginStore } from "@/stores/plugins";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
@@ -54,6 +60,7 @@ const zenodoStore = useZenodoStore();
 const iaStore = useInternetArchiveStore();
 const codebergStore = useCodebergStore();
 const githubStore = useGithubStore();
+const gitlabStore = useGitlabStore();
 const pluginStore = usePluginStore();
 
 // Zotero import modal visibility + last-run summary.
@@ -121,6 +128,30 @@ const githubEditDraft = ref({
 const githubCanInitialize = computed(() =>
   githubLink.value !== null
   && githubLink.value.initialized_at === null
+  && store.documents.length === 0,
+);
+
+// GitLab — third forge, same shape.
+const gitlabPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === "gitlab_integration" && p.status === "active"),
+);
+const gitlabLink = ref<GitlabLink | null>(null);
+const gitlabPushResult = ref<GitlabPushResponse | null>(null);
+const gitlabInitResult = ref<GitlabInitializeResponse | null>(null);
+const gitlabError = ref<string | null>(null);
+const gitlabEditing = ref(false);
+const gitlabConfirmingInit = ref(false);
+const gitlabEditDraft = ref({
+  base_url: "https://gitlab.com",
+  repo_owner: "",
+  repo_name: "",
+  branch: "main",
+  pat_override: "",
+  use_override: false,
+});
+const gitlabCanInitialize = computed(() =>
+  gitlabLink.value !== null
+  && gitlabLink.value.initialized_at === null
   && store.documents.length === 0,
 );
 const codebergEditDraft = ref({
@@ -767,11 +798,12 @@ onMounted(async () => {
       );
     }
     await Promise.all(tasks);
-    // Codeberg / GitHub links are gated on their plugins' activation —
-    // load after the plugin list is populated.
+    // Codeberg / GitHub / GitLab links are gated on their plugins'
+    // activation — load after the plugin list is populated.
     await Promise.all([
       loadCodebergLink().catch(() => undefined),
       loadGithubLink().catch(() => undefined),
+      loadGitlabLink().catch(() => undefined),
     ]);
     // Seed the override draft from the loaded collection (runs after
     // fetchCollection has populated store.current).
@@ -1043,6 +1075,108 @@ async function initializeGithub(): Promise<void> {
       (err as { response?: { data?: { error?: { message?: string } } } })
         ?.response?.data?.error?.message ?? t("common.error");
     githubConfirmingInit.value = false;
+  }
+}
+
+// GitLab handlers — symmetric to the other two.
+async function loadGitlabLink(): Promise<void> {
+  if (!gitlabPluginActive.value) { gitlabLink.value = null; return; }
+  try { gitlabLink.value = await gitlabStore.getLink(slug); }
+  catch { gitlabLink.value = null; }
+}
+
+function openGitlabEdit(): void {
+  gitlabEditing.value = true;
+  gitlabError.value = null;
+  gitlabPushResult.value = null;
+  if (gitlabLink.value) {
+    gitlabEditDraft.value = {
+      base_url: gitlabLink.value.base_url,
+      repo_owner: gitlabLink.value.repo_owner,
+      repo_name: gitlabLink.value.repo_name,
+      branch: gitlabLink.value.branch,
+      pat_override: "",
+      use_override: gitlabLink.value.pat_override_set,
+    };
+  } else {
+    gitlabEditDraft.value = {
+      base_url: "https://gitlab.com",
+      repo_owner: "",
+      repo_name: "",
+      branch: "main",
+      pat_override: "",
+      use_override: false,
+    };
+  }
+}
+
+async function saveGitlabLink(): Promise<void> {
+  gitlabError.value = null;
+  const d = gitlabEditDraft.value;
+  let patOverride: string | null | undefined;
+  if (!d.use_override) {
+    patOverride = "";
+  } else if (d.pat_override.trim()) {
+    patOverride = d.pat_override.trim();
+  } else {
+    patOverride = undefined;
+  }
+  try {
+    gitlabLink.value = await gitlabStore.writeLink(slug, {
+      base_url: d.base_url.trim(),
+      repo_owner: d.repo_owner.trim(),
+      repo_name: d.repo_name.trim(),
+      branch: d.branch.trim() || "main",
+      pat_override: patOverride,
+    });
+    gitlabEditing.value = false;
+  } catch (err) {
+    gitlabError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function disconnectGitlab(): Promise<void> {
+  gitlabError.value = null;
+  try {
+    await gitlabStore.deleteLink(slug);
+    gitlabLink.value = null;
+    gitlabEditing.value = false;
+    gitlabPushResult.value = null;
+  } catch (err) {
+    gitlabError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function pushGitlab(): Promise<void> {
+  gitlabError.value = null;
+  gitlabPushResult.value = null;
+  try {
+    gitlabPushResult.value = await gitlabStore.pushCollection(slug);
+    gitlabLink.value = await gitlabStore.getLink(slug);
+  } catch (err) {
+    gitlabError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function initializeGitlab(): Promise<void> {
+  gitlabError.value = null;
+  gitlabInitResult.value = null;
+  try {
+    gitlabInitResult.value = await gitlabStore.initializeCollection(slug);
+    gitlabLink.value = await gitlabStore.getLink(slug);
+    await store.fetchDocuments(slug);
+    gitlabConfirmingInit.value = false;
+  } catch (err) {
+    gitlabError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+    gitlabConfirmingInit.value = false;
   }
 }
 
@@ -2308,6 +2442,146 @@ function statusClass(s: string): string {
             </button>
             <button type="button" class="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/40" @click="disconnectGithub">
               {{ t("github.disconnect_btn") }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- GitLab deposit (EiC+, only when the plugin is active) -->
+      <section
+        v-if="isEiC && gitlabPluginActive"
+        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-start justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {{ t("gitlab.section_title") }}
+            </h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("gitlab.section_hint") }}
+            </p>
+          </div>
+        </div>
+
+        <p v-if="gitlabError" class="mb-3 text-sm text-red-600 dark:text-red-400">
+          {{ gitlabError }}
+        </p>
+
+        <div v-if="!gitlabLink && !gitlabEditing">
+          <button
+            type="button"
+            class="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+            @click="openGitlabEdit"
+          >
+            {{ t("gitlab.connect_btn") }}
+          </button>
+        </div>
+
+        <div v-else-if="gitlabEditing" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("gitlab.field_base_url") }}</span>
+              <input v-model="gitlabEditDraft.base_url" type="url" class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("gitlab.field_branch") }}</span>
+              <input v-model="gitlabEditDraft.branch" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("gitlab.field_owner") }}</span>
+              <input v-model="gitlabEditDraft.repo_owner" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("gitlab.field_repo") }}</span>
+              <input v-model="gitlabEditDraft.repo_name" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+          </div>
+          <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <input v-model="gitlabEditDraft.use_override" type="checkbox" />
+            <span>{{ t("gitlab.use_per_link_pat") }}</span>
+          </label>
+          <input
+            v-if="gitlabEditDraft.use_override"
+            v-model="gitlabEditDraft.pat_override"
+            type="password"
+            autocomplete="off"
+            class="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            :placeholder="gitlabLink?.pat_override_set ? t('gitlab.override_replace_hint') : t('gitlab.field_pat_placeholder')"
+          />
+          <div class="flex gap-2 pt-2">
+            <button type="button" class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700" @click="saveGitlabLink">
+              {{ t("common.save") }}
+            </button>
+            <button type="button" class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="gitlabEditing = false">
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="gitlabLink" class="space-y-3 text-sm">
+          <p class="font-mono text-gray-700 dark:text-gray-200">
+            <a :href="gitlabLink.html_url" target="_blank" rel="noopener" class="hover:underline">
+              {{ gitlabLink.repo_owner }}/{{ gitlabLink.repo_name }}
+            </a>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              · {{ gitlabLink.branch }} · {{ gitlabLink.base_url }}
+            </span>
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            <span v-if="gitlabLink.last_push_sha">
+              {{ t("gitlab.last_push") }}:
+              <code class="font-mono">{{ gitlabLink.last_push_sha.slice(0, 10) }}</code>
+              <span v-if="gitlabLink.last_push_at"> ({{ new Date(gitlabLink.last_push_at).toLocaleString() }})</span>
+            </span>
+            <span v-else>{{ t("gitlab.never_pushed") }}</span>
+            <span v-if="gitlabLink.pat_override_set" class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              {{ t("gitlab.pat_override_badge") }}
+            </span>
+          </p>
+
+          <p v-if="gitlabPushResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("gitlab.push_success", { n: gitlabPushResult.file_count, sha: gitlabPushResult.sha.slice(0, 10) }) }}
+            <a v-if="gitlabPushResult.html_url" :href="gitlabPushResult.html_url" target="_blank" rel="noopener" class="underline">
+              {{ t("gitlab.view_commit") }}
+            </a>
+          </p>
+          <p v-if="gitlabInitResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("gitlab.initialize_success", { n: gitlabInitResult.file_count, sha: gitlabInitResult.head_sha.slice(0, 10) }) }}
+          </p>
+
+          <div v-if="gitlabCanInitialize" class="rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
+            <p class="text-xs text-amber-800 dark:text-amber-200">
+              {{ t("gitlab.initialize_available_hint") }}
+            </p>
+            <div v-if="!gitlabConfirmingInit" class="mt-2">
+              <button type="button" class="rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-200 dark:hover:bg-amber-900/40" @click="gitlabConfirmingInit = true">
+                {{ t("gitlab.initialize_btn") }}
+              </button>
+            </div>
+            <div v-else class="mt-2 space-y-2">
+              <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
+                {{ t("gitlab.initialize_confirm") }}
+              </p>
+              <div class="flex gap-2">
+                <button type="button" :disabled="gitlabStore.isInitializing" class="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50" @click="initializeGitlab">
+                  {{ gitlabStore.isInitializing ? t("common.loading") : t("gitlab.initialize_confirm_btn") }}
+                </button>
+                <button type="button" :disabled="gitlabStore.isInitializing" class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="gitlabConfirmingInit = false">
+                  {{ t("common.cancel") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" :disabled="gitlabStore.isPushing" class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50" @click="pushGitlab">
+              {{ gitlabStore.isPushing ? t("common.loading") : t("gitlab.push_btn") }}
+            </button>
+            <button type="button" class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="openGitlabEdit">
+              {{ t("gitlab.edit_btn") }}
+            </button>
+            <button type="button" class="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/40" @click="disconnectGitlab">
+              {{ t("gitlab.disconnect_btn") }}
             </button>
           </div>
         </div>

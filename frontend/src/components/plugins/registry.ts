@@ -119,6 +119,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "github.panel_title",
     component: () => import("@/components/plugins/GithubConfig.vue"),
   },
+  {
+    slug: "gitlab_integration",
+    titleKey: "gitlab.panel_title",
+    component: () => import("@/components/plugins/GitlabConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

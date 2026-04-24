@@ -26,6 +26,7 @@ import { usePluginStore } from "@/stores/plugins";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
 import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
+import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -47,6 +48,11 @@ const codebergPluginActive = computed(() =>
 const githubPluginActive = computed(() =>
   pluginStore.plugins.some(
     (p) => p.name === "github_integration" && p.status === "active",
+  ),
+);
+const gitlabPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "gitlab_integration" && p.status === "active",
   ),
 );
 
@@ -1643,6 +1649,13 @@ onBeforeUnmount(() => {
         />
         <p v-else-if="website && !githubPluginActive" class="text-xs text-gray-500">
           {{ t("github.website_plugin_not_active") }}
+        </p>
+        <GitlabWebsiteSection
+          v-if="website && gitlabPluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !gitlabPluginActive" class="text-xs text-gray-500">
+          {{ t("gitlab.website_plugin_not_active") }}
         </p>
       </div>
 

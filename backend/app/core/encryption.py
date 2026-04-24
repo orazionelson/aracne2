@@ -28,6 +28,7 @@ SENSITIVE_KEYS: frozenset[str] = frozenset(
         "zotero_api_key",
         "codeberg_integration_pat",
         "github_integration_pat",
+        "gitlab_integration_pat",
     }
 )
 
