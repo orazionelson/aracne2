@@ -93,9 +93,18 @@
           }
           span.tei-cb { color: #bbb; margin: 0 0.2em; }
           /* ── Named entities ──────────────────────────────────────────────── */
-          span.tei-persname  { color: #9b3000; border-bottom: 1px dotted #9b3000; }
-          span.tei-placename { color: #005520; border-bottom: 1px dotted #005520; }
-          span.tei-orgname   { color: #003580; border-bottom: 1px dotted #003580; }
+          /* Named entities share the same palette whether rendered as a
+             plain span or as a link (when the source TEI carries @ref).
+             Class-only selectors so either element matches. */
+          .tei-persname  { color: #9b3000; border-bottom: 1px dotted #9b3000; }
+          .tei-placename { color: #005520; border-bottom: 1px dotted #005520; }
+          .tei-orgname   { color: #003580; border-bottom: 1px dotted #003580; }
+          a.tei-persname, a.tei-placename, a.tei-orgname {
+            text-decoration: none;
+          }
+          a.tei-persname:hover, a.tei-placename:hover, a.tei-orgname:hover {
+            border-bottom-style: solid;
+          }
           span.tei-date      { color: #44447a; }
           /* ── Textual criticism ───────────────────────────────────────────── */
           span.tei-gap      { color: #aaa; font-style: italic; }
@@ -635,16 +644,50 @@
   <!-- Named entities                                                          -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
+  <!-- Named entities: when @ref is set and looks like an external URL
+       (http:, https:, or a protocol-relative ``//…``), emit an
+       ``<a>`` so visitors can follow the citation. Otherwise stay as
+       a plain ``<span>``. Internal refs (``#…``) are intentionally
+       left as spans: they would require additional resolution logic
+       the generic XSLT does not own. -->
+
   <xsl:template match="tei:persName">
-    <span class="tei-persname"><xsl:apply-templates/></span>
+    <xsl:choose>
+      <xsl:when test="@ref and (starts-with(@ref,'http://') or starts-with(@ref,'https://') or starts-with(@ref,'//'))">
+        <a class="tei-persname" href="{@ref}" target="_blank" rel="noopener noreferrer">
+          <xsl:apply-templates/>
+        </a>
+      </xsl:when>
+      <xsl:otherwise>
+        <span class="tei-persname"><xsl:apply-templates/></span>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="tei:placeName">
-    <span class="tei-placename"><xsl:apply-templates/></span>
+    <xsl:choose>
+      <xsl:when test="@ref and (starts-with(@ref,'http://') or starts-with(@ref,'https://') or starts-with(@ref,'//'))">
+        <a class="tei-placename" href="{@ref}" target="_blank" rel="noopener noreferrer">
+          <xsl:apply-templates/>
+        </a>
+      </xsl:when>
+      <xsl:otherwise>
+        <span class="tei-placename"><xsl:apply-templates/></span>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="tei:orgName">
-    <span class="tei-orgname"><xsl:apply-templates/></span>
+    <xsl:choose>
+      <xsl:when test="@ref and (starts-with(@ref,'http://') or starts-with(@ref,'https://') or starts-with(@ref,'//'))">
+        <a class="tei-orgname" href="{@ref}" target="_blank" rel="noopener noreferrer">
+          <xsl:apply-templates/>
+        </a>
+      </xsl:when>
+      <xsl:otherwise>
+        <span class="tei-orgname"><xsl:apply-templates/></span>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template match="tei:date">
