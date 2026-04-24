@@ -619,22 +619,27 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
   color: #cbd5e1;
   font-style: italic;
 }
-/* ``tei-has-preview`` is added by the entity-hover JS at page load to
-   every entity link whose @ref is resolvable by the popover engine
-   (today: Wikidata; more authorities land later via the backend
-   proxy). The tiny ⓘ glyph tells readers "there is extra info here"
-   without fighting the colour that already says "this is a link". */
-a.tei-has-preview::after {
-  content: "\\2139";  /* information-source symbol */
-  font-size: 0.62em;
-  margin-left: 0.18em;
-  opacity: 0.55;
-  vertical-align: super;
-  font-style: normal;
-  font-weight: normal;
-  transition: opacity 0.15s ease;
+/* ``tei-has-preview`` is added by the entity-hover JS at page load
+   to every entity link whose @ref is resolvable by the popover
+   engine (today: Wikidata; more authorities land later via the
+   backend proxy). The visual distinction from a plain entity link
+   is the underline style: entity base uses ``dotted`` 1px, preview-
+   capable links upgrade to ``dashed`` 1.5px — a more decisive
+   underline that signals "there's extra info here" without
+   competing with the colour that already says "this is a link"
+   and without a superscripted glyph (which in an edition looks
+   like an alphabetic footnote marker). */
+a.tei-persname.tei-has-preview,
+a.tei-placename.tei-has-preview,
+a.tei-orgname.tei-has-preview {
+  border-bottom-style: dashed;
+  border-bottom-width: 1.5px;
 }
-a.tei-has-preview:hover::after { opacity: 1; }
+/* Hover state is already "solid" for every entity anchor (see the
+   ``a.tei-persname:hover`` rule injected by the default XSLT), so
+   preview-capable links promote dotted→dashed at rest and then both
+   variants collapse to solid on hover. The popover lands on hover
+   too — no need for a further distinction there. */
 """
 
 
