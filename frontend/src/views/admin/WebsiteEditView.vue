@@ -22,7 +22,9 @@ import {
 } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
+import { usePluginStore } from "@/stores/plugins";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
+import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -31,6 +33,16 @@ const store = useWebsiteStore();
 const collectionStore = useCollectionStore();
 const xsltStore = useXsltTemplateStore();
 const aiStore = useAiStore();
+const pluginStore = usePluginStore();
+
+// Gate the Deposit tab's Codeberg section: the plugin must be active
+// in the DB registry. When inactive the tab still shows, rendering a
+// helpful message — matches the pattern used elsewhere.
+const codebergPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "codeberg_integration" && p.status === "active",
+  ),
+);
 
 // ── Route param ───────────────────────────────────────────────────────────────
 
@@ -43,7 +55,7 @@ const website = computed<Website | null>(
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
 
-const editTab = ref<"general" | "theme" | "pages" | "document" | "xslt_edit" | "indices" | "cssjs">("general");
+const editTab = ref<"general" | "theme" | "pages" | "document" | "xslt_edit" | "indices" | "cssjs" | "deposit">("general");
 const showMetaPanel = ref(true);
 
 // ── XSLT AI panel ─────────────────────────────────────────────────────────────
@@ -691,6 +703,10 @@ onMounted(async () => {
     collectionStore.fetchCollections(),
     xsltStore.fetchTemplates().catch(() => { /* non-blocking for non-Designer roles */ }),
     aiStore.fetchConfig().catch(() => { /* non-fatal if AI is not configured */ }),
+    // Needed to gate the Deposit tab's Codeberg section.
+    pluginStore.plugins.length === 0
+      ? pluginStore.fetchPlugins().catch(() => undefined)
+      : Promise.resolve(),
   ]);
   const site = store.websites.find((w) => w.slug === slug.value);
   if (!site) {
@@ -737,7 +753,7 @@ onBeforeUnmount(() => {
     <!-- Tab bar -->
     <div class="flex shrink-0 overflow-x-auto border-b border-gray-200 bg-white px-4">
       <button
-        v-for="tab in (['general', 'theme', 'pages', 'document', 'xslt_edit', 'indices', 'cssjs'] as const)"
+        v-for="tab in (['general', 'theme', 'pages', 'document', 'xslt_edit', 'indices', 'cssjs', 'deposit'] as const)"
         :key="tab"
         :disabled="tab === 'xslt_edit' && !isCustomSource"
         class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
@@ -1599,6 +1615,22 @@ onBeforeUnmount(() => {
           </label>
           <textarea v-model="(editForm.custom_js as string)" rows="12" spellcheck="false" class="w-full rounded border border-gray-300 bg-white px-3 py-2 font-mono text-xs focus:border-indigo-400 focus:outline-none" />
         </div>
+      </div>
+
+      <!-- Deposit tab: per-forge sections gated on plugin activation. For
+           now only Codeberg is wired; GitHub and GitLab will add their
+           own section components here when they ship. -->
+      <div v-if="editTab === 'deposit'" class="bg-indigo-50 p-4 space-y-4">
+        <p class="text-xs text-gray-600">
+          {{ t("websites.deposit_intro") }}
+        </p>
+        <CodebergWebsiteSection
+          v-if="website && codebergPluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !codebergPluginActive" class="text-xs text-gray-500">
+          {{ t("codeberg.website_plugin_not_active") }}
+        </p>
       </div>
 
     </div>

@@ -12,12 +12,14 @@ from __future__ import annotations
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import DomainValidationError
+from app.core.constants import ROLE_LEVEL
+from app.core.exceptions import AuthorizationError, DomainValidationError
 from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import get_async_session
+from app.dependencies import get_current_user
 from app.middleware.acl import require_role
 from app.models.user import User
 from app.plugins.codeberg_integration import service
@@ -29,6 +31,10 @@ from app.plugins.codeberg_integration.schemas import (
     CodebergLinkResponse,
     CodebergPushRequest,
     CodebergPushResponse,
+    CodebergWebsiteLinkCreate,
+    CodebergWebsiteLinkResponse,
+    CodebergWebsitePushRequest,
+    CodebergWebsitePushResponse,
 )
 from app.schemas.common import DataResponse
 
@@ -38,6 +44,26 @@ router = APIRouter(prefix="/plugins/codeberg", tags=["codeberg"])
 
 _admin = Depends(require_role(min_role="Admin"))
 _eic = Depends(require_role(min_role="EditorInChief"))
+
+
+async def _require_designer_plus(
+    user: Annotated[User, Depends(get_current_user)],
+    request: Request,
+) -> User:
+    """Website-side ACL: Designer, EditorInChief, or Admin.
+
+    Mirrors the ``DesignerPlus`` dependency in
+    ``app/routers/websites.py`` — keep the two definitions aligned if
+    the project changes its role model.
+    """
+    role: str = getattr(request.state, "role", "User")
+    user_level = ROLE_LEVEL.get(role, 0)
+    if role != "Designer" and user_level < ROLE_LEVEL["EditorInChief"]:
+        raise AuthorizationError()
+    return user
+
+
+_designer_plus = Depends(_require_designer_plus)
 
 
 # ── Config ─────────────────────────────────────────────────────────────────
@@ -140,5 +166,60 @@ async def initialize_collection(
     initialize the only allowed direction is push (Aracne2 → forge).
     """
     result = await service.initialize_collection(db, existdb, slug=slug)
+    await db.commit()
+    return DataResponse(data=result)
+
+
+# ── Website link CRUD + push ───────────────────────────────────────────────
+
+
+@router.get("/websites/{slug}/link")
+async def read_website_link(
+    slug: str,
+    _: Annotated[User, _designer_plus],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CodebergWebsiteLinkResponse]:
+    return DataResponse(data=await service.get_website_link(db, slug))
+
+
+@router.put("/websites/{slug}/link")
+async def write_website_link(
+    slug: str,
+    body: CodebergWebsiteLinkCreate,
+    _: Annotated[User, _designer_plus],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CodebergWebsiteLinkResponse]:
+    result = await service.upsert_website_link(db, slug, body)
+    await db.commit()
+    return DataResponse(data=result)
+
+
+@router.delete("/websites/{slug}/link", status_code=204)
+async def delete_website_link(
+    slug: str,
+    _: Annotated[User, _designer_plus],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> None:
+    await service.delete_website_link(db, slug)
+    await db.commit()
+
+
+@router.post("/websites/{slug}/push")
+async def push_website(
+    slug: str,
+    body: CodebergWebsitePushRequest,
+    _: Annotated[User, _designer_plus],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[CodebergWebsitePushResponse]:
+    """Push the rendered static output of ``slug`` to its linked
+    Codeberg repository in a single commit.
+
+    Requires the website to have been built (``build_status=done``)
+    and the rendering mode to be STATIC or HYBRID. A DYNAMIC site
+    produces nothing on disk and returns 409.
+    """
+    result = await service.push_website(
+        db, slug=slug, message=body.message,
+    )
     await db.commit()
     return DataResponse(data=result)

@@ -714,6 +714,8 @@
     "tab_xslt_edit": "XSLT Edit",
     "tab_indices": "Indices",
     "tab_cssjs": "CSS/JS",
+    "tab_deposit": "Deposit",
+    "deposit_intro": "Deposit the rendered output of this website to external git forges (Codeberg, GitHub, GitLab). Each forge shows its own connect + push section once its plugin is active.",
     "cssjs_custom_css": "Custom CSS",
     "cssjs_css_hint": "Appended inside the <style> tag on every page of this site.",
     "cssjs_custom_js": "Custom JavaScript",
@@ -1082,7 +1084,14 @@
     "initialize_btn": "Initialize from Codeberg",
     "initialize_confirm": "Confirm: import every XML file from the repo into this empty collection. This cannot be undone.",
     "initialize_confirm_btn": "Yes, import now",
-    "initialize_success": "Imported {n} XML files from Codeberg at {sha}."
+    "initialize_success": "Imported {n} XML files from Codeberg at {sha}.",
+    "website_section_title": "Deposit on Codeberg",
+    "website_section_hint": "Push the rendered static output of this website to a Codeberg repository as a single commit. Build the site first (STATIC or HYBRID mode) — a DYNAMIC site has nothing to deposit.",
+    "website_plugin_not_active": "The Codeberg Integration plugin is not active on this installation. Activate it at /admin/plugins to enable deposit.",
+    "website_cannot_push_dynamic": "This website uses DYNAMIC rendering — there is no static output to push.",
+    "website_cannot_push_not_built": "Build the website first, then push.",
+    "push_website_btn": "Push rendered site",
+    "file_count": "{n} files"
   },
   "crossref": {
     "button_label": "CrossRef",

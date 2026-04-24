@@ -154,3 +154,43 @@ class CodebergInitializeResponse(BaseModel):
     file_count: int
     head_sha: str
     initialized_at: datetime
+
+
+# ── Website links ─────────────────────────────────────────────────────────
+
+
+class CodebergWebsiteLinkCreate(CodebergLinkBase):
+    """Body of ``PUT /plugins/codeberg/websites/{slug}/link``.
+
+    Same shape as the collection-link create payload — the link table
+    is schema-compatible, just scoped to a different entity.
+    """
+
+
+class CodebergWebsiteLinkResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_url: str
+    repo_owner: str
+    repo_name: str
+    branch: str
+    pat_override_set: bool
+    last_push_sha: str | None
+    last_push_at: datetime | None
+    last_push_file_count: int | None
+    html_url: str
+
+
+class CodebergWebsitePushRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str | None = Field(default=None, max_length=500)
+
+
+class CodebergWebsitePushResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sha: str
+    committed_at: datetime
+    html_url: str | None
+    file_count: int

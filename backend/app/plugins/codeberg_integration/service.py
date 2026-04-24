@@ -16,6 +16,7 @@ from __future__ import annotations
 import posixpath
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -32,6 +33,7 @@ from app.core.exceptions import (
 )
 from app.db.existdb import ExistDBClient
 from app.models.collection import Collection
+from app.models.website import BuildStatus, RenderingMode, Website
 from app.plugins._lib.git_forge.codeberg import CodebergAdapter
 from app.plugins._lib.git_forge.errors import (
     AuthFailed,
@@ -53,12 +55,18 @@ from app.plugins._lib.git_forge.push import (
     push_manifest,
     resolve_token,
 )
-from app.plugins.codeberg_integration.models import CodebergCollectionLink
+from app.plugins.codeberg_integration.models import (
+    CodebergCollectionLink,
+    CodebergWebsiteLink,
+)
 from app.plugins.codeberg_integration.schemas import (
     CodebergInitializeResponse,
     CodebergLinkCreate,
     CodebergLinkResponse,
     CodebergPushResponse,
+    CodebergWebsiteLinkCreate,
+    CodebergWebsiteLinkResponse,
+    CodebergWebsitePushResponse,
 )
 from app.services.settings import get_decrypted_setting
 
@@ -527,4 +535,243 @@ async def initialize_collection(
         file_count=len(importable),
         head_sha=bundle.head_sha,
         initialized_at=link.initialized_at,
+    )
+
+
+# ── Website links ──────────────────────────────────────────────────────────
+
+_WEBSITE_PUSH_MAX_FILES = 5000
+_WEBSITE_PUSH_MAX_BYTES_PER_FILE = 25 * 1024 * 1024  # 25 MB (cover images, PDFs)
+
+
+async def _get_website_by_slug(
+    db: AsyncSession, slug: str,
+) -> Website:
+    row = await db.scalar(select(Website).where(Website.slug == slug))
+    if row is None:
+        raise NotFoundError(f"Website '{slug}' not found.")
+    return row
+
+
+async def _get_website_link(
+    db: AsyncSession, website_id: uuid.UUID,
+) -> CodebergWebsiteLink | None:
+    return await db.scalar(
+        select(CodebergWebsiteLink).where(
+            CodebergWebsiteLink.website_id == website_id,
+        )
+    )
+
+
+def _website_link_to_response(
+    link: CodebergWebsiteLink,
+) -> CodebergWebsiteLinkResponse:
+    return CodebergWebsiteLinkResponse(
+        base_url=link.base_url,
+        repo_owner=link.repo_owner,
+        repo_name=link.repo_name,
+        branch=link.branch,
+        pat_override_set=bool(link.pat_override),
+        last_push_sha=link.last_push_sha,
+        last_push_at=link.last_push_at,
+        last_push_file_count=link.last_push_file_count,
+        html_url=f"{link.base_url}/{link.repo_owner}/{link.repo_name}",
+    )
+
+
+async def get_website_link(
+    db: AsyncSession, slug: str,
+) -> CodebergWebsiteLinkResponse:
+    website = await _get_website_by_slug(db, slug)
+    link = await _get_website_link(db, website.id)
+    if link is None:
+        raise NotFoundError(
+            f"Website '{slug}' is not linked to a Codeberg repository.",
+        )
+    return _website_link_to_response(link)
+
+
+async def upsert_website_link(
+    db: AsyncSession, slug: str, data: CodebergWebsiteLinkCreate,
+) -> CodebergWebsiteLinkResponse:
+    website = await _get_website_by_slug(db, slug)
+    link = await _get_website_link(db, website.id)
+    if link is None:
+        link = CodebergWebsiteLink(website_id=website.id)
+        db.add(link)
+
+    link.base_url = data.base_url
+    link.repo_owner = data.repo_owner
+    link.repo_name = data.repo_name
+    link.branch = data.branch
+
+    if data.pat_override is not None:
+        if data.pat_override == "":
+            link.pat_override = None
+        else:
+            link.pat_override = encrypt_value(
+                data.pat_override.strip(), app_settings.jwt_secret,
+            )
+
+    await db.flush()
+    return _website_link_to_response(link)
+
+
+async def delete_website_link(db: AsyncSession, slug: str) -> None:
+    website = await _get_website_by_slug(db, slug)
+    link = await _get_website_link(db, website.id)
+    if link is None:
+        return
+    await db.delete(link)
+    await db.flush()
+
+
+def _collect_website_files(
+    slug: str, site_root: Path,
+) -> list[DepositFile]:
+    """Walk the rendered-site tree under ``site_root`` and return a
+    list of ``DepositFile`` with forge-relative POSIX paths.
+
+    Applies safety caps (total file count + per-file bytes) so an
+    accidentally-huge output never spills into the commit payload.
+    """
+    if not site_root.is_dir():
+        raise ConflictError(
+            f"Website '{slug}' has no rendered output on disk "
+            f"({site_root}). Trigger a build first."
+        )
+    files: list[DepositFile] = []
+    for path in sorted(site_root.rglob("*")):
+        if not path.is_file():
+            continue
+        # Skip dotfiles and anything that looks like a build lock.
+        rel = path.relative_to(site_root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        size = path.stat().st_size
+        if size > _WEBSITE_PUSH_MAX_BYTES_PER_FILE:
+            raise DomainValidationError(
+                "FORGE_WEBSITE_FILE_TOO_LARGE",
+                f"'{rel.as_posix()}' exceeds the "
+                f"{_WEBSITE_PUSH_MAX_BYTES_PER_FILE} byte cap per file.",
+            )
+        files.append(
+            DepositFile(
+                path=rel.as_posix(),
+                content=path.read_bytes(),
+            )
+        )
+        if len(files) > _WEBSITE_PUSH_MAX_FILES:
+            raise DomainValidationError(
+                "FORGE_WEBSITE_TOO_MANY_FILES",
+                f"Rendered site exceeds the {_WEBSITE_PUSH_MAX_FILES} "
+                f"file cap; trim or split the site before pushing.",
+            )
+    return files
+
+
+async def push_website(
+    db: AsyncSession,
+    *,
+    slug: str,
+    message: str | None = None,
+    site_root_override: Path | None = None,
+    adapter: Any | None = None,
+    transport: Any | None = None,
+) -> CodebergWebsitePushResponse:
+    """Push the rendered output of website ``slug`` to its linked
+    Codeberg repository in a single commit.
+
+    Requires the website to have been built (``build_status = done``)
+    and its rendering mode to be STATIC or HYBRID — DYNAMIC sites
+    produce nothing on disk.
+
+    ``site_root_override`` is accepted so tests can point at a
+    controlled temp directory instead of ``settings.websites_root``.
+    """
+    website = await _get_website_by_slug(db, slug)
+    link = await _get_website_link(db, website.id)
+    if link is None:
+        raise NotFoundError(
+            f"Website '{slug}' is not linked to a Codeberg repository.",
+        )
+    if website.rendering_mode == RenderingMode.DYNAMIC:
+        raise ConflictError(
+            "Dynamic websites are served live — there is no static "
+            "output to push. Switch the site to STATIC or HYBRID "
+            "rendering and build it before pushing.",
+        )
+    if website.build_status != BuildStatus.done:
+        raise ConflictError(
+            "Website has not been built successfully. Trigger a build "
+            "and wait for it to finish before pushing to Codeberg.",
+        )
+
+    site_root = site_root_override or (
+        Path(app_settings.websites_root) / slug
+    )
+    deposit_files = _collect_website_files(slug, site_root)
+    if not deposit_files:
+        raise ConflictError("Rendered site tree is empty — nothing to push.")
+
+    # Token resolution (same three-way priority as the collection path).
+    global_cipher = await get_decrypted_setting(db, _PAT_SETTING_KEY)
+    if global_cipher:
+        global_cipher = encrypt_value(global_cipher, app_settings.jwt_secret)
+    token = resolve_token(
+        TokenSources(
+            override_ciphertext=link.pat_override,
+            global_ciphertext=global_cipher,
+            jwt_secret=app_settings.jwt_secret,
+        )
+    )
+    if not token:
+        raise DomainValidationError(
+            "FORGE_PAT_MISSING",
+            "No PAT configured. Set a global PAT in the plugin config "
+            "or a per-link override on this website.",
+        )
+
+    effective_message = (
+        (message or "").strip()
+        or f"Aracne2 website sync: {website.title}"
+    )
+    manifest = DepositManifest(
+        files=deposit_files,
+        branch=link.branch,
+        commit_message=effective_message,
+        committer_name=_COMMITTER_NAME,
+        committer_email=_COMMITTER_EMAIL,
+    )
+
+    adapter = adapter or CodebergAdapter()
+    repo = RepoRef(
+        base_url=link.base_url,
+        owner=link.repo_owner,
+        name=link.repo_name,
+    )
+    try:
+        result = await push_manifest(
+            adapter=adapter,
+            repo=repo,
+            manifest=manifest,
+            token=token,
+            transport=transport,
+        )
+    except GitForgeError as exc:
+        logger.warning(
+            "codeberg_website_push_failed", slug=slug, error=str(exc),
+        )
+        raise _map_forge_error(exc) from exc
+
+    link.last_push_sha = result.sha
+    link.last_push_at = result.committed_at or datetime.now(UTC)
+    link.last_push_file_count = len(deposit_files)
+    await db.flush()
+
+    return CodebergWebsitePushResponse(
+        sha=result.sha,
+        committed_at=link.last_push_at,
+        html_url=result.html_url,
+        file_count=len(deposit_files),
     )

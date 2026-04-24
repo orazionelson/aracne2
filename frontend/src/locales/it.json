@@ -714,6 +714,8 @@
     "tab_xslt_edit": "XSLT Edit",
     "tab_indices": "Indici",
     "tab_cssjs": "CSS/JS",
+    "tab_deposit": "Deposito",
+    "deposit_intro": "Deposita l'output renderizzato di questo sito sui forge git esterni (Codeberg, GitHub, GitLab). Ogni forge mostra la propria sezione di connessione + push una volta che il plugin relativo è attivo.",
     "cssjs_custom_css": "CSS personalizzato",
     "cssjs_css_hint": "Aggiunto dentro il tag <style> su ogni pagina del sito.",
     "cssjs_custom_js": "JavaScript personalizzato",
@@ -1082,7 +1084,14 @@
     "initialize_btn": "Inizializza da Codeberg",
     "initialize_confirm": "Conferma: importa tutti i file XML del repo in questa collezione vuota. Operazione non annullabile.",
     "initialize_confirm_btn": "Sì, importa ora",
-    "initialize_success": "Importati {n} file XML da Codeberg a {sha}."
+    "initialize_success": "Importati {n} file XML da Codeberg a {sha}.",
+    "website_section_title": "Deposito su Codeberg",
+    "website_section_hint": "Spinge l'output statico renderizzato di questo sito su un repository Codeberg in un singolo commit. Costruisci prima il sito (modalità STATIC o HYBRID) — un sito DYNAMIC non ha nulla da depositare.",
+    "website_plugin_not_active": "Il plugin Codeberg Integration non è attivo su questa installazione. Attivalo da /admin/plugins per abilitare il deposito.",
+    "website_cannot_push_dynamic": "Questo sito usa rendering DYNAMIC — non c'è output statico da spingere.",
+    "website_cannot_push_not_built": "Costruisci prima il sito, poi esegui il push.",
+    "push_website_btn": "Spingi sito renderizzato",
+    "file_count": "{n} file"
   },
   "crossref": {
     "button_label": "CrossRef",

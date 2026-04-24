@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,6 +23,56 @@ from app.db.postgres import Base
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+class CodebergWebsiteLink(Base):
+    """One Codeberg repo bound to one Aracne2 website.
+
+    Symmetric to :class:`CodebergCollectionLink` but scoped to a
+    Website (rendered HTML/CSS/JS output) instead of a Collection
+    (raw TEI sources). Push direction only — websites are derived
+    artefacts, never imported from a forge.
+    """
+
+    __tablename__ = "codeberg_website_links"
+    __table_args__ = (
+        UniqueConstraint("website_id", name="uq_codeberg_link_website"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+    )
+
+    website_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("websites.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    base_url: Mapped[str] = mapped_column(
+        String(256), nullable=False, default="https://codeberg.org",
+    )
+    repo_owner: Mapped[str] = mapped_column(String(128), nullable=False)
+    repo_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    branch: Mapped[str] = mapped_column(String(128), nullable=False, default="main")
+
+    pat_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    last_push_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_push_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    # Number of files in the last successful push — cheap bookkeeping
+    # so the UI can show "Last push: 42 files" without re-reading the
+    # site tree.
+    last_push_file_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now,
+    )
 
 
 class CodebergCollectionLink(Base):

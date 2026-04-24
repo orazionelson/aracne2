@@ -70,6 +70,35 @@ export interface CodebergInitializeResponse {
   initialized_at: string;
 }
 
+// ── Website links ───────────────────────────────────────────────────────
+
+export interface CodebergWebsiteLink {
+  base_url: string;
+  repo_owner: string;
+  repo_name: string;
+  branch: string;
+  pat_override_set: boolean;
+  last_push_sha: string | null;
+  last_push_at: string | null;
+  last_push_file_count: number | null;
+  html_url: string;
+}
+
+export interface CodebergWebsiteLinkCreate {
+  base_url: string;
+  repo_owner: string;
+  repo_name: string;
+  branch: string;
+  pat_override?: string | null;
+}
+
+export interface CodebergWebsitePushResponse {
+  sha: string;
+  committed_at: string;
+  html_url: string | null;
+  file_count: number;
+}
+
 export const useCodebergStore = defineStore("codeberg", () => {
   const config = ref<CodebergConfig | null>(null);
   const isSaving = ref(false);
@@ -149,9 +178,54 @@ export const useCodebergStore = defineStore("codeberg", () => {
     }
   }
 
+  // ── Website link operations ──────────────────────────────────────────
+  const isPushingWebsite = ref(false);
+
+  async function getWebsiteLink(slug: string): Promise<CodebergWebsiteLink | null> {
+    try {
+      return await apiClient.get<CodebergWebsiteLink>(
+        `/plugins/codeberg/websites/${encodeURIComponent(slug)}/link`,
+      );
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status === 404) return null;
+      throw err;
+    }
+  }
+
+  async function writeWebsiteLink(
+    slug: string, body: CodebergWebsiteLinkCreate,
+  ): Promise<CodebergWebsiteLink> {
+    return await apiClient.put<CodebergWebsiteLink>(
+      `/plugins/codeberg/websites/${encodeURIComponent(slug)}/link`,
+      body,
+    );
+  }
+
+  async function deleteWebsiteLink(slug: string): Promise<void> {
+    await apiClient.delete(
+      `/plugins/codeberg/websites/${encodeURIComponent(slug)}/link`,
+    );
+  }
+
+  async function pushWebsite(
+    slug: string, message: string | null = null,
+  ): Promise<CodebergWebsitePushResponse> {
+    isPushingWebsite.value = true;
+    try {
+      return await apiClient.post<CodebergWebsitePushResponse>(
+        `/plugins/codeberg/websites/${encodeURIComponent(slug)}/push`,
+        { message },
+      );
+    } finally {
+      isPushingWebsite.value = false;
+    }
+  }
+
   return {
-    config, isSaving, isPushing, isInitializing,
+    config, isSaving, isPushing, isInitializing, isPushingWebsite,
     fetchConfig, updateConfig,
     getLink, writeLink, deleteLink, pushCollection, initializeCollection,
+    getWebsiteLink, writeWebsiteLink, deleteWebsiteLink, pushWebsite,
   };
 });
