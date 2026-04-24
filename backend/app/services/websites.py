@@ -287,7 +287,17 @@ body.home-cover {
   background-position: center;
   background-attachment: fixed;
   color: #fff;
+  /* Sticky-footer flex: body fills at least the viewport; main grows
+     to take the leftover space so the footer hugs the bottom of the
+     screen on short pages. Longer pages flow naturally — main
+     contributes its natural height and the footer sits right after. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
+body.home-cover main { flex: 1 0 auto; }
+body.home-cover footer { flex-shrink: 0; }
 body.home-cover::before {
   content: "";
   position: fixed;
