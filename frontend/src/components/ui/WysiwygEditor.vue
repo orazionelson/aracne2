@@ -128,8 +128,40 @@ const showImageDialog = ref(false);
 const imageUrl = ref("");
 const imageAlt = ref("");
 
+/**
+ * ``media://filename`` ↔ display-URL round-trip.
+ *
+ * The browser inside the editor cannot fetch a ``media://`` URL, so
+ * every ``<img src="media://...">`` would render as a broken icon
+ * while the user is authoring. We keep ``media://`` as the *storage*
+ * form (the backend's renderer rewrites it at serve/build time) and
+ * swap to the API URL only while the HTML is inside the editor.
+ *
+ * Both helpers are identity functions when ``websiteSlug`` is not
+ * set (the "Insert image from URL" button must keep working for
+ * non-website callers without any transform).
+ */
+function toDisplayHtml(html: string): string {
+  if (!props.websiteSlug || !html) return html;
+  return html.replace(
+    /media:\/\/([a-z0-9][a-z0-9._-]*)/gi,
+    (_m, name) =>
+      `/api/v1/websites/${props.websiteSlug}/media/${name}`,
+  );
+}
+
+function toStorageHtml(html: string): string {
+  if (!props.websiteSlug || !html) return html;
+  const prefix = `/api/v1/websites/${props.websiteSlug}/media/`;
+  // Escape the slug for safe inclusion in a RegExp source — slugs come
+  // from the same sanitised charset as filenames so this is defensive.
+  const safe = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`${safe}([a-z0-9][a-z0-9._-]*)`, "gi");
+  return html.replace(re, (_m, name) => `media://${name}`);
+}
+
 const editor = useEditor({
-  content: props.modelValue || "",
+  content: toDisplayHtml(props.modelValue || ""),
   extensions: [
     StarterKit,
     Image.configure({ inline: false }),
@@ -167,16 +199,20 @@ const editor = useEditor({
     },
   },
   onUpdate({ editor: ed }) {
-    emit("update:modelValue", ed.getHTML());
+    emit("update:modelValue", toStorageHtml(ed.getHTML()));
   },
 });
 
-// Sync external modelValue changes (e.g. form reset)
+// Sync external modelValue changes (e.g. form reset). Compare with the
+// storage-form HTML so a round-trip through our transform isn't treated
+// as an external change, which would cause an infinite setContent loop.
 watch(
   () => props.modelValue,
   (val) => {
-    if (editor.value && editor.value.getHTML() !== val) {
-      editor.value.commands.setContent(val || "", false);
+    if (!editor.value) return;
+    const current = toStorageHtml(editor.value.getHTML());
+    if (current !== val) {
+      editor.value.commands.setContent(toDisplayHtml(val || ""), false);
     }
   },
 );
@@ -219,12 +255,15 @@ function applyImage(): void {
 }
 
 // Media-library picker — only wired when ``websiteSlug`` is provided.
-// The picker emits the ``media://filename`` pseudo-URL; inserted as-is,
-// the website renderer translates it to a real URL at serve/build time.
+// The picker emits the ``media://filename`` pseudo-URL; we insert it
+// as the display URL so the browser can load it inside the editor.
+// ``toStorageHtml`` (on onUpdate) turns it back into ``media://`` when
+// the HTML is emitted to the parent form.
 const mediaPickerOpen = ref(false);
 
 function onMediaPicked(ref: string): void {
-  editor.value?.chain().focus().setImage({ src: ref }).run();
+  const displaySrc = toDisplayHtml(ref);  // "media://x" → "/api/v1/.../x"
+  editor.value?.chain().focus().setImage({ src: displaySrc }).run();
 }
 
 function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<string, unknown>): boolean {
