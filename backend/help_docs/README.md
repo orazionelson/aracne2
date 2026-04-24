@@ -39,3 +39,42 @@ them via the same bind mount as the code.
 - Internal links: use `/help/page?path=<section>/<file>` (no `.md`
   extension) so the frontend router intercepts and renders in-app
   rather than round-tripping to the server.
+
+## Two doc trees — why and how to keep them aligned
+
+Aracne2 has **two** sets of markdown documentation, with different
+audiences and different tones:
+
+| | `docs/` (this repo's root) | `backend/help_docs/` (this directory) |
+|---|---|---|
+| **Reader** | Developer / SRE — someone changing the codebase or operating the install | Editor, Designer, EiC, Admin — someone *using* the running Aracne2 |
+| **Where read** | GitHub, VSCode, filesystem | In-browser at `/help` (the in-app Help drawer) |
+| **Tone** | Reference: endpoints, schema, file:line anchors, architecture | Operational: "to do X go to Y and click Z" |
+| **Scope** | Complete — every table, migration, field | Only what the user needs to act |
+| **Canonical for** | Developer-facing material | User-facing flows |
+
+They are **not** duplicates. A doc page about the forge plugins under
+`docs/reference/NON_NATIVE_PLUGINS.md` lists every endpoint, every
+column, every migration; the help page about the same plugins under
+`04-publishing/04-external-repositories.md` explains where the
+"Deposit" button lives and when it's enabled. Overlap is natural
+but the two files should never be identical.
+
+**How to keep them aligned when a feature changes:**
+
+1. If the feature has a **user-visible effect** (new button, new tab,
+   new flow) → update the relevant help page under this directory
+   **and** the corresponding reference doc under `docs/reference/`.
+2. If the feature is **purely internal** (refactor, new internal
+   table, migration that doesn't change behaviour) → update the
+   reference doc only.
+3. When the help page is a simplified / user-facing version of a
+   reference doc, add a cross-link at the bottom:
+   `Technical reference: docs/reference/<name>.md`. This makes it
+   trivial for a curious admin to dig deeper and makes the
+   reference-vs-help split explicit.
+4. There is **no CI enforcement** today. The convention lives on
+   discipline + code review.
+
+See [`docs/README.md`](../../docs/README.md) for the mirror view of
+this convention from the developer-docs side.

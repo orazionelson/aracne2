@@ -222,9 +222,12 @@ function onContentClick(event: MouseEvent): void {
             </template>
           </nav>
 
-          <!-- Rendered HTML — sanitised by the backend with bleach -->
+          <!-- Rendered HTML — sanitised by the backend with bleach.
+               Typography comes from @tailwindcss/typography (``prose`` class);
+               branding tweaks (indigo links, inline-code background) live in
+               ``tailwind.config.js``. -->
           <div
-            class="prose prose-sm max-w-none dark:prose-invert"
+            class="prose max-w-none dark:prose-invert prose-headings:scroll-mt-16 prose-pre:bg-gray-50 prose-pre:text-gray-800 dark:prose-pre:bg-gray-900 dark:prose-pre:text-gray-100 prose-table:text-sm"
             @click="onContentClick"
             v-html="help.currentPage.html"
           />

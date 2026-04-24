@@ -73,3 +73,14 @@ Aracne2 generates `robots.txt` and `sitemap.xml` automatically. Every
 public website is listed in the platform-wide sitemap index, and each
 website has its own per-site sitemap covering every visible page.
 Designers do not need to manage these files manually.
+
+## Depositing the website on external repositories
+
+The website edit page has a **Deposit** tab (last item in the tab
+bar) where any active deposit-style plugin renders its own section
+targeting the website's rendered output. Supported destinations
+include Zenodo (DOI minting), the Internet Archive Wayback Machine,
+Dataverse, and the three git forges Codeberg / GitHub / GitLab.
+
+See [Depositing on external repositories](/help/page?path=04-publishing/04-external-repositories)
+for the walkthrough.
