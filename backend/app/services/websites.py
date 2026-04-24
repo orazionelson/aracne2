@@ -199,7 +199,28 @@ header nav {
 .nav-links a { color: rgba(255,255,255,0.82); text-decoration: none; font-size: 0.875rem; }
 .nav-links a:hover { color: #fff; }
 /* ── Hero (cover/index page) ── */
-.hero { padding: 4.5rem 0 3.5rem; text-align: center; }
+.hero { padding: 4.5rem 0 3.5rem; text-align: center; position: relative; }
+/* Optional background image + coloured overlay. Both are driven by
+   CSS custom properties set inline on the .hero element by
+   _build_cover_content so the colour, alpha, and image can change
+   per-site without regenerating the static CSS. */
+.hero.has-bg {
+  background-image: var(--hero-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #fff;
+}
+.hero.has-bg .lead, .hero.has-bg .meta-block { color: #eef1f5; }
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--hero-overlay, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+.hero > * { position: relative; z-index: 1; }
 .hero h1 { font-size: 2.5rem; line-height: 1.15; margin-bottom: 1rem; }
 .hero .lead {
   font-size: 1.1rem;
@@ -242,6 +263,18 @@ header nav {
 .home-col figcaption { font-size: 0.8rem; color: #6b7280; margin-top: 0.35rem; text-align: center; }
 /* ── Content pages ── */
 main { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
+/* Home-page fullscreen mode — ``body.home-full`` is emitted by
+   _render_page on the index page only when ``home_width`` is set
+   to ``"fullscreen"`` in theme_config. Drops the 960px cap and the
+   horizontal padding so the hero (and its optional background
+   image) span edge-to-edge. */
+body.home-full main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+body.home-full main > .hero { padding-left: 1.5rem; padding-right: 1.5rem; }
+body.home-full main > .home-body { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
 h1 { font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.2; }
 h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
 h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
@@ -1826,6 +1859,7 @@ def _render_page(
     website_slug: str | None = None,
     static_media_collected: set[str] | None = None,
     static_media_prefix: str = "media/",
+    body_class: str = "",
 ) -> str:
     """Render the outer HTML shell around *content*.
 
@@ -1862,6 +1896,7 @@ def _render_page(
     custom_js_tag = (
         f"<script>\n{custom_js.replace('</script>', '')}\n</script>" if custom_js else ""
     )
+    body_attr = f' class="{_html.escape(body_class)}"' if body_class else ""
     html_out = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1870,7 +1905,7 @@ def _render_page(
   <title>{esc_page} — {esc_site}</title>{meta_block}
   {style}
 </head>
-<body>
+<body{body_attr}>
   {navbar}{breadcrumb_block}
   <main>
     {content}
@@ -2047,7 +2082,25 @@ def _build_cover_content(
     browse_href = f"{site_base_url}/browse" if site_base_url else "browse.html"
     cta = f'<a href="{browse_href}" class="btn-primary">{browse_label}</a>'
 
-    hero = f"""<div class="hero">
+    # ── Hero background + overlay ─────────────────────────────────────────
+    # Both optional, both driven by ``theme_config``. The image is stored
+    # as a ``media://filename`` pseudo-URL so the existing rewriter
+    # translates it to a real URL at serve / build time.
+    hero_style_parts: list[str] = []
+    hero_bg = (theme.get("home_bg_image") or "").strip()
+    if hero_bg:
+        hero_style_parts.append(f"--hero-bg: url({hero_bg})")
+    overlay_rgba = _overlay_rgba(
+        theme.get("home_overlay_color") or "#000000",
+        theme.get("home_overlay_alpha"),
+    )
+    if overlay_rgba:
+        hero_style_parts.append(f"--hero-overlay: {overlay_rgba}")
+    hero_classes = "hero has-bg" if hero_bg else "hero"
+    hero_style_attr = (
+        f' style="{"; ".join(hero_style_parts)}"' if hero_style_parts else ""
+    )
+    hero = f"""<div class="{hero_classes}"{hero_style_attr}>
   <h1>{title}</h1>
   {lead}
   {author_block}
@@ -2064,6 +2117,11 @@ def _build_cover_content(
     )
     right = _render_col_content(
         theme.get("col_right", "") or "", pages, nav_config, site_base_url, indices
+    )
+
+    grid_template = _home_grid_template(layout, theme)
+    grid_style = (
+        f' style="grid-template-columns: {grid_template}"' if grid_template else ""
     )
 
     if layout == "two_left":
@@ -2091,9 +2149,118 @@ def _build_cover_content(
 
     grid = ""
     if center or left or right:
-        grid = f'<div class="home-body"><div class="home-grid {css_class}">{cols}</div></div>'
+        grid = (
+            f'<div class="home-body">'
+            f'<div class="home-grid {css_class}"{grid_style}>{cols}</div>'
+            f'</div>'
+        )
 
     return hero + grid
+
+
+# ── Home-page helpers ────────────────────────────────────────────────────────
+#
+# Kept next to _build_cover_content since the defaults they enshrine (old
+# CSS fallbacks) are meaningful only in that context.
+
+
+_HOME_DEFAULTS: dict[str, tuple[int, ...]] = {
+    # layout → (left_pct, center_pct) OR (left_pct, center_pct, right_pct)
+    # Values mirror the previous hard-coded rules in _STATIC_CSS.
+    "two_left": (30, 70),
+    "two_right": (70, 30),
+    "three": (20, 60, 20),
+}
+
+
+def _clamp_pct(raw: object, default: int, low: int = 5, high: int = 95) -> int:
+    try:
+        v = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if v < low:
+        return low
+    if v > high:
+        return high
+    return v
+
+
+def _home_grid_template(layout: str, theme: dict) -> str:
+    """Resolve ``grid-template-columns`` from theme config per layout.
+
+    Layouts refer to ``theme_config`` keys — ``home_cols_two_left``,
+    ``home_cols_two_right``, ``home_cols_three_left``,
+    ``home_cols_three_right`` — and fall back to the historical
+    30/70, 70/30, 20/60/20 defaults when a key is unset or invalid.
+    Returns the empty string for single-column and unknown layouts so
+    the caller skips the inline style.
+    """
+    if layout == "two_left":
+        left_default, _ = _HOME_DEFAULTS["two_left"]
+        left = _clamp_pct(theme.get("home_cols_two_left"), left_default)
+        return f"{left}% {100 - left}%"
+    if layout == "two_right":
+        left_default, _ = _HOME_DEFAULTS["two_right"]
+        left = _clamp_pct(theme.get("home_cols_two_right"), left_default)
+        return f"{left}% {100 - left}%"
+    if layout == "three":
+        left_default, _center, right_default = _HOME_DEFAULTS["three"]
+        left = _clamp_pct(theme.get("home_cols_three_left"), left_default, low=5, high=80)
+        right = _clamp_pct(theme.get("home_cols_three_right"), right_default, low=5, high=80)
+        # Guard: left + right must leave room for the centre column.
+        if left + right > 90:
+            scale = 90 / (left + right)
+            left = max(5, int(left * scale))
+            right = max(5, int(right * scale))
+        center = 100 - left - right
+        return f"{left}% {center}% {right}%"
+    return ""
+
+
+_HEX6_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
+_HEX3_RE = re.compile(r"^#?([0-9a-fA-F]{3})$")
+
+
+def _overlay_rgba(color: str, alpha_raw: object) -> str:
+    """Return an ``rgba(r,g,b,a)`` string or ``""`` if overlay disabled.
+
+    Accepts 3- or 6-digit hex. Alpha is clamped to [0, 1]; values ≤ 0
+    disable the overlay entirely (returns empty string).
+    """
+    color = (color or "").strip()
+    hex_match = _HEX6_RE.match(color)
+    if hex_match:
+        h = hex_match.group(1)
+    else:
+        short = _HEX3_RE.match(color)
+        if not short:
+            return ""
+        h = "".join(c * 2 for c in short.group(1))
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        a = float(alpha_raw) if alpha_raw is not None else 0.4
+    except (TypeError, ValueError):
+        a = 0.4
+    if a <= 0:
+        return ""
+    if a > 1:
+        a = 1.0
+    # Format the alpha with two decimals — spares the inline style a
+    # long float tail like ``0.30000000000000004``.
+    return f"rgba({r},{g},{b},{a:.2f})"
+
+
+def home_body_class(theme: dict | None) -> str:
+    """Return the extra ``<body>`` class for a home-page render.
+
+    ``"home-full"`` enables the fullscreen layout; otherwise the default
+    bounded layout applies and no extra class is needed.
+    """
+    if not theme:
+        return ""
+    if (theme.get("home_width") or "standard") == "fullscreen":
+        return "home-full"
+    return ""
 
 
 _BROWSE_PAGE_SIZE = 20
@@ -2724,6 +2891,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         footer_note=footer_note,
         identifier_url=identifier_url,
         tei_valid_badge=tei_valid_badge,
+        body_class=home_body_class(theme),
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
@@ -4270,6 +4438,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         include_jquery=include_jquery,
         website_slug=slug,
         static_media_collected=referenced_media,
+        body_class=home_body_class(theme),
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -4570,6 +4739,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         custom_js=custom_js,
         include_jquery=include_jquery,
         website_slug=slug,
+        body_class=home_body_class(theme),
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 

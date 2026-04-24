@@ -97,6 +97,17 @@ function onLogoPicked(ref: string): void {
   (editForm.value.theme_config as Record<string, string>).logo_url = ref;
 }
 
+// Second picker instance for the home-page background image.
+const homeBgPickerOpen = ref(false);
+
+function onHomeBgPicked(ref: string): void {
+  (editForm.value.theme_config as Record<string, string>).home_bg_image = ref;
+}
+
+function clearHomeBg(): void {
+  (editForm.value.theme_config as Record<string, string>).home_bg_image = "";
+}
+
 // ── XSLT AI panel ─────────────────────────────────────────────────────────────
 
 const aiEnabled = computed(
@@ -1094,6 +1105,93 @@ onBeforeUnmount(() => {
            shape *a single page* live together in their own surface and
            the Theme tab stays focused on site-wide visual tokens. -->
       <div v-if="editTab === 'home'" class="bg-indigo-50 p-4 space-y-5">
+        <!-- Page width ──────────────────────────────────────────── -->
+        <div>
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_width_title") }}</p>
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                value="standard"
+                :checked="((editForm.theme_config as Record<string, string>).home_width || 'standard') === 'standard'"
+                @change="(editForm.theme_config as Record<string, string>).home_width = 'standard'"
+              />
+              {{ t("websites.home_width_standard") }}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                value="fullscreen"
+                :checked="(editForm.theme_config as Record<string, string>).home_width === 'fullscreen'"
+                @change="(editForm.theme_config as Record<string, string>).home_width = 'fullscreen'"
+              />
+              {{ t("websites.home_width_fullscreen") }}
+            </label>
+          </div>
+          <p class="mt-1 text-xs text-gray-400">{{ t("websites.home_width_hint") }}</p>
+        </div>
+
+        <!-- Background image + overlay ──────────────────────────── -->
+        <div class="rounded border border-gray-200 bg-white p-3">
+          <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_bg_title") }}</p>
+          <div class="mb-2 flex items-center gap-2">
+            <input
+              v-model="(editForm.theme_config as Record<string, string>).home_bg_image"
+              type="text"
+              class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+              :placeholder="t('websites.home_bg_placeholder')"
+            />
+            <button
+              type="button"
+              class="shrink-0 rounded border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+              @click="homeBgPickerOpen = true"
+            >
+              {{ t("website_media.choose_from_library") }}
+            </button>
+            <button
+              v-if="(editForm.theme_config as Record<string, string>).home_bg_image"
+              type="button"
+              class="shrink-0 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+              @click="clearHomeBg"
+            >
+              {{ t("common.delete") }}
+            </button>
+          </div>
+          <MediaPicker
+            :slug="slug"
+            mode="modal"
+            :open="homeBgPickerOpen"
+            @update:open="homeBgPickerOpen = $event"
+            @selected="onHomeBgPicked"
+          />
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.home_overlay_color") }}
+              <input
+                type="color"
+                class="h-7 w-10 cursor-pointer rounded border border-gray-300"
+                :value="(editForm.theme_config as Record<string, string>).home_overlay_color || '#000000'"
+                @input="(editForm.theme_config as Record<string, string>).home_overlay_color = ($event.target as HTMLInputElement).value"
+              />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              {{ t("websites.home_overlay_alpha") }}
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                class="flex-1"
+                :value="(editForm.theme_config as Record<string, string>).home_overlay_alpha ?? '0.4'"
+                @input="(editForm.theme_config as Record<string, string>).home_overlay_alpha = ($event.target as HTMLInputElement).value"
+              />
+              <span class="w-8 text-right font-mono">
+                {{ (editForm.theme_config as Record<string, string>).home_overlay_alpha ?? '0.4' }}
+              </span>
+            </label>
+          </div>
+        </div>
+
         <div>
           <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
           <div class="mb-3">
@@ -1104,6 +1202,95 @@ onBeforeUnmount(() => {
               <option value="two_right">{{ t("websites.layout_two_right") }}</option>
               <option value="three">{{ t("websites.layout_three") }}</option>
             </select>
+          </div>
+
+          <!-- Column percentage sliders, shown for 2- and 3-column
+               layouts. Values are stored as strings inside theme_config
+               and parsed + clamped by the backend. -->
+          <div
+            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'two_left'"
+            class="mb-3 rounded border border-gray-200 bg-white p-3"
+          >
+            <label class="mb-1 flex items-center justify-between text-xs text-gray-700">
+              <span>{{ t("websites.home_cols_two_left_label") }}</span>
+              <span class="font-mono">
+                {{ (editForm.theme_config as Record<string, string>).home_cols_two_left || '30' }}% ·
+                {{ 100 - (parseInt((editForm.theme_config as Record<string, string>).home_cols_two_left || '30') || 30) }}%
+              </span>
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="90"
+              step="1"
+              class="w-full"
+              :value="(editForm.theme_config as Record<string, string>).home_cols_two_left || '30'"
+              @input="(editForm.theme_config as Record<string, string>).home_cols_two_left = ($event.target as HTMLInputElement).value"
+            />
+          </div>
+          <div
+            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'two_right'"
+            class="mb-3 rounded border border-gray-200 bg-white p-3"
+          >
+            <label class="mb-1 flex items-center justify-between text-xs text-gray-700">
+              <span>{{ t("websites.home_cols_two_right_label") }}</span>
+              <span class="font-mono">
+                {{ (editForm.theme_config as Record<string, string>).home_cols_two_right || '70' }}% ·
+                {{ 100 - (parseInt((editForm.theme_config as Record<string, string>).home_cols_two_right || '70') || 70) }}%
+              </span>
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="90"
+              step="1"
+              class="w-full"
+              :value="(editForm.theme_config as Record<string, string>).home_cols_two_right || '70'"
+              @input="(editForm.theme_config as Record<string, string>).home_cols_two_right = ($event.target as HTMLInputElement).value"
+            />
+          </div>
+          <div
+            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'three'"
+            class="mb-3 rounded border border-gray-200 bg-white p-3 space-y-2"
+          >
+            <label class="flex items-center justify-between text-xs text-gray-700">
+              <span>{{ t("websites.home_cols_three_left_label") }}</span>
+              <span class="font-mono">
+                {{ (editForm.theme_config as Record<string, string>).home_cols_three_left || '20' }}%
+              </span>
+            </label>
+            <input
+              type="range"
+              min="5"
+              max="45"
+              step="1"
+              class="w-full"
+              :value="(editForm.theme_config as Record<string, string>).home_cols_three_left || '20'"
+              @input="(editForm.theme_config as Record<string, string>).home_cols_three_left = ($event.target as HTMLInputElement).value"
+            />
+            <label class="flex items-center justify-between text-xs text-gray-700">
+              <span>{{ t("websites.home_cols_three_right_label") }}</span>
+              <span class="font-mono">
+                {{ (editForm.theme_config as Record<string, string>).home_cols_three_right || '20' }}%
+              </span>
+            </label>
+            <input
+              type="range"
+              min="5"
+              max="45"
+              step="1"
+              class="w-full"
+              :value="(editForm.theme_config as Record<string, string>).home_cols_three_right || '20'"
+              @input="(editForm.theme_config as Record<string, string>).home_cols_three_right = ($event.target as HTMLInputElement).value"
+            />
+            <p class="text-xs text-gray-400">
+              {{ t("websites.home_cols_three_center_hint", {
+                center: Math.max(10, 100 -
+                  (parseInt((editForm.theme_config as Record<string, string>).home_cols_three_left || '20') || 20) -
+                  (parseInt((editForm.theme_config as Record<string, string>).home_cols_three_right || '20') || 20)
+                )
+              }) }}
+            </p>
           </div>
           <!-- Widget palette -->
           <div class="mb-2 flex items-center gap-2">
