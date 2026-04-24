@@ -53,7 +53,25 @@ aracne-cli validate --dir ./tei_files/ --schema tei_all
 
 ---
 
-## 2. Non-native plugin: GitHub Integration 🔴 High
+## 2. ~~Non-native plugin: GitHub Integration~~ ✅ Shipped
+
+The GitHub Integration plugin shipped in 2026-04 along with parallel
+Codeberg and GitLab plugins, all built on the shared
+`plugins/_lib/git_forge/` abstraction. Each forge plugin supports
+collection push, website push, one-shot Initialize for empty
+collections (forge → eXist-db), and a per-link PAT override on top
+of the global plugin PAT. Self-hosted Forgejo / GHE / GitLab work
+via the per-link `base_url`.
+
+See [NON_NATIVE_PLUGINS.md §7 (Codeberg)](./reference/NON_NATIVE_PLUGINS.md),
+[§8 (GitHub)](./reference/NON_NATIVE_PLUGINS.md), and
+[§9 (GitLab)](./reference/NON_NATIVE_PLUGINS.md) for the canonical
+specs. The detailed plan that drove implementation is preserved
+below for historical context.
+
+---
+
+### Original plan (2026-04-16, shipped 2026-04-24)
 
 Connect a collection to a GitHub repository and allow EditorInChiefs to push
 documents to GitHub and, exclusively for empty collections, perform a one-time

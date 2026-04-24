@@ -625,8 +625,21 @@ lives in its own document:
 
 → [NON_NATIVE_PLUGINS.md](./NON_NATIVE_PLUGINS.md)
 
-Currently bundled: `zenodo_deposit`, `internet_archive`, `zotero_import`,
-`orcid`, `ror`, `crossref_lookup`, `evt`. See that file for the canonical specs.
+Currently bundled: `zenodo_deposit`, `internet_archive`, `dataverse_integration`,
+`codeberg_integration`, `github_integration`, `gitlab_integration`,
+`evt`, `zotero_import`, `crossref_lookup`, `help`, plus the
+authority-lookup family (`wikidata`, `orcid`, `ror`, `viaf`, `geonames`,
+`gnd`, `cerl`, `peripleo`, `getty_aat`, `openalex`, `trismegistos`).
+See [`NON_NATIVE_PLUGINS.md`](./NON_NATIVE_PLUGINS.md) for the canonical
+per-plugin specs.
+
+Forge integrations (Codeberg / GitHub / GitLab) sit on top of the
+shared abstraction at `plugins/_lib/git_forge/` (adapter Protocol +
+push/Initialize orchestrator + token-resolution helpers). The
+abstraction's three concrete adapters serialise to each forge's
+batch-commit API (Forgejo `POST /contents`, GitHub git data API,
+GitLab `POST /repository/commits`). Adding a fourth git forge is
+mostly a serialiser + adapter swap.
 
 The rest of this document continues to describe the **plugin subsystem itself**
 (loader, hook registry, native vs. non-native lifecycle, signed webhook

@@ -2,7 +2,10 @@
 
 Design decisions, implementation details and architectural notes for the
 Websites module.  Read `BIBLIOGRAPHY.md` for the bibliography system page
-specifically.
+specifically. For the per-website **deposit** flows (push to git forges,
+deposit on Zenodo / Dataverse, archive on the Wayback Machine), see
+[NON_NATIVE_PLUGINS.md](./NON_NATIVE_PLUGINS.md) — the WebsiteEditView's
+"Deposit" tab hosts one section per active deposit-style plugin.
 
 ---
 

@@ -29,7 +29,8 @@
 19. [Search Engines — standalone search portals](#19-search-engines--standalone-search-portals)
 20. [OAI-PMH — making your data harvestable](#20-oai-pmh--making-your-data-harvestable)
 21. [Webhooks — connecting to external tools](#21-webhooks--connecting-to-external-tools)
-22. [Admin reference](#22-admin-reference)
+22. [External repositories — depositing collections and websites](#22-external-repositories--depositing-collections-and-websites)
+23. [Admin reference](#23-admin-reference)
 
 ---
 
@@ -794,11 +795,18 @@ integrates it as an optional alternative way to display a published collection.
 A **View in EVT** button appears on the collection detail page when all of the
 following are true:
 
-- The global EVT setting is enabled (Admin → Settings)
-- The collection has EVT enabled (in the collection metadata)
+- The **EVT Viewer** plugin is active in `/admin/plugins` (it is now a non-native
+  opt-in plugin — earlier installs activated it by default)
+- The global EVT toggle is on (configured from the EVT plugin's Configure page,
+  not the legacy Settings page)
+- The collection has EVT enabled (in the collection edit form)
 - The collection is published and public
 - The collection contains exactly one document (EVT is designed for
   single-document editions)
+
+When the EVT plugin is **inactive**, opening `/collections/<slug>/read`
+shows a friendly "Viewer not enabled on this installation" page with a
+back-to-home link, so old bookmarks don't 404.
 
 ### What EVT provides
 
@@ -1015,7 +1023,91 @@ automatically retried up to three times.
 
 ---
 
-## 22. Admin reference
+## 22. External repositories — depositing collections and websites
+
+Once an Admin activates the relevant plugins, the editorial flow gains
+several "Deposit" / "Push" / "Archive" buttons that send a published
+collection or a built website to an external repository or
+versioning service. Every integration is **opt-in** at the
+deployment level (the Admin activates each plugin under
+`/admin/plugins` and pastes the relevant credentials) and **manual
+or hook-driven** at the editorial level.
+
+### Where the controls live
+
+- **Collection detail page** (`/collections/:slug`):
+  - "Deposito Zenodo" — DOI minting on Zenodo
+  - "Archived on Wayback" badge + Archive / Refresh buttons (Internet Archive)
+  - "Deposit on Dataverse" — DOI on a Dataverse instance (per-deposit alias override)
+  - One section per active git-forge plugin (Codeberg / GitHub / GitLab) with
+    Connect / Push / Initialize / Disconnect controls — rendered by a single
+    `<ForgeCollectionSection>` component instantiated three times
+- **Website edit page → "Deposit" tab**: parallel sections for the
+  same plugins, each one targeting the website's rendered output
+  rather than the collection's TEI source
+
+### What each plugin does at a glance
+
+| Plugin | What it deposits | Trigger | Identifier returned |
+|---|---|---|---|
+| **Zenodo Deposit** | Collection's TEI files (one-by-one or zipped) AND/OR the website's rendered tree | Auto on collection publish (toggleable) + manual; manual for websites | DOI on publish; draft URL for unpublished |
+| **Internet Archive** | The collection's public URL AND/OR the website's public URL — submitted to Save Page Now 2 | Auto on collection publish (toggleable) + manual + Refresh; manual for websites | Wayback Machine snapshot URL |
+| **Dataverse Integration** | Collection's TEI files OR website's rendered tree, on any Dataverse instance (default sandbox at demo.dataverse.org; configurable for institutional Dataverses) | Auto on collection publish (toggleable) + manual; manual for websites | DOI immediately on dataset creation (preallocated; resolves via doi.org only on publish) |
+| **Codeberg / GitHub / GitLab Integration** | Push every TEI file (collection) or every rendered file (website) to a git repository in **a single commit per push**. Plus one-shot **Initialize** for empty collections (forge → eXist-db) | Manual | Commit SHA + Wayback link |
+
+### The "Initialize" flow (forge → empty collection)
+
+A safety-asymmetric one-shot operation available on the Codeberg /
+GitHub / GitLab sections: import every XML file from a git
+repository into an *empty* Aracne2 collection. Once the collection
+has any document (imported or hand-created) Initialize is
+permanently disabled — the only allowed direction from then on is
+push (Aracne2 → forge). Designed for migrating an existing TEI
+corpus that already lives on a git forge into Aracne2 without
+manual file-by-file upload, with no risk of overwriting live work.
+
+XML is validated with `defusedxml` before a single byte reaches
+eXist-db, so a malformed file aborts the whole import.
+
+### Per-link PAT override
+
+Every git-forge link has an optional per-link PAT field that wins
+over the plugin's global PAT. Useful when a specific collection
+lives under a different organisation or namespace whose token you
+don't want to share globally. The override is Fernet-encrypted at
+rest just like the global PAT.
+
+### Per-deposit alias override (Dataverse)
+
+Dataverse's "alias" identifies the sub-Dataverse a dataset belongs
+to inside an instance (e.g. `tei-editions` for one research group,
+`dh-2026` for another). The plugin's config sets a default alias;
+each deposit can override it via the "Use a different alias for this
+deposit…" link. This makes a single Aracne2 install workable when
+one institution hosts multiple research-group Dataverses inside the
+same instance.
+
+### Self-hosted forges and Dataverses
+
+All integrations support self-hosted instances via a configurable
+`base_url`:
+
+- Codeberg → any Forgejo or Gitea install (set the per-link
+  `base_url` to your institutional Forgejo)
+- GitHub → GitHub Enterprise Server (the adapter rewrites API calls
+  to the `/api/v3/` prefix)
+- GitLab → any self-hosted GitLab (uses `/api/v4/` everywhere)
+- Dataverse → any institutional Dataverse instance
+
+### Detailed reference
+
+For settings, endpoints, and version history per plugin, see
+[`docs/reference/NON_NATIVE_PLUGINS.md`](reference/NON_NATIVE_PLUGINS.md)
+and the per-plugin reference docs under `docs/reference/`.
+
+---
+
+## 23. Admin reference
 
 This section is a quick reference for Admins. Most of these features are found
 under **Settings** in the navigation.

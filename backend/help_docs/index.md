@@ -33,3 +33,4 @@ to jump directly to a topic.
 - [The TEI editor](/help/page?path=02-editing/03-tei-editor)
 - [Editorial workflow](/help/page?path=02-editing/04-workflow)
 - [Publishing a website](/help/page?path=04-publishing/01-websites)
+- [Depositing on external repositories](/help/page?path=04-publishing/04-external-repositories)
