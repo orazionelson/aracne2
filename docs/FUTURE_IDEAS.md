@@ -541,7 +541,7 @@ turnaround time for review cycles.
 Read-only access is sufficient for most use cases:
 - Browse assigned collections and their publication state
 - Open documents in a rendered view (HTML from XSLT, not the raw XML editor)
-- Approve / reject publication requests (simple state transition, one HTTP call)
+- Publish / request revisions on submitted collections (simple state transition, one HTTP call)
 - Receive push notifications for events: document submitted for review, comment added
 
 Full XML editing on mobile is out of scope — the CodeMirror editor is not

@@ -6,7 +6,7 @@ and triggers a notification to the people involved.
 ```
 Draft  →  Assigned  →  Review  →  Published
               ↑____________|
-                 (reject)
+           (request revisions)
 ```
 
 ## Draft
@@ -24,8 +24,8 @@ visible to that Editor (and to EiC+); the public cannot see it.
 
 The Editor has declared their work complete and clicked **Submit for
 review**. The EditorInChief receives a notification. They can now
-read through, validate, and either publish or reject (with a note
-explaining what needs fixing).
+read through, validate, and either publish or request revisions
+(with a note explaining what needs fixing).
 
 ## Published
 
@@ -34,11 +34,13 @@ readable at `/browse/<slug>`. Published collections can still be
 edited, but changes are visible to the public immediately — treat
 published collections with care.
 
-## Rejection
+## Request revisions
 
-If EditorInChief is not satisfied, they can **Reject with note**. The
+If EditorInChief is not satisfied, they can click **Request
+revisions** and attach a note explaining what needs fixing. The
 collection returns to Assigned; the Editor receives a notification
-containing the rejection note and gets to revise.
+containing the reviewer's note and gets to revise. This is a normal
+part of the editorial back-and-forth, not a rejection of the work.
 
 ## Direct publish (EditorInChief+)
 

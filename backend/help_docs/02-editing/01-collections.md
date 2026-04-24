@@ -41,7 +41,7 @@ derived from the title at creation time.
 The collection page shows the document list, the status pill, the
 assigned editors, the bibliography (if any), and the action buttons
 that match your role and the current status (assign, submit, publish,
-reject, unpublish, delete).
+request revisions, unpublish, delete).
 
 ## Permissions — giving an Editor access
 

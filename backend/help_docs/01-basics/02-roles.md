@@ -36,8 +36,9 @@ the same person can hold both simultaneously.
 ## EditorInChief
 
 Sees all collections regardless of status. Creates collections, assigns
-them to Editors, reviews submitted work, publishes or rejects, and
-manages bibliographies and permissions. The central coordinating role.
+them to Editors, reviews submitted work, publishes or requests
+revisions, and manages bibliographies and permissions. The central
+coordinating role.
 
 ## Admin
 
