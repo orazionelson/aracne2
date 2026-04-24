@@ -273,29 +273,67 @@ body.home-full main {
 }
 body.home-full main > .hero { padding-left: 1.5rem; padding-right: 1.5rem; }
 body.home-full main > .home-body { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
-/* Home-page ``cover`` mode — the book-cover effect. Hero fills the
-   viewport below the navbar; background image + overlay cover the
-   whole section and content is vertically centred. The column grid
-   (if any) appears below the fold, revealed by scroll. */
+/* Home-page ``cover`` mode — the book-cover effect.
+   Background image + overlay live on <body> (not on the hero), so
+   title, lead, meta, and column grid all stack on top of the same
+   bg image. Content flows naturally: the hero is NOT inflated to
+   fill the viewport — body text sits right below the title and the
+   image stretches to cover whatever vertical space the page needs.
+   ``--hero-bg`` / ``--hero-overlay`` are set per-page via an inline
+   <style> block emitted by _build_cover_content (see there). */
+body.home-cover {
+  background-image: var(--hero-bg);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  color: #fff;
+}
+body.home-cover::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: var(--hero-overlay, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+body.home-cover > * { position: relative; z-index: 1; }
 body.home-cover main {
   max-width: none;
   margin: 0;
   padding: 0;
-}
-body.home-cover main > .hero {
-  /* 3.5rem == navbar height, see ``header nav`` above. A double
-     declaration with ``dvh`` (dynamic viewport) lets modern mobile
-     browsers account for retractable toolbars; ``vh`` is the fallback. */
+  /* Ensure the bg fills at least one viewport even on short pages. */
   min-height: calc(100vh - 3.5rem);
   min-height: calc(100dvh - 3.5rem);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem 1.5rem;
 }
-body.home-cover main > .hero > * { max-width: 960px; width: 100%; }
-body.home-cover main > .home-body { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
+/* Hero in cover mode carries no bg of its own — ``has-bg`` styling
+   is overridden so the body image shines through. The per-hero
+   ::before overlay is also disabled; the body-level overlay covers
+   the whole viewport. */
+body.home-cover main > .hero {
+  padding: 4.5rem 1.5rem 2rem;
+  min-height: 0;
+  background: none;
+  color: #fff;
+}
+body.home-cover main > .hero::before { display: none; }
+body.home-cover main > .hero h1 { color: #fff; }
+body.home-cover main > .hero .lead { color: #eef1f5; }
+body.home-cover main > .hero .meta-block { color: #d1d5db; }
+body.home-cover main > .home-body {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+/* Text on top of the bg needs light-on-dark defaults. */
+body.home-cover .home-col,
+body.home-cover .home-col p,
+body.home-cover .home-col li { color: #f1f5f9; }
+body.home-cover .home-col h2,
+body.home-cover .home-col h3,
+body.home-cover .home-col h4 { color: #fff; }
+body.home-cover .home-col a { color: #fde68a; }
+body.home-cover footer { background: rgba(0, 0, 0, 0.45); color: rgba(255, 255, 255, 0.85); }
+body.home-cover footer a { color: #fde68a; }
 h1 { font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.2; }
 h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
 h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
@@ -2103,25 +2141,52 @@ def _build_cover_content(
     # Both optional, both driven by ``theme_config``. The image is stored
     # as a ``media://filename`` pseudo-URL so the existing rewriter
     # translates it to a real URL at serve / build time.
-    hero_style_parts: list[str] = []
+    #
+    # Where the CSS vars live depends on the home width mode:
+    #
+    # * ``standard`` / ``fullscreen`` → the vars are inline on the hero
+    #   element, which then draws the background within its own box.
+    # * ``cover`` → the vars are attached to ``<body.home-cover>`` via a
+    #   small inline <style> block prepended to the content. The body
+    #   paints the background under *all* page content (nav, hero,
+    #   home-body, footer), producing the "book cover" effect — title
+    #   and lead stack at their natural size with the image flowing
+    #   behind and through the whole page.
     hero_bg = (theme.get("home_bg_image") or "").strip()
-    if hero_bg:
-        hero_style_parts.append(f"--hero-bg: url({hero_bg})")
     overlay_rgba = _overlay_rgba(
         theme.get("home_overlay_color") or "#000000",
         theme.get("home_overlay_alpha"),
     )
-    if overlay_rgba:
-        hero_style_parts.append(f"--hero-overlay: {overlay_rgba}")
-    hero_classes = "hero has-bg" if hero_bg else "hero"
-    hero_style_attr = (
-        f' style="{"; ".join(hero_style_parts)}"' if hero_style_parts else ""
-    )
+    is_cover = (theme.get("home_width") or "standard") == "cover"
+
+    style_block = ""
+    hero_style_attr = ""
+    hero_classes = "hero"
+    if is_cover:
+        parts: list[str] = []
+        if hero_bg:
+            parts.append(f"--hero-bg: url({hero_bg})")
+        if overlay_rgba:
+            parts.append(f"--hero-overlay: {overlay_rgba}")
+        if parts:
+            style_block = (
+                f"<style>body.home-cover {{ {'; '.join(parts)} }}</style>"
+            )
+    else:
+        hero_style_parts: list[str] = []
+        if hero_bg:
+            hero_style_parts.append(f"--hero-bg: url({hero_bg})")
+        if overlay_rgba:
+            hero_style_parts.append(f"--hero-overlay: {overlay_rgba}")
+        hero_classes = "hero has-bg" if hero_bg else "hero"
+        if hero_style_parts:
+            hero_style_attr = f' style="{"; ".join(hero_style_parts)}"'
+
     # The hero no longer auto-renders a "Browse N documents" CTA — the
     # navbar + widget palette + free pages give the Designer enough
     # handles for that call-to-action, and the button was fighting the
     # typographic hierarchy of custom covers.
-    hero = f"""<div class="{hero_classes}"{hero_style_attr}>
+    hero = f"""{style_block}<div class="{hero_classes}"{hero_style_attr}>
   <h1>{title}</h1>
   {lead}
   {author_block}
