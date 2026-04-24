@@ -28,13 +28,15 @@ class Plugin(PluginBase):
     meta = PluginMeta(
         id="codeberg_integration",
         name="Codeberg Integration",
-        version="1.0.0",
+        version="1.2.0",
         native=False,
         description=(
-            "Deposits a collection to a Codeberg repository in one "
-            "commit per push. Supports self-hosted Forgejo/Gitea via "
-            "a configurable base URL. Uses a global PAT with optional "
-            "per-collection override. Non-native, opt-in."
+            "Deposits a collection or website to a Codeberg repository "
+            "in one commit per push. Supports one-shot Initialize for "
+            "empty collections (forge → Aracne2) and website-tree "
+            "deposit. Self-hosted Forgejo/Gitea works via a configurable "
+            "base URL. Uses a global PAT with optional per-link override. "
+            "Non-native, opt-in."
         ),
         author="Aracne2 Team",
         min_role="Admin",
