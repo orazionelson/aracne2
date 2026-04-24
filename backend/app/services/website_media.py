@@ -339,10 +339,20 @@ def rewrite_media_refs(
     *,
     mode: str,
     collected: set[str] | None = None,
+    static_prefix: str = "media/",
 ) -> str:
     """Replace every ``media://filename`` occurrence with a real URL.
 
     ``mode`` is ``"dynamic"`` (API URL) or ``"static"`` (relative path).
+
+    In STATIC mode the emitted URL is ``{static_prefix}{name}``. The
+    default prefix ``"media/"`` is correct for pages sitting at the
+    root of the built tree (``site_dir/index.html``,
+    ``site_dir/browse.html``). Pages written one level deep
+    (``site_dir/pages/{s}.html``, ``site_dir/docs/{f}.html``) must
+    pass ``static_prefix="../media/"`` so the relative URL resolves
+    back up to ``site_dir/media/``.
+
     When *collected* is passed, matched filenames are inserted so the
     STATIC builder can copy only the files actually referenced —
     avoiding the "dump every byte into the ZIP" trap.
@@ -355,8 +365,10 @@ def rewrite_media_refs(
         if collected is not None:
             collected.add(name)
         if mode == "static":
-            return f"media/{name}"
-        # DYNAMIC and HYBRID both resolve through the API.
+            return f"{static_prefix}{name}"
+        # DYNAMIC (and HYBRID, which mounts the same runtime API)
+        # resolves through the absolute API URL — the page location
+        # does not matter.
         return f"/api/v1/websites/{slug}/media/{name}"
 
     return _MEDIA_REF_RE.sub(_sub, html)

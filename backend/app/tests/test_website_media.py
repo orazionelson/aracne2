@@ -157,6 +157,13 @@ def test_rewrite_static_mode_emits_relative_paths_and_collects() -> None:
     assert collected == {"cover.webp", "illustration.png"}
 
 
+def test_rewrite_static_mode_honours_custom_prefix() -> None:
+    """Subdirectory pages (``pages/…``, ``docs/…``) need ``../media/``."""
+    html = '<img src="media://logo.png">'
+    out = wm.rewrite_media_refs(html, "s", mode="static", static_prefix="../media/")
+    assert 'src="../media/logo.png"' in out
+
+
 def test_rewrite_no_match_returns_unchanged() -> None:
     html = "<p>No media here.</p>"
     assert wm.rewrite_media_refs(html, "s", mode="dynamic") == html

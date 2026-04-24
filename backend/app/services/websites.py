@@ -1825,14 +1825,20 @@ def _render_page(
     include_jquery: bool = False,
     website_slug: str | None = None,
     static_media_collected: set[str] | None = None,
+    static_media_prefix: str = "media/",
 ) -> str:
     """Render the outer HTML shell around *content*.
 
     If ``website_slug`` is provided, ``media://filename`` references in
     the final HTML are rewritten. When ``static_media_collected`` is
     a set, STATIC mode is assumed and referenced filenames are added
-    to it (for the builder to copy into the output tree). Otherwise
-    DYNAMIC mode: references become absolute API URLs.
+    to it (for the builder to copy into the output tree).
+    ``static_media_prefix`` controls the relative URL prefix in STATIC
+    mode — ``"media/"`` for root-level files, ``"../media/"`` for
+    pages under ``pages/`` or ``docs/``.
+
+    Otherwise DYNAMIC mode: references become absolute API URLs, and
+    the page location does not matter.
     """
     esc_site = _html.escape(site_title)
     esc_page = _html.escape(page_title)
@@ -1886,6 +1892,7 @@ def _render_page(
             website_slug,
             mode=mode,
             collected=static_media_collected,
+            static_prefix=static_media_prefix,
         )
 
     return html_out
@@ -4398,6 +4405,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 include_jquery=include_jquery,
                 website_slug=slug,
                 static_media_collected=referenced_media,
+                static_media_prefix="../media/",
             )
             (site_dir / "docs" / f"{filename}.html").write_text(doc_html, encoding="utf-8")
 
@@ -4418,6 +4426,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             include_jquery=include_jquery,
             website_slug=slug,
             static_media_collected=referenced_media,
+            static_media_prefix="../media/",
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(page_html, encoding="utf-8")
 
@@ -4502,9 +4511,6 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "pages").mkdir(exist_ok=True)
 
-    # Collect ``media://`` references emitted by _render_page across all
-    # built pages — see the comment in _build_static_site for the rationale.
-    referenced_media: set[str] = set()
 
     style = _style_block(theme, website.custom_css)
     custom_js = website.custom_js
@@ -4564,7 +4570,6 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         custom_js=custom_js,
         include_jquery=include_jquery,
         website_slug=slug,
-        static_media_collected=referenced_media,
     )
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -4584,7 +4589,6 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             custom_js=custom_js,
             include_jquery=include_jquery,
             website_slug=slug,
-            static_media_collected=referenced_media,
         )
         (site_dir / "browse.html").write_text(browse_html, encoding="utf-8")
 
@@ -4615,7 +4619,6 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             custom_js=custom_js,
             include_jquery=include_jquery,
             website_slug=slug,
-            static_media_collected=referenced_media,
         )
         (site_dir / "bibliography.html").write_text(bibliography_html, encoding="utf-8")
 
@@ -4637,7 +4640,6 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             custom_js=custom_js,
             include_jquery=include_jquery,
             website_slug=slug,
-            static_media_collected=referenced_media,
         )
         (site_dir / "pages" / f"{page.slug}.html").write_text(
             page_html, encoding="utf-8"
@@ -4649,11 +4651,10 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         indices_page_html = render_all_indices_html(website, site_base_url=base)
         (site_dir / "indices.html").write_text(indices_page_html, encoding="utf-8")
 
-    # Copy referenced ``media://`` files into the build output, same as
-    # the STATIC builder.
-    from app.services import website_media as _wm
-
-    _wm.copy_referenced_media_to_build(slug, site_dir, referenced_media)
+    # No media-file copy step here: HYBRID pages reference managed
+    # media through the absolute API URL (see ``_render_page`` +
+    # ``rewrite_media_refs`` in dynamic mode) so nothing needs to live
+    # on disk alongside the HTML.
 
     # After build, invalidate the dynamic render cache so any cached doc pages
     # are refreshed from eXist-db on the next request.
