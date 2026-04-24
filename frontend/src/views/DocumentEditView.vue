@@ -18,6 +18,12 @@ import OrcidLinkPanel from '@/components/ui/OrcidLinkPanel.vue';
 import RorLinkPanel from '@/components/ui/RorLinkPanel.vue';
 import ViafLinkPanel from '@/components/ui/ViafLinkPanel.vue';
 import GeonamesLinkPanel from '@/components/ui/GeonamesLinkPanel.vue';
+import GndLinkPanel from '@/components/ui/GndLinkPanel.vue';
+import CerlLinkPanel from '@/components/ui/CerlLinkPanel.vue';
+import PeripleoLinkPanel from '@/components/ui/PeripleoLinkPanel.vue';
+import GettyAatLinkPanel from '@/components/ui/GettyAatLinkPanel.vue';
+import OpenAlexPanel from '@/components/ui/OpenAlexPanel.vue';
+import TrismegistosLinkPanel from '@/components/ui/TrismegistosLinkPanel.vue';
 import CrossrefPanel from '@/components/ui/CrossrefPanel.vue';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
@@ -49,6 +55,24 @@ const viafPluginActive = computed(() =>
 );
 const geonamesPluginActive = computed(() =>
   pluginStore.plugins.some((p) => p.name === 'geonames' && p.status === 'active'),
+);
+const gndPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'gnd' && p.status === 'active'),
+);
+const cerlPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'cerl' && p.status === 'active'),
+);
+const peripleoPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'peripleo' && p.status === 'active'),
+);
+const gettyAatPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'getty_aat' && p.status === 'active'),
+);
+const openalexPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'openalex' && p.status === 'active'),
+);
+const trismegistosPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === 'trismegistos' && p.status === 'active'),
 );
 const crossrefPluginActive = computed(() =>
   pluginStore.plugins.some(
@@ -147,6 +171,36 @@ const GEO_TAGS = ['placeName'] as const;
 const showGeonamesPanel = ref(false);
 const geonamesInitialQuery = ref('');
 
+// ── GND (lobid.org) — broad: persName / placeName / orgName.
+const GND_TAGS = ['persName', 'placeName', 'orgName'] as const;
+const showGndPanel = ref(false);
+const gndInitialQuery = ref('');
+
+// ── CERL Thesaurus — broad: persName / placeName / orgName
+// (imprints live on <orgName>).
+const CERL_TAGS = ['persName', 'placeName', 'orgName'] as const;
+const showCerlPanel = ref(false);
+const cerlInitialQuery = ref('');
+
+// ── Peripleo (ancient places) — placeName only.
+const PERIPLEO_TAGS = ['placeName'] as const;
+const showPeripleoPanel = ref(false);
+const peripleoInitialQuery = ref('');
+
+// ── Getty AAT — term only.
+const GETTY_AAT_TAGS = ['term'] as const;
+const showGettyAatPanel = ref(false);
+const gettyAatInitialQuery = ref('');
+
+// ── OpenAlex — biblStruct insert (no @ref on enclosing tag).
+const showOpenAlexPanel = ref(false);
+const openAlexInitialQuery = ref('');
+
+// ── Trismegistos — persName / placeName (text records not applicable).
+const TMG_TAGS = ['persName', 'placeName'] as const;
+const showTrismegistosPanel = ref(false);
+const trismegistosInitialQuery = ref('');
+
 // ── CrossRef DOI resolver panel ───────────────────────────────────────────────
 // Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
 // backend via CrossRef's /works/{doi}). Complements the AI `tei_bibl_inline`
@@ -176,6 +230,12 @@ const anyPanelOpen = computed(
     showRorPanel.value ||
     showViafPanel.value ||
     showGeonamesPanel.value ||
+    showGndPanel.value ||
+    showCerlPanel.value ||
+    showPeripleoPanel.value ||
+    showGettyAatPanel.value ||
+    showOpenAlexPanel.value ||
+    showTrismegistosPanel.value ||
     showCrossrefPanel.value,
 );
 
@@ -629,6 +689,12 @@ function toggleWikidataPanel(): void {
   showRorPanel.value = false;
   showViafPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -682,6 +748,12 @@ function toggleOrcidPanel(): void {
   showRorPanel.value = false;
   showViafPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -731,6 +803,12 @@ function toggleRorPanel(): void {
   showOrcidPanel.value = false;
   showViafPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -778,6 +856,12 @@ function toggleViafPanel(): void {
   showOrcidPanel.value = false;
   showRorPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -851,6 +935,127 @@ function applyGeonamesRef(uri: string): EntityRefOutcome {
   return singleCm.insertEntityRef(uri, GEO_TAGS);
 }
 
+
+// ── Shared toggle helpers for the new authority panels ───────────────────────
+//
+// Extract the "pre-fill query" from the editor: current selection when
+// present, else the text inside the enclosing TEI tag (best-effort
+// scan for "<…>…<"). Same heuristic every older toggle function uses
+// inline; factored out here to keep the six new toggles terse.
+
+function _computePrefill(): string {
+  const cm = singleCm.editorInstance.value;
+  const sel = cm?.getSelection()?.trim() ?? '';
+  if (sel) return sel;
+  if (!cm) return '';
+  const text = cm.getValue();
+  const offset = cm.indexFromPos(cm.getCursor());
+  const open = text.lastIndexOf('<', offset - 1);
+  const close = text.indexOf('>', open);
+  const end = text.indexOf('<', close);
+  if (open !== -1 && close !== -1 && end !== -1 && end > close) {
+    return text.slice(close + 1, end).trim();
+  }
+  return '';
+}
+
+/** Close every authority + non-authority panel except the one named. */
+function _closeAllExcept(keep: string): void {
+  const panels: Record<string, { value: boolean }> = {
+    help: showHelpPanel,
+    ai: showAiPanel,
+    media: showMediaPanel,
+    validation: showValidationPanel,
+    wikidata: showWikidataPanel,
+    orcid: showOrcidPanel,
+    ror: showRorPanel,
+    viaf: showViafPanel,
+    geonames: showGeonamesPanel,
+    gnd: showGndPanel,
+    cerl: showCerlPanel,
+    peripleo: showPeripleoPanel,
+    gettyAat: showGettyAatPanel,
+    openalex: showOpenAlexPanel,
+    trismegistos: showTrismegistosPanel,
+    crossref: showCrossrefPanel,
+  };
+  for (const [name, ref] of Object.entries(panels)) {
+    if (name !== keep) ref.value = false;
+  }
+}
+
+// ── GND ──────────────────────────────────────────────────────────────────────
+
+function toggleGndPanel(): void {
+  if (showGndPanel.value) { showGndPanel.value = false; return; }
+  _closeAllExcept('gnd');
+  gndInitialQuery.value = _computePrefill();
+  showGndPanel.value = true;
+}
+function applyGndRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, GND_TAGS);
+}
+
+// ── CERL ─────────────────────────────────────────────────────────────────────
+
+function toggleCerlPanel(): void {
+  if (showCerlPanel.value) { showCerlPanel.value = false; return; }
+  _closeAllExcept('cerl');
+  cerlInitialQuery.value = _computePrefill();
+  showCerlPanel.value = true;
+}
+function applyCerlRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, CERL_TAGS);
+}
+
+// ── Peripleo ─────────────────────────────────────────────────────────────────
+
+function togglePeripleoPanel(): void {
+  if (showPeripleoPanel.value) { showPeripleoPanel.value = false; return; }
+  _closeAllExcept('peripleo');
+  peripleoInitialQuery.value = _computePrefill();
+  showPeripleoPanel.value = true;
+}
+function applyPeripleoRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, PERIPLEO_TAGS);
+}
+
+// ── Getty AAT ────────────────────────────────────────────────────────────────
+
+function toggleGettyAatPanel(): void {
+  if (showGettyAatPanel.value) { showGettyAatPanel.value = false; return; }
+  _closeAllExcept('gettyAat');
+  gettyAatInitialQuery.value = _computePrefill();
+  showGettyAatPanel.value = true;
+}
+function applyGettyAatRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, GETTY_AAT_TAGS);
+}
+
+// ── OpenAlex ─────────────────────────────────────────────────────────────────
+
+function toggleOpenAlexPanel(): void {
+  if (showOpenAlexPanel.value) { showOpenAlexPanel.value = false; return; }
+  _closeAllExcept('openalex');
+  openAlexInitialQuery.value = _computePrefill();
+  showOpenAlexPanel.value = true;
+}
+function applyOpenAlexFragment(xml: string): void {
+  singleCm.insertXmlFragment(xml);
+}
+
+// ── Trismegistos ─────────────────────────────────────────────────────────────
+
+function toggleTrismegistosPanel(): void {
+  if (showTrismegistosPanel.value) { showTrismegistosPanel.value = false; return; }
+  _closeAllExcept('trismegistos');
+  trismegistosInitialQuery.value = _computePrefill();
+  showTrismegistosPanel.value = true;
+}
+function applyTrismegistosRef(uri: string): EntityRefOutcome {
+  return singleCm.insertEntityRef(uri, TMG_TAGS);
+}
+
 /**
  * Toggle the CrossRef DOI resolver panel. On open, pre-fills the DOI
  * input with the current editor selection when it looks like a DOI —
@@ -871,6 +1076,12 @@ function toggleCrossrefPanel(): void {
   showRorPanel.value = false;
   showViafPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
 
   const cm = singleCm.editorInstance.value;
   const sel = cm?.getSelection()?.trim() ?? '';
@@ -953,6 +1164,12 @@ function openAiPanel(): void {
   showRorPanel.value = false;
   showViafPanel.value = false;
   showGeonamesPanel.value = false;
+  showGndPanel.value = false;
+  showCerlPanel.value = false;
+  showPeripleoPanel.value = false;
+  showGettyAatPanel.value = false;
+  showOpenAlexPanel.value = false;
+  showTrismegistosPanel.value = false;
   showAiPanel.value = true;
 }
 
@@ -1258,6 +1475,119 @@ async function runValidation(): Promise<void> {
         </button>
 
         <button
+          v-if="gndPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showGndPanel
+              ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm dark:border-indigo-500 dark:bg-indigo-500'
+              : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50',
+          ]"
+          :title="t('gnd.button_hint')"
+          @click="toggleGndPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="1" />
+            <path d="M7 9h10M7 13h10M7 17h7" />
+          </svg>
+          {{ t('gnd.button_label') }}
+        </button>
+
+        <button
+          v-if="cerlPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showCerlPanel
+              ? 'border-yellow-600 bg-yellow-600 text-white shadow-sm dark:border-yellow-500 dark:bg-yellow-500'
+              : 'border-yellow-300 bg-yellow-50 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50',
+          ]"
+          :title="t('cerl.button_hint')"
+          @click="toggleCerlPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 4h9a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z" />
+            <path d="M16 4h4v13h-4" />
+          </svg>
+          {{ t('cerl.button_label') }}
+        </button>
+
+        <button
+          v-if="peripleoPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showPeripleoPanel
+              ? 'border-orange-600 bg-orange-600 text-white shadow-sm dark:border-orange-500 dark:bg-orange-500'
+              : 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50',
+          ]"
+          :title="t('peripleo.button_hint')"
+          @click="togglePeripleoPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18" />
+          </svg>
+          {{ t('peripleo.button_label') }}
+        </button>
+
+        <button
+          v-if="gettyAatPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showGettyAatPanel
+              ? 'border-stone-700 bg-stone-700 text-white shadow-sm dark:border-stone-500 dark:bg-stone-500'
+              : 'border-stone-300 bg-stone-50 text-stone-800 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900/30 dark:text-stone-300 dark:hover:bg-stone-900/50',
+          ]"
+          :title="t('getty_aat.button_hint')"
+          @click="toggleGettyAatPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l7 4v10l-7 4-7-4V7z" />
+          </svg>
+          {{ t('getty_aat.button_label') }}
+        </button>
+
+        <button
+          v-if="openalexPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showOpenAlexPanel
+              ? 'border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500'
+              : 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50',
+          ]"
+          :title="t('openalex.button_hint')"
+          @click="toggleOpenAlexPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12a9 9 0 0 0 18 0" />
+          </svg>
+          {{ t('openalex.button_label') }}
+        </button>
+
+        <button
+          v-if="trismegistosPluginActive"
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
+            showTrismegistosPanel
+              ? 'border-rose-700 bg-rose-700 text-white shadow-sm dark:border-rose-500 dark:bg-rose-500'
+              : 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50',
+          ]"
+          :title="t('trismegistos.button_hint')"
+          @click="toggleTrismegistosPanel"
+        >
+          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 3h14v18H5z" />
+            <path d="M9 7h6M9 11h6M9 15h6" />
+          </svg>
+          {{ t('trismegistos.button_label') }}
+        </button>
+
+        <button
           v-if="crossrefPluginActive"
           :disabled="isLoading"
           :class="[
@@ -1347,7 +1677,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; showGndPanel = false; showCerlPanel = false; showPeripleoPanel = false; showGettyAatPanel = false; showOpenAlexPanel = false; showTrismegistosPanel = false; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1381,7 +1711,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; showGndPanel = false; showCerlPanel = false; showPeripleoPanel = false; showGettyAatPanel = false; showOpenAlexPanel = false; showTrismegistosPanel = false; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1705,6 +2035,36 @@ async function runValidation(): Promise<void> {
       :on-apply="applyGeonamesRef"
       @close="showGeonamesPanel = false"
     />
+  </div>
+
+  <!-- GND (lobid.org) lookup panel -->
+  <div v-if="showGndPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <GndLinkPanel :initial-query="gndInitialQuery" :on-apply="applyGndRef" @close="showGndPanel = false" />
+  </div>
+
+  <!-- CERL Thesaurus lookup panel -->
+  <div v-if="showCerlPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <CerlLinkPanel :initial-query="cerlInitialQuery" :on-apply="applyCerlRef" @close="showCerlPanel = false" />
+  </div>
+
+  <!-- Peripleo lookup panel (placeName only) -->
+  <div v-if="showPeripleoPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <PeripleoLinkPanel :initial-query="peripleoInitialQuery" :on-apply="applyPeripleoRef" @close="showPeripleoPanel = false" />
+  </div>
+
+  <!-- Getty AAT lookup panel (term only) -->
+  <div v-if="showGettyAatPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <GettyAatLinkPanel :initial-query="gettyAatInitialQuery" :on-apply="applyGettyAatRef" @close="showGettyAatPanel = false" />
+  </div>
+
+  <!-- OpenAlex panel (biblStruct insert) -->
+  <div v-if="showOpenAlexPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <OpenAlexPanel :initial-query="openAlexInitialQuery" :on-insert="applyOpenAlexFragment" @close="showOpenAlexPanel = false" />
+  </div>
+
+  <!-- Trismegistos lookup panel (persName + placeName) -->
+  <div v-if="showTrismegistosPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
+    <TrismegistosLinkPanel :initial-query="trismegistosInitialQuery" :on-apply="applyTrismegistosRef" @close="showTrismegistosPanel = false" />
   </div>
 
   <!-- CrossRef DOI resolver panel -->

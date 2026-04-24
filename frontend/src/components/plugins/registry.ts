@@ -44,6 +44,36 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     component: () => import("@/components/plugins/WikidataConfig.vue"),
   },
   {
+    slug: "gnd",
+    titleKey: "gnd.panel_title",
+    component: () => import("@/components/plugins/GndConfig.vue"),
+  },
+  {
+    slug: "cerl",
+    titleKey: "cerl.panel_title",
+    component: () => import("@/components/plugins/CerlConfig.vue"),
+  },
+  {
+    slug: "peripleo",
+    titleKey: "peripleo.panel_title",
+    component: () => import("@/components/plugins/PeripleoConfig.vue"),
+  },
+  {
+    slug: "getty_aat",
+    titleKey: "getty_aat.panel_title",
+    component: () => import("@/components/plugins/GettyAatConfig.vue"),
+  },
+  {
+    slug: "openalex",
+    titleKey: "openalex.panel_title",
+    component: () => import("@/components/plugins/OpenAlexConfig.vue"),
+  },
+  {
+    slug: "trismegistos",
+    titleKey: "trismegistos.panel_title",
+    component: () => import("@/components/plugins/TrismegistosConfig.vue"),
+  },
+  {
     slug: "orcid",
     titleKey: "orcid.panel_title",
     component: () => import("@/components/plugins/OrcidConfig.vue"),
