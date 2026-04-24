@@ -29,6 +29,7 @@ SENSITIVE_KEYS: frozenset[str] = frozenset(
         "codeberg_integration_pat",
         "github_integration_pat",
         "gitlab_integration_pat",
+        "dataverse_api_token",
     }
 )
 

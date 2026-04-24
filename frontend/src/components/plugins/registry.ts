@@ -124,6 +124,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "gitlab.panel_title",
     component: () => import("@/components/plugins/GitlabConfig.vue"),
   },
+  {
+    slug: "dataverse_integration",
+    titleKey: "dataverse.panel_title",
+    component: () => import("@/components/plugins/DataverseConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

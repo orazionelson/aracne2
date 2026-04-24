@@ -22,6 +22,7 @@ import { useGithubStore } from "@/stores/github";
 import { useGitlabStore } from "@/stores/gitlab";
 import { usePluginStore } from "@/stores/plugins";
 import ForgeCollectionSection from "@/components/ui/ForgeCollectionSection.vue";
+import DataverseCollectionSection from "@/components/ui/DataverseCollectionSection.vue";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
 import {
@@ -80,6 +81,9 @@ const githubPluginActive = computed(() =>
 );
 const gitlabPluginActive = computed(() =>
   pluginStore.plugins.some((p) => p.name === "gitlab_integration" && p.status === "active"),
+);
+const dataversePluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === "dataverse_integration" && p.status === "active"),
 );
 
 async function onForgeInitialized(): Promise<void> {
@@ -1743,6 +1747,13 @@ function statusClass(s: string): string {
         default-base-url="https://gitlab.com"
         class="mb-6"
         @initialized="onForgeInitialized"
+      />
+
+      <!-- Dataverse deposit section (EiC+, only when the plugin is active). -->
+      <DataverseCollectionSection
+        v-if="isEiC && dataversePluginActive"
+        :slug="slug"
+        class="mb-6"
       />
 
       <!-- Documents section -->

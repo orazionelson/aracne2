@@ -48,6 +48,8 @@ from app.plugins.github_integration.router import router as _github_router
 # GitLab Integration (non-native) — same setup as the others.
 from app.plugins.gitlab_integration import models as _gitlab_models  # noqa: F401 — register tables
 from app.plugins.gitlab_integration.router import router as _gitlab_router
+# Dataverse Integration (non-native) — no per-link tables, only a router mount.
+from app.plugins.dataverse_integration.router import router as _dataverse_router
 app.include_router(_backup_router, prefix="/api/v1")
 app.include_router(_collections_router, prefix="/api/v1")
 app.include_router(_named_entities_router, prefix="/api/v1")
@@ -55,6 +57,7 @@ app.include_router(_evt_router, prefix="/api/v1")
 app.include_router(_codeberg_router, prefix="/api/v1")
 app.include_router(_github_router, prefix="/api/v1")
 app.include_router(_gitlab_router, prefix="/api/v1")
+app.include_router(_dataverse_router, prefix="/api/v1")
 app.include_router(_oai_pmh_router, prefix="/api/v1")
 app.include_router(_webhook_dispatcher_router, prefix="/api/v1")
 

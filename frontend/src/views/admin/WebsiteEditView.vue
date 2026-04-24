@@ -29,6 +29,7 @@ import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
 import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
 import ZenodoWebsiteSection from "@/components/ui/ZenodoWebsiteSection.vue";
 import InternetArchiveWebsiteSection from "@/components/ui/InternetArchiveWebsiteSection.vue";
+import DataverseWebsiteSection from "@/components/ui/DataverseWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -65,6 +66,11 @@ const zenodoPluginActive = computed(() =>
 const internetArchivePluginActive = computed(() =>
   pluginStore.plugins.some(
     (p) => p.name === "internet_archive" && p.status === "active",
+  ),
+);
+const dataversePluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "dataverse_integration" && p.status === "active",
   ),
 );
 
@@ -1682,6 +1688,13 @@ onBeforeUnmount(() => {
         />
         <p v-else-if="website && !internetArchivePluginActive" class="text-xs text-gray-500">
           {{ t("internet_archive.website_plugin_not_active") }}
+        </p>
+        <DataverseWebsiteSection
+          v-if="website && dataversePluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !dataversePluginActive" class="text-xs text-gray-500">
+          {{ t("dataverse.website_plugin_not_active") }}
         </p>
       </div>
 
