@@ -1,213 +1,262 @@
-"""Trismegistos search service — no network, httpx.MockTransport."""
+"""Trismegistos ID-resolver — no network, httpx.MockTransport."""
 
 from __future__ import annotations
 
 import httpx
 import pytest
 
-from app.plugins.trismegistos.service import search
+from app.plugins.trismegistos.service import resolve
 
 
-def _person_row() -> dict[str, object]:
-    return {
-        "id": "12345",
-        "type": "person",
-        "name": "Apollonios son of Ptolemaios",
-        "dates": "150 BC – 130 BC",
-        "provenance": "Egypt, Herakleopolites",
-    }
+# ── Shared fixtures ────────────────────────────────────────────────────────
 
 
-def _place_row() -> dict[str, object]:
-    return {
-        "id": "8423",
-        "type": "place",
-        "name": "Oxyrhynchos",
-        "provenance": "Egypt, Oxyrhynchites",
-    }
+def _text_relations_payload() -> list[dict[str, object]]:
+    """Abbreviated but realistic shape returned by
+    ``/dataservices/texrelations/<id>``. Only non-null partners are
+    kept; the rest are ``null`` as in the real response."""
+    return [
+        {"TM_ID": ["9"]},
+        {"EDB": None},
+        {"HGV": ["9a", "9b"]},
+        {"DDBDP": ["9"]},
+        {"BL_online": ["9a", "9b"]},
+    ]
 
 
-def _text_row() -> dict[str, object]:
-    return {
-        "id": "77231",
-        "type": "text",
-        "name": "P.Oxy. I 1",
-        "dates": "200–300 AD",
-        "language": "Greek",
-        "genre": "literary",
-    }
+def _geo_relations_payload() -> list[dict[str, object]]:
+    """Realistic ``/dataservices/georelations/<id>`` shape, loosely
+    modelled on the Alexandria response."""
+    return [
+        {"TM_Geo_ID": None},
+        {"Syriaca": ["572"]},
+        {"DASI": None},
+        {"Wikipedia": ["Alexandria"]},
+    ]
 
 
-# ── Empty key short-circuits ───────────────────────────────────────────────
+# ── Person resolver: no network, validates numeric ID ──────────────────────
 
 
 @pytest.mark.asyncio
-async def test_search_empty_api_key_returns_empty_list_no_call() -> None:
-    """With an empty key the service must not hit the network at all —
-    the router will surface a 503 to the caller."""
+async def test_resolve_person_composes_canonical_url_without_network() -> None:
+    """Persons have no JSON endpoint — resolver must not touch the
+    network and must return a hit with the composed URL."""
     called = {"n": 0}
 
     def handler(_: httpx.Request) -> httpx.Response:
         called["n"] += 1
-        return httpx.Response(200, json={"results": [_person_row()]})
+        return httpx.Response(500)
 
-    hits = await search(
-        "x", api_key="", transport=httpx.MockTransport(handler),
+    hit = await resolve(
+        kind="person",
+        identifier="12345",
+        transport=httpx.MockTransport(handler),
     )
-    assert hits == []
+    assert called["n"] == 0
+    assert hit is not None
+    assert hit.tm_id == "12345"
+    assert hit.uri == "https://www.trismegistos.org/person/12345"
+    assert hit.kind == "person"
+    assert hit.partners == {}
+    assert "12345" in hit.label
+
+
+@pytest.mark.asyncio
+async def test_resolve_person_rejects_non_numeric_id() -> None:
+    hit = await resolve(kind="person", identifier="pap.1234")
+    assert hit is None
+
+
+# ── Place resolver: georelations JSON ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_resolve_place_parses_partners_and_derives_wikipedia_label() -> None:
+    captured: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json=_geo_relations_payload())
+
+    hit = await resolve(
+        kind="place",
+        identifier="100",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is not None
+    assert hit.tm_id == "100"
+    assert hit.uri == "https://www.trismegistos.org/place/100"
+    assert hit.kind == "place"
+    assert hit.partners["Wikipedia"] == ["Alexandria"]
+    assert hit.partners["Syriaca"] == ["572"]
+    # Wikipedia slug becomes the label.
+    assert hit.label == "Alexandria"
+    # Called georelations, not texrelations.
+    assert "dataservices/georelations/100" in captured["url"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_place_soft_404_returns_none() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"Message": "This GEO ID is not in our database."},
+        )
+
+    hit = await resolve(
+        kind="place",
+        identifier="999999",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_place_rejects_non_numeric_id() -> None:
+    """Places are identified by TM numeric Geo IDs — reject anything
+    else without touching the network."""
+    called = {"n": 0}
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        called["n"] += 1
+        return httpx.Response(200, json=_geo_relations_payload())
+
+    hit = await resolve(
+        kind="place",
+        identifier="oxyrhynchos",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is None
     assert called["n"] == 0
 
 
-# ── Parsing ────────────────────────────────────────────────────────────────
+# ── Text resolver: texrelations JSON with / without ?source= ──────────────
 
 
 @pytest.mark.asyncio
-async def test_search_parses_person_hit() -> None:
-    captured: dict[str, object] = {}
+async def test_resolve_text_direct_tm_id_uses_no_source_param() -> None:
+    captured: dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured["auth"] = request.headers.get("authorization", "")
         captured["url"] = str(request.url)
-        return httpx.Response(200, json={"results": [_person_row()]})
+        return httpx.Response(200, json=_text_relations_payload())
 
-    hits = await search(
-        "apollonios", api_key="SECRET_KEY",
+    hit = await resolve(
+        kind="text",
+        identifier="9",
+        source="trismegistos",
         transport=httpx.MockTransport(handler),
     )
-    assert len(hits) == 1
-    hit = hits[0]
-    assert hit.tm_id == "12345"
-    assert hit.uri == "https://www.trismegistos.org/person/12345"
-    assert hit.label == "Apollonios son of Ptolemaios"
-    assert hit.kind == "person"
-    assert "150 BC" in hit.detail
-    assert "Herakleopolites" in hit.detail
-    # API key goes into the bearer header.
-    assert captured["auth"] == "Bearer SECRET_KEY"
-    assert "trismegistos.org/api/v3/search" in str(captured["url"])
+    assert hit is not None
+    assert hit.tm_id == "9"
+    assert hit.uri == "https://www.trismegistos.org/text/9"
+    assert hit.partners == {
+        "HGV": ["9a", "9b"],
+        "DDBDP": ["9"],
+        "BL_online": ["9a", "9b"],
+    }
+    # HGV partner wins the label race ("HGV 9a").
+    assert hit.label == "HGV 9a"
+    # Trismegistos source means no ?source= param.
+    assert "dataservices/texrelations/9" in captured["url"]
+    assert "source=" not in captured["url"]
 
 
 @pytest.mark.asyncio
-async def test_search_parses_place_and_text() -> None:
+async def test_resolve_text_reverse_lookup_passes_source_and_resolves_tm_id() -> None:
+    """Paste ``9a`` with source=hgv → upstream resolves it to TM id 9."""
+    captured: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json=_text_relations_payload())
+
+    hit = await resolve(
+        kind="text",
+        identifier="9a",
+        source="hgv",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is not None
+    # Response-side TM_ID (9) wins over the input (9a).
+    assert hit.tm_id == "9"
+    assert hit.uri == "https://www.trismegistos.org/text/9"
+    assert "source=hgv" in captured["url"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_text_soft_404_returns_none() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            200, json={"results": [_place_row(), _text_row()]},
+            200, json={"Message": "This ID is not in our database."},
         )
 
-    hits = await search(
-        "x", api_key="KEY", transport=httpx.MockTransport(handler),
-    )
-    kinds = {h.kind for h in hits}
-    assert kinds == {"place", "text"}
-    assert any(h.uri == "https://www.trismegistos.org/place/8423" for h in hits)
-    assert any(h.uri == "https://www.trismegistos.org/text/77231" for h in hits)
-
-
-@pytest.mark.asyncio
-async def test_search_classifies_via_url_hint_when_type_missing() -> None:
-    row = {
-        "id": "9999",
-        "name": "Record without explicit type",
-        "url": "https://www.trismegistos.org/text/9999",
-    }
-
-    def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"results": [row]})
-
-    hits = await search("x", api_key="KEY", transport=httpx.MockTransport(handler))
-    assert hits[0].kind == "text"
-
-
-@pytest.mark.asyncio
-async def test_search_accepts_envelope_variants() -> None:
-    """TM has used multiple envelope shapes — results / hits / items /
-    data / data.hits. Cover the most common ones."""
-    for envelope in (
-        {"results": [_person_row()]},
-        {"hits": [_person_row()]},
-        {"items": [_person_row()]},
-        {"data": [_person_row()]},
-        {"data": {"hits": [_person_row()]}},
-    ):
-        def handler(_: httpx.Request, payload: object = envelope) -> httpx.Response:
-            return httpx.Response(200, json=payload)
-
-        hits = await search(
-            "x", api_key="KEY", transport=httpx.MockTransport(handler),
-        )
-        assert len(hits) == 1, f"Envelope failed: {envelope}"
-
-
-@pytest.mark.asyncio
-async def test_search_skips_rows_without_id_or_name() -> None:
-    rows = [
-        {"type": "person", "name": "No id"},
-        {"id": "1", "type": "person"},  # no name
-        {"id": "abc", "type": "person", "name": "Non-numeric id"},
-        _person_row(),
-    ]
-
-    def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"results": rows})
-
-    hits = await search("x", api_key="KEY", transport=httpx.MockTransport(handler))
-    assert len(hits) == 1
-    assert hits[0].tm_id == "12345"
-
-
-@pytest.mark.asyncio
-async def test_search_caps_rows() -> None:
-    def handler(_: httpx.Request) -> httpx.Response:
-        items = [
-            {"id": str(1000 + i), "type": "person", "name": f"Person {i}"}
-            for i in range(20)
-        ]
-        return httpx.Response(200, json={"results": items})
-
-    hits = await search(
-        "x", api_key="KEY", rows=5,
+    hit = await resolve(
+        kind="text",
+        identifier="xxx",
+        source="ddbdp",
         transport=httpx.MockTransport(handler),
     )
-    assert len(hits) == 5
+    assert hit is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_text_invalid_chars_short_circuit() -> None:
+    """Spaces, angle brackets, quotes — reject without a network call
+    so no crafted input ever reaches the URL."""
+    called = {"n": 0}
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        called["n"] += 1
+        return httpx.Response(200, json=_text_relations_payload())
+
+    for bad in ["9 OR 1=1", "<script>", "a'b", "pap?foo"]:
+        hit = await resolve(
+            kind="text",
+            identifier=bad,
+            transport=httpx.MockTransport(handler),
+        )
+        assert hit is None
+    assert called["n"] == 0
 
 
 # ── Fail-soft ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_search_unauthorized_returns_empty() -> None:
-    def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(401)
-
-    hits = await search("x", api_key="BAD", transport=httpx.MockTransport(handler))
-    assert hits == []
-
-
-@pytest.mark.asyncio
-async def test_search_fail_soft_on_http_error() -> None:
+async def test_resolve_fail_soft_on_http_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(503)
 
-    hits = await search("x", api_key="KEY", transport=httpx.MockTransport(handler))
-    assert hits == []
+    hit = await resolve(
+        kind="text", identifier="9",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is None
 
 
 @pytest.mark.asyncio
-async def test_search_fail_soft_on_network_error() -> None:
+async def test_resolve_fail_soft_on_network_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("boom")
 
-    hits = await search("x", api_key="KEY", transport=httpx.MockTransport(handler))
-    assert hits == []
+    hit = await resolve(
+        kind="place", identifier="100",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is None
 
 
 @pytest.mark.asyncio
-async def test_search_fail_soft_on_malformed_json() -> None:
+async def test_resolve_fail_soft_on_malformed_json() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200, content=b"not-json",
             headers={"Content-Type": "application/json"},
         )
 
-    hits = await search("x", api_key="KEY", transport=httpx.MockTransport(handler))
-    assert hits == []
+    hit = await resolve(
+        kind="text", identifier="9",
+        transport=httpx.MockTransport(handler),
+    )
+    assert hit is None

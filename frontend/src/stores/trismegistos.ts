@@ -1,9 +1,12 @@
 /**
- * Trismegistos lookup plugin store.
+ * Trismegistos ID-resolver store.
  *
- * The search endpoint returns 503 with ``code: "TMG_API_KEY_MISSING"``
- * when the admin has not yet configured a key. Consumers are expected
- * to catch the rejected promise and render a "Set API key" banner.
+ * Trismegistos does not publish a free-text search API — the plugin
+ * exposes a single ``POST /plugins/trismegistos/resolve`` that
+ * takes ``{ kind, identifier, source }`` and returns either a
+ * ``TrismegistosHit`` or ``null``. The backend uses the public
+ * ``texrelations`` / ``georelations`` endpoints plus offline URL
+ * composition for persons. No credentials are stored.
  */
 
 import { defineStore } from "pinia";
@@ -11,55 +14,55 @@ import { ref } from "vue";
 
 import { apiClient } from "@/services/api";
 
+export type TmKind = "person" | "place" | "text";
+
+export type TmTextSource =
+  | "trismegistos"
+  | "ddbdp"
+  | "hgv"
+  | "phi"
+  | "edh"
+  | "edcs"
+  | "edr"
+  | "edb"
+  | "isic"
+  | "rib"
+  | "lupa"
+  | "pn"
+  | "ba"
+  | "he"
+  | "uoxf";
+
 export interface TrismegistosHit {
   tm_id: string;
   uri: string;
   label: string;
-  detail: string;
-  kind: "person" | "place" | "text";
+  kind: TmKind;
+  partners: Record<string, string[]>;
 }
 
-export interface TrismegistosConfig {
-  api_key_set: boolean;
-  registration_url: string;
+export interface TrismegistosResolveRequest {
+  kind: TmKind;
+  identifier: string;
+  source: TmTextSource;
 }
-
-export type TrismegistosConfigUpdate = Partial<{ api_key: string | null }>;
 
 export const useTrismegistosStore = defineStore("trismegistos", () => {
-  const config = ref<TrismegistosConfig | null>(null);
-  const isSearching = ref(false);
-  const isSaving = ref(false);
+  const isResolving = ref(false);
 
-  async function search(q: string, rows = 15): Promise<TrismegistosHit[]> {
-    isSearching.value = true;
+  async function resolveId(
+    req: TrismegistosResolveRequest,
+  ): Promise<TrismegistosHit | null> {
+    isResolving.value = true;
     try {
-      return await apiClient.get<TrismegistosHit[]>(
-        "/plugins/trismegistos/search",
-        { params: { q, rows } },
+      return await apiClient.post<TrismegistosHit | null>(
+        "/plugins/trismegistos/resolve",
+        req,
       );
     } finally {
-      isSearching.value = false;
+      isResolving.value = false;
     }
   }
 
-  async function fetchConfig(): Promise<void> {
-    config.value = await apiClient.get<TrismegistosConfig>(
-      "/plugins/trismegistos/config",
-    );
-  }
-
-  async function updateConfig(patch: TrismegistosConfigUpdate): Promise<void> {
-    isSaving.value = true;
-    try {
-      config.value = await apiClient.put<TrismegistosConfig>(
-        "/plugins/trismegistos/config",
-        patch,
-      );
-    } finally {
-      isSaving.value = false;
-    }
-  }
-
-  return { config, isSearching, isSaving, search, fetchConfig, updateConfig };
+  return { isResolving, resolveId };
 });

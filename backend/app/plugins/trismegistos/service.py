@@ -1,24 +1,30 @@
-"""Trismegistos search client.
+"""Trismegistos ID-resolver service.
 
-TM exposes an ``api.trismegistos.org`` family of endpoints, one per
-kind of record (persons, places, texts, archives, authors, …). The
-service queries persons, places, and texts in parallel so the editor
-panel can show a unified hit list.
+Trismegistos publishes only ID-based resolvers, not a free-text
+search API. The three paths the plugin exercises are:
 
-Schema caveats: TM's API has changed across versions (v1, v2, the
-current "api.trismegistos.org/v3"). The parser reads defensively and
-accepts several field-name variants. **Verify the upstream shape at
-first activation** — if the real response differs, tune the parser
-and the URL template without touching router / schemas.
+- **Text** — ``GET /dataservices/texrelations/<id>[?source=<src>]``
+  JSON list of single-key dicts:
+  ``[{"TM_ID": ["9"]}, {"HGV": ["9a"]}, {"DDBDP": ["9"]}, ...]``.
+  A soft-404 is ``{"Message": "This ID is not in our database."}``.
+  Reverse lookup from a partner ID works via ``?source=<src>``.
 
-Auth: TM's current freemium tier requires an API key sent via the
-``Authorization: Bearer`` header for any non-trivial query. An empty
-key short-circuits to an empty result list (and the router surfaces
-a 503 with a clear code so the frontend can render a banner).
+- **Place** — ``GET /dataservices/georelations/<id>``. Same JSON
+  shape; first key is ``TM_Geo_ID``. Same soft-404 envelope.
+
+- **Person** — Trismegistos has **no** ``perrelations`` JSON
+  endpoint (only ``rdf/per`` returning RDF/XML). The resolver
+  therefore does not hit the network for persons: it validates the
+  ID is numeric and composes the canonical URL. The editor can
+  click through to the TM page for a visual sanity check.
+
+All upstream errors fail soft — the caller receives ``None`` and the
+panel renders a clean "not found" state.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import httpx
@@ -28,36 +34,117 @@ from app.plugins.trismegistos.schemas import TmKind, TrismegistosHit
 
 logger = structlog.get_logger()
 
-_SEARCH_URL = "https://www.trismegistos.org/api/v3/search"
+_BASE = "https://www.trismegistos.org"
+_TEXRELATIONS = f"{_BASE}/dataservices/texrelations"
+_GEORELATIONS = f"{_BASE}/dataservices/georelations"
 _TIMEOUT = 10.0
 
+# TM IDs are numeric. Partner-project IDs (HGV "9a", DDBDP "pap.1234",
+# PHI "12345") may mix letters, digits, dots, underscores, slashes.
+# The whitelist is defensive: anything else is rejected without a
+# network call so we never build a URL from untrusted input.
+_ID_SAFE = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
+_TM_NUMERIC = re.compile(r"^[1-9][0-9]{0,9}$")
 
-async def search(
-    q: str,
+
+def _build_hit(
     *,
-    api_key: str,
-    rows: int = 10,
-    transport: httpx.AsyncBaseTransport | None = None,
-) -> list[TrismegistosHit]:
-    """Return up to ``rows`` TM hits across persons/places/texts.
+    kind: TmKind,
+    tm_id: str,
+    partners: dict[str, list[str]],
+) -> TrismegistosHit:
+    """Assemble a hit object; label falls back to ``TM {kind} {id}``
+    when no partner provides a human-readable name."""
+    label = _derive_label(kind, tm_id, partners)
+    return TrismegistosHit(
+        tm_id=tm_id,
+        uri=f"{_BASE}/{kind}/{tm_id}",
+        label=label,
+        kind=kind,
+        partners=partners,
+    )
 
-    Raises no error on an empty ``api_key`` — returns ``[]``. The
-    router decides to surface a 503 with ``TMG_API_KEY_MISSING``
-    when that happens.
 
-    Fail-soft on any upstream problem (timeout, 5xx, parse error).
+def _derive_label(
+    kind: TmKind, tm_id: str, partners: dict[str, list[str]]
+) -> str:
+    """Pick a human-readable label from partner data if available.
+
+    For places the Wikipedia partner gives an excellent slug
+    ("Alexandria"); for texts an HGV or DDBDP reference is at least
+    recognisable. Falls back to ``TM {kind} {id}``.
     """
-    if not api_key.strip():
-        return []
+    if kind == "place":
+        wiki = partners.get("Wikipedia")
+        if wiki:
+            slug = str(wiki[0]).replace("_", " ").strip()
+            if slug:
+                return slug
+    if kind == "text":
+        for key in ("HGV", "DDBDP", "PHI", "EDH", "EDCS"):
+            value = partners.get(key)
+            if value:
+                return f"{key} {value[0]}"
+    return f"TM {kind} {tm_id}"
 
-    rows = max(1, min(rows, 25))
-    params = {"q": q, "rows": str(rows)}
+
+def _parse_relations_payload(payload: Any) -> dict[str, list[str]] | None:
+    """Extract the ``{partner: [ids]}`` map from a relations response.
+
+    Returns ``None`` when the response is the soft-404
+    ``{"Message": "..."}`` envelope or is otherwise malformed.
+    """
+    if isinstance(payload, dict) and "Message" in payload:
+        return None
+    if not isinstance(payload, list):
+        return None
+    partners: dict[str, list[str]] = {}
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        for key, value in item.items():
+            if not isinstance(key, str):
+                continue
+            # Skip the self-reference rows (TM_ID / TM_Geo_ID).
+            if key in ("TM_ID", "TM_Geo_ID"):
+                continue
+            if value is None:
+                continue
+            if isinstance(value, list):
+                ids = [str(v) for v in value if v is not None and str(v).strip()]
+                if ids:
+                    partners[key] = ids
+    return partners
+
+
+def _extract_tm_id(payload: Any, self_key: str) -> str | None:
+    """Pull the canonical TM id from a relations response.
+
+    ``self_key`` is ``TM_ID`` for texts and ``TM_Geo_ID`` for places.
+    """
+    if not isinstance(payload, list):
+        return None
+    for item in payload:
+        if isinstance(item, dict) and self_key in item:
+            value = item[self_key]
+            if isinstance(value, list) and value:
+                candidate = str(value[0]).strip()
+                if _TM_NUMERIC.match(candidate):
+                    return candidate
+    return None
+
+
+async def _get_json(
+    url: str,
+    *,
+    params: dict[str, str] | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> Any | None:
+    """GET *url* and return parsed JSON, or ``None`` on any hiccup."""
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {api_key.strip()}",
-        "User-Agent": "Aracne2-Trismegistos/1.0",
+        "User-Agent": "Aracne2-Trismegistos/2.0",
     }
-
     kwargs: dict[str, Any] = {
         "timeout": _TIMEOUT,
         "follow_redirects": True,
@@ -65,124 +152,94 @@ async def search(
     }
     if transport is not None:
         kwargs["transport"] = transport
-
     try:
         async with httpx.AsyncClient(**kwargs) as client:
-            resp = await client.get(_SEARCH_URL, params=params)
+            resp = await client.get(url, params=params)
     except httpx.RequestError as exc:
-        logger.warning("trismegistos_search_request_error", error=str(exc))
-        return []
-
-    if resp.status_code == 401:
-        logger.warning("trismegistos_search_unauthorized")
-        return []
+        logger.warning("trismegistos_request_error", url=url, error=str(exc))
+        return None
     if not resp.is_success:
-        logger.warning("trismegistos_search_http_error", status=resp.status_code)
-        return []
-
+        logger.warning("trismegistos_http_error", url=url, status=resp.status_code)
+        return None
     try:
-        payload = resp.json()
+        return resp.json()
     except ValueError as exc:
-        logger.warning("trismegistos_search_parse_error", error=str(exc))
-        return []
-
-    items = _extract_items(payload)
-    hits: list[TrismegistosHit] = []
-    for row in items[:rows]:
-        if not isinstance(row, dict):
-            continue
-        hit = _row_to_hit(row)
-        if hit is not None:
-            hits.append(hit)
-    return hits
-
-
-def _extract_items(payload: Any) -> list[Any]:
-    """Accept the half-dozen envelope shapes TM has used."""
-    if not isinstance(payload, dict):
-        return []
-    for key in ("results", "hits", "items", "data"):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return value
-        if isinstance(value, dict):
-            for inner_key in ("hits", "items", "data"):
-                inner = value.get(inner_key)
-                if isinstance(inner, list):
-                    return inner
-    return []
-
-
-def _row_to_hit(row: dict[str, Any]) -> TrismegistosHit | None:
-    # Accept any of the id fields TM has used.
-    tm_id_raw = row.get("tm_id") or row.get("id") or row.get("tmId") or row.get("identifier")
-    if tm_id_raw is None:
-        return None
-    try:
-        tm_id = str(int(str(tm_id_raw)))
-    except (TypeError, ValueError):
+        logger.warning("trismegistos_parse_error", url=url, error=str(exc))
         return None
 
-    kind = _classify(row)
-    if kind is None:
+
+# ── Public dispatcher ──────────────────────────────────────────────────────
+
+
+async def resolve(
+    *,
+    kind: TmKind,
+    identifier: str,
+    source: str = "trismegistos",
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> TrismegistosHit | None:
+    """Resolve a Trismegistos ID and return the hit, or ``None``.
+
+    ``source`` is honoured only for ``kind == "text"``. For persons
+    and places the resolver never sends a source parameter.
+    """
+    ident = identifier.strip()
+    if not ident or not _ID_SAFE.match(ident):
         return None
 
-    label = (
-        row.get("name")
-        or row.get("label")
-        or row.get("title")
-        or row.get("display_name")
+    if kind == "person":
+        return await _resolve_person(ident)
+    if kind == "place":
+        return await _resolve_place(ident, transport=transport)
+    return await _resolve_text(ident, source=source, transport=transport)
+
+
+async def _resolve_person(identifier: str) -> TrismegistosHit | None:
+    """Persons are resolved without a network call (no JSON endpoint)."""
+    if not _TM_NUMERIC.match(identifier):
+        return None
+    return _build_hit(kind="person", tm_id=identifier, partners={})
+
+
+async def _resolve_place(
+    identifier: str, *, transport: httpx.AsyncBaseTransport | None = None,
+) -> TrismegistosHit | None:
+    if not _TM_NUMERIC.match(identifier):
+        return None
+    payload = await _get_json(
+        f"{_GEORELATIONS}/{identifier}", transport=transport,
     )
-    if not isinstance(label, str) or not label.strip():
+    partners = _parse_relations_payload(payload)
+    if partners is None:
         return None
+    return _build_hit(kind="place", tm_id=identifier, partners=partners)
 
-    uri = f"https://www.trismegistos.org/{kind}/{tm_id}"
-    return TrismegistosHit(
-        tm_id=tm_id,
-        uri=uri,
-        label=label.strip(),
-        detail=_compose_detail(row),
-        kind=kind,
+
+async def _resolve_text(
+    identifier: str,
+    *,
+    source: str,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> TrismegistosHit | None:
+    params: dict[str, str] | None = None
+    if source and source != "trismegistos":
+        params = {"source": source}
+    payload = await _get_json(
+        f"{_TEXRELATIONS}/{identifier}",
+        params=params,
+        transport=transport,
     )
-
-
-def _classify(row: dict[str, Any]) -> TmKind | None:
-    """Pick a bucket based on the ``type`` or ``category`` field."""
-    t = str(
-        row.get("type")
-        or row.get("category")
-        or row.get("entity_type")
-        or ""
-    ).lower()
-    if t in ("person", "people", "persons"):
-        return "person"
-    if t in ("place", "places"):
-        return "place"
-    if t in ("text", "texts"):
-        return "text"
-    # Fallback: if an URL / link field hints at the type, use it.
-    for key in ("url", "link", "self"):
-        value = row.get(key)
-        if isinstance(value, str):
-            if "/person/" in value:
-                return "person"
-            if "/place/" in value:
-                return "place"
-            if "/text/" in value:
-                return "text"
-    return None
-
-
-def _compose_detail(row: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for key in ("dates", "date_range", "period", "provenance", "genre", "language"):
-        value = row.get(key)
-        if isinstance(value, str) and value.strip():
-            parts.append(value.strip())
-        elif isinstance(value, list):
-            pick = [v for v in value if isinstance(v, str) and v.strip()]
-            if pick:
-                parts.append(", ".join(pick[:2]))
-        if len(parts) >= 2:
-            break
-    return " · ".join(parts)
+    partners = _parse_relations_payload(payload)
+    if partners is None:
+        return None
+    # The canonical TM id lives inside the payload; for a direct TM
+    # lookup the input and the response id agree, but a partner-ID
+    # reverse-lookup needs the response-side id.
+    tm_id = _extract_tm_id(payload, self_key="TM_ID")
+    if tm_id is None:
+        # Fallback: trust the input if it is a plain TM id.
+        if source == "trismegistos" and _TM_NUMERIC.match(identifier):
+            tm_id = identifier
+        else:
+            return None
+    return _build_hit(kind="text", tm_id=tm_id, partners=partners)

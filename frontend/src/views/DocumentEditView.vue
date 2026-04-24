@@ -196,10 +196,10 @@ const gettyAatInitialQuery = ref('');
 const showOpenAlexPanel = ref(false);
 const openAlexInitialQuery = ref('');
 
-// ── Trismegistos — persName / placeName (text records not applicable).
+// ── Trismegistos — ID resolver; @ref application only on persName / placeName.
 const TMG_TAGS = ['persName', 'placeName'] as const;
 const showTrismegistosPanel = ref(false);
-const trismegistosInitialQuery = ref('');
+const trismegistosInitialKind = ref<'person' | 'place' | 'text'>('place');
 
 // ── CrossRef DOI resolver panel ───────────────────────────────────────────────
 // Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
@@ -1046,10 +1046,28 @@ function applyOpenAlexFragment(xml: string): void {
 
 // ── Trismegistos ─────────────────────────────────────────────────────────────
 
+/** Sniff the enclosing TEI tag name and pick the matching TM kind —
+ * so persName defaults to person, placeName to place, anything else
+ * to place (the most common editorial need). */
+function _computeTmKindFromCursor(): 'person' | 'place' | 'text' {
+  const cm = singleCm.editorInstance.value;
+  if (!cm) return 'place';
+  const text = cm.getValue();
+  const offset = cm.indexFromPos(cm.getCursor());
+  const open = text.lastIndexOf('<', offset - 1);
+  if (open === -1) return 'place';
+  const m = /^<\/?([A-Za-z][A-Za-z0-9:._-]*)/.exec(text.slice(open));
+  if (!m) return 'place';
+  const tag = m[1];
+  if (tag === 'persName') return 'person';
+  if (tag === 'placeName') return 'place';
+  return 'place';
+}
+
 function toggleTrismegistosPanel(): void {
   if (showTrismegistosPanel.value) { showTrismegistosPanel.value = false; return; }
   _closeAllExcept('trismegistos');
-  trismegistosInitialQuery.value = _computePrefill();
+  trismegistosInitialKind.value = _computeTmKindFromCursor();
   showTrismegistosPanel.value = true;
 }
 function applyTrismegistosRef(uri: string): EntityRefOutcome {
@@ -2064,7 +2082,7 @@ async function runValidation(): Promise<void> {
 
   <!-- Trismegistos lookup panel (persName + placeName) -->
   <div v-if="showTrismegistosPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <TrismegistosLinkPanel :initial-query="trismegistosInitialQuery" :on-apply="applyTrismegistosRef" @close="showTrismegistosPanel = false" />
+    <TrismegistosLinkPanel :initial-kind="trismegistosInitialKind" :on-apply="applyTrismegistosRef" @close="showTrismegistosPanel = false" />
   </div>
 
   <!-- CrossRef DOI resolver panel -->
