@@ -36,7 +36,12 @@ from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
 from app.models.collection import Collection, CollectionStatus
 from app.models.collection_permission import CollectionPermission
+from app.models.collection_validation_run import (
+    CollectionValidationRun,
+    ValidationRunStatus,
+)
 from app.models.role import Role, RoleName, UserRole
+from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.models.website import BuildStatus, RenderingMode, Website, WebsiteIndex, WebsitePage
 from app.schemas.websites import (
@@ -302,6 +307,27 @@ footer {
 }
 footer a { color: inherit; text-decoration: underline; }
 footer a:hover { opacity: 0.75; }
+/* TEI valid badge — shield + label rendered in the footer when the
+   collection's latest full-collection validation run is green. The
+   ``#tei-valid-badge`` id is deliberately stable so deployments can
+   hide or restyle the badge via their site's custom CSS without a
+   core change. */
+#tei-valid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.75rem;
+  line-height: 1.1;
+  vertical-align: baseline;
+}
+#tei-valid-badge:hover { opacity: 0.9; text-decoration: none; }
+#tei-valid-badge svg { width: 0.85rem; height: 0.85rem; }
 /* ── Breadcrumb ── */
 .breadcrumb { max-width: 960px; margin: 0.75rem auto 0; padding: 0 1.5rem; }
 .breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 0.25rem; font-size: 0.8rem; color: #6b7280; }
@@ -1793,6 +1819,7 @@ def _render_page(
     breadcrumb: str = "",
     footer_note: str = "",
     identifier_url: str = "",
+    tei_valid_badge: str = "",
     meta_tags: str = "",
     custom_js: str | None = None,
     include_jquery: bool = False,
@@ -1804,6 +1831,10 @@ def _render_page(
         label = _identifier_label(identifier_url)
         esc_url = _html.escape(identifier_url)
         footer_extra += f'<a href="{esc_url}" class="footer-identifier" target="_blank" rel="noopener">{label}</a> · '
+    if tei_valid_badge:
+        # The badge HTML is trusted — built by _tei_valid_badge_html from
+        # system-controlled data (a date string and a fixed template).
+        footer_extra += f'{tei_valid_badge} · '
     meta_block = f"\n{meta_tags}" if meta_tags else ""
     breadcrumb_block = f"\n  {breadcrumb}" if breadcrumb else ""
     jquery_tag = (
@@ -2653,6 +2684,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         indices=website.indices,
     )
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
     html = _render_page(
         site_title=website.title,
         page_title=website.title,
@@ -2661,6 +2693,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
         navbar=navbar,
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
@@ -2696,6 +2729,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         indices=website.indices,
     )
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
     html = _render_page(
         site_title=website.title,
         page_title="Browse",
@@ -2705,6 +2739,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
@@ -2776,6 +2811,7 @@ async def render_dynamic_search(
         await db.get(Collection, website.collection_id)
         if website.collection_id else None
     )
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
     html = _render_page(
         site_title=website.title,
         page_title="Search",
@@ -2785,6 +2821,7 @@ async def render_dynamic_search(
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Search")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
@@ -2838,6 +2875,7 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
         if website.collection_id else None
     )
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
 
     html = _render_page(
         site_title=website.title,
@@ -2848,6 +2886,7 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=_build_meta_tags(website.meta_config or {}, website_url=website.website_url),
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
@@ -2917,6 +2956,7 @@ async def render_dynamic_doc(
     else:
         crumbs = [(f"{base}/", "Home"), (f"{base}/browse", "Browse"), (None, label)]
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
     html = _render_page(
         site_title=website.title,
         page_title=label,
@@ -2926,6 +2966,7 @@ async def render_dynamic_doc(
         breadcrumb=_render_breadcrumb(crumbs),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
     )
@@ -2965,6 +3006,7 @@ async def render_dynamic_page(
         if website.collection_id else None
     )
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
     content_html = _md_to_html(page.content_md or "")
     html = _render_page(
         site_title=website.title,
@@ -2975,6 +3017,7 @@ async def render_dynamic_page(
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, page.title)]),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         custom_js=website.custom_js,
         include_jquery=website.include_jquery,
     )
@@ -2994,6 +3037,66 @@ def _footer_parts(col: Collection | None) -> tuple[str, str]:
         if col.identifier_url:
             identifier_url = col.identifier_url
     return ", ".join(publisher_parts), identifier_url
+
+
+async def _tei_valid_badge_html(
+    db: AsyncSession, col: Collection | None
+) -> str:
+    """Return footer-badge HTML when the collection has a green validation.
+
+    Empty string means "no badge" — the caller can unconditionally
+    inline the result. Gated by the global setting
+    ``public_tei_valid_badge_enabled`` (default true) so a deployment
+    that prefers not to make public validation claims can hide the
+    badge on every site at once.
+
+    "Green" here means the latest completed full-collection validation
+    run has ``status == 'done'`` AND ``error_count == 0``. Runs that
+    are still in progress (``pending`` / ``running``), were cancelled,
+    or ended with errors never produce a badge. The date shown in the
+    tooltip is the ``completed_at`` timestamp — the badge asserts "was
+    valid on that day", not "is always valid right now". Editors can
+    re-run the validation any time from the Collection detail page to
+    refresh the stamp.
+    """
+    if col is None:
+        return ""
+    # Global kill switch — read every time so toggling the setting
+    # takes effect at the next page render (DYNAMIC) or next rebuild
+    # (STATIC / HYBRID).
+    row = await db.get(SystemSetting, "public_tei_valid_badge_enabled")
+    if row is None or (row.value or "").strip().lower() != "true":
+        return ""
+
+    stmt = (
+        select(CollectionValidationRun)
+        .where(
+            CollectionValidationRun.collection_id == col.id,
+            CollectionValidationRun.status == ValidationRunStatus.done,
+        )
+        .order_by(CollectionValidationRun.completed_at.desc())
+        .limit(1)
+    )
+    run = await db.scalar(stmt)
+    if run is None or run.error_count != 0:
+        return ""
+
+    when = run.completed_at or run.started_at
+    date_str = when.date().isoformat() if when else "unknown"
+    # Inline SVG so the badge renders even for sites hosted on domains
+    # that block external icon CDNs.
+    svg = (
+        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        '<path d="M12 2 4 5v6c0 5 3.5 9.4 8 11 4.5-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10l-6 6Z"/>'
+        "</svg>"
+    )
+    return (
+        '<a id="tei-valid-badge" class="footer-tei-valid" '
+        'href="https://tei-c.org/release/doc/tei-p5-doc/en/html/" '
+        'target="_blank" rel="noopener" '
+        f'title="Validated on {_html.escape(date_str)}">'
+        f"{svg}TEI valid</a>"
+    )
 
 
 # ── Maintenance mode ──────────────────────────────────────────────────────────
@@ -4100,6 +4203,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         if col.identifier_url:
             identifier_url = col.identifier_url
     footer_note = ", ".join(publisher_parts)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
 
     # ── index.html — cover / hero page ────────────────────────────────────
     index_html = _render_page(
@@ -4118,6 +4222,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         navbar=navbar(),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=meta_tags,
         custom_js=custom_js,
         include_jquery=include_jquery,
@@ -4135,6 +4240,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Browse")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
@@ -4163,6 +4269,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Bibliography")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             meta_tags=meta_tags,
             custom_js=base_custom_js,
             include_jquery=include_jquery,
@@ -4245,6 +4352,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                 breadcrumb=_render_breadcrumb(doc_crumbs),
                 footer_note=footer_note,
                 identifier_url=identifier_url,
+                tei_valid_badge=tei_valid_badge,
                 custom_js=custom_js,
                 include_jquery=include_jquery,
             )
@@ -4262,6 +4370,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([("../index.html", "Home"), (None, page.title)]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             custom_js=custom_js,
             include_jquery=include_jquery,
         )
@@ -4278,6 +4387,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Search")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
@@ -4371,6 +4481,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
 
     meta_tags: str = _build_meta_tags(website.meta_config or {}, website_url=website.website_url)
     footer_note, identifier_url = _footer_parts(col)
+    tei_valid_badge = await _tei_valid_badge_html(db, col)
 
     # ── index.html ────────────────────────────────────────────────────────
     index_html = _render_page(
@@ -4390,6 +4501,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
         navbar=_navbar(),
         footer_note=footer_note,
         identifier_url=identifier_url,
+        tei_valid_badge=tei_valid_badge,
         meta_tags=meta_tags,
         custom_js=custom_js,
         include_jquery=include_jquery,
@@ -4407,6 +4519,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Browse")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
@@ -4435,6 +4548,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             meta_tags=meta_tags,
             custom_js=custom_js,
             include_jquery=include_jquery,
@@ -4455,6 +4569,7 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             ),
             footer_note=footer_note,
             identifier_url=identifier_url,
+            tei_valid_badge=tei_valid_badge,
             custom_js=custom_js,
             include_jquery=include_jquery,
         )

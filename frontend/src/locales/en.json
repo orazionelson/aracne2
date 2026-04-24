@@ -231,7 +231,8 @@
     "hint_ai_rag_enabled": "Master switch for semantic retrieval (RAG). When true, prompts that reference {rag_context} receive top-matching passages from the indexed corpus. Requires the ai-local Compose profile (pgvector + ollama with the embedding model pulled).",
     "hint_ai_rag_top_k": "Number of chunks retrieved per query. Typical: 3–10. Higher values give more context but waste tokens on marginal matches.",
     "hint_ai_rag_context_tokens": "Approximate token budget reserved for the retrieved context slice of the prompt (chars / 4 heuristic). Chunks are truncated once the budget is reached.",
-    "hint_ai_rag_embedding_model": "Ollama tag used to compute embeddings. Default bge-m3 (multilingual, 1024-dim). Pull once with 'docker compose exec ollama ollama pull bge-m3'. Changing the model requires re-indexing the corpus."
+    "hint_ai_rag_embedding_model": "Ollama tag used to compute embeddings. Default bge-m3 (multilingual, 1024-dim). Pull once with 'docker compose exec ollama ollama pull bge-m3'. Changing the model requires re-indexing the corpus.",
+    "hint_public_tei_valid_badge_enabled": "When true, public websites whose backing collection has a green full-collection validation on record render a 'TEI valid' shield in the footer. The badge carries id='tei-valid-badge' so deployments can hide or restyle it via the site's custom CSS. Turn off to hide the badge everywhere."
   },
   "plugins": {
     "title": "Plugins",

@@ -231,7 +231,8 @@
     "hint_ai_rag_enabled": "Interruttore principale per la retrieval semantica (RAG). Se true, i prompt che usano {rag_context} ricevono i passaggi più pertinenti dal corpus indicizzato. Richiede il profilo Compose ai-local (pgvector + ollama col modello di embedding scaricato).",
     "hint_ai_rag_top_k": "Numero di chunk recuperati per query. Tipico: 3–10. Valori più alti forniscono più contesto ma sprecano token su match marginali.",
     "hint_ai_rag_context_tokens": "Budget di token approssimato riservato al contesto recuperato nel prompt (euristica: caratteri / 4). I chunk vengono troncati al raggiungimento del budget.",
-    "hint_ai_rag_embedding_model": "Identificativo Ollama del modello per gli embedding. Default bge-m3 (multilingue, 1024-dim). Scaricalo una volta con 'docker compose exec ollama ollama pull bge-m3'. Cambiare modello richiede di re-indicizzare il corpus."
+    "hint_ai_rag_embedding_model": "Identificativo Ollama del modello per gli embedding. Default bge-m3 (multilingue, 1024-dim). Scaricalo una volta con 'docker compose exec ollama ollama pull bge-m3'. Cambiare modello richiede di re-indicizzare il corpus.",
+    "hint_public_tei_valid_badge_enabled": "Quando attivo, i siti pubblici la cui collezione ha una validazione completa andata a buon fine mostrano in footer uno scudo 'TEI valid'. Il badge ha id='tei-valid-badge' così i singoli deployment possono nasconderlo o restilizzarlo dal CSS custom del sito. Disattiva per nascondere il badge ovunque."
   },
   "plugins": {
     "title": "Plugin",
