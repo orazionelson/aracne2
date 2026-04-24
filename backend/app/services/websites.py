@@ -3095,34 +3095,43 @@ async def render_dynamic_search(
         if cached is not None:
             return cached
 
+    # Resolve the linked collection once, up front — every downstream
+    # helper (search XQuery, footer, TEI-valid badge) needs it and the
+    # original code lazily resolved ``col`` only inside the ``if q``
+    # branch, which raised UnboundLocalError when the search page was
+    # requested with an empty query.
+    col: Collection | None = (
+        await db.get(Collection, website.collection_id)
+        if website.collection_id is not None
+        else None
+    )
+
     hits: list[dict] = []
-    if q and website.collection_id is not None:
-        col: Collection | None = await db.get(Collection, website.collection_id)
-        if col is not None:
-            try:
-                raw = await existdb_client.xquery(
-                    "search/fulltext_search.xq",
-                    variables={
-                        "collection_path": existdb_client.col_path(col.slug),
-                        "query": q,
-                        "max_results": "50",
-                    },
-                )
-                root_el = ET.fromstring(raw)
-                for hit_el in root_el.findall("hit"):
-                    filename = hit_el.get("filename", "")
-                    if not filename:
-                        continue
-                    kwic_el = hit_el.find("kwic")
-                    hits.append({
-                        "filename": filename,
-                        "score": hit_el.get("score", "0"),
-                        "kwic": (kwic_el.text or "").strip() if kwic_el is not None else "",
-                    })
-            except Exception as exc:
-                logger.warning(
-                    "dynamic_search_failed", slug=website.slug, q=q, error=str(exc)
-                )
+    if q and col is not None:
+        try:
+            raw = await existdb_client.xquery(
+                "search/fulltext_search.xq",
+                variables={
+                    "collection_path": existdb_client.col_path(col.slug),
+                    "query": q,
+                    "max_results": "50",
+                },
+            )
+            root_el = ET.fromstring(raw)
+            for hit_el in root_el.findall("hit"):
+                filename = hit_el.get("filename", "")
+                if not filename:
+                    continue
+                kwic_el = hit_el.find("kwic")
+                hits.append({
+                    "filename": filename,
+                    "score": hit_el.get("score", "0"),
+                    "kwic": (kwic_el.text or "").strip() if kwic_el is not None else "",
+                })
+        except Exception as exc:
+            logger.warning(
+                "dynamic_search_failed", slug=website.slug, q=q, error=str(exc)
+            )
 
     theme = website.theme_config or {}
     base = f"/api/v1/sites/{website.slug}"
@@ -3137,10 +3146,7 @@ async def render_dynamic_search(
         site_base_url=base,
         indices=website.indices,
     )
-    footer_note, identifier_url = _footer_parts(
-        await db.get(Collection, website.collection_id)
-        if website.collection_id else None
-    )
+    footer_note, identifier_url = _footer_parts(col)
     tei_valid_badge = await _tei_valid_badge_html(db, col)
     html = _render_page(
         site_title=website.title,
