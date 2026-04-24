@@ -3056,7 +3056,7 @@ def build_maintenance_html(
     # Show a site logo if the theme carries one; otherwise fall back to
     # the platform mark so the banner is never blank.
     site_logo_url = theme.get("logo_url") or ""
-    platform_logo_url = "/aracne-icons/favicon/aracne-favicon-256.png"
+    platform_logo_url = "/aracne-icons/lockup/aracne-lockup-vertical-512.png"
 
     # Escape the message — it is Designer-authored but we still do not
     # want newlines or angle brackets leaking raw into the template.
