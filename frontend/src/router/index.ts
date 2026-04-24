@@ -101,6 +101,12 @@ const router = createRouter({
       meta: { requiresAuth: true, layout: "admin" },
     },
     {
+      path: "/collections/:slug/edit",
+      name: "collection-edit",
+      component: () => import("@/views/CollectionEditView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "EditorInChief", layout: "admin" },
+    },
+    {
       path: "/collections/:slug/bibliobuilder",
       name: "collection-bibliobuilder",
       component: () => import("@/views/CollectionBibliobuilderview.vue"),
