@@ -251,6 +251,91 @@ async def test_push_error_mapping(status: int, expected: type[Exception]) -> Non
         )
 
 
+# ── Initialize (Phase 2) ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_initialize_bundle_empty_repo_returns_empty() -> None:
+    """An empty repo (no HEAD on the branch) yields an empty bundle
+    rather than an error, so the caller can decide the UX."""
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"message": "Not Found"})
+
+    adapter = CodebergAdapter()
+    bundle = await adapter.initialize_bundle(
+        repo=_repo(), branch="main", token="T",
+        transport=httpx.MockTransport(handler),
+    )
+    assert bundle.head_sha == ""
+    assert bundle.files == []
+
+
+@pytest.mark.asyncio
+async def test_initialize_bundle_walks_tree_and_fetches_blobs() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/branches/main"):
+            return httpx.Response(200, json={"commit": {"id": "head-sha"}})
+        if path.endswith("/git/trees/head-sha"):
+            return httpx.Response(200, json={
+                "tree": [
+                    {"path": "documents/a.xml", "sha": "blob-a", "type": "blob"},
+                    {"path": "documents/b.xml", "sha": "blob-b", "type": "blob"},
+                    {"path": "README.md", "sha": "blob-r", "type": "blob"},
+                    # A tree entry — must be skipped.
+                    {"path": "documents", "sha": "tree-d", "type": "tree"},
+                ]
+            })
+        # /raw/<ref>/<path>
+        if "/raw/head-sha/" in path:
+            if path.endswith("documents/a.xml"):
+                return httpx.Response(200, content=b"<a/>")
+            if path.endswith("documents/b.xml"):
+                return httpx.Response(200, content=b"<b/>")
+            if path.endswith("README.md"):
+                return httpx.Response(200, content=b"# readme")
+        raise AssertionError(f"Unexpected request: {path}")
+
+    adapter = CodebergAdapter()
+    bundle = await adapter.initialize_bundle(
+        repo=_repo(), branch="main", token="T",
+        transport=httpx.MockTransport(handler),
+    )
+    assert bundle.head_sha == "head-sha"
+    by_path = {f.path: f.content for f in bundle.files}
+    assert by_path == {
+        "documents/a.xml": b"<a/>",
+        "documents/b.xml": b"<b/>",
+        "README.md": b"# readme",
+    }
+
+
+@pytest.mark.asyncio
+async def test_initialize_bundle_skips_blob_that_vanishes_between_tree_and_fetch() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/branches/main"):
+            return httpx.Response(200, json={"commit": {"id": "h"}})
+        if path.endswith("/git/trees/h"):
+            return httpx.Response(200, json={"tree": [
+                {"path": "a.xml", "sha": "s1", "type": "blob"},
+                {"path": "b.xml", "sha": "s2", "type": "blob"},
+            ]})
+        if path.endswith("/raw/h/a.xml"):
+            return httpx.Response(404)  # vanished
+        if path.endswith("/raw/h/b.xml"):
+            return httpx.Response(200, content=b"<b/>")
+        raise AssertionError(f"Unexpected: {path}")
+
+    adapter = CodebergAdapter()
+    bundle = await adapter.initialize_bundle(
+        repo=_repo(), branch="main", token="T",
+        transport=httpx.MockTransport(handler),
+    )
+    assert bundle.head_sha == "h"
+    assert [f.path for f in bundle.files] == ["b.xml"]
+
+
 # ── BranchNotFound path ───────────────────────────────────────────────────
 
 

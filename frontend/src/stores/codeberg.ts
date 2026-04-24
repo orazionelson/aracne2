@@ -64,10 +64,17 @@ export interface CodebergPushResponse {
   file_count: number;
 }
 
+export interface CodebergInitializeResponse {
+  file_count: number;
+  head_sha: string;
+  initialized_at: string;
+}
+
 export const useCodebergStore = defineStore("codeberg", () => {
   const config = ref<CodebergConfig | null>(null);
   const isSaving = ref(false);
   const isPushing = ref(false);
+  const isInitializing = ref(false);
 
   async function fetchConfig(): Promise<void> {
     config.value = await apiClient.get<CodebergConfig>(
@@ -128,9 +135,23 @@ export const useCodebergStore = defineStore("codeberg", () => {
     }
   }
 
+  async function initializeCollection(
+    slug: string,
+  ): Promise<CodebergInitializeResponse> {
+    isInitializing.value = true;
+    try {
+      return await apiClient.post<CodebergInitializeResponse>(
+        `/plugins/codeberg/collections/${encodeURIComponent(slug)}/initialize`,
+        {},
+      );
+    } finally {
+      isInitializing.value = false;
+    }
+  }
+
   return {
-    config, isSaving, isPushing,
+    config, isSaving, isPushing, isInitializing,
     fetchConfig, updateConfig,
-    getLink, writeLink, deleteLink, pushCollection,
+    getLink, writeLink, deleteLink, pushCollection, initializeCollection,
   };
 });

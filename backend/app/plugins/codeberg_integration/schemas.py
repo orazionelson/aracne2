@@ -141,3 +141,16 @@ class CodebergPushResponse(BaseModel):
     committed_at: datetime
     html_url: str | None
     file_count: int
+
+
+# ── Initialize ─────────────────────────────────────────────────────────────
+
+
+class CodebergInitializeResponse(BaseModel):
+    """Shape returned by the one-shot Initialize endpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_count: int
+    head_sha: str
+    initialized_at: datetime

@@ -36,6 +36,7 @@ from app.plugins._lib.git_forge.errors import (
 )
 from app.plugins._lib.git_forge.models import (
     CommitResult,
+    DepositFile,
     DepositManifest,
     InitializeBundle,
     RepoRef,
@@ -160,9 +161,62 @@ class CodebergAdapter:
         token: str,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> InitializeBundle:
-        raise NotImplementedError(
-            "Initialize flow ships in Phase 2 of the git-forge plugins."
+        """Fetch every blob on ``branch`` and return an InitializeBundle.
+
+        Steps:
+          1. Resolve the branch's head SHA.
+          2. Walk the recursive tree at that SHA.
+          3. Download each blob via ``raw/<sha>/<path>`` (Forgejo returns
+             the raw bytes directly).
+
+        Raises ``RepoNotFound`` / ``BranchNotFound`` when the upstream
+        returns 404 on the head lookup; other upstream issues bubble up
+        as ``UpstreamError``.
+        """
+        head = await self.get_head_sha(
+            repo=repo, branch=branch, token=token, transport=transport,
         )
+        if head is None:
+            # Either the repo is empty, or the branch does not exist. For
+            # Initialize we treat both as "nothing to import" — the caller
+            # decides whether that's a user error.
+            return InitializeBundle(head_sha="", files=[])
+
+        # Walk the recursive tree.
+        url = self._url(repo, f"git/trees/{head}")
+        async with self._client(token, transport) as client:
+            resp = await client.get(url, params={"recursive": "true"})
+        self._raise_for_status(resp)
+        data = resp.json()
+        entries: list[tuple[str, str]] = []  # (path, blob_sha)
+        if isinstance(data, dict):
+            tree = data.get("tree", [])
+            if isinstance(tree, list):
+                for item in tree:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") != "blob":
+                        continue
+                    path = item.get("path")
+                    sha = item.get("sha")
+                    if isinstance(path, str) and isinstance(sha, str):
+                        entries.append((path, sha))
+
+        # Download each blob. Forgejo serves raw bytes at
+        # ``/raw/<ref>/<path>`` where <ref> is a branch, tag or SHA.
+        files: list[DepositFile] = []
+        async with self._client(token, transport) as client:
+            for path, _blob_sha in entries:
+                raw_url = self._url(repo, f"raw/{head}/{path}")
+                raw_resp = await client.get(raw_url)
+                if raw_resp.status_code == 404:
+                    # File vanished between tree listing and fetch —
+                    # skip rather than fail the whole import.
+                    continue
+                self._raise_for_status(raw_resp)
+                files.append(DepositFile(path=path, content=raw_resp.content))
+
+        return InitializeBundle(head_sha=head, files=files)
 
     # ── Helpers ────────────────────────────────────────────────────────────
 

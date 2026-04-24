@@ -19,6 +19,7 @@ import {
 } from "@/stores/internet_archive";
 import {
   useCodebergStore,
+  type CodebergInitializeResponse,
   type CodebergLink,
   type CodebergPushResponse,
 } from "@/stores/codeberg";
@@ -77,8 +78,17 @@ const codebergPluginActive = computed(() =>
 );
 const codebergLink = ref<CodebergLink | null>(null);
 const codebergPushResult = ref<CodebergPushResponse | null>(null);
+const codebergInitResult = ref<CodebergInitializeResponse | null>(null);
 const codebergError = ref<string | null>(null);
 const codebergEditing = ref(false);
+const codebergConfirmingInit = ref(false);
+// Initialize is available only while the collection is completely empty
+// *and* the link has not already been used for an import.
+const codebergCanInitialize = computed(() =>
+  codebergLink.value !== null
+  && codebergLink.value.initialized_at === null
+  && store.documents.length === 0,
+);
 const codebergEditDraft = ref({
   base_url: "https://codeberg.org",
   repo_owner: "",
@@ -876,6 +886,24 @@ async function pushCodeberg(): Promise<void> {
     codebergError.value =
       (err as { response?: { data?: { error?: { message?: string } } } })
         ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function initializeCodeberg(): Promise<void> {
+  codebergError.value = null;
+  codebergInitResult.value = null;
+  try {
+    codebergInitResult.value = await codebergStore.initializeCollection(slug);
+    // Refresh both the link (now stamped with initialized_at) and the
+    // document list (eXist was just populated).
+    codebergLink.value = await codebergStore.getLink(slug);
+    await store.fetchDocuments(slug);
+    codebergConfirmingInit.value = false;
+  } catch (err) {
+    codebergError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+    codebergConfirmingInit.value = false;
   }
 }
 
@@ -1929,6 +1957,55 @@ function statusClass(s: string): string {
               {{ t("codeberg.view_commit") }}
             </a>
           </p>
+          <p v-if="codebergInitResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("codeberg.initialize_success", {
+              n: codebergInitResult.file_count,
+              sha: codebergInitResult.head_sha.slice(0, 10),
+            }) }}
+          </p>
+
+          <!-- Initialize: only available when the collection is empty AND the
+               link has never been initialized. Initialize is one-shot. -->
+          <div
+            v-if="codebergCanInitialize"
+            class="rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20"
+          >
+            <p class="text-xs text-amber-800 dark:text-amber-200">
+              {{ t("codeberg.initialize_available_hint") }}
+            </p>
+            <div v-if="!codebergConfirmingInit" class="mt-2">
+              <button
+                type="button"
+                class="rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                @click="codebergConfirmingInit = true"
+              >
+                {{ t("codeberg.initialize_btn") }}
+              </button>
+            </div>
+            <div v-else class="mt-2 space-y-2">
+              <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
+                {{ t("codeberg.initialize_confirm") }}
+              </p>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  :disabled="codebergStore.isInitializing"
+                  class="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                  @click="initializeCodeberg"
+                >
+                  {{ codebergStore.isInitializing ? t("common.loading") : t("codeberg.initialize_confirm_btn") }}
+                </button>
+                <button
+                  type="button"
+                  :disabled="codebergStore.isInitializing"
+                  class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                  @click="codebergConfirmingInit = false"
+                >
+                  {{ t("common.cancel") }}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div class="flex gap-2">
             <button

@@ -1077,7 +1077,12 @@
     "never_pushed": "Nessun push finora.",
     "pat_override_badge": "PAT per link",
     "push_success": "Push completato: {n} file in un singolo commit ({sha}).",
-    "view_commit": "Vedi commit"
+    "view_commit": "Vedi commit",
+    "initialize_available_hint": "Questa collezione è vuota e può essere inizializzata dal repository Codeberg collegato. Initialize copia tutti i file XML del repo in Aracne2 — è un'operazione one-shot, dopo di che l'unica direzione permessa è il push.",
+    "initialize_btn": "Inizializza da Codeberg",
+    "initialize_confirm": "Conferma: importa tutti i file XML del repo in questa collezione vuota. Operazione non annullabile.",
+    "initialize_confirm_btn": "Sì, importa ora",
+    "initialize_success": "Importati {n} file XML da Codeberg a {sha}."
   },
   "crossref": {
     "button_label": "CrossRef",

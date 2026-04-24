@@ -24,6 +24,7 @@ from app.plugins.codeberg_integration import service
 from app.plugins.codeberg_integration.schemas import (
     CodebergConfig,
     CodebergConfigUpdate,
+    CodebergInitializeResponse,
     CodebergLinkCreate,
     CodebergLinkResponse,
     CodebergPushRequest,
@@ -117,5 +118,27 @@ async def push_collection(
     except DomainValidationError:
         # Let the global handler translate to HTTP with the domain code.
         raise
+    await db.commit()
+    return DataResponse(data=result)
+
+
+# ── Initialize ─────────────────────────────────────────────────────────────
+
+
+@router.post("/collections/{slug}/initialize")
+async def initialize_collection(
+    slug: str,
+    _: Annotated[User, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[CodebergInitializeResponse]:
+    """One-shot import: copy every XML file from the linked Codeberg
+    repo into the *empty* Aracne2 collection.
+
+    Refuses (409) when the collection already has any documents or
+    when the link has already been initialized. After a successful
+    initialize the only allowed direction is push (Aracne2 → forge).
+    """
+    result = await service.initialize_collection(db, existdb, slug=slug)
     await db.commit()
     return DataResponse(data=result)

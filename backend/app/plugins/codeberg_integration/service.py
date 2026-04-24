@@ -13,11 +13,13 @@ against the remote tree.
 
 from __future__ import annotations
 
+import posixpath
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from defusedxml import ElementTree as _DefusedET
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +45,7 @@ from app.plugins._lib.git_forge.errors import (
 from app.plugins._lib.git_forge.models import (
     DepositFile,
     DepositManifest,
+    InitializeBundle,
     RepoRef,
 )
 from app.plugins._lib.git_forge.push import (
@@ -52,6 +55,7 @@ from app.plugins._lib.git_forge.push import (
 )
 from app.plugins.codeberg_integration.models import CodebergCollectionLink
 from app.plugins.codeberg_integration.schemas import (
+    CodebergInitializeResponse,
     CodebergLinkCreate,
     CodebergLinkResponse,
     CodebergPushResponse,
@@ -335,4 +339,192 @@ async def push_collection(
         committed_at=link.last_push_at,
         html_url=result.html_url,
         file_count=len(manifest.files),
+    )
+
+
+# ── Initialize (Phase 2 — forge → empty collection) ───────────────────────
+
+_INITIALIZE_MAX_FILES = 500
+_INITIALIZE_MAX_BYTES_PER_FILE = 10 * 1024 * 1024  # 10 MB
+_INITIALIZE_DOCS_PREFIX = "documents/"
+
+
+def _select_importable_files(
+    bundle: InitializeBundle,
+) -> list[DepositFile]:
+    """Filter an InitializeBundle down to importable TEI XML files.
+
+    Keeps only ``*.xml`` entries. Strips a leading ``documents/``
+    prefix when present (so a repo that was previously pushed by
+    Aracne2 round-trips cleanly). Raises DomainValidationError if
+    any filename would collide after flattening — Aracne2's
+    per-collection storage is flat, so nested XML with duplicate
+    basenames cannot be represented.
+    """
+    seen: dict[str, str] = {}  # basename → original path
+    picked: list[DepositFile] = []
+    for entry in bundle.files:
+        path = entry.path
+        if not path.lower().endswith(".xml"):
+            continue
+        # Strip optional documents/ prefix; otherwise use the basename
+        # of whatever path the file lives under.
+        if path.startswith(_INITIALIZE_DOCS_PREFIX):
+            basename = path[len(_INITIALIZE_DOCS_PREFIX):]
+        else:
+            basename = posixpath.basename(path)
+        if not basename or basename.startswith("."):
+            continue
+        if len(entry.content) > _INITIALIZE_MAX_BYTES_PER_FILE:
+            raise DomainValidationError(
+                "FORGE_INIT_FILE_TOO_LARGE",
+                f"'{path}' exceeds the {_INITIALIZE_MAX_BYTES_PER_FILE} "
+                f"byte import limit per file.",
+            )
+        if basename in seen:
+            raise DomainValidationError(
+                "FORGE_INIT_NAME_COLLISION",
+                f"Filename collision on import: '{basename}' appears in "
+                f"both '{seen[basename]}' and '{path}'. Flatten the repo "
+                f"before importing.",
+            )
+        seen[basename] = path
+        picked.append(DepositFile(path=basename, content=entry.content))
+
+    if len(picked) > _INITIALIZE_MAX_FILES:
+        raise DomainValidationError(
+            "FORGE_INIT_TOO_MANY_FILES",
+            f"Repository contains {len(picked)} XML files — exceeds the "
+            f"{_INITIALIZE_MAX_FILES} import ceiling. Use the CLI tool "
+            f"for larger corpora.",
+        )
+    return picked
+
+
+def _validate_wellformed(file_: DepositFile) -> None:
+    """Parse with defusedxml; reject malformed XML before it reaches eXist."""
+    try:
+        _DefusedET.fromstring(file_.content)
+    except Exception as exc:  # defusedxml raises a variety of types
+        raise DomainValidationError(
+            "FORGE_INIT_MALFORMED_XML",
+            f"'{file_.path}' is not well-formed XML: {exc}",
+        ) from exc
+
+
+async def initialize_collection(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    *,
+    slug: str,
+    adapter: Any | None = None,
+    transport: Any | None = None,
+) -> CodebergInitializeResponse:
+    """One-shot import: copy every ``*.xml`` file from the linked
+    Codeberg repository into an *empty* Aracne2 collection.
+
+    Guards:
+      - Collection must exist and be empty (zero documents).
+      - A Codeberg link must exist for the collection.
+      - The link must not already have an ``initialized_at`` timestamp
+        (initialize is permanently disabled once it has run once or
+        once any document has been written through other means).
+
+    Each imported file is parsed with ``defusedxml`` before being
+    written to eXist-db; malformed entries abort the whole import so
+    a partially-populated collection never results.
+    """
+    col = await _get_collection_by_slug(db, slug)
+    link = await _get_link(db, col.id)
+    if link is None:
+        raise NotFoundError(
+            f"Collection '{slug}' is not linked to a Codeberg repository.",
+        )
+    if link.initialized_at is not None:
+        raise ConflictError(
+            f"Collection '{slug}' has already been initialized from "
+            f"Codeberg — push is the only allowed direction from now on.",
+        )
+
+    # Zero-document precondition: check eXist, not ORM (the collection
+    # may or may not have had a Postgres counter, but eXist is the
+    # authoritative store for documents).
+    existing = await existdb.list_collection(slug)
+    if existing:
+        raise ConflictError(
+            f"Collection '{slug}' already contains {len(existing)} "
+            f"document(s); Initialize requires a completely empty "
+            f"collection.",
+        )
+
+    # Resolve the effective PAT (identical logic to push_collection).
+    global_cipher = await get_decrypted_setting(db, _PAT_SETTING_KEY)
+    if global_cipher:
+        global_cipher = encrypt_value(global_cipher, app_settings.jwt_secret)
+    token = resolve_token(
+        TokenSources(
+            override_ciphertext=link.pat_override,
+            global_ciphertext=global_cipher,
+            jwt_secret=app_settings.jwt_secret,
+        )
+    )
+    if not token:
+        raise DomainValidationError(
+            "FORGE_PAT_MISSING",
+            "No PAT configured. Set a global PAT in the plugin config "
+            "or a per-link override on this collection.",
+        )
+
+    adapter = adapter or CodebergAdapter()
+    repo = RepoRef(
+        base_url=link.base_url,
+        owner=link.repo_owner,
+        name=link.repo_name,
+    )
+    try:
+        bundle = await adapter.initialize_bundle(
+            repo=repo, branch=link.branch, token=token, transport=transport,
+        )
+    except GitForgeError as exc:
+        logger.warning(
+            "codeberg_initialize_failed", slug=slug, error=str(exc),
+        )
+        raise _map_forge_error(exc) from exc
+
+    if not bundle.head_sha:
+        raise ConflictError(
+            f"Codeberg reports no commits on branch '{link.branch}' — "
+            f"nothing to import."
+        )
+
+    importable = _select_importable_files(bundle)
+    if not importable:
+        raise ConflictError(
+            "Repository contains no XML files to import.",
+        )
+
+    # Parse every file up-front; if any is malformed, bail before writing
+    # a single byte to eXist so the collection stays empty.
+    for f in importable:
+        _validate_wellformed(f)
+
+    # Ensure the eXist collection exists (create it on-demand — Aracne2
+    # lazy-creates these when the first document arrives).
+    if not await existdb.collection_exists(slug):
+        await existdb.create_collection(slug)
+
+    # Upload each file. If a write fails halfway through, we leave the
+    # partially-written state in place for the operator to inspect —
+    # Initialize is a one-shot and retrying requires manual cleanup.
+    for f in importable:
+        await existdb.put_document(slug, f.path, f.content)
+
+    link.initialized_at = datetime.now(UTC)
+    link.initialized_from_sha = bundle.head_sha
+    await db.flush()
+
+    return CodebergInitializeResponse(
+        file_count=len(importable),
+        head_sha=bundle.head_sha,
+        initialized_at=link.initialized_at,
     )
