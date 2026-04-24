@@ -29,13 +29,15 @@ class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
         name="Zenodo Deposit",
-        version="1.0.0",
+        version="1.1.0",
         native=False,
         description=(
             "Deposits published collections on Zenodo and records the "
-            "returned DOI on the collection. Supports sandbox and "
-            "production endpoints, draft-for-review and auto-publish "
-            "modes. Configure the API token under Plugins → Zenodo Deposit."
+            "returned DOI on the collection. Also deposits a website's "
+            "rendered static output (file-by-file or as a single ZIP). "
+            "Supports sandbox and production endpoints, draft-for-review "
+            "and auto-publish modes. Configure the API token under "
+            "Plugins → Zenodo Deposit."
         ),
         author="Aracne2 Team",
         min_role="Admin",

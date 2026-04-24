@@ -61,7 +61,7 @@ async def seeded_plugin_row(db_session: AsyncSession) -> Plugin:
     row = Plugin(
         name="zenodo_deposit",
         display_name="Zenodo Deposit",
-        version="2.0.0",
+        version="1.1.0",
         status=PluginStatus.active,
         is_native=False,
     )
