@@ -133,9 +133,10 @@ contains a runtime variable.
 
 | Path | Role |
 |---|---|
-| `backend/app/plugins/_native/evt/plugin.py` | Plugin registration |
-| `backend/app/plugins/_native/evt/router.py` | FastAPI router — two public endpoints |
-| `backend/app/plugins/_native/evt/service.py` | `get_evt_config()`, `get_document_xml()` |
+| `backend/app/plugins/evt/plugin.py` | Plugin registration (non-native, opt-in) |
+| `backend/app/plugins/evt/router.py` | FastAPI router — two public endpoints |
+| `backend/app/plugins/evt/service.py` | `get_evt_config()`, `get_document_xml()` |
+| `backend/app/plugins/evt/tests/test_endpoints.py` | HTTP-level test suite |
 
 ### Endpoints [pub] — no authentication required
 

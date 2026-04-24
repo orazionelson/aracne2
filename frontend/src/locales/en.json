@@ -209,8 +209,6 @@
     "system_platform_name_required": "Platform name cannot be empty.",
     "system_default_language": "Default language",
     "system_default_language_hint": "Fallback UI language used when a user has no explicit preference set. The list is populated from the locales installed in the application.",
-    "system_evt_enabled": "Enable EVT viewer",
-    "system_evt_enabled_hint": "Expose the EVT-based reading view on the public site. Per-collection opt-in remains available.",
     "system_public_registration": "Enable public registration",
     "system_public_registration_hint": "Allow visitors to create their own account from the login page. When off, only admins can create users.",
     "key": "Key",
@@ -502,7 +500,15 @@
   "evt": {
     "read_button": "Read in EVT",
     "viewer_title": "Read",
-    "loading": "Loading EVT viewer..."
+    "loading": "Loading EVT viewer...",
+    "panel_title": "EVT Viewer",
+    "panel_subtitle": "Feeds the EVT 2 viewer with collection config and raw XML via two public API endpoints. The viewer UI itself is served from a separate nginx container activated via the 'evt' Docker Compose profile.",
+    "global_toggle_label": "Show the \"Read in EVT\" button on public pages",
+    "global_toggle_hint": "Per-collection opt-in is still required (enable 'EVT viewer' on each collection that should be readable in EVT).",
+    "container_hint": "The viewer UI itself is a separate nginx container. Start it with 'docker compose --profile evt up -d evt' and expose it at the URL configured in VITE_EVT_BASE_URL.",
+    "viewer_unavailable_title": "Viewer not enabled on this installation",
+    "viewer_unavailable_body": "The EVT reader is not active on this deployment. Ask the administrator to enable the EVT plugin and its Docker profile to view this edition inline.",
+    "back_home": "Back to home"
   },
   "public": {
     "search_placeholder": "Search collections...",

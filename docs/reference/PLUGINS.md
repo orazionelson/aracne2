@@ -480,24 +480,12 @@ See [COLLECTIONS.md](COLLECTIONS.md) for the full reference.
 
 ---
 
-### 6.4 `evt` — EVT Viewer Integration
+### 6.4 `evt` — moved to non-native plugins
 
-| | |
-|---|---|
-| **Location** | `plugins/_native/evt/` |
-| **Routes** | Yes — prefix `/public` |
-| **Hooks** | None |
-| **min_role** | User |
-
-Exposes two public, cacheable endpoints that feed the EVT 2 viewer:
-
-| Method | Path | Cache | Description |
-|--------|------|-------|-------------|
-| `GET` | `/api/v1/public/collections/{slug}/evt-config` | 60 s | EVT 2 `config.json` |
-| `GET` | `/api/v1/public/collections/{slug}/documents/{filename}/raw` | 300 s | Raw XML |
-
-Both endpoints are designed to be proxied by nginx. The EVT viewer UI is
-deployed separately via a Docker Compose profile.
+EVT was originally shipped as a native plugin. As of v2.0 it is a bundled
+**non-native** plugin — see §6b and [NON_NATIVE_PLUGINS.md](./NON_NATIVE_PLUGINS.md)
+for the current spec. The admin activates it from `/admin/plugins`. Detailed
+architecture reference: [EVT_INTEGRATION.md](./EVT_INTEGRATION.md).
 
 ---
 
@@ -638,7 +626,7 @@ lives in its own document:
 → [NON_NATIVE_PLUGINS.md](./NON_NATIVE_PLUGINS.md)
 
 Currently bundled: `zenodo_deposit`, `internet_archive`, `zotero_import`,
-`orcid`, `ror`, `crossref_lookup`. See that file for the canonical specs.
+`orcid`, `ror`, `crossref_lookup`, `evt`. See that file for the canonical specs.
 
 The rest of this document continues to describe the **plugin subsystem itself**
 (loader, hook registry, native vs. non-native lifecycle, signed webhook

@@ -94,7 +94,6 @@ const HIDDEN_FROM_SYSTEM_TABLE = new Set<string>([
   "home_show_search",
   "navbar_bg_color",
   "platform_logo_url",
-  "evt_enabled",
   "public_registration",
   "default_language",
   "platform_name",
@@ -505,9 +504,6 @@ const homeShowLoginButton = computed(
 );
 const homePropagateCss = computed(
   () => settingStore.getSetting("home_propagate_css") === "true",
-);
-const evtEnabled = computed(
-  () => settingStore.getSetting("evt_enabled") === "true",
 );
 const sitemapIncludeSearchEngines = computed(
   () => settingStore.getSetting("sitemap_include_search_engines") === "true",
@@ -2223,29 +2219,6 @@ onMounted(async () => {
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
               :class="homePropagateCss ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
-        </div>
-
-        <!-- evt_enabled -->
-        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-          <div class="mr-4">
-            <p class="text-sm font-medium text-gray-800">
-              {{ t("settings.system_evt_enabled") }}
-            </p>
-            <p class="mt-0.5 text-xs text-gray-500">
-              {{ t("settings.system_evt_enabled_hint") }}
-            </p>
-          </div>
-          <button
-            :disabled="togglingHomeSetting['evt_enabled']"
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-            :class="evtEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-            @click="toggleHomeSetting('evt_enabled', evtEnabled)"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="evtEnabled ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
         </div>

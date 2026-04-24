@@ -100,6 +100,12 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     }
     rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
     values = {r.key: r.value for r in rows}
+    # ``evt_enabled`` on the public config combines the system-setting
+    # toggle with the plugin's activation state: when the EVT plugin is
+    # inactive the setting is irrelevant — the "Read in EVT" button
+    # would point at an unmounted endpoint.
+    evt_setting_on = values.get("evt_enabled", "false") == "true"
+    evt_plugin_active = await _is_plugin_active(db, "evt")
     return UiConfigResponse(
         platform_name=values.get("platform_name", "Aracne2"),
         platform_logo_url=values.get(
@@ -113,8 +119,16 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         home_show_login_button=values.get("home_show_login_button", "true") == "true",
         has_custom_homepage_css=get_homepage_css_path() is not None,
         home_propagate_css=values.get("home_propagate_css", "false") == "true",
-        evt_enabled=values.get("evt_enabled", "false") == "true",
+        evt_enabled=evt_setting_on and evt_plugin_active,
     )
+
+
+async def _is_plugin_active(db: AsyncSession, plugin_id: str) -> bool:
+    """True when a plugin row exists and its status is ``active``."""
+    from app.models.plugin import Plugin, PluginStatus
+
+    row = await db.scalar(select(Plugin).where(Plugin.name == plugin_id))
+    return row is not None and row.status == PluginStatus.active
 
 
 async def upload_homepage_css(

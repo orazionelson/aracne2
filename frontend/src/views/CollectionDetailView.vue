@@ -323,8 +323,12 @@ async function handleSetPublic(version: number, isPublic: boolean): Promise<void
 async function copyBiblio(content: string): Promise<void> {
   await navigator.clipboard.writeText(content);
 }
+const evtPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === "evt" && p.status === "active"),
+);
 const evtEnabled = computed(
   () =>
+    evtPluginActive.value &&
     settingStore.getSetting("evt_enabled") === "true" &&
     store.current?.is_public === true &&
     store.current?.status === "published" &&
@@ -966,7 +970,7 @@ function statusClass(s: string): string {
               {{ t("collections.is_public") }}
             </label>
           </div>
-          <div class="flex items-center gap-2">
+          <div v-if="evtPluginActive" class="flex items-center gap-2">
             <input id="edit-evt-enabled" v-model="editEvtEnabled" type="checkbox" />
             <label for="edit-evt-enabled" class="text-sm text-gray-700 dark:text-gray-200">
               {{ t("collections.evt_enabled_label") }}

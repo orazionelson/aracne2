@@ -29,12 +29,15 @@ from app.models.user import User as _User
 # and import their models so Base.metadata.create_all() includes the plugin tables.
 from app.plugins._native.backup.router import router as _backup_router
 from app.plugins._native.collections.router import router as _collections_router
-from app.plugins._native.evt.router import router as _evt_router
 from app.plugins._native.named_entities import models as _ne_models  # noqa: F401 — register tables
 from app.plugins._native.named_entities.router import router as _named_entities_router
 from app.plugins._native.oai_pmh.router import router as _oai_pmh_router
 from app.plugins._native.webhook_dispatcher import models as _wd_models  # noqa: F401 — register tables
 from app.plugins._native.webhook_dispatcher.router import router as _webhook_dispatcher_router
+# EVT is now a non-native plugin; its router is mounted in tests too so the
+# HTTP-level test suite in app/plugins/evt/tests/ reaches the endpoints
+# without requiring plugin activation via the DB registry.
+from app.plugins.evt.router import router as _evt_router
 app.include_router(_backup_router, prefix="/api/v1")
 app.include_router(_collections_router, prefix="/api/v1")
 app.include_router(_named_entities_router, prefix="/api/v1")

@@ -104,6 +104,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "help.panel_title",
     component: () => import("@/components/plugins/HelpConfig.vue"),
   },
+  {
+    slug: "evt",
+    titleKey: "evt.panel_title",
+    component: () => import("@/components/plugins/EvtConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(

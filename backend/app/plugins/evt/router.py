@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.existdb import ExistDBClient, get_existdb
 from app.db.postgres import get_async_session
-from app.plugins._native.evt import service
+from app.plugins.evt import service
 
 router = APIRouter(prefix="/public/collections", tags=["evt"])
 

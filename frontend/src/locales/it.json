@@ -209,8 +209,6 @@
     "system_platform_name_required": "Il nome della piattaforma non può essere vuoto.",
     "system_default_language": "Lingua predefinita",
     "system_default_language_hint": "Lingua dell'interfaccia usata quando l'utente non ne ha impostata una esplicita. L'elenco è popolato dalle lingue installate nell'applicazione.",
-    "system_evt_enabled": "Abilita viewer EVT",
-    "system_evt_enabled_hint": "Rende disponibile la vista di lettura EVT sul sito pubblico. L'attivazione per singola collezione resta configurabile.",
     "system_public_registration": "Abilita registrazione pubblica",
     "system_public_registration_hint": "Permette ai visitatori di creare un proprio account dalla pagina di login. Se disattivata, solo gli admin possono creare utenti.",
     "key": "Chiave",
@@ -502,7 +500,15 @@
   "evt": {
     "read_button": "Leggi in EVT",
     "viewer_title": "Lettura",
-    "loading": "Caricamento visualizzatore EVT..."
+    "loading": "Caricamento visualizzatore EVT...",
+    "panel_title": "Visualizzatore EVT",
+    "panel_subtitle": "Alimenta il visualizzatore EVT 2 con config di collezione e XML grezzo tramite due endpoint API pubblici. L'interfaccia del visualizzatore è servita da un container nginx separato attivato tramite il profilo Docker Compose 'evt'.",
+    "global_toggle_label": "Mostra il pulsante \"Leggi in EVT\" sulle pagine pubbliche",
+    "global_toggle_hint": "L'attivazione per singola collezione resta richiesta (abilita 'visualizzatore EVT' su ciascuna collezione da leggere in EVT).",
+    "container_hint": "L'interfaccia del visualizzatore è un container nginx separato. Avvialo con 'docker compose --profile evt up -d evt' e rendilo disponibile all'URL configurato in VITE_EVT_BASE_URL.",
+    "viewer_unavailable_title": "Visualizzatore non abilitato su questa installazione",
+    "viewer_unavailable_body": "Il reader EVT non è attivo su questo deployment. Chiedi all'amministratore di attivare il plugin EVT e il relativo profilo Docker per leggere questa edizione inline.",
+    "back_home": "Torna alla home"
   },
   "public": {
     "search_placeholder": "Cerca collezioni...",
