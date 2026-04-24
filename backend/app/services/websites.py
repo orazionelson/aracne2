@@ -619,6 +619,22 @@ mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 2px; 
   color: #cbd5e1;
   font-style: italic;
 }
+/* ``tei-has-preview`` is added by the entity-hover JS at page load to
+   every entity link whose @ref is resolvable by the popover engine
+   (today: Wikidata; more authorities land later via the backend
+   proxy). The tiny ⓘ glyph tells readers "there is extra info here"
+   without fighting the colour that already says "this is a link". */
+a.tei-has-preview::after {
+  content: "\\2139";  /* information-source symbol */
+  font-size: 0.62em;
+  margin-left: 0.18em;
+  opacity: 0.55;
+  vertical-align: super;
+  font-style: normal;
+  font-weight: normal;
+  transition: opacity 0.15s ease;
+}
+a.tei-has-preview:hover::after { opacity: 1; }
 """
 
 
@@ -1474,6 +1490,18 @@ def _build_entity_hover_js(cfg: dict | None) -> str:
         "if(to&&(a.contains(to)||(currentTip&&currentTip.contains(to))))return;"
         "clearTimeout(hoverTimer);removeTip();});"
         "window.addEventListener('scroll',removeTip,{passive:true});"
+        # Tag every entity anchor whose href the engine can resolve, so
+        # CSS can show a small ⓘ glyph next to it. Runs once at load —
+        # future authorities will plug into the same ``supported``
+        # probe when their regexes are added.
+        "function supported(href){return !!extractQid(href);}"
+        "function tagPreviewLinks(root){"
+        "(root||document).querySelectorAll(selectors).forEach(function(a){"
+        "if(supported(a.getAttribute('href'))){a.classList.add('tei-has-preview');}"
+        "});}"
+        "if(document.readyState==='loading'){"
+        "document.addEventListener('DOMContentLoaded',function(){tagPreviewLinks();});"
+        "}else{tagPreviewLinks();}"
         "})();"
     )
 
