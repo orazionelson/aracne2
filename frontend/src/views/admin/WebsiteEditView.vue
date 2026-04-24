@@ -86,7 +86,7 @@ const website = computed<Website | null>(
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
 
-const editTab = ref<"general" | "theme" | "pages" | "media" | "document" | "xslt_edit" | "indices" | "cssjs" | "deposit">("general");
+const editTab = ref<"general" | "theme" | "home" | "pages" | "media" | "document" | "xslt_edit" | "indices" | "cssjs" | "deposit">("general");
 const showMetaPanel = ref(true);
 
 // Media picker dialog — opened by the logo field "Scegli" button. The
@@ -792,7 +792,7 @@ onBeforeUnmount(() => {
     <!-- Tab bar -->
     <div class="flex shrink-0 overflow-x-auto border-b border-gray-200 bg-white px-4">
       <button
-        v-for="tab in (['general', 'theme', 'pages', 'media', 'document', 'xslt_edit', 'indices', 'cssjs', 'deposit'] as const)"
+        v-for="tab in (['general', 'theme', 'home', 'pages', 'media', 'document', 'xslt_edit', 'indices', 'cssjs', 'deposit'] as const)"
         :key="tab"
         :disabled="tab === 'xslt_edit' && !isCustomSource"
         class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
@@ -1087,7 +1087,13 @@ onBeforeUnmount(() => {
             @selected="onLogoPicked"
           />
         </div>
-        <!-- Home layout -->
+      </div>
+
+      <!-- Tab: Home page — layout + widget palette + per-column WYSIWYG
+           editors. Extracted from the Theme tab so the settings that
+           shape *a single page* live together in their own surface and
+           the Theme tab stays focused on site-wide visual tokens. -->
+      <div v-if="editTab === 'home'" class="bg-indigo-50 p-4 space-y-5">
         <div>
           <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_content_title") }}</p>
           <div class="mb-3">

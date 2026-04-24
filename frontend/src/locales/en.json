@@ -732,6 +732,7 @@
     "field_contact_email_hint": "Shown on the maintenance banner and reusable elsewhere. Leave empty to fall back to the platform admin email.",
     "tab_general": "General",
     "tab_theme": "Theme",
+    "tab_home": "Home page",
     "tab_pages": "Pages",
     "tab_media": "Media",
     "tab_document": "Document",
