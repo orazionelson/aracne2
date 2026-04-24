@@ -866,6 +866,55 @@ async function saveZenodoCollectionSettings(): Promise<void> {
   }
 }
 
+// ── Deposit foldable panel ───────────────────────────────────────────────
+// Collapses what used to be five stacked card-panels (Zenodo, Internet
+// Archive, Codeberg, GitHub, GitLab, Dataverse) into a single foldable
+// "Deposita" container with one tab per active external service.
+const depositOpen = ref(false);
+const activeDepositTab = ref<string>("");
+
+interface DepositTab {
+  id: string;
+  label: string;
+}
+
+const depositTabs = computed<DepositTab[]>(() => {
+  const tabs: DepositTab[] = [];
+  if (!isEiC.value) return tabs;
+  // Zenodo: the per-collection override surface appears only once the
+  // vocabulary has loaded (proxy for "Zenodo plugin reachable").
+  if (zenodoGroupedResourceTypes.value.length > 0) {
+    tabs.push({ id: "zenodo", label: "Zenodo" });
+  }
+  // Internet Archive appears when the collection is published.
+  if (store.current?.status === "published") {
+    tabs.push({ id: "internet_archive", label: "Internet Archive" });
+  }
+  if (codebergPluginActive.value) tabs.push({ id: "codeberg", label: "Codeberg" });
+  if (githubPluginActive.value) tabs.push({ id: "github", label: "GitHub" });
+  if (gitlabPluginActive.value) tabs.push({ id: "gitlab", label: "GitLab" });
+  if (dataversePluginActive.value) tabs.push({ id: "dataverse", label: "Dataverse" });
+  return tabs;
+});
+
+const hasAnyDepositTab = computed(() => depositTabs.value.length > 0);
+
+// Keep activeDepositTab valid as the list changes (status transitions,
+// plugin activation). Default to the first visible tab.
+watch(
+  depositTabs,
+  (tabs) => {
+    if (tabs.length === 0) {
+      activeDepositTab.value = "";
+      return;
+    }
+    if (!tabs.some((t) => t.id === activeDepositTab.value)) {
+      activeDepositTab.value = tabs[0].id;
+    }
+  },
+  { immediate: true },
+);
+
 function statusClass(s: string): string {
   const map: Record<string, string> = {
     draft: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
@@ -1581,183 +1630,376 @@ function statusClass(s: string): string {
         </p>
       </section>
 
-      <!-- Zenodo per-collection override (EiC+, only when the plugin's
-           vocabulary has loaded so we do not show an empty dropdown) -->
+      <!-- Deposit foldable panel — consolidates Zenodo, Internet Archive
+           and the forge/Dataverse integrations into a single container
+           with one tab per active external service. Keeps the collection
+           page compact regardless of how many deposit plugins are on. -->
       <section
-        v-if="isEiC && zenodoGroupedResourceTypes.length > 0"
-        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+        v-if="hasAnyDepositTab"
+        class="mb-6 rounded border border-gray-200 dark:border-gray-700"
       >
-        <h2 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
-          {{ t("zenodo.collection_section_title") }}
-        </h2>
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          {{ t("zenodo.collection_section_hint") }}
-        </p>
+        <button
+          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60"
+          @click="depositOpen = !depositOpen"
+        >
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            {{ t("collections.deposit_panel_title") }}
+            <span class="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+              {{ depositTabs.length }}
+            </span>
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ depositOpen ? "▲" : "▼" }}</span>
+        </button>
 
-        <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
-          {{ zenodoResourceTypeError }}
-        </p>
-        <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
-          {{ t("zenodo.collection_section_saved") }}
-        </p>
+        <div v-show="depositOpen" class="border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <p class="px-5 pt-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("collections.deposit_panel_hint") }}
+          </p>
 
-        <div class="space-y-3">
-          <!-- Resource type dropdown -->
-          <div class="flex flex-wrap items-center gap-2">
-            <select
-              v-model="zenodoResourceTypeDraft"
-              class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          <!-- Tab bar -->
+          <div class="flex flex-wrap gap-1 border-b border-gray-200 px-5 pt-3 dark:border-gray-700">
+            <button
+              v-for="tab in depositTabs"
+              :key="tab.id"
+              class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
+              :class="
+                activeDepositTab === tab.id
+                  ? 'border border-b-0 border-gray-200 bg-white text-indigo-700 dark:border-gray-700 dark:bg-gray-900 dark:text-indigo-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              "
+              @click="activeDepositTab = tab.id"
             >
-              <option value="">{{ t("zenodo.collection_use_default") }}</option>
-              <optgroup
-                v-for="grp in zenodoGroupedResourceTypes"
-                :key="grp.group"
-                :label="grp.group"
-              >
-                <option
-                  v-for="opt in grp.options"
-                  :key="opt.id"
-                  :value="opt.id"
-                >{{ opt.label }}</option>
-              </optgroup>
-            </select>
+              {{ tab.label }}
+            </button>
           </div>
 
-          <!-- ZIP bundle toggle -->
-          <div class="flex items-start justify-between rounded border border-gray-200 p-3 dark:border-gray-700">
-            <div class="mr-4">
-              <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
-                {{ t("zenodo.collection_upload_as_zip") }}
+          <!-- Tab panels -->
+          <div class="px-5 py-4">
+            <!-- Zenodo tab -->
+            <div v-show="activeDepositTab === 'zenodo'">
+              <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("zenodo.collection_section_hint") }}
               </p>
-              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {{ t("zenodo.collection_upload_as_zip_hint") }}
+
+              <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
+                {{ zenodoResourceTypeError }}
+              </p>
+              <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
+                {{ t("zenodo.collection_section_saved") }}
+              </p>
+
+              <div class="space-y-3">
+                <!-- Resource type dropdown -->
+                <div class="flex flex-wrap items-center gap-2">
+                  <select
+                    v-model="zenodoResourceTypeDraft"
+                    class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  >
+                    <option value="">{{ t("zenodo.collection_use_default") }}</option>
+                    <optgroup
+                      v-for="grp in zenodoGroupedResourceTypes"
+                      :key="grp.group"
+                      :label="grp.group"
+                    >
+                      <option
+                        v-for="opt in grp.options"
+                        :key="opt.id"
+                        :value="opt.id"
+                      >{{ opt.label }}</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <!-- ZIP bundle toggle -->
+                <div class="flex items-start justify-between rounded border border-gray-200 p-3 dark:border-gray-700">
+                  <div class="mr-4">
+                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                      {{ t("zenodo.collection_upload_as_zip") }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("zenodo.collection_upload_as_zip_hint") }}
+                    </p>
+                  </div>
+                  <button
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="zenodoUploadAsZipDraft ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
+                    @click="zenodoUploadAsZipDraft = !zenodoUploadAsZipDraft"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="zenodoUploadAsZipDraft ? 'translate-x-5' : 'translate-x-0'"
+                    />
+                  </button>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <!-- Left: manual (re-)deposit action, only once the
+                       collection is published. -->
+                  <div
+                    v-if="store.current.status === 'published'"
+                    class="flex flex-wrap items-center gap-2"
+                  >
+                    <button
+                      :disabled="isForcingDeposit"
+                      class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
+                      @click="forceZenodoDeposit"
+                    >
+                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                      </svg>
+                      {{ isForcingDeposit ? t("zenodo.working") : (zenodoStatus ? t("zenodo.redeposit_btn") : t("zenodo.deposit_btn")) }}
+                    </button>
+                    <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
+                      {{ zenodoDepositError }}
+                    </span>
+                  </div>
+                  <span v-else />
+
+                  <!-- Right: save the per-collection overrides -->
+                  <button
+                    :disabled="isSavingZenodoResourceType || !zenodoSectionDirty"
+                    class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+                    @click="saveZenodoCollectionSettings"
+                  >
+                    {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Internet Archive tab -->
+            <div v-show="activeDepositTab === 'internet_archive'">
+              <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("internet_archive.collection_section_hint") }}
+              </p>
+              <div
+                v-if="store.current.status === 'published'"
+                class="flex flex-wrap items-center gap-2"
+              >
+                <!-- Archive / Re-archive (terminal states) or
+                     Refresh (pending state, re-polls the SPN2 job). -->
+                <button
+                  v-if="!iaStatus || iaStatus.status !== 'pending'"
+                  :disabled="isArchiving"
+                  class="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
+                  @click="forceArchive"
+                >
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
+                  </svg>
+                  {{
+                    isArchiving
+                      ? t('internet_archive.working')
+                      : (iaStatus ? t('internet_archive.rearchive_btn') : t('internet_archive.archive_btn'))
+                  }}
+                </button>
+                <button
+                  v-else
+                  :disabled="isArchiving"
+                  class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                  @click="refreshArchive"
+                >
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12a9 9 0 1 1-6.22-8.56"/><path d="M21 3v6h-6"/>
+                  </svg>
+                  {{ isArchiving ? t('internet_archive.working') : t('internet_archive.refresh_btn') }}
+                </button>
+                <span v-if="iaError" class="text-xs text-red-600 dark:text-red-400">
+                  {{ iaError }}
+                </span>
+              </div>
+              <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+                {{ t("internet_archive.collection_needs_published") }}
               </p>
             </div>
-            <button
-              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-              :class="zenodoUploadAsZipDraft ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
-              @click="zenodoUploadAsZipDraft = !zenodoUploadAsZipDraft"
-            >
-              <span
-                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                :class="zenodoUploadAsZipDraft ? 'translate-x-5' : 'translate-x-0'"
+
+            <!-- Codeberg tab -->
+            <div v-show="activeDepositTab === 'codeberg'">
+              <ForgeCollectionSection
+                :slug="slug"
+                :document-count="store.documents.length"
+                :is-plugin-active="codebergPluginActive"
+                :store="codebergStore"
+                i18n-prefix="codeberg"
+                default-base-url="https://codeberg.org"
+                bare
+                @initialized="onForgeInitialized"
               />
-            </button>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <!-- Left: manual (re-)deposit action, only once the collection is
-                 published and the Zenodo plugin has yielded at least a
-                 fallback vocabulary (proxying that the plugin is actually
-                 reachable for this install). -->
-            <div
-              v-if="store.current.status === 'published'"
-              class="flex flex-wrap items-center gap-2"
-            >
-              <button
-                :disabled="isForcingDeposit"
-                class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
-                @click="forceZenodoDeposit"
-              >
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-                </svg>
-                {{ isForcingDeposit ? t("zenodo.working") : (zenodoStatus ? t("zenodo.redeposit_btn") : t("zenodo.deposit_btn")) }}
-              </button>
-              <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
-                {{ zenodoDepositError }}
-              </span>
-
-              <!-- Internet Archive: Archive / Re-archive (terminal states)
-                   or Refresh (pending state, re-polls the SPN2 job). -->
-              <button
-                v-if="!iaStatus || iaStatus.status !== 'pending'"
-                :disabled="isArchiving"
-                class="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
-                @click="forceArchive"
-              >
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
-                </svg>
-                {{
-                  isArchiving
-                    ? t('internet_archive.working')
-                    : (iaStatus ? t('internet_archive.rearchive_btn') : t('internet_archive.archive_btn'))
-                }}
-              </button>
-              <button
-                v-else
-                :disabled="isArchiving"
-                class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                @click="refreshArchive"
-              >
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 12a9 9 0 1 1-6.22-8.56"/><path d="M21 3v6h-6"/>
-                </svg>
-                {{ isArchiving ? t('internet_archive.working') : t('internet_archive.refresh_btn') }}
-              </button>
-              <span v-if="iaError" class="text-xs text-red-600 dark:text-red-400">
-                {{ iaError }}
-              </span>
             </div>
-            <span v-else />
 
-            <!-- Right: save the per-collection overrides -->
-            <button
-              :disabled="isSavingZenodoResourceType || !zenodoSectionDirty"
-              class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
-              @click="saveZenodoCollectionSettings"
-            >
-              {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
-            </button>
+            <!-- GitHub tab -->
+            <div v-show="activeDepositTab === 'github'">
+              <ForgeCollectionSection
+                :slug="slug"
+                :document-count="store.documents.length"
+                :is-plugin-active="githubPluginActive"
+                :store="githubStore"
+                i18n-prefix="github"
+                default-base-url="https://github.com"
+                bare
+                @initialized="onForgeInitialized"
+              />
+            </div>
+
+            <!-- GitLab tab -->
+            <div v-show="activeDepositTab === 'gitlab'">
+              <ForgeCollectionSection
+                :slug="slug"
+                :document-count="store.documents.length"
+                :is-plugin-active="gitlabPluginActive"
+                :store="gitlabStore"
+                i18n-prefix="gitlab"
+                default-base-url="https://gitlab.com"
+                bare
+                @initialized="onForgeInitialized"
+              />
+            </div>
+
+            <!-- Dataverse tab -->
+            <div v-show="activeDepositTab === 'dataverse'">
+              <DataverseCollectionSection :slug="slug" bare />
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Forge deposit sections (one per active git-forge plugin).
-           Each section owns its own state — link, edit draft, push and
-           initialize results. The parent only listens for ``initialized``
-           to refresh its document list. -->
-      <ForgeCollectionSection
-        v-if="isEiC"
-        :slug="slug"
-        :document-count="store.documents.length"
-        :is-plugin-active="codebergPluginActive"
-        :store="codebergStore"
-        i18n-prefix="codeberg"
-        default-base-url="https://codeberg.org"
-        class="mb-6"
-        @initialized="onForgeInitialized"
-      />
-      <ForgeCollectionSection
-        v-if="isEiC"
-        :slug="slug"
-        :document-count="store.documents.length"
-        :is-plugin-active="githubPluginActive"
-        :store="githubStore"
-        i18n-prefix="github"
-        default-base-url="https://github.com"
-        class="mb-6"
-        @initialized="onForgeInitialized"
-      />
-      <ForgeCollectionSection
-        v-if="isEiC"
-        :slug="slug"
-        :document-count="store.documents.length"
-        :is-plugin-active="gitlabPluginActive"
-        :store="gitlabStore"
-        i18n-prefix="gitlab"
-        default-base-url="https://gitlab.com"
-        class="mb-6"
-        @initialized="onForgeInitialized"
-      />
+      <!-- Saved bibliographies panel (EiC+) — placed right above the
+           Documents section so editors can glance at the bibliography
+           versions before drilling into the per-document editor. -->
+      <section v-if="isEiC" class="mb-6 rounded border border-gray-200 dark:border-gray-700">
+        <button
+          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60"
+          @click="biblioOpen = !biblioOpen"
+        >
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            {{ t("bibliobuilder.panel_title") }}
+            <span
+              v-if="store.bibliographies.length"
+              class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+            >{{ store.bibliographies.length }}</span>
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ biblioOpen ? "▲" : "▼" }}</span>
+        </button>
 
-      <!-- Dataverse deposit section (EiC+, only when the plugin is active). -->
-      <DataverseCollectionSection
-        v-if="isEiC && dataversePluginActive"
-        :slug="slug"
-        class="mb-6"
-      />
+        <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
+          <!-- Zotero import — only visible when the plugin is active, its button
+               feeds a new CollectionBibliography version so this is the natural
+               home for the action. -->
+          <div
+            v-if="zoteroImportActive"
+            class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm dark:border-indigo-800 dark:bg-indigo-900/20"
+          >
+            <span class="text-gray-700 dark:text-gray-200">
+              {{ t("zotero_import.collection_section_hint") }}
+            </span>
+            <button
+              class="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+              @click="showZoteroModal = true"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {{ t("zotero_import.import_btn") }}
+            </button>
+          </div>
+          <p v-if="zoteroJustImportedMsg" class="mb-2 text-sm text-green-700 dark:text-green-400">
+            {{ zoteroJustImportedMsg }}
+          </p>
+
+          <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioDeleteError }}</p>
+          <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioPublicError }}</p>
+
+          <p v-if="!store.bibliographies.length" class="text-sm text-gray-400 dark:text-gray-500">
+            {{ t("bibliobuilder.panel_empty") }}
+          </p>
+
+          <template v-else>
+            <!-- Column headers -->
+            <div class="mb-1 flex items-center gap-2 px-3 text-xs font-medium text-gray-400 dark:text-gray-500">
+              <span class="w-6 text-center">{{ t("bibliobuilder.col_public") }}</span>
+              <span class="flex-1">{{ t("bibliobuilder.col_version") }}</span>
+              <span class="w-32 text-right">{{ t("bibliobuilder.col_actions") }}</span>
+            </div>
+
+            <div class="space-y-1">
+              <div
+                v-for="bib in store.bibliographies"
+                :key="bib.version"
+                class="rounded border"
+                :class="bib.is_public ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800'"
+              >
+                <!-- Row header -->
+                <div class="flex items-center gap-2 px-3 py-2">
+                  <!-- Radio button: public selector -->
+                  <input
+                    type="radio"
+                    :name="`bib-public-${store.current?.id}`"
+                    :checked="bib.is_public"
+                    class="h-4 w-4 cursor-pointer accent-green-600"
+                    @change="handleSetPublic(bib.version, true)"
+                  />
+
+                  <!-- Version + date (click to expand) -->
+                  <button
+                    class="flex flex-1 items-center gap-2 text-left"
+                    @click="toggleBiblioRow(bib.version)"
+                  >
+                    <span
+                      class="rounded px-2 py-0.5 text-xs font-mono font-medium"
+                      :class="bib.is_public ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'"
+                    >
+                      v{{ bib.version }}
+                    </span>
+                    <span v-if="bib.is_public" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                      {{ t("bibliobuilder.is_public_label") }}
+                    </span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ new Date(bib.created_at).toLocaleString() }}
+                    </span>
+                  </button>
+
+                  <!-- Actions -->
+                  <div class="flex shrink-0 items-center gap-2">
+                    <RouterLink
+                      v-if="bib.is_public && store.current"
+                      :to="{ name: 'public-bibliography', params: { slug: store.current.slug } }"
+                      target="_blank"
+                      class="text-xs text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
+                    >
+                      {{ t("bibliobuilder.view_public") }}
+                    </RouterLink>
+                    <button
+                      class="text-xs text-gray-400 hover:text-indigo-600 dark:text-gray-500 dark:hover:text-indigo-400"
+                      @click="copyBiblio(bib.content)"
+                    >
+                      {{ t("bibliobuilder.copy_btn") }}
+                    </button>
+                    <button
+                      class="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
+                      @click="handleDeleteBiblio(bib.version)"
+                    >
+                      {{ t("common.delete") }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Expanded content -->
+                <div
+                  v-if="expandedBiblioVersion === bib.version"
+                  class="border-t border-gray-100 px-3 pb-3 pt-2 dark:border-gray-700"
+                >
+                  <textarea
+                    :value="bib.content"
+                    readonly
+                    rows="10"
+                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
 
       <!-- Documents section -->
       <section class="rounded border border-gray-200 p-5 dark:border-gray-700">
@@ -2206,141 +2448,6 @@ function statusClass(s: string): string {
         </div>
       </section>
 
-      <!-- Saved bibliographies panel (EiC+) -->
-      <section v-if="isEiC" class="mb-6 rounded border border-gray-200 dark:border-gray-700">
-        <button
-          class="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60"
-          @click="biblioOpen = !biblioOpen"
-        >
-          <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
-            {{ t("bibliobuilder.panel_title") }}
-            <span
-              v-if="store.bibliographies.length"
-              class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-            >{{ store.bibliographies.length }}</span>
-          </span>
-          <span class="text-xs text-gray-400 dark:text-gray-500">{{ biblioOpen ? "▲" : "▼" }}</span>
-        </button>
-
-        <div v-show="biblioOpen" class="border-t border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
-          <!-- Zotero import — only visible when the plugin is active, its button
-               feeds a new CollectionBibliography version so this is the natural
-               home for the action. -->
-          <div
-            v-if="zoteroImportActive"
-            class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm dark:border-indigo-800 dark:bg-indigo-900/20"
-          >
-            <span class="text-gray-700 dark:text-gray-200">
-              {{ t("zotero_import.collection_section_hint") }}
-            </span>
-            <button
-              class="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-              @click="showZoteroModal = true"
-            >
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              {{ t("zotero_import.import_btn") }}
-            </button>
-          </div>
-          <p v-if="zoteroJustImportedMsg" class="mb-2 text-sm text-green-700 dark:text-green-400">
-            {{ zoteroJustImportedMsg }}
-          </p>
-
-          <p v-if="biblioDeleteError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioDeleteError }}</p>
-          <p v-if="biblioPublicError" class="mb-2 text-sm text-red-600 dark:text-red-400">{{ biblioPublicError }}</p>
-
-          <p v-if="!store.bibliographies.length" class="text-sm text-gray-400 dark:text-gray-500">
-            {{ t("bibliobuilder.panel_empty") }}
-          </p>
-
-          <template v-else>
-            <!-- Column headers -->
-            <div class="mb-1 flex items-center gap-2 px-3 text-xs font-medium text-gray-400 dark:text-gray-500">
-              <span class="w-6 text-center">{{ t("bibliobuilder.col_public") }}</span>
-              <span class="flex-1">{{ t("bibliobuilder.col_version") }}</span>
-              <span class="w-32 text-right">{{ t("bibliobuilder.col_actions") }}</span>
-            </div>
-
-            <div class="space-y-1">
-              <div
-                v-for="bib in store.bibliographies"
-                :key="bib.version"
-                class="rounded border"
-                :class="bib.is_public ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800'"
-              >
-                <!-- Row header -->
-                <div class="flex items-center gap-2 px-3 py-2">
-                  <!-- Radio button: public selector -->
-                  <input
-                    type="radio"
-                    :name="`bib-public-${store.current?.id}`"
-                    :checked="bib.is_public"
-                    class="h-4 w-4 cursor-pointer accent-green-600"
-                    @change="handleSetPublic(bib.version, true)"
-                  />
-
-                  <!-- Version + date (click to expand) -->
-                  <button
-                    class="flex flex-1 items-center gap-2 text-left"
-                    @click="toggleBiblioRow(bib.version)"
-                  >
-                    <span
-                      class="rounded px-2 py-0.5 text-xs font-mono font-medium"
-                      :class="bib.is_public ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'"
-                    >
-                      v{{ bib.version }}
-                    </span>
-                    <span v-if="bib.is_public" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                      {{ t("bibliobuilder.is_public_label") }}
-                    </span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ new Date(bib.created_at).toLocaleString() }}
-                    </span>
-                  </button>
-
-                  <!-- Actions -->
-                  <div class="flex shrink-0 items-center gap-2">
-                    <RouterLink
-                      v-if="bib.is_public && store.current"
-                      :to="{ name: 'public-bibliography', params: { slug: store.current.slug } }"
-                      target="_blank"
-                      class="text-xs text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
-                    >
-                      {{ t("bibliobuilder.view_public") }}
-                    </RouterLink>
-                    <button
-                      class="text-xs text-gray-400 hover:text-indigo-600 dark:text-gray-500 dark:hover:text-indigo-400"
-                      @click="copyBiblio(bib.content)"
-                    >
-                      {{ t("bibliobuilder.copy_btn") }}
-                    </button>
-                    <button
-                      class="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
-                      @click="handleDeleteBiblio(bib.version)"
-                    >
-                      {{ t("common.delete") }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Expanded content -->
-                <div
-                  v-if="expandedBiblioVersion === bib.version"
-                  class="border-t border-gray-100 px-3 pb-3 pt-2 dark:border-gray-700"
-                >
-                  <textarea
-                    :value="bib.content"
-                    readonly
-                    rows="10"
-                    class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </section>
     </template>
 
     <!-- Zotero import modal — teleports to body so it sits above the page. -->

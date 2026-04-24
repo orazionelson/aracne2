@@ -19,7 +19,15 @@ import {
   type DataverseDepositStatus,
 } from "@/stores/dataverse";
 
-const props = defineProps<{ slug: string }>();
+const props = defineProps<{
+  slug: string;
+  /**
+   * When ``true``, drop the outer card chrome (border, background, padding)
+   * so the section can be embedded inside an already-framed container such
+   * as a tabbed deposit panel.
+   */
+  bare?: boolean;
+}>();
 
 const { t } = useI18n();
 const dv = useDataverseStore();
@@ -66,7 +74,10 @@ const badgeClass = computed(() => (s: DataverseDepositStatus["status"]): string 
 </script>
 
 <template>
-  <section class="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+  <component
+    :is="bare ? 'div' : 'section'"
+    :class="bare ? '' : 'rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800'"
+  >
     <div class="mb-3 flex items-start justify-between">
       <div>
         <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
@@ -149,5 +160,5 @@ const badgeClass = computed(() => (s: DataverseDepositStatus["status"]): string 
         </button>
       </div>
     </div>
-  </section>
+  </component>
 </template>

@@ -85,6 +85,12 @@ const props = defineProps<{
   i18nPrefix: string;
   /** Default URL written into a fresh edit-draft (``https://codeberg.org`` etc.). */
   defaultBaseUrl: string;
+  /**
+   * When ``true``, drop the outer card chrome (border, background, padding)
+   * so the section can be embedded inside an already-framed container such
+   * as a tabbed deposit panel. The inner content keeps its own spacing.
+   */
+  bare?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -238,9 +244,10 @@ async function initialize(): Promise<void> {
 </script>
 
 <template>
-  <section
+  <component
+    :is="bare ? 'div' : 'section'"
     v-if="isPluginActive"
-    class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+    :class="bare ? '' : 'mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800'"
   >
     <div class="mb-3 flex items-start justify-between">
       <div>
@@ -378,5 +385,5 @@ async function initialize(): Promise<void> {
         </button>
       </div>
     </div>
-  </section>
+  </component>
 </template>
