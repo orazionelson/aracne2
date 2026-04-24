@@ -3281,6 +3281,44 @@ async def render_dynamic_doc(
         next((ap for ap in aracne_nav if ap["id"] == "browse"), {}).get("is_hidden", False)
     )
 
+    # Image-rendering and note-rendering CSS + JS overrides (same wiring
+    # the STATIC builder applies to its on-disk doc pages). Without
+    # this block the tooltip / side-frame note modes rendered as
+    # unstyled end-of-text lists on DYNAMIC / HYBRID doc pages — and
+    # inline facsimile / column-layout image modes went back to the
+    # default XSLT output. Keep in sync with ``_build_static_site``.
+    _xslt_cfg: dict = website.xslt_config or {}
+    _ir_cfg: dict = _xslt_cfg.get("image_rendering") or {}
+    _ir_enabled: bool = bool(_ir_cfg.get("enabled"))
+    _ir_css: str = _build_image_rendering_css(_ir_cfg)
+    _ir_fig_layout = (_ir_cfg.get("figure", {}) or {}).get("layout", "inline")
+    _ir_pb_layout = (_ir_cfg.get("pb", {}) or {}).get("layout", "inline")
+    _ir_modal: bool = _ir_enabled and (
+        _ir_fig_layout == "modal"
+        or _ir_pb_layout == "modal"
+        or bool(_ir_cfg.get("facsimile_gallery"))
+        or _ir_pb_layout == "one-to-one"
+    )
+    _ir_column: bool = _ir_enabled and (
+        _ir_fig_layout in ("column-left", "column-right")
+        or _ir_pb_layout in ("column-left", "column-right")
+    )
+    _ir_oto: bool = _ir_enabled and _ir_pb_layout == "one-to-one"
+    _nr_cfg: dict = _xslt_cfg.get("note_rendering") or {}
+    _nr_css: str = _build_note_rendering_css(_nr_cfg)
+    _nr_js: str = _build_note_rendering_js(_nr_cfg)
+    _doc_extra_css: str | None = (_ir_css + "\n" + _nr_css).strip() or None
+
+    custom_js = website.custom_js
+    if _ir_modal:
+        custom_js = (custom_js or "") + "\n" + _IMAGE_MODAL_JS
+    if _ir_column:
+        custom_js = (custom_js or "") + "\n" + _build_image_column_js(_ir_cfg)
+    if _ir_oto:
+        custom_js = (custom_js or "") + "\n" + _build_one_to_one_js(_ir_cfg)
+    if _nr_js:
+        custom_js = (custom_js or "") + "\n" + _nr_js
+
     navbar = "" if hide_header else _render_navbar(
         site_title=website.title,
         logo_url=theme.get("logo_url") or None,
@@ -3299,13 +3337,13 @@ async def render_dynamic_doc(
         site_title=website.title,
         page_title=label,
         content=f'<div class="tei-body">{doc_body}</div>',
-        style=_style_block(theme, website.custom_css),
+        style=_style_block(theme, website.custom_css, _doc_extra_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb(crumbs),
         footer_note=footer_note,
         identifier_url=identifier_url,
         tei_valid_badge=tei_valid_badge,
-        custom_js=website.custom_js,
+        custom_js=custom_js,
         include_jquery=website.include_jquery,
         website_slug=website.slug,
     )
