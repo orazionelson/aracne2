@@ -25,6 +25,7 @@ import { useCollectionStore } from "@/stores/collections";
 import { usePluginStore } from "@/stores/plugins";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
+import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -41,6 +42,11 @@ const pluginStore = usePluginStore();
 const codebergPluginActive = computed(() =>
   pluginStore.plugins.some(
     (p) => p.name === "codeberg_integration" && p.status === "active",
+  ),
+);
+const githubPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "github_integration" && p.status === "active",
   ),
 );
 
@@ -1630,6 +1636,13 @@ onBeforeUnmount(() => {
         />
         <p v-else-if="website && !codebergPluginActive" class="text-xs text-gray-500">
           {{ t("codeberg.website_plugin_not_active") }}
+        </p>
+        <GithubWebsiteSection
+          v-if="website && githubPluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !githubPluginActive" class="text-xs text-gray-500">
+          {{ t("github.website_plugin_not_active") }}
         </p>
       </div>
 

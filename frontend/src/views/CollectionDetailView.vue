@@ -23,6 +23,12 @@ import {
   type CodebergLink,
   type CodebergPushResponse,
 } from "@/stores/codeberg";
+import {
+  useGithubStore,
+  type GithubInitializeResponse,
+  type GithubLink,
+  type GithubPushResponse,
+} from "@/stores/github";
 import { usePluginStore } from "@/stores/plugins";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
@@ -47,6 +53,7 @@ const settingStore = useSettingStore();
 const zenodoStore = useZenodoStore();
 const iaStore = useInternetArchiveStore();
 const codebergStore = useCodebergStore();
+const githubStore = useGithubStore();
 const pluginStore = usePluginStore();
 
 // Zotero import modal visibility + last-run summary.
@@ -87,6 +94,33 @@ const codebergConfirmingInit = ref(false);
 const codebergCanInitialize = computed(() =>
   codebergLink.value !== null
   && codebergLink.value.initialized_at === null
+  && store.documents.length === 0,
+);
+
+// GitHub — parallel to Codeberg: every concept has a 1:1 counterpart.
+// Duplication is kept intentional for Phase 3 so a future refactor into
+// a shared ``ForgeCollectionSection`` component can extract both at
+// once (plus GitLab) without churning Codeberg in the meantime.
+const githubPluginActive = computed(() =>
+  pluginStore.plugins.some((p) => p.name === "github_integration" && p.status === "active"),
+);
+const githubLink = ref<GithubLink | null>(null);
+const githubPushResult = ref<GithubPushResponse | null>(null);
+const githubInitResult = ref<GithubInitializeResponse | null>(null);
+const githubError = ref<string | null>(null);
+const githubEditing = ref(false);
+const githubConfirmingInit = ref(false);
+const githubEditDraft = ref({
+  base_url: "https://github.com",
+  repo_owner: "",
+  repo_name: "",
+  branch: "main",
+  pat_override: "",
+  use_override: false,
+});
+const githubCanInitialize = computed(() =>
+  githubLink.value !== null
+  && githubLink.value.initialized_at === null
   && store.documents.length === 0,
 );
 const codebergEditDraft = ref({
@@ -733,9 +767,12 @@ onMounted(async () => {
       );
     }
     await Promise.all(tasks);
-    // Codeberg link is gated on plugin activation — load after the plugin
-    // list is populated.
-    await loadCodebergLink().catch(() => undefined);
+    // Codeberg / GitHub links are gated on their plugins' activation —
+    // load after the plugin list is populated.
+    await Promise.all([
+      loadCodebergLink().catch(() => undefined),
+      loadGithubLink().catch(() => undefined),
+    ]);
     // Seed the override draft from the loaded collection (runs after
     // fetchCollection has populated store.current).
     zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
@@ -904,6 +941,108 @@ async function initializeCodeberg(): Promise<void> {
       (err as { response?: { data?: { error?: { message?: string } } } })
         ?.response?.data?.error?.message ?? t("common.error");
     codebergConfirmingInit.value = false;
+  }
+}
+
+// GitHub handlers — mechanically equivalent to the Codeberg ones.
+async function loadGithubLink(): Promise<void> {
+  if (!githubPluginActive.value) { githubLink.value = null; return; }
+  try { githubLink.value = await githubStore.getLink(slug); }
+  catch { githubLink.value = null; }
+}
+
+function openGithubEdit(): void {
+  githubEditing.value = true;
+  githubError.value = null;
+  githubPushResult.value = null;
+  if (githubLink.value) {
+    githubEditDraft.value = {
+      base_url: githubLink.value.base_url,
+      repo_owner: githubLink.value.repo_owner,
+      repo_name: githubLink.value.repo_name,
+      branch: githubLink.value.branch,
+      pat_override: "",
+      use_override: githubLink.value.pat_override_set,
+    };
+  } else {
+    githubEditDraft.value = {
+      base_url: "https://github.com",
+      repo_owner: "",
+      repo_name: "",
+      branch: "main",
+      pat_override: "",
+      use_override: false,
+    };
+  }
+}
+
+async function saveGithubLink(): Promise<void> {
+  githubError.value = null;
+  const d = githubEditDraft.value;
+  let patOverride: string | null | undefined;
+  if (!d.use_override) {
+    patOverride = "";
+  } else if (d.pat_override.trim()) {
+    patOverride = d.pat_override.trim();
+  } else {
+    patOverride = undefined;
+  }
+  try {
+    githubLink.value = await githubStore.writeLink(slug, {
+      base_url: d.base_url.trim(),
+      repo_owner: d.repo_owner.trim(),
+      repo_name: d.repo_name.trim(),
+      branch: d.branch.trim() || "main",
+      pat_override: patOverride,
+    });
+    githubEditing.value = false;
+  } catch (err) {
+    githubError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function disconnectGithub(): Promise<void> {
+  githubError.value = null;
+  try {
+    await githubStore.deleteLink(slug);
+    githubLink.value = null;
+    githubEditing.value = false;
+    githubPushResult.value = null;
+  } catch (err) {
+    githubError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function pushGithub(): Promise<void> {
+  githubError.value = null;
+  githubPushResult.value = null;
+  try {
+    githubPushResult.value = await githubStore.pushCollection(slug);
+    githubLink.value = await githubStore.getLink(slug);
+  } catch (err) {
+    githubError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+  }
+}
+
+async function initializeGithub(): Promise<void> {
+  githubError.value = null;
+  githubInitResult.value = null;
+  try {
+    githubInitResult.value = await githubStore.initializeCollection(slug);
+    githubLink.value = await githubStore.getLink(slug);
+    await store.fetchDocuments(slug);
+    githubConfirmingInit.value = false;
+  } catch (err) {
+    githubError.value =
+      (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message ?? t("common.error");
+    githubConfirmingInit.value = false;
   }
 }
 
@@ -2029,6 +2168,146 @@ function statusClass(s: string): string {
               @click="disconnectCodeberg"
             >
               {{ t("codeberg.disconnect_btn") }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- GitHub deposit (EiC+, only when the plugin is active) -->
+      <section
+        v-if="isEiC && githubPluginActive"
+        class="mb-6 rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-start justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {{ t("github.section_title") }}
+            </h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("github.section_hint") }}
+            </p>
+          </div>
+        </div>
+
+        <p v-if="githubError" class="mb-3 text-sm text-red-600 dark:text-red-400">
+          {{ githubError }}
+        </p>
+
+        <div v-if="!githubLink && !githubEditing">
+          <button
+            type="button"
+            class="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200"
+            @click="openGithubEdit"
+          >
+            {{ t("github.connect_btn") }}
+          </button>
+        </div>
+
+        <div v-else-if="githubEditing" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("github.field_base_url") }}</span>
+              <input v-model="githubEditDraft.base_url" type="url" class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("github.field_branch") }}</span>
+              <input v-model="githubEditDraft.branch" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("github.field_owner") }}</span>
+              <input v-model="githubEditDraft.repo_owner" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+            <label class="flex flex-col gap-1 text-xs">
+              <span class="text-gray-600 dark:text-gray-300">{{ t("github.field_repo") }}</span>
+              <input v-model="githubEditDraft.repo_name" type="text" class="rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+            </label>
+          </div>
+          <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <input v-model="githubEditDraft.use_override" type="checkbox" />
+            <span>{{ t("github.use_per_link_pat") }}</span>
+          </label>
+          <input
+            v-if="githubEditDraft.use_override"
+            v-model="githubEditDraft.pat_override"
+            type="password"
+            autocomplete="off"
+            class="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            :placeholder="githubLink?.pat_override_set ? t('github.override_replace_hint') : t('github.field_pat_placeholder')"
+          />
+          <div class="flex gap-2 pt-2">
+            <button type="button" class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700" @click="saveGithubLink">
+              {{ t("common.save") }}
+            </button>
+            <button type="button" class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="githubEditing = false">
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="githubLink" class="space-y-3 text-sm">
+          <p class="font-mono text-gray-700 dark:text-gray-200">
+            <a :href="githubLink.html_url" target="_blank" rel="noopener" class="hover:underline">
+              {{ githubLink.repo_owner }}/{{ githubLink.repo_name }}
+            </a>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              · {{ githubLink.branch }} · {{ githubLink.base_url }}
+            </span>
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            <span v-if="githubLink.last_push_sha">
+              {{ t("github.last_push") }}:
+              <code class="font-mono">{{ githubLink.last_push_sha.slice(0, 10) }}</code>
+              <span v-if="githubLink.last_push_at"> ({{ new Date(githubLink.last_push_at).toLocaleString() }})</span>
+            </span>
+            <span v-else>{{ t("github.never_pushed") }}</span>
+            <span v-if="githubLink.pat_override_set" class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              {{ t("github.pat_override_badge") }}
+            </span>
+          </p>
+
+          <p v-if="githubPushResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("github.push_success", { n: githubPushResult.file_count, sha: githubPushResult.sha.slice(0, 10) }) }}
+            <a v-if="githubPushResult.html_url" :href="githubPushResult.html_url" target="_blank" rel="noopener" class="underline">
+              {{ t("github.view_commit") }}
+            </a>
+          </p>
+          <p v-if="githubInitResult" class="text-xs text-green-700 dark:text-green-400">
+            {{ t("github.initialize_success", { n: githubInitResult.file_count, sha: githubInitResult.head_sha.slice(0, 10) }) }}
+          </p>
+
+          <div v-if="githubCanInitialize" class="rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
+            <p class="text-xs text-amber-800 dark:text-amber-200">
+              {{ t("github.initialize_available_hint") }}
+            </p>
+            <div v-if="!githubConfirmingInit" class="mt-2">
+              <button type="button" class="rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-200 dark:hover:bg-amber-900/40" @click="githubConfirmingInit = true">
+                {{ t("github.initialize_btn") }}
+              </button>
+            </div>
+            <div v-else class="mt-2 space-y-2">
+              <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
+                {{ t("github.initialize_confirm") }}
+              </p>
+              <div class="flex gap-2">
+                <button type="button" :disabled="githubStore.isInitializing" class="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50" @click="initializeGithub">
+                  {{ githubStore.isInitializing ? t("common.loading") : t("github.initialize_confirm_btn") }}
+                </button>
+                <button type="button" :disabled="githubStore.isInitializing" class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="githubConfirmingInit = false">
+                  {{ t("common.cancel") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" :disabled="githubStore.isPushing" class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50" @click="pushGithub">
+              {{ githubStore.isPushing ? t("common.loading") : t("github.push_btn") }}
+            </button>
+            <button type="button" class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" @click="openGithubEdit">
+              {{ t("github.edit_btn") }}
+            </button>
+            <button type="button" class="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/40" @click="disconnectGithub">
+              {{ t("github.disconnect_btn") }}
             </button>
           </div>
         </div>

@@ -114,6 +114,11 @@ export const PLUGIN_CONFIG_REGISTRY: PluginConfigEntry[] = [
     titleKey: "codeberg.panel_title",
     component: () => import("@/components/plugins/CodebergConfig.vue"),
   },
+  {
+    slug: "github_integration",
+    titleKey: "github.panel_title",
+    component: () => import("@/components/plugins/GithubConfig.vue"),
+  },
 ];
 
 export function getPluginConfigEntry(
