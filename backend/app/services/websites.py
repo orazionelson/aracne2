@@ -1453,11 +1453,17 @@ def _build_page_menu_html(
     pages: list[WebsitePage],
     nav_config: list | None = None,
     site_base_url: str = "",
+    indices: list | None = None,
 ) -> str:
     """Return HTML for the page-menu column widget.
 
     Renders a nav list of all visible pages (system + free) sorted by global
     sort_order, excluding Home (the widget lives on the home page itself).
+
+    Kept in sync with ``_render_navbar`` so the widget lists the same
+    destinations the navbar does — Browse, Search, Indices (aggregate,
+    only when at least one index is built), Bibliography, plus every
+    free page.
 
     When *site_base_url* is empty (static mode) paths are relative to the site
     root (index.html lives there).  When set (dynamic/hybrid mode), absolute
@@ -1465,7 +1471,7 @@ def _build_page_menu_html(
     """
     menu_items: list[tuple[int, str]] = []
 
-    # System pages — Browse and Search (Home is excluded: this widget is on index.html)
+    # System pages (Home is excluded: this widget is on index.html).
     for ap in _parse_aracne_nav(nav_config or []):
         if ap.get("is_hidden") or ap["id"] == "home":
             continue
@@ -1477,6 +1483,27 @@ def _build_page_menu_html(
         elif pid == "search":
             href = f"{site_base_url}/search" if site_base_url else "search.html"
             menu_items.append((so, f'<li><a href="{href}">Search</a></li>'))
+        elif pid == "indices":
+            # Mirror the navbar: only surface the aggregate "Indices"
+            # link when at least one index has actually been built —
+            # otherwise the target page would render empty.
+            has_built = any(idx.last_built_at for idx in (indices or []))
+            if has_built:
+                href = (
+                    f"{site_base_url}/indices/"
+                    if site_base_url
+                    else "indices.html"
+                )
+                menu_items.append((so, f'<li><a href="{href}">Indices</a></li>'))
+        elif pid == "bibliography":
+            href = (
+                f"{site_base_url}/bibliography"
+                if site_base_url
+                else "bibliography.html"
+            )
+            menu_items.append(
+                (so, f'<li><a href="{href}">Bibliography</a></li>')
+            )
 
     # Free pages (already filtered for visibility)
     for p in pages:
@@ -1566,7 +1593,7 @@ def _render_col_content(
         )
         result = result.replace(
             _WIDGET_TAG_PAGE_MENU,
-            _build_page_menu_html(pages or [], nav_config, site_base_url),
+            _build_page_menu_html(pages or [], nav_config, site_base_url, indices),
         )
         result = result.replace(
             _WIDGET_TAG_INDEX_LIST,
