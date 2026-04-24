@@ -89,8 +89,13 @@ const lastIdx = computed(() => props.entries.length - 1);
 
 <template>
   <div v-if="entries.length > 0" class="relative">
+    <!-- Wrap steps onto multiple rows instead of scrolling horizontally —
+         a long history is easier to scan as several short lines than one
+         extra-long scrollable strip. ``overflow-visible`` is important
+         so that the popover below can escape this container (a parent
+         with ``overflow-x`` set would clip it and force a scrollbar). -->
     <div
-      class="flex items-center gap-0 overflow-x-auto pb-2"
+      class="flex flex-wrap items-center gap-x-0 gap-y-2 overflow-visible"
       role="list"
       @click.self="close"
     >
@@ -119,12 +124,13 @@ const lastIdx = computed(() => props.entries.length - 1);
             {{ labelFor(entry) }}
           </button>
 
-          <!-- Popover shown on click. Renders inside the flow so the
-               neighbour pills shift down; simpler than positioning with
-               floating-ui and good enough for a single row stepper. -->
+          <!-- Popover anchored below the step. ``z-40`` so it floats
+               above any sibling section (the amber revision-note card,
+               the deposit panel, etc.) and the clamped max-width keeps
+               it from spilling off the right edge on narrow viewports. -->
           <div
             v-if="openIdx === i"
-            class="absolute left-0 top-full z-30 mt-2 w-72 rounded border border-gray-200 bg-white p-3 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            class="absolute left-0 top-full z-40 mt-2 w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded border border-gray-200 bg-white p-3 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <p class="mb-1 font-medium text-gray-800 dark:text-gray-100">
               {{ labelFor(entry) }}
