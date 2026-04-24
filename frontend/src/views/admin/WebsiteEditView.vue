@@ -1108,7 +1108,7 @@ onBeforeUnmount(() => {
         <!-- Page width ──────────────────────────────────────────── -->
         <div>
           <p class="mb-2 text-xs font-semibold text-gray-700">{{ t("websites.home_width_title") }}</p>
-          <div class="flex items-center gap-4">
+          <div class="flex flex-wrap items-center gap-4">
             <label class="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="radio"
@@ -1126,6 +1126,15 @@ onBeforeUnmount(() => {
                 @change="(editForm.theme_config as Record<string, string>).home_width = 'fullscreen'"
               />
               {{ t("websites.home_width_fullscreen") }}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                value="cover"
+                :checked="(editForm.theme_config as Record<string, string>).home_width === 'cover'"
+                @change="(editForm.theme_config as Record<string, string>).home_width = 'cover'"
+              />
+              {{ t("websites.home_width_cover") }}
             </label>
           </div>
           <p class="mt-1 text-xs text-gray-400">{{ t("websites.home_width_hint") }}</p>

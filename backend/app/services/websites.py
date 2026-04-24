@@ -263,11 +263,9 @@ header nav {
 .home-col figcaption { font-size: 0.8rem; color: #6b7280; margin-top: 0.35rem; text-align: center; }
 /* ── Content pages ── */
 main { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
-/* Home-page fullscreen mode — ``body.home-full`` is emitted by
-   _render_page on the index page only when ``home_width`` is set
-   to ``"fullscreen"`` in theme_config. Drops the 960px cap and the
-   horizontal padding so the hero (and its optional background
-   image) span edge-to-edge. */
+/* Home-page ``fullscreen`` mode — drops the 960px container so the
+   hero (and its optional background image) span edge-to-edge. The
+   column grid below keeps a comfortable reading width. */
 body.home-full main {
   max-width: none;
   margin: 0;
@@ -275,6 +273,26 @@ body.home-full main {
 }
 body.home-full main > .hero { padding-left: 1.5rem; padding-right: 1.5rem; }
 body.home-full main > .home-body { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
+/* Home-page ``cover`` mode — the book-cover effect. Hero fills the
+   viewport below the navbar; background image + overlay cover the
+   whole section and content is vertically centred. The column grid
+   (if any) appears below the fold, revealed by scroll. */
+body.home-cover main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+body.home-cover main > .hero {
+  /* 3.5rem == navbar height, see ``header nav`` above. */
+  min-height: calc(100vh - 3.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1.5rem;
+}
+body.home-cover main > .hero > * { max-width: 960px; width: 100%; }
+body.home-cover main > .home-body { max-width: 960px; margin: 2.5rem auto; padding: 0 1.5rem; }
 h1 { font-size: 1.8rem; margin-bottom: 0.5rem; line-height: 1.2; }
 h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
 h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
@@ -2253,13 +2271,20 @@ def _overlay_rgba(color: str, alpha_raw: object) -> str:
 def home_body_class(theme: dict | None) -> str:
     """Return the extra ``<body>`` class for a home-page render.
 
-    ``"home-full"`` enables the fullscreen layout; otherwise the default
-    bounded layout applies and no extra class is needed.
+    Three values are honoured on ``theme_config.home_width``:
+    ``"standard"`` (default — bounded 960px container, no extra class),
+    ``"fullscreen"`` (``home-full`` — edge-to-edge hero, bounded body),
+    and ``"cover"`` (``home-cover`` — hero fills the viewport below
+    the navbar, content vertically centred, bg + overlay cover the
+    whole visible area).
     """
     if not theme:
         return ""
-    if (theme.get("home_width") or "standard") == "fullscreen":
+    mode = theme.get("home_width") or "standard"
+    if mode == "fullscreen":
         return "home-full"
+    if mode == "cover":
+        return "home-cover"
     return ""
 
 

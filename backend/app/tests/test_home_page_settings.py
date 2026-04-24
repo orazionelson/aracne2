@@ -121,3 +121,14 @@ def test_body_class_standard_is_empty() -> None:
 
 def test_body_class_fullscreen() -> None:
     assert home_body_class({"home_width": "fullscreen"}) == "home-full"
+
+
+def test_body_class_cover() -> None:
+    assert home_body_class({"home_width": "cover"}) == "home-cover"
+
+
+def test_body_class_unknown_falls_back_to_standard() -> None:
+    """An unknown value (e.g. forward-compatible new mode set by a
+    future build) just renders as the default bounded layout
+    instead of crashing."""
+    assert home_body_class({"home_width": "martian"}) == ""
