@@ -314,8 +314,8 @@ async function submitEdit(): Promise<void> {
 const workflowNote = ref("");
 const workflowError = ref<string | null>(null);
 const isActing = ref(false);
-const showRejectForm = ref(false);
-const rejectNote = ref("");
+const showRequestRevisionsForm = ref(false);
+const revisionNote = ref("");
 
 const isEiC = computed(() => auth.hasMinRole("EditorInChief"));
 const isAdmin = computed(() => auth.hasMinRole("Admin"));
@@ -452,11 +452,14 @@ async function handleSubmit(): Promise<void> {
   workflowNote.value = "";
 }
 
-async function handleReject(): Promise<void> {
-  if (!rejectNote.value.trim()) return;
-  await doWorkflow(() => store.rejectCollection(slug, rejectNote.value.trim()));
-  showRejectForm.value = false;
-  rejectNote.value = "";
+async function handleRequestRevisions(): Promise<void> {
+  if (!revisionNote.value.trim()) return;
+  // Note: ``rejectCollection`` is the historical frontend store method
+  // name; kept for API path consistency (POST /collections/{id}/reject).
+  // User-facing terminology is "Request revisions".
+  await doWorkflow(() => store.rejectCollection(slug, revisionNote.value.trim()));
+  showRequestRevisionsForm.value = false;
+  revisionNote.value = "";
 }
 
 async function handlePublish(): Promise<void> {
@@ -1494,7 +1497,7 @@ function statusClass(s: string): string {
           </div>
         </div>
 
-        <!-- Publish / Reject (EiC+, review) -->
+        <!-- Publish / Request revisions (EiC+, review) -->
         <div v-if="isEiC && store.current.status === 'review'" class="space-y-3">
           <div class="flex items-center gap-2">
             <input
@@ -1510,25 +1513,25 @@ function statusClass(s: string): string {
               {{ t("collections.publish") }}
             </button>
             <button
-              class="rounded border border-red-300 px-4 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-              @click="showRejectForm = !showRejectForm"
+              class="rounded border border-amber-300 px-4 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/40"
+              @click="showRequestRevisionsForm = !showRequestRevisionsForm"
             >
-              {{ t("collections.reject") }}
+              {{ t("collections.request_revisions") }}
             </button>
           </div>
-          <div v-if="showRejectForm" class="flex items-center gap-2">
+          <div v-if="showRequestRevisionsForm" class="flex items-center gap-2">
             <input
-              v-model="rejectNote"
+              v-model="revisionNote"
               required
               class="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-              :placeholder="t('collections.reject_note')"
+              :placeholder="t('collections.request_revisions_note')"
             />
             <button
-              :disabled="isActing || !rejectNote.trim()"
-              class="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              @click="handleReject"
+              :disabled="isActing || !revisionNote.trim()"
+              class="rounded bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              @click="handleRequestRevisions"
             >
-              {{ t("collections.reject_submit") }}
+              {{ t("collections.request_revisions_submit") }}
             </button>
           </div>
         </div>

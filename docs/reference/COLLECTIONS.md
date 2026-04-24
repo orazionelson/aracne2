@@ -182,11 +182,21 @@ Write access requires read access **and**:
 ```
 draft ──assign──► assigned ──submit──► review ──publish──► published
          (EiC+)  (editor)            (EiC+)   (EiC+)
-                     ◄──reject──── (EiC+)
+                     ◄─request-revisions─ (EiC+)
 published ──unpublish──► draft  (Admin only)
 
 Any state ──direct-publish──► published  (EiC+, bypasses workflow)
 ```
+
+> **Terminology note**: the "request revisions" transition was
+> originally called **reject** in the codebase and the API path
+> still reflects that (``POST /{id}/reject``). The user-facing
+> terminology was changed in 2026-04 to the neutral "Request
+> revisions" — the EiC is asking the editor to revise, not
+> discarding the work. The API path is kept stable to avoid
+> breaking any external integration; a deeper rename
+> (endpoint + schema + audit event) can happen at the next
+> deliberate breaking-change window.
 
 ### State transitions
 
@@ -195,7 +205,7 @@ Any state ──direct-publish──► published  (EiC+, bypasses workflow)
 | `draft` → `assigned` | `POST /{id}/assign` | EiC+ | Sets `editor_id`, `assigned_at`; notifies new editor |
 | `assigned` → `assigned` (reassign) | `POST /{id}/assign` | EiC+ | Also notifies old editor |
 | `assigned` → `review` | `POST /{id}/submit` | Assigned editor only | Sets `submitted_at`; notifies all EiC/Admin |
-| `review` → `assigned` | `POST /{id}/reject` | EiC+ | Requires `note`; clears `submitted_at`; notifies assigned editor |
+| `review` → `assigned` (request revisions) | `POST /{id}/reject` | EiC+ | Requires `note`; clears `submitted_at`; notifies assigned editor. UI labels the action "Request revisions" — the endpoint path remains `/reject` for backward compat |
 | `review` → `published` | `POST /{id}/publish` | EiC+ | Sets `published_at`; emits `ON_COLLECTION_PUBLISHED` hook; notifies assigned editor |
 | `any` → `published` | `POST /{id}/direct-publish` | EiC+ | Bypasses workflow; used for batch imports |
 | `published` → `draft` | `POST /{id}/unpublish` | Admin only | Destructive — removes public access |
