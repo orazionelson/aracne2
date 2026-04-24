@@ -26,13 +26,14 @@ class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
         name="Internet Archive",
-        version="1.0.0",
+        version="1.1.0",
         native=False,
         description=(
-            "Submits published collections to the Internet Archive's "
-            "Wayback Machine via Save Page Now 2. Records the Wayback URL "
-            "on the collection and shows a badge next to the Zenodo DOI. "
-            "Configure the API keys under Plugins → Internet Archive."
+            "Submits published collections AND websites to the Internet "
+            "Archive's Wayback Machine via Save Page Now 2. Records the "
+            "Wayback URL on the entity and shows an archive badge. Auto "
+            "on collection publish; manual for websites. Configure the "
+            "API keys under Plugins → Internet Archive."
         ),
         author="Aracne2 Team",
         min_role="Admin",

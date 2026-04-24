@@ -1464,7 +1464,15 @@
     "archive_btn": "Archivia su Wayback",
     "rearchive_btn": "Ri-archivia su Wayback",
     "refresh_btn": "Aggiorna stato archivio",
-    "working": "In corso…"
+    "working": "In corso…",
+    "website_section_title": "Salva sito su Wayback",
+    "website_section_hint": "Sottometti l'URL pubblico di questo sito alla Wayback Machine. Tutte le modalità di rendering sono supportate — Wayback richiede solo un URL che restituisca HTML. Manuale: cliccare Archivia avvia una nuova cattura.",
+    "website_plugin_not_active": "Il plugin Internet Archive non è attivo su questa installazione. Attivalo da /admin/plugins per archiviare i siti su Wayback.",
+    "status_success": "Archiviato",
+    "status_pending": "In corso",
+    "status_failed": "Fallito",
+    "open_snapshot": "Apri snapshot Wayback →",
+    "submitted_at": "Inviato"
   },
   "zenodo": {
     "panel_title": "Deposito Zenodo",

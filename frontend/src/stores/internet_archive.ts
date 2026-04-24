@@ -83,14 +83,47 @@ export const useInternetArchiveStore = defineStore("internet_archive", () => {
     );
   }
 
+  // ── Website archives ────────────────────────────────────────────────
+
+  const isArchivingWebsite = ref(false);
+
+  async function fetchWebsiteStatus(
+    slug: string,
+  ): Promise<ArchiveStatus | null> {
+    return apiClient.get<ArchiveStatus | null>(
+      `/plugins/internet-archive/websites/${encodeURIComponent(slug)}/status`,
+    );
+  }
+
+  async function forceWebsiteArchive(slug: string): Promise<ArchiveStatus> {
+    isArchivingWebsite.value = true;
+    try {
+      return await apiClient.post<ArchiveStatus>(
+        `/plugins/internet-archive/websites/${encodeURIComponent(slug)}/archive`,
+      );
+    } finally {
+      isArchivingWebsite.value = false;
+    }
+  }
+
+  async function refreshWebsiteArchive(slug: string): Promise<ArchiveStatus> {
+    return apiClient.post<ArchiveStatus>(
+      `/plugins/internet-archive/websites/${encodeURIComponent(slug)}/refresh`,
+    );
+  }
+
   return {
     config,
     isLoading,
     isSaving,
+    isArchivingWebsite,
     fetchConfig,
     updateConfig,
     fetchStatus,
     forceArchive,
     refreshArchive,
+    fetchWebsiteStatus,
+    forceWebsiteArchive,
+    refreshWebsiteArchive,
   };
 });

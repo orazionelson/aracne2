@@ -28,6 +28,7 @@ import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
 import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
 import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
 import ZenodoWebsiteSection from "@/components/ui/ZenodoWebsiteSection.vue";
+import InternetArchiveWebsiteSection from "@/components/ui/InternetArchiveWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -59,6 +60,11 @@ const gitlabPluginActive = computed(() =>
 const zenodoPluginActive = computed(() =>
   pluginStore.plugins.some(
     (p) => p.name === "zenodo_deposit" && p.status === "active",
+  ),
+);
+const internetArchivePluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "internet_archive" && p.status === "active",
   ),
 );
 
@@ -1669,6 +1675,13 @@ onBeforeUnmount(() => {
         />
         <p v-else-if="website && !zenodoPluginActive" class="text-xs text-gray-500">
           {{ t("zenodo.website_plugin_not_active") }}
+        </p>
+        <InternetArchiveWebsiteSection
+          v-if="website && internetArchivePluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !internetArchivePluginActive" class="text-xs text-gray-500">
+          {{ t("internet_archive.website_plugin_not_active") }}
         </p>
       </div>
 

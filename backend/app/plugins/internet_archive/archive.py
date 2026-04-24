@@ -22,6 +22,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collection import Collection
+from app.models.website import Website
 from app.plugins.internet_archive.config import (
     IARuntimeConfig,
     load_runtime_config,
@@ -36,7 +37,12 @@ from app.services.plugin_data import PluginDataService
 logger = structlog.get_logger()
 
 PLUGIN_ID = "internet_archive"
+# Per-collection plugin_data key.
 ARCHIVE_KEY = "archive"
+# Per-website plugin_data key — kept distinct so a single project can carry
+# both a collection archive (under ``archive``) and a website-snapshot
+# archive (under ``website_archive``) without one overwriting the other.
+WEBSITE_ARCHIVE_KEY = "website_archive"
 
 # 60-second budget split into 12 × 5s polls — matches the design pin
 # ("Timeout 60 sec refresh"). If SPN2 has not returned by the end we
@@ -264,6 +270,179 @@ async def refresh_status(
     return data
 
 
+# ── Website archive ─────────────────────────────────────────────────────────
+
+
+def _website_url(cfg: IARuntimeConfig, slug: str) -> str:
+    base = cfg.public_base_url.rstrip("/")
+    return f"{base}/sites/{slug}"
+
+
+async def _already_archived_website(
+    plugin_uuid: uuid.UUID, db: AsyncSession, website_id: uuid.UUID,
+) -> bool:
+    svc = PluginDataService(plugin_id=plugin_uuid)
+    existing = await svc.get(
+        db, entity_type="website", key=WEBSITE_ARCHIVE_KEY,
+        entity_id=website_id,
+    )
+    if not existing:
+        return False
+    return existing.get("status") in {"success", "pending"}
+
+
+async def _record_website(
+    *,
+    plugin_uuid: uuid.UUID,
+    db: AsyncSession,
+    website_id: uuid.UUID,
+    data: dict[str, Any],
+) -> None:
+    svc = PluginDataService(plugin_id=plugin_uuid)
+    await svc.set(
+        db,
+        entity_type="website",
+        key=WEBSITE_ARCHIVE_KEY,
+        data=data,
+        entity_id=website_id,
+    )
+    await db.commit()
+
+
+async def archive_website(
+    db: AsyncSession,
+    website: Website,
+    *,
+    ia_client: InternetArchiveClient | None = None,
+    force: bool = False,
+    sleep: Any = asyncio.sleep,
+) -> dict[str, Any]:
+    """Submit *website*'s public URL to SPN2 and record the outcome.
+
+    All three rendering modes (STATIC / HYBRID / DYNAMIC) have a public
+    URL that the Wayback Machine can snapshot — unlike Zenodo which
+    needs files on disk, Wayback only needs a URL that returns HTML.
+    The Aracne2 server emits HTML for any of the three modes.
+
+    Returns the plugin_data payload that was written. Raises
+    :class:`ArchiveSkipped` when preconditions are not met and
+    :class:`IAError` on unrecoverable SPN2 / transport failures.
+    """
+    cfg = await load_runtime_config(db)
+    if not cfg.credentials_set:
+        raise ArchiveSkipped("Internet Archive API keys not configured")
+    if not cfg.public_base_url:
+        raise ArchiveSkipped("public_base_url setting is empty")
+
+    plugin_uuid = await _plugin_id(db)
+
+    if not force and await _already_archived_website(plugin_uuid, db, website.id):
+        raise ArchiveSkipped(
+            f"Website {website.slug} already archived (no force)"
+        )
+
+    url = _website_url(cfg, website.slug)
+    client = ia_client or InternetArchiveClient(
+        access_key=cfg.access_key, secret_key=cfg.secret_key,
+    )
+    submitted_at = datetime.now(UTC).isoformat()
+
+    try:
+        submit = await client.submit(url)
+    except IAError as exc:
+        data = {
+            "status": "failed",
+            "original_url": url,
+            "submitted_at": submitted_at,
+            "error": str(exc),
+            "http_status": exc.status_code,
+        }
+        await _record_website(
+            plugin_uuid=plugin_uuid, db=db,
+            website_id=website.id, data=data,
+        )
+        raise
+
+    # Pending stub so the UI has something even if the backend dies mid-poll.
+    await _record_website(
+        plugin_uuid=plugin_uuid,
+        db=db,
+        website_id=website.id,
+        data={
+            "status": "pending",
+            "job_id": submit.job_id,
+            "original_url": submit.url,
+            "submitted_at": submitted_at,
+            "error": None,
+        },
+    )
+
+    result = await _poll_until_terminal(client, submit.job_id, sleep=sleep)
+    data = {
+        "status": result.status,
+        "job_id": submit.job_id,
+        "original_url": result.original_url or submit.url,
+        "wayback_url": result.wayback_url,
+        "timestamp": result.timestamp,
+        "submitted_at": submitted_at,
+        "error": result.error,
+    }
+    await _record_website(
+        plugin_uuid=plugin_uuid, db=db,
+        website_id=website.id, data=data,
+    )
+    return data
+
+
+async def refresh_website_status(
+    db: AsyncSession,
+    website: Website,
+    *,
+    ia_client: InternetArchiveClient | None = None,
+    sleep: Any = asyncio.sleep,
+) -> dict[str, Any]:
+    """Re-poll a previously submitted pending website job.
+
+    Returns the existing record unchanged when the archive is already
+    terminal (success or failed) — SPN2 does not re-open completed jobs.
+    """
+    plugin_uuid = await _plugin_id(db)
+    svc = PluginDataService(plugin_id=plugin_uuid)
+    existing = await svc.get(
+        db, entity_type="website", key=WEBSITE_ARCHIVE_KEY,
+        entity_id=website.id,
+    )
+    if not existing:
+        raise ArchiveSkipped("No archive record to refresh")
+    if existing.get("status") != "pending":
+        return existing
+    job_id = existing.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        raise ArchiveSkipped("Existing record has no job_id")
+
+    cfg = await load_runtime_config(db)
+    if not cfg.credentials_set:
+        raise ArchiveSkipped("Internet Archive API keys not configured")
+
+    client = ia_client or InternetArchiveClient(
+        access_key=cfg.access_key, secret_key=cfg.secret_key,
+    )
+    result = await _poll_until_terminal(client, job_id, sleep=sleep)
+    data = {
+        **existing,
+        "status": result.status,
+        "original_url": result.original_url or existing.get("original_url"),
+        "wayback_url": result.wayback_url,
+        "timestamp": result.timestamp,
+        "error": result.error,
+    }
+    await _record_website(
+        plugin_uuid=plugin_uuid, db=db,
+        website_id=website.id, data=data,
+    )
+    return data
+
+
 # ── Hook handler ────────────────────────────────────────────────────────────
 
 
@@ -312,8 +491,11 @@ async def on_collection_published(collection: Collection, **_: object) -> None:
 __all__ = [
     "ARCHIVE_KEY",
     "PLUGIN_ID",
+    "WEBSITE_ARCHIVE_KEY",
     "ArchiveSkipped",
     "archive_collection",
+    "archive_website",
     "on_collection_published",
     "refresh_status",
+    "refresh_website_status",
 ]

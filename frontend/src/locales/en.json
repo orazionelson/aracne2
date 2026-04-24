@@ -1464,7 +1464,15 @@
     "archive_btn": "Archive on Wayback",
     "rearchive_btn": "Re-archive on Wayback",
     "refresh_btn": "Refresh archive status",
-    "working": "Working…"
+    "working": "Working…",
+    "website_section_title": "Save website on Wayback",
+    "website_section_hint": "Submit this website's public URL ({slug_path}) to the Internet Archive's Wayback Machine. All rendering modes are supported — Wayback only needs a URL that returns HTML. Manual: clicking Archive triggers a fresh capture.",
+    "website_plugin_not_active": "The Internet Archive plugin is not active on this installation. Activate it at /admin/plugins to archive websites on Wayback.",
+    "status_success": "Archived",
+    "status_pending": "Pending",
+    "status_failed": "Failed",
+    "open_snapshot": "Open Wayback snapshot →",
+    "submitted_at": "Submitted"
   },
   "zenodo": {
     "panel_title": "Zenodo deposit",

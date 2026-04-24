@@ -29,9 +29,12 @@ from app.models.user import User
 from app.plugins.internet_archive.archive import (
     ARCHIVE_KEY,
     PLUGIN_ID,
+    WEBSITE_ARCHIVE_KEY,
     ArchiveSkipped,
     archive_collection,
+    archive_website,
     refresh_status,
+    refresh_website_status,
 )
 from app.plugins.internet_archive.config import (
     K_ACCESS_KEY,
@@ -182,6 +185,98 @@ async def refresh_archive(
     col = await _resolve_collection(db, slug)
     try:
         data = await refresh_status(db, col)
+    except ArchiveSkipped as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except IAError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Internet Archive status poll failed: {exc}",
+        )
+    return DataResponse(data=ArchiveStatus.model_validate(data))
+
+
+# ── Per-website endpoints ───────────────────────────────────────────────────
+
+
+async def _resolve_website(db: AsyncSession, slug: str):  # type: ignore[no-untyped-def]
+    from app.models.website import Website
+
+    row = await db.scalar(select(Website).where(Website.slug == slug))
+    if row is None:
+        raise HTTPException(
+            status_code=404, detail=f"Website '{slug}' not found",
+        )
+    return row
+
+
+@router.get("/websites/{slug}/status")
+async def get_website_archive_status(
+    slug: str,
+    _: Annotated[None, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[ArchiveStatus | None]:
+    """Most recent website-archive record for *slug*, or ``null``."""
+    from app.models.plugin import Plugin
+    from app.services.plugin_data import PluginDataService
+
+    website = await _resolve_website(db, slug)
+    plugin_row = await db.scalar(
+        select(Plugin).where(Plugin.name == PLUGIN_ID),
+    )
+    if plugin_row is None:
+        return DataResponse(data=None)
+    svc = PluginDataService(plugin_id=plugin_row.id)
+    data = await svc.get(
+        db, entity_type="website", key=WEBSITE_ARCHIVE_KEY,
+        entity_id=website.id,
+    )
+    if data is None:
+        return DataResponse(data=None)
+    return DataResponse(data=ArchiveStatus.model_validate(data))
+
+
+@router.post(
+    "/websites/{slug}/archive", status_code=status.HTTP_202_ACCEPTED,
+)
+async def force_website_archive(
+    slug: str,
+    _: Annotated[None, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[ArchiveStatus]:
+    """Force a fresh Wayback snapshot of the website's public URL.
+
+    All three rendering modes (STATIC / HYBRID / DYNAMIC) are
+    accepted — Wayback only needs a URL that returns HTML, which the
+    Aracne2 server emits in every mode.
+    """
+    website = await _resolve_website(db, slug)
+    try:
+        data = await archive_website(db, website, force=True)
+    except ArchiveSkipped as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except IAError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Internet Archive submit failed: {exc}",
+        )
+    return DataResponse(
+        data=ArchiveStatus.model_validate({
+            "submitted_at": datetime.now(UTC),
+            **data,
+        })
+    )
+
+
+@router.post("/websites/{slug}/refresh")
+async def refresh_website_archive(
+    slug: str,
+    _: Annotated[None, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[ArchiveStatus]:
+    """Re-poll a pending SPN2 job for a previously submitted website."""
+    website = await _resolve_website(db, slug)
+    try:
+        data = await refresh_website_status(db, website)
     except ArchiveSkipped as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except IAError as exc:
