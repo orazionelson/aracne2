@@ -317,6 +317,28 @@ async def test_banner_falls_back_to_admin_email_when_contact_empty(
 
 
 @pytest.mark.asyncio
+async def test_maintenance_css_is_enclosed_in_style_tag(
+    client_with_existdb: AsyncClient,
+    db_session: AsyncSession,
+    dynamic_website: tuple[Website, Collection],
+) -> None:
+    """Regression: the ``.maint-wrap`` stylesheet must ship inside the
+    page's ``<style>`` block, not leak into the body as plain text.
+    """
+    website, col = dynamic_website
+    col.status = CollectionStatus.assigned
+    await db_session.flush()
+
+    res = await client_with_existdb.get(f"/api/v1/sites/{website.slug}/")
+    assert res.status_code == 503
+    head, _, tail = res.text.partition("</style>")
+    # The maintenance selector must live in <head> before </style> closes,
+    # never in the body that follows it.
+    assert ".maint-wrap" in head
+    assert ".maint-wrap" not in tail
+
+
+@pytest.mark.asyncio
 async def test_website_without_collection_never_enters_maintenance(
     client_with_existdb: AsyncClient,
     db_session: AsyncSession,

@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { MagnifyingGlassIcon } from "@heroicons/vue/24/outline";
 import { usePluginStore, type PluginInfo } from "@/stores/plugins";
 import { hasPluginConfig } from "@/components/plugins/registry";
+import PluginAvatar from "@/components/ui/PluginAvatar.vue";
 
 type Tab = "core" | "extensions";
 type StatusFilter = "all" | "active" | "inactive";
@@ -188,9 +189,14 @@ onMounted(load);
               class="border-t border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
             >
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900 dark:text-gray-100">{{ plugin.display_name }}</div>
-                <div v-if="plugin.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ plugin.description }}
+                <div class="flex items-start gap-3">
+                  <PluginAvatar :name="plugin.name" :display-name="plugin.display_name" />
+                  <div class="min-w-0">
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ plugin.display_name }}</div>
+                    <div v-if="plugin.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ plugin.description }}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ plugin.version ?? "—" }}</td>
@@ -236,9 +242,14 @@ onMounted(load);
               class="border-t border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60"
             >
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900 dark:text-gray-100">{{ plugin.display_name }}</div>
-                <div v-if="plugin.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ plugin.description }}
+                <div class="flex items-start gap-3">
+                  <PluginAvatar :name="plugin.name" :display-name="plugin.display_name" />
+                  <div class="min-w-0">
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ plugin.display_name }}</div>
+                    <div v-if="plugin.description" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ plugin.description }}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ plugin.version ?? "—" }}</td>

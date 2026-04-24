@@ -3085,7 +3085,7 @@ def build_maintenance_html(
         site_title=website.title,
         page_title=f"{website.title} — Maintenance",
         content=body_html,
-        style=_style_block(theme, website.custom_css) + _MAINT_CSS,
+        style=_style_block(theme, website.custom_css, extra_css=_MAINT_CSS),
         navbar="",
         meta_tags='<meta name="robots" content="noindex, nofollow"/>',
         custom_js=None,
