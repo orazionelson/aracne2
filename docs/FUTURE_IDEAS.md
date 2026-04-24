@@ -352,7 +352,56 @@ First explicit request from an EditorInChief or Admin who manages a collection t
 is also maintained as a GitHub repository, or when a project arrives with an existing
 GitHub corpus that needs to be imported into Aracne2.
 
+### Digital-sovereignty variant: Codeberg integration
+
+A parallel plugin targeting [Codeberg](https://codeberg.org), the non-profit,
+European-hosted code forge run by Codeberg e.V. and powered by
+[Forgejo](https://forgejo.org/) (a community fork of Gitea). The motivation is
+explicitly **digital sovereignty**: institutions — especially in the EU public
+and academic sectors — increasingly prefer, or are required, to host critical
+repositories on European infrastructure that is free of vendor lock-in and
+independent of US-domiciled platforms. A Codeberg option makes Aracne2 a
+credible choice for those deployments without asking editors to learn a
+different workflow.
+
+Architecturally the work is close to a rename. Forgejo's REST API is
+API-compatible with Gitea and broadly mirrors the GitHub endpoints the plugin
+already needs (create/update file blobs, list contents of a repo, read the
+current HEAD, create a commit). The sensible path is therefore to refactor the
+GitHub plugin as it is being built — or shortly after — into a thin
+`git_forge` abstraction with two adapters:
+
+```
+backend/app/plugins/
+├── github_integration/      ← existing target
+├── codeberg_integration/    ← new adapter, thin wrapper over the abstraction
+└── _lib/git_forge/          ← shared push/initialize logic, forge-agnostic
+```
+
+Same Admin → activate → per-collection link model; same storage model (one
+``*_collection_links`` table per forge so the token column can be scoped to
+the forge that owns it); same "eXist-db is the source of truth, asymmetric
+push / one-shot initialize" invariant.
+
+Out-of-scope clarifications worth recording now:
+
+- **Not a transparent multi-backend**: a collection is linked to exactly one
+  forge (GitHub **or** Codeberg), not mirrored to both. Multi-forge mirroring
+  is a different feature with its own scoping concerns.
+- **Self-hosted Forgejo / Gitea instances**: the Codeberg adapter should accept
+  a configurable ``base_url`` so the same code serves ``codeberg.org`` and any
+  institutionally-hosted Forgejo deployment (many EU universities now run
+  their own). Treat this as a config field, not a separate plugin.
+- **Auth**: Codeberg uses personal access tokens with a similar scope model to
+  GitHub; encrypt at rest in the same way (extend ``SENSITIVE_KEYS``).
+
+The trigger for the Codeberg variant is either (a) the GitHub integration
+shipping and a user asking for the European equivalent, or (b) an
+institutional deployment stating digital-sovereignty as a hard requirement
+at onboarding.
+
 *Added: 2026-04-16*
+*Codeberg variant added: 2026-04-24*
 
 ---
 
