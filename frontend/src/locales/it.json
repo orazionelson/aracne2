@@ -1508,6 +1508,20 @@
     "collection_section_saved": "Impostazioni Zenodo della collezione salvate.",
     "collection_use_default": "— Usa predefinito (impostazione globale) —",
     "collection_upload_as_zip": "Carica come singolo ZIP",
-    "collection_upload_as_zip_hint": "Raggruppa tutti i documenti TEI della collezione in un unico file {slug}.zip invece di caricare ogni XML come file separato sul record Zenodo."
+    "collection_upload_as_zip_hint": "Raggruppa tutti i documenti TEI della collezione in un unico file {slug}.zip invece di caricare ogni XML come file separato sul record Zenodo.",
+    "website_section_title": "Deposita sito su Zenodo",
+    "website_section_hint": "Deposita l'output statico renderizzato di questo sito su Zenodo. Le modalità STATIC e HYBRID sono supportate (DYNAMIC non ha output statico da depositare). Costruisci prima il sito.",
+    "website_plugin_not_active": "Il plugin Zenodo Deposit non è attivo su questa installazione. Attivalo da /admin/plugins per depositare siti su Zenodo.",
+    "website_cannot_deposit_dynamic": "Questo sito usa rendering DYNAMIC — non c'è output statico da depositare.",
+    "website_cannot_deposit_not_built": "Costruisci prima il sito, poi deposita.",
+    "upload_as_zip_label": "Raggruppa in un singolo archivio ZIP",
+    "upload_as_zip_hint": "On (predefinito): l'albero renderizzato viene racchiuso in un singolo {slug}.zip e caricato come unico artefatto — ottimo per l'archiviazione. Off: ogni file viene caricato singolarmente e resta sfogliabile nella tab Files del record Zenodo.",
+    "status_published": "Pubblicato",
+    "status_draft": "Bozza",
+    "status_failed": "Fallito",
+    "open_record": "Apri record Zenodo →",
+    "submitted_at": "Inviato",
+    "file_count": "{n} file",
+    "bundled_as_zip": "raggruppato come ZIP"
   }
 }

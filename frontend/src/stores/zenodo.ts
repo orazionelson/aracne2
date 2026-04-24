@@ -45,6 +45,20 @@ export interface DepositStatus {
   error: string | null;
 }
 
+/**
+ * Per-website deposit status. Adds two fields the collection-side
+ * status doesn't carry: how many files were uploaded and whether they
+ * were bundled as a single zip.
+ */
+export interface WebsiteDepositStatus extends DepositStatus {
+  uploaded_as_zip: boolean | null;
+  file_count: number | null;
+}
+
+export interface WebsiteDepositRequest {
+  upload_as_zip: boolean;
+}
+
 export const useZenodoStore = defineStore("zenodo", () => {
   const config = ref<ZenodoConfig | null>(null);
   const resourceTypes = ref<ResourceTypeOption[]>([]);
@@ -98,16 +112,45 @@ export const useZenodoStore = defineStore("zenodo", () => {
     );
   }
 
+  // ── Website deposits ──────────────────────────────────────────────────
+
+  const isDepositingWebsite = ref(false);
+
+  async function fetchWebsiteStatus(
+    slug: string,
+  ): Promise<WebsiteDepositStatus | null> {
+    return apiClient.get<WebsiteDepositStatus | null>(
+      `/plugins/zenodo-deposit/websites/${encodeURIComponent(slug)}/status`,
+    );
+  }
+
+  async function forceWebsiteDeposit(
+    slug: string, body: WebsiteDepositRequest,
+  ): Promise<WebsiteDepositStatus> {
+    isDepositingWebsite.value = true;
+    try {
+      return await apiClient.post<WebsiteDepositStatus>(
+        `/plugins/zenodo-deposit/websites/${encodeURIComponent(slug)}/deposit`,
+        body,
+      );
+    } finally {
+      isDepositingWebsite.value = false;
+    }
+  }
+
   return {
     config,
     resourceTypes,
     isLoading,
     isSaving,
     isLoadingResourceTypes,
+    isDepositingWebsite,
     fetchConfig,
     updateConfig,
     fetchResourceTypes,
     fetchStatus,
     forceDeposit,
+    fetchWebsiteStatus,
+    forceWebsiteDeposit,
   };
 });

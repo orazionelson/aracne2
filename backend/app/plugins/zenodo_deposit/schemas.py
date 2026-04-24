@@ -87,3 +87,35 @@ class DepositStatus(BaseModel):
     status: Literal["draft", "published", "failed"]
     submitted_at: datetime
     error: str | None = None
+
+
+class WebsiteDepositRequest(BaseModel):
+    """Body of ``POST /plugins/zenodo-deposit/websites/{slug}/deposit``.
+
+    ``upload_as_zip`` is a per-deposit choice rather than a persistent
+    website setting — bundling the rendered tree into a single
+    ``{slug}.zip`` (the default) is preferable for archival, but some
+    operators want every file individually browsable in the Zenodo
+    record's Files tab.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    upload_as_zip: bool = True
+
+
+class WebsiteDepositStatus(BaseModel):
+    """Snapshot of the most recent website deposit. Adds two fields the
+    collection-side ``DepositStatus`` does not carry: how many files the
+    deposit contained and whether they were bundled."""
+
+    model_config = ConfigDict(extra="allow")
+
+    deposit_id: str | None = None
+    doi: str | None = None
+    record_url: str | None = None
+    status: Literal["draft", "published", "failed"]
+    submitted_at: datetime
+    error: str | None = None
+    uploaded_as_zip: bool | None = None
+    file_count: int | None = None

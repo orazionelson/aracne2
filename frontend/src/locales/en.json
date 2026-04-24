@@ -1508,6 +1508,20 @@
     "collection_section_saved": "Zenodo collection settings saved.",
     "collection_use_default": "— Use default (from global setting) —",
     "collection_upload_as_zip": "Upload as single ZIP",
-    "collection_upload_as_zip_hint": "Bundle every TEI document in the collection into one {slug}.zip file instead of uploading each XML as a separate file on the Zenodo record."
+    "collection_upload_as_zip_hint": "Bundle every TEI document in the collection into one {slug}.zip file instead of uploading each XML as a separate file on the Zenodo record.",
+    "website_section_title": "Deposit website on Zenodo",
+    "website_section_hint": "Deposit the rendered static output of this website on Zenodo. STATIC and HYBRID modes are supported (DYNAMIC has no static output to deposit). Build the site first.",
+    "website_plugin_not_active": "The Zenodo Deposit plugin is not active on this installation. Activate it at /admin/plugins to deposit websites on Zenodo.",
+    "website_cannot_deposit_dynamic": "This website uses DYNAMIC rendering — there is no static output to deposit.",
+    "website_cannot_deposit_not_built": "Build the website first, then deposit.",
+    "upload_as_zip_label": "Bundle as a single ZIP archive",
+    "upload_as_zip_hint": "On (default): the rendered tree is wrapped into one {slug}.zip and uploaded as a single artefact — best for archival. Off: every file is uploaded individually and stays browsable in the Zenodo record's Files tab.",
+    "status_published": "Published",
+    "status_draft": "Draft",
+    "status_failed": "Failed",
+    "open_record": "Open Zenodo record →",
+    "submitted_at": "Submitted",
+    "file_count": "{n} files",
+    "bundled_as_zip": "bundled as ZIP"
   }
 }

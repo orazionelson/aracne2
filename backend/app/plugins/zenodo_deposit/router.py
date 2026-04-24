@@ -39,13 +39,17 @@ from app.plugins.zenodo_deposit.config import (
 from app.plugins.zenodo_deposit.deposit import (
     DEPOSIT_KEY,
     PLUGIN_ID,
+    WEBSITE_DEPOSIT_KEY,
     DepositSkipped,
     deposit_collection,
+    deposit_website,
 )
 from app.plugins.zenodo_deposit.schemas import (
     AccessMode,
     DepositStatus,
     ResourceTypeOption,
+    WebsiteDepositRequest,
+    WebsiteDepositStatus,
     ZenodoConfigResponse,
     ZenodoConfigUpdate,
 )
@@ -297,5 +301,83 @@ async def force_deposit(
             record_url=result.record_url or None,
             status="published" if result.status == "published" else "draft",
             submitted_at=datetime.now(UTC),
+        )
+    )
+
+
+# ── Per-website deposit endpoints ────────────────────────────────────────────
+
+
+async def _resolve_website(db: AsyncSession, slug: str):  # type: ignore[no-untyped-def]
+    """Local resolver — kept inline to avoid pulling the websites router
+    package just for one helper. Returns 404 on miss."""
+    from app.models.website import Website
+
+    row = await db.scalar(select(Website).where(Website.slug == slug))
+    if row is None:
+        raise HTTPException(
+            status_code=404, detail=f"Website '{slug}' not found",
+        )
+    return row
+
+
+@router.get("/websites/{slug}/status")
+async def get_website_deposit_status(
+    slug: str,
+    _: Annotated[None, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[WebsiteDepositStatus | None]:
+    """Most recent website-deposit record for *slug*, or ``null``."""
+    from app.models.plugin import Plugin
+    from app.services.plugin_data import PluginDataService
+
+    website = await _resolve_website(db, slug)
+    plugin_row = await db.scalar(select(Plugin).where(Plugin.name == PLUGIN_ID))
+    if plugin_row is None:
+        return DataResponse(data=None)
+    svc = PluginDataService(plugin_id=plugin_row.id)
+    data = await svc.get(
+        db, entity_type="website", key=WEBSITE_DEPOSIT_KEY, entity_id=website.id,
+    )
+    if data is None:
+        return DataResponse(data=None)
+    return DataResponse(data=WebsiteDepositStatus.model_validate(data))
+
+
+@router.post(
+    "/websites/{slug}/deposit", status_code=status.HTTP_202_ACCEPTED,
+)
+async def force_website_deposit(
+    slug: str,
+    body: WebsiteDepositRequest,
+    _: Annotated[None, _eic],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[WebsiteDepositStatus]:
+    """Force a (re-)deposit of the website's rendered output. Refuses
+    when the website is DYNAMIC or has not been built (409). Returns
+    502 when Zenodo itself rejects the request."""
+    website = await _resolve_website(db, slug)
+    try:
+        result = await deposit_website(
+            db, website,
+            upload_as_zip=body.upload_as_zip,
+            force=True,
+        )
+    except DepositSkipped as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ZenodoError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Zenodo deposit failed: {exc}",
+        )
+
+    return DataResponse(
+        data=WebsiteDepositStatus(
+            deposit_id=result.id,
+            doi=result.doi,
+            record_url=result.record_url or None,
+            status="published" if result.status == "published" else "draft",
+            submitted_at=datetime.now(UTC),
+            uploaded_as_zip=body.upload_as_zip,
         )
     )

@@ -17,6 +17,7 @@ from typing import Any
 
 from app.models.collection import Collection
 from app.models.license import License
+from app.models.website import Website
 
 
 # --- Creative Commons → InvenioRDM rights vocabulary id map --------------------
@@ -202,6 +203,105 @@ def collection_to_metadata(
         resource_type=resource_type,
         related_identifier=related_identifier,
         publisher=collection.publisher,
+    )
+
+
+def website_to_metadata(
+    *,
+    website: Website,
+    source_collection: Collection | None,
+    license_obj: License | None,
+    public_base_url: str | None,
+    resource_type: str,
+    access: str,
+    orcid_by_name: dict[str, str] | None = None,
+) -> DepositMetadata:
+    """Build a :class:`DepositMetadata` from a Website.
+
+    A website is always *derivative* of a collection — its rendered
+    output (HTML/CSS/JS/JSON) is generated from the collection's TEI
+    files plus a theme. So the deposit shape mirrors the collection's
+    where possible:
+
+      - ``title`` / ``description`` come from the website itself,
+        falling back to the source collection.
+      - ``creators`` come from the source collection (its authors and
+        respStmts), since the rendered files don't carry their own
+        author metadata. With no collection, fall back to the
+        configured ``publisher`` or "Anonymous".
+      - ``related_identifier`` points at the public URL of the
+        Aracne2-served version of the website (``public_base_url +
+        '/sites/' + slug``) so Zenodo cross-links the snapshot.
+      - ``resource_type`` defaults to the *website* default — not the
+        collection's per-record override, which describes the source
+        edition rather than the rendered site.
+    """
+    if source_collection is not None:
+        creators = collection_to_metadata(
+            collection=source_collection,
+            license_obj=license_obj,
+            public_base_url=public_base_url,
+            resource_type=resource_type,
+            access=access,
+            orcid_by_name=orcid_by_name,
+        ).creators
+    else:
+        publisher = getattr(website, "publisher", None) or "Anonymous"
+        orcid_map = {
+            k.casefold(): v for k, v in (orcid_by_name or {}).items()
+        }
+        creators = [
+            Creator(
+                name=publisher,
+                orcid=orcid_map.get(publisher.casefold()),
+            )
+        ]
+
+    title = website.title or (
+        source_collection.title if source_collection else "Untitled website"
+    )
+    description = (
+        (website.description or "").strip()
+        or (
+            source_collection.description
+            if source_collection and source_collection.description
+            else f"Rendered website “{title}” published via Aracne2."
+        )
+    )
+    publisher = (
+        getattr(website, "publisher", None)
+        or (source_collection.publisher if source_collection else None)
+    )
+
+    pub_date: date
+    if source_collection and source_collection.published_at is not None:
+        pub_date = source_collection.published_at.date()
+    else:
+        pub_date = datetime.now(UTC).date()
+
+    related_identifier: str | None = None
+    if public_base_url:
+        related_identifier = (
+            f"{public_base_url.rstrip('/')}/sites/{website.slug}"
+        )
+
+    license_id = zenodo_license_id(license_obj.target if license_obj else None)
+
+    keywords: list[str] = []
+    if publisher:
+        keywords.append(publisher)
+
+    return DepositMetadata(
+        title=title,
+        description=description,
+        creators=creators,
+        publication_date=pub_date,
+        keywords=keywords,
+        license_id=license_id,
+        access=access,
+        resource_type=resource_type,
+        related_identifier=related_identifier,
+        publisher=publisher,
     )
 
 

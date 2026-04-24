@@ -27,6 +27,7 @@ import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
 import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
 import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
+import ZenodoWebsiteSection from "@/components/ui/ZenodoWebsiteSection.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -53,6 +54,11 @@ const githubPluginActive = computed(() =>
 const gitlabPluginActive = computed(() =>
   pluginStore.plugins.some(
     (p) => p.name === "gitlab_integration" && p.status === "active",
+  ),
+);
+const zenodoPluginActive = computed(() =>
+  pluginStore.plugins.some(
+    (p) => p.name === "zenodo_deposit" && p.status === "active",
   ),
 );
 
@@ -1656,6 +1662,13 @@ onBeforeUnmount(() => {
         />
         <p v-else-if="website && !gitlabPluginActive" class="text-xs text-gray-500">
           {{ t("gitlab.website_plugin_not_active") }}
+        </p>
+        <ZenodoWebsiteSection
+          v-if="website && zenodoPluginActive"
+          :website="website"
+        />
+        <p v-else-if="website && !zenodoPluginActive" class="text-xs text-gray-500">
+          {{ t("zenodo.website_plugin_not_active") }}
         </p>
       </div>
 
