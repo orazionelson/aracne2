@@ -57,10 +57,19 @@ const showFooter = computed(() => !clipsOwnScroll.value);
           clipsOwnScroll ? 'overflow-hidden' : 'overflow-y-auto',
         ]"
       >
-        <RouterView />
+        <template v-if="showFooter">
+          <!-- Sticky-footer pattern: short pages push the footer to the
+               viewport bottom; long pages scroll past content and the
+               footer appears naturally at the end. -->
+          <div class="flex min-h-full flex-col">
+            <div class="flex-1">
+              <RouterView />
+            </div>
+            <AppFooter />
+          </div>
+        </template>
+        <RouterView v-else />
       </main>
-
-      <AppFooter v-if="showFooter" />
     </div>
   </div>
 </template>
