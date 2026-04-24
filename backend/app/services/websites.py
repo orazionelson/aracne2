@@ -2464,13 +2464,28 @@ def _build_cover_content(
         f' style="grid-template-columns: {grid_template}"' if grid_template else ""
     )
 
-    if layout == "two_left":
+    if layout == "two":
+        # Unified two-column layout — content lives in col_left and
+        # col_right; the slider controls the left-column percentage
+        # and the right-column width follows from ``100 - N``.
+        cols = (
+            f'<div class="home-col">{left}</div>'
+            f'<div class="home-col">{right}</div>'
+        )
+        css_class = "layout-two"
+    elif layout == "two_left":
+        # Legacy — older sites saved content in col_left + col_center.
+        # Keep rendering these until the Designer re-saves the site,
+        # at which point the frontend normaliser converts storage to
+        # the new ``two`` shape.
         cols = (
             f'<div class="home-col">{left}</div>'
             f'<div class="home-col">{center}</div>'
         )
         css_class = "layout-two-left"
     elif layout == "two_right":
+        # Legacy — same rationale as ``two_left``; content is in
+        # col_center + col_right.
         cols = (
             f'<div class="home-col">{center}</div>'
             f'<div class="home-col">{right}</div>'
@@ -2505,8 +2520,11 @@ def _build_cover_content(
 
 
 _HOME_DEFAULTS: dict[str, tuple[int, ...]] = {
-    # layout → (left_pct, center_pct) OR (left_pct, center_pct, right_pct)
-    # Values mirror the previous hard-coded rules in _STATIC_CSS.
+    # layout → (left_pct, …) — historical defaults.
+    # ``two`` is the current unified two-column layout; ``two_left``
+    # and ``two_right`` are kept for backward-compatibility with sites
+    # saved before the unification.
+    "two": (30, 70),
     "two_left": (30, 70),
     "two_right": (70, 30),
     "three": (20, 60, 20),
@@ -2535,11 +2553,16 @@ def _home_grid_template(layout: str, theme: dict) -> str:
     Returns the empty string for single-column and unknown layouts so
     the caller skips the inline style.
     """
-    if layout == "two_left":
+    if layout in ("two", "two_left"):
+        # ``two`` and legacy ``two_left`` both read the same slider
+        # value (``home_cols_two_left`` — the left column %).
         left_default, _ = _HOME_DEFAULTS["two_left"]
         left = _clamp_pct(theme.get("home_cols_two_left"), left_default)
         return f"{left}% {100 - left}%"
     if layout == "two_right":
+        # Legacy — ``home_cols_two_right`` stored the left (centre-
+        # content) column width. The frontend normaliser migrates
+        # this to ``home_cols_two_left`` on the next save.
         left_default, _ = _HOME_DEFAULTS["two_right"]
         left = _clamp_pct(theme.get("home_cols_two_right"), left_default)
         return f"{left}% {100 - left}%"

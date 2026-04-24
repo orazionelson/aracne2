@@ -24,11 +24,24 @@ from app.services.websites import (
 # ── _home_grid_template ──────────────────────────────────────────────────────
 
 
+def test_grid_template_two_default() -> None:
+    """New unified ``two`` layout: left-column % default is 30."""
+    assert _home_grid_template("two", {}) == "30% 70%"
+
+
+def test_grid_template_two_reads_overrides() -> None:
+    assert _home_grid_template("two", {"home_cols_two_left": "55"}) == "55% 45%"
+
+
 def test_grid_template_two_left_default() -> None:
+    """Legacy ``two_left`` still resolves — old sites keep rendering
+    until the Designer re-saves and the frontend normaliser converts
+    storage to the new ``two`` shape."""
     assert _home_grid_template("two_left", {}) == "30% 70%"
 
 
 def test_grid_template_two_right_default() -> None:
+    """Legacy ``two_right`` still resolves."""
     assert _home_grid_template("two_right", {}) == "70% 30%"
 
 

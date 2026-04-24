@@ -698,14 +698,43 @@ function initForm(site: Website): void {
     maintenance_on_unpublish: site.maintenance_on_unpublish,
     maintenance_message: site.maintenance_message ?? "",
     contact_email: site.contact_email ?? "",
-    theme_config: {
-      font_family: 'Georgia,"Times New Roman",serif',
-      footer_bg: "#ffffff",
-      footer_text: "#9ca3af",
-      hide_header: false as unknown as string,
-      fixed_header: false as unknown as string,
-      ...site.theme_config,
-    },
+    theme_config: (() => {
+      const merged: Record<string, unknown> = {
+        font_family: 'Georgia,"Times New Roman",serif',
+        footer_bg: "#ffffff",
+        footer_text: "#9ca3af",
+        hide_header: false,
+        fixed_header: false,
+        ...site.theme_config,
+      };
+      // Legacy layouts (``two_left`` / ``two_right``) are collapsed
+      // into the unified ``two`` layout so the admin form shows a
+      // single "2 columns" option + a left-column-width slider.
+      // Content is re-slotted into col_left / col_right so the
+      // WYSIWYG editors read the correct text on first open; the
+      // widths migrate onto the canonical ``home_cols_two_left``
+      // key. Saving the form writes the normalised shape back to
+      // the server; until then the backend still renders legacy
+      // values correctly (see ``_build_cover_content``).
+      const legacy = merged.home_layout;
+      if (legacy === "two_left") {
+        merged.home_layout = "two";
+        if (!merged.col_right && merged.col_center) {
+          merged.col_right = merged.col_center;
+          merged.col_center = "";
+        }
+      } else if (legacy === "two_right") {
+        merged.home_layout = "two";
+        if (!merged.col_left && merged.col_center) {
+          merged.col_left = merged.col_center;
+          merged.col_center = "";
+        }
+        if (!merged.home_cols_two_left && merged.home_cols_two_right) {
+          merged.home_cols_two_left = merged.home_cols_two_right;
+        }
+      }
+      return merged as unknown as Record<string, string>;
+    })(),
     xslt_config: (() => {
       const ex = (site.xslt_config ?? {}) as Partial<XsltConfig>;
       const exIR = ex.image_rendering;
@@ -1411,8 +1440,7 @@ onBeforeUnmount(() => {
             <label class="block text-xs text-gray-700">{{ t("websites.home_layout") }}</label>
             <select v-model="(editForm.theme_config as Record<string, string>).home_layout" class="mt-1 w-64 rounded border border-gray-300 px-3 py-1.5 text-sm">
               <option value="single">{{ t("websites.layout_single") }}</option>
-              <option value="two_left">{{ t("websites.layout_two_left") }}</option>
-              <option value="two_right">{{ t("websites.layout_two_right") }}</option>
+              <option value="two">{{ t("websites.layout_two") }}</option>
               <option value="three">{{ t("websites.layout_three") }}</option>
             </select>
           </div>
@@ -1421,11 +1449,11 @@ onBeforeUnmount(() => {
                layouts. Values are stored as strings inside theme_config
                and parsed + clamped by the backend. -->
           <div
-            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'two_left'"
+            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'two'"
             class="mb-3 rounded border border-gray-200 bg-white p-3"
           >
             <label class="mb-1 flex items-center justify-between text-xs text-gray-700">
-              <span>{{ t("websites.home_cols_two_left_label") }}</span>
+              <span>{{ t("websites.home_cols_two_label") }}</span>
               <span class="font-mono">
                 {{ (editForm.theme_config as Record<string, string>).home_cols_two_left || '30' }}% ·
                 {{ 100 - (parseInt((editForm.theme_config as Record<string, string>).home_cols_two_left || '30') || 30) }}%
@@ -1439,27 +1467,6 @@ onBeforeUnmount(() => {
               class="w-full"
               :value="(editForm.theme_config as Record<string, string>).home_cols_two_left || '30'"
               @input="(editForm.theme_config as Record<string, string>).home_cols_two_left = ($event.target as HTMLInputElement).value"
-            />
-          </div>
-          <div
-            v-if="(editForm.theme_config as Record<string, string>).home_layout === 'two_right'"
-            class="mb-3 rounded border border-gray-200 bg-white p-3"
-          >
-            <label class="mb-1 flex items-center justify-between text-xs text-gray-700">
-              <span>{{ t("websites.home_cols_two_right_label") }}</span>
-              <span class="font-mono">
-                {{ (editForm.theme_config as Record<string, string>).home_cols_two_right || '70' }}% ·
-                {{ 100 - (parseInt((editForm.theme_config as Record<string, string>).home_cols_two_right || '70') || 70) }}%
-              </span>
-            </label>
-            <input
-              type="range"
-              min="10"
-              max="90"
-              step="1"
-              class="w-full"
-              :value="(editForm.theme_config as Record<string, string>).home_cols_two_right || '70'"
-              @input="(editForm.theme_config as Record<string, string>).home_cols_two_right = ($event.target as HTMLInputElement).value"
             />
           </div>
           <div
@@ -1513,15 +1520,18 @@ onBeforeUnmount(() => {
             <div draggable="true" class="cursor-grab select-none rounded border border-dashed border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 active:cursor-grabbing" @dragstart="onWidgetDragStart($event, 'index-list')">&#128203; {{ t("websites.widget_index_list") }}</div>
           </div>
           <div class="grid gap-3" :class="(editForm.theme_config as Record<string,string>).home_layout === 'single' ? 'grid-cols-1' : (editForm.theme_config as Record<string,string>).home_layout === 'three' ? 'grid-cols-3' : 'grid-cols-2'">
-            <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_left' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+            <!-- Left column — shown in ``two`` and ``three`` layouts. -->
+            <div v-if="['two','three'].includes((editForm.theme_config as Record<string,string>).home_layout)">
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_left") }}</label>
               <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_left" :website-slug="slug" />
             </div>
-            <div>
+            <!-- Centre column — shown only for ``single`` and ``three``. -->
+            <div v-if="['single','three'].includes((editForm.theme_config as Record<string,string>).home_layout)">
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_center") }}</label>
               <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_center" :website-slug="slug" />
             </div>
-            <div v-if="(editForm.theme_config as Record<string,string>).home_layout === 'two_right' || (editForm.theme_config as Record<string,string>).home_layout === 'three'">
+            <!-- Right column — shown in ``two`` and ``three`` layouts. -->
+            <div v-if="['two','three'].includes((editForm.theme_config as Record<string,string>).home_layout)">
               <label class="mb-1 block text-xs text-gray-700">{{ t("websites.col_right") }}</label>
               <WysiwygEditor v-model="(editForm.theme_config as Record<string, string>).col_right" :website-slug="slug" />
             </div>
