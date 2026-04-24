@@ -283,8 +283,11 @@ body.home-cover main {
   padding: 0;
 }
 body.home-cover main > .hero {
-  /* 3.5rem == navbar height, see ``header nav`` above. */
+  /* 3.5rem == navbar height, see ``header nav`` above. A double
+     declaration with ``dvh`` (dynamic viewport) lets modern mobile
+     browsers account for retractable toolbars; ``vh`` is the fallback. */
   min-height: calc(100vh - 3.5rem);
+  min-height: calc(100dvh - 3.5rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2082,8 +2085,8 @@ def _build_cover_content(
       col_center  : body text for central column (shown in all layouts)
       col_right   : body text for right sidebar column
 
-    *site_base_url*: when set (dynamic/hybrid mode), the CTA "Browse" link and
-    column-widget hrefs use absolute paths; otherwise relative static paths.
+    *site_base_url*: when set (dynamic/hybrid mode), the column-widget
+    hrefs use absolute paths; otherwise relative static paths.
     *indices*: passed through to widget renderers so the index-list widget can
     enumerate built indices.
     """
@@ -2095,10 +2098,6 @@ def _build_cover_content(
     author_block = ""
     if col and col.author:
         author_block = f'<p class="meta-block">{_html.escape(col.author)}</p>'
-
-    browse_label = f"Browse {doc_count} document{'s' if doc_count != 1 else ''} →"
-    browse_href = f"{site_base_url}/browse" if site_base_url else "browse.html"
-    cta = f'<a href="{browse_href}" class="btn-primary">{browse_label}</a>'
 
     # ── Hero background + overlay ─────────────────────────────────────────
     # Both optional, both driven by ``theme_config``. The image is stored
@@ -2118,11 +2117,14 @@ def _build_cover_content(
     hero_style_attr = (
         f' style="{"; ".join(hero_style_parts)}"' if hero_style_parts else ""
     )
+    # The hero no longer auto-renders a "Browse N documents" CTA — the
+    # navbar + widget palette + free pages give the Designer enough
+    # handles for that call-to-action, and the button was fighting the
+    # typographic hierarchy of custom covers.
     hero = f"""<div class="{hero_classes}"{hero_style_attr}>
   <h1>{title}</h1>
   {lead}
   {author_block}
-  {cta}
 </div>"""
 
     # ── Column body grid ──────────────────────────────────────────────────
