@@ -102,16 +102,30 @@ async def search(
         logger.warning("cerl_search_parse_error", error=str(exc))
         return []
 
-    # CERL wraps hits in hits.hits (Elasticsearch legacy).
-    outer = payload.get("hits") or {}
-    if not isinstance(outer, dict):
-        return []
-    inner = outer.get("hits") or []
-    if not isinstance(inner, list):
-        return []
+    # CERL serves two response shapes from the same endpoint:
+    #
+    #   • Legacy Elasticsearch wrapping: ``{ "hits": { "hits": [ {"_id": …,
+    #     "_source": {...}}, … ] } }``
+    #   • Current CERL Thesaurus shape (observed live, 2026): ``{ "rows":
+    #     [ {"id": …, "name_display_line": …, "type": "cnp", …}, … ],
+    #     "hits": { "value": …, "relation": "eq" } }``
+    #
+    # ``hits.hits`` returned empty against the second shape, leaving us to
+    # log "no records" while a direct browser call to data.cerl.org listed
+    # plenty. Honour both shapes; pick the one that actually carries data.
+    rows_list: list[Any] = []
+    legacy = payload.get("hits")
+    if isinstance(legacy, dict):
+        inner = legacy.get("hits")
+        if isinstance(inner, list) and inner:
+            rows_list = inner
+    if not rows_list:
+        modern = payload.get("rows")
+        if isinstance(modern, list):
+            rows_list = modern
 
     hits: list[CerlHit] = []
-    for row in inner[:rows]:
+    for row in rows_list[:rows]:
         if not isinstance(row, dict):
             continue
         hit = _row_to_hit(row)
@@ -121,17 +135,46 @@ async def search(
 
 
 def _row_to_hit(row: dict[str, Any]) -> CerlHit | None:
-    cerl_id = row.get("_id")
-    src = row.get("_source") or {}
+    """Project either response flavour into a CerlHit.
+
+    Legacy Elasticsearch: id at ``_id``, fields nested under ``_source``.
+    Modern CERL: id at ``id`` (top-level), fields flat on the row,
+    extra metadata mirrored under ``data``.
+    """
+    cerl_id = row.get("_id") or row.get("id")
     if not isinstance(cerl_id, str) or not cerl_id.strip():
         return None
+    src = row.get("_source")
     if not isinstance(src, dict):
-        return None
-    label = src.get("headingName") or src.get("name") or src.get("mainName")
+        # Modern shape — the row itself is the source of truth.
+        src = row
+
+    label = (
+        src.get("headingName")
+        or src.get("name_display_line")
+        or src.get("mainName")
+    )
+    # Some modern rows carry only the typed-name lists.
+    if not isinstance(label, str) or not label.strip():
+        for key in ("personalName", "imprintName", "corporateName", "placeName"):
+            value = src.get(key)
+            if isinstance(value, list) and value and isinstance(value[0], str):
+                label = value[0]
+                break
+            if isinstance(value, str) and value.strip():
+                label = value
+                break
     if not isinstance(label, str) or not label.strip():
         return None
+
     prefix = cerl_id[:3].lower()
+    # The modern row also carries a ``type`` (``cnp`` / ``cnc`` / …) we
+    # can use as a fallback when the prefix is missing or malformed.
     kind: EntityKind = _PREFIX_KIND.get(prefix, "other")
+    if kind == "other":
+        type_hint = row.get("type") or src.get("type")
+        if isinstance(type_hint, str):
+            kind = _PREFIX_KIND.get(type_hint.lower()[:3], "other")
     return CerlHit(
         cerl_id=cerl_id.strip(),
         uri=f"https://data.cerl.org/thesaurus/{cerl_id.strip()}",
@@ -143,15 +186,39 @@ def _row_to_hit(row: dict[str, Any]) -> CerlHit | None:
 
 def _compose_detail(src: dict[str, Any]) -> str:
     parts: list[str] = []
+    # Legacy field — keep working for the test fixtures that mirror
+    # the old shape and any CERL endpoint still serving it.
     bio = src.get("biographicalData")
     if isinstance(bio, str) and bio.strip():
         parts.append(bio.strip())
+    # Modern shape — bio dates live under ``additional_display_line``
+    # (e.g. "1740-1817 Priester") which combines lifespan + role.
+    add = src.get("additional_display_line")
+    if isinstance(add, str) and add.strip() and add.strip() not in parts:
+        parts.append(add.strip())
+    # Place — legacy keys first, then modern ``address`` (list of
+    # toponyms; first entry is canonical).
     place = src.get("nameOfPlace") or src.get("placeName")
     if isinstance(place, str) and place.strip():
         parts.append(place.strip())
-    variants = src.get("variantNames") or []
-    if isinstance(variants, list) and variants:
-        pick = [v for v in variants[:2] if isinstance(v, str) and v.strip()]
-        if pick:
-            parts.append("aka " + ", ".join(pick))
+    elif isinstance(src.get("address"), list):
+        for value in src["address"]:
+            if isinstance(value, str) and value.strip():
+                parts.append(value.strip())
+                break
+    # Variants — legacy ``variantNames`` and modern flat name lists
+    # (``personalName`` etc.).
+    variants_raw: list[Any] = []
+    leg = src.get("variantNames")
+    if isinstance(leg, list):
+        variants_raw.extend(leg)
+    for key in ("personalName", "imprintName", "corporateName"):
+        modern = src.get(key)
+        if isinstance(modern, list):
+            # Skip the first entry — it is the heading we already
+            # rendered as the hit's label.
+            variants_raw.extend(modern[1:])
+    pick = [v for v in variants_raw[:3] if isinstance(v, str) and v.strip()]
+    if pick:
+        parts.append("aka " + ", ".join(pick))
     return " · ".join(parts)

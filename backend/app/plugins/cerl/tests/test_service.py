@@ -156,3 +156,61 @@ async def test_search_unknown_prefix_buckets_to_other() -> None:
 
     hits = await search("x", transport=httpx.MockTransport(handler))
     assert hits[0].kind == "other"
+
+
+@pytest.mark.asyncio
+async def test_search_parses_modern_rows_shape() -> None:
+    """CERL switched to a flat ``{"rows": [...]}`` envelope where the
+    fields live on the row itself (no ``_source`` wrapper). Make sure
+    we still find the hits, populate the kind from the ``type`` field
+    when the prefix is unfamiliar, and read the bio from
+    ``additional_display_line``.
+    """
+    modern_row = {
+        "id": "cnp02217352",
+        "type": "cnp",
+        "name_display_line": "Alberti, Giandomenico",
+        "additional_display_line": "1740-1817 Priester",
+        "personalName": [
+            "Alberti, Giandomenico",
+            "De Alberti, Johannes Dominicus",
+        ],
+        "address": ["Sessa", "Ticino"],
+    }
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"rows": [modern_row]})
+
+    hits = await search("alberti", transport=httpx.MockTransport(handler))
+    assert len(hits) == 1
+    h = hits[0]
+    assert h.cerl_id == "cnp02217352"
+    assert h.label == "Alberti, Giandomenico"
+    assert h.kind == "person"
+    # Detail concatenates the additional_display_line + the first
+    # address entry + the variant names.
+    assert "1740-1817 Priester" in h.detail
+    assert "Sessa" in h.detail
+    assert "De Alberti, Johannes Dominicus" in h.detail
+
+
+@pytest.mark.asyncio
+async def test_search_modern_rows_falls_through_when_legacy_empty() -> None:
+    """When the response carries both shapes but ``hits.hits`` is empty,
+    fall back to ``rows``. CERL sometimes returns an empty legacy
+    envelope alongside the populated modern list."""
+    row = {
+        "id": "cnp02217352",
+        "type": "cnp",
+        "name_display_line": "Alberti, Giandomenico",
+    }
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"hits": {"hits": []}, "rows": [row]},
+        )
+
+    hits = await search("alberti", transport=httpx.MockTransport(handler))
+    assert len(hits) == 1
+    assert hits[0].label == "Alberti, Giandomenico"
