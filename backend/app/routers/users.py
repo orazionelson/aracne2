@@ -2,7 +2,10 @@ import math
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+import mimetypes
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
@@ -21,14 +24,18 @@ from app.schemas.users import (
 from app.services.users import (
     assign_role,
     create_user,
+    delete_avatar,
     delete_my_account,
     export_my_data,
     get_user,
     list_users,
+    read_avatar,
     revoke_role,
     soft_delete_user,
     update_user,
+    upload_avatar,
 )
+from sqlalchemy import select as _select
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -61,6 +68,82 @@ async def delete_me(
     Audit log entries are anonymized (actor_id set to NULL).
     """
     await delete_my_account(db, current_user)
+
+
+@router.patch("/me")
+async def patch_me(
+    body: UserUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[UserResponse]:
+    """Self-service profile patch.
+
+    Limited to the fields a user can change about themselves —
+    ``display_name``, ``preferred_lang``, ``orcid``, ``bio``.
+    Anything else in the payload (``is_active``, ``email``,
+    ``is_verified``) is silently ignored to avoid privilege
+    escalation: a regular user must not flip themselves to active /
+    verified or hijack someone else's email.
+    """
+    safe = UserUpdate(
+        display_name=body.display_name,
+        preferred_lang=body.preferred_lang,
+        orcid=body.orcid,
+        bio=body.bio,
+    )
+    data = await update_user(db, current_user.id, safe, current_user)
+    return DataResponse(data=data)
+
+
+@router.post("/me/avatar")
+async def upload_my_avatar(
+    file: UploadFile,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[UserResponse]:
+    """Upload a new avatar for the authenticated user.
+
+    Allowed: jpg/jpeg/png/gif/webp/avif, up to 1 MB. Replaces any
+    previous upload. Returns the refreshed UserResponse.
+    """
+    payload = await file.read()
+    data = await upload_avatar(db, current_user, payload, file.filename or "avatar")
+    return DataResponse(data=data)
+
+
+@router.delete("/me/avatar", status_code=204)
+async def delete_my_avatar(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> None:
+    """Remove the calling user's avatar — falls back to the monogram."""
+    await delete_avatar(db, current_user)
+
+
+@router.get("/{username}/avatar", include_in_schema=False)
+async def serve_avatar(
+    username: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Serve a user's uploaded avatar.
+
+    Public (no auth) so the same image can be embedded in user-mention
+    surfaces, the workflow timeline, and any other place that lists
+    contributors. Returns 404 when the user has no upload — the UI
+    falls back to the monogram in that case.
+    """
+    user = await db.scalar(_select(User).where(User.username == username))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    result = read_avatar(user)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No avatar uploaded")
+    payload, content_type = result
+    return Response(
+        content=payload,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 # ── Admin/EiC user management ─────────────────────────────────────────────────

@@ -32,6 +32,8 @@ class UserResponse(BaseModel):
     last_login_at: datetime | None
     deleted_at: datetime | None
     orcid: str | None = None
+    avatar_url: str | None = None
+    bio: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -85,6 +87,7 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     is_verified: bool | None = None
     orcid: str | None = Field(default=None, max_length=80)
+    bio: str | None = Field(default=None, max_length=500)
 
     @field_validator("preferred_lang")
     @classmethod

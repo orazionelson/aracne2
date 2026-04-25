@@ -113,6 +113,8 @@ async def login(
                 role=role,
                 preferred_lang=user.preferred_lang,
                 orcid=user.orcid,
+                avatar_url=user.avatar_url,
+                bio=user.bio,
                 created_at=user.created_at.isoformat(),
                 last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
             ).model_dump(),
@@ -191,6 +193,8 @@ async def update_me(
         current_user.preferred_lang = body.preferred_lang
     if "orcid" in body.model_fields_set:
         current_user.orcid = body.orcid or None
+    if "bio" in body.model_fields_set:
+        current_user.bio = body.bio or None
     await db.flush()
     role = request.state.role
     return DataResponse(
@@ -202,6 +206,8 @@ async def update_me(
             role=role,
             preferred_lang=current_user.preferred_lang,
             orcid=current_user.orcid,
+            avatar_url=current_user.avatar_url,
+            bio=current_user.bio,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -231,6 +237,8 @@ async def me(
             role=role,
             preferred_lang=current_user.preferred_lang,
             orcid=current_user.orcid,
+            avatar_url=current_user.avatar_url,
+            bio=current_user.bio,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -322,6 +330,8 @@ async def impersonate(
                 role=target_role,
                 preferred_lang=target.preferred_lang,
                 orcid=target.orcid,
+                avatar_url=target.avatar_url,
+                bio=target.bio,
                 created_at=target.created_at.isoformat(),
                 last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
             ),

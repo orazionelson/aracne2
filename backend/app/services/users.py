@@ -287,6 +287,13 @@ async def update_user(
         if new_orcid != user.orcid:
             user.orcid = new_orcid
             changed["orcid"] = new_orcid
+    if "bio" in body.model_fields_set:
+        # Empty string clears the bio entirely. Length cap is enforced
+        # by the schema (max 500 chars).
+        new_bio = body.bio or None
+        if new_bio != user.bio:
+            user.bio = new_bio
+            changed["bio_len"] = len(new_bio) if new_bio else 0
 
     action = (
         "user.deactivated"
@@ -496,3 +503,113 @@ async def delete_my_account(db: AsyncSession, user: User) -> None:
 
     await db.delete(user)
     logger.info("user_self_deleted", username=user.username)
+
+
+# ── Avatar (per-user uploaded image) ──────────────────────────────────────────
+
+# Allowed image extensions for the user-avatar upload. SVG is intentionally
+# excluded — even after sanitisation, SVGs in user content increase the
+# attack surface (PII leakage via remote refs, exotic CSS tricks). Editors
+# wanting an SVG can still set their avatar via a deterministic monogram
+# (the default when no upload exists).
+_AVATAR_ALLOWED_EXT: frozenset[str] = frozenset(
+    {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"}
+)
+_AVATAR_MAX_BYTES: int = 1 * 1024 * 1024  # 1 MB
+
+_AVATAR_CONTENT_TYPE: dict[str, str] = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+}
+
+
+def _avatars_dir() -> "Path":  # type: ignore[name-defined]
+    from app.config import settings as _settings
+
+    d = _settings.media_dir / "avatars"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _avatar_path_for(user_id: uuid.UUID, ext: str) -> "Path":  # type: ignore[name-defined]
+    return _avatars_dir() / f"{user_id}{ext}"
+
+
+async def upload_avatar(
+    db: AsyncSession, user: User, payload: bytes, original_filename: str
+) -> UserResponse:
+    """Save *payload* as the calling user's avatar.
+
+    Removes any previously-uploaded image first so each user has at most
+    one avatar file on disk. Stores the chosen extension in
+    ``user.avatar_url`` (e.g. ``"png"``) — the file path itself is
+    derived from ``user.id`` so a username change doesn't require any
+    filesystem rename.
+    """
+    from pathlib import Path  # local import — Path is only needed here.
+    from app.core.exceptions import DomainValidationError
+
+    if len(payload) > _AVATAR_MAX_BYTES:
+        raise DomainValidationError(
+            code="FILE_TOO_LARGE",
+            message=(
+                f"Avatar exceeds the {_AVATAR_MAX_BYTES // (1024 * 1024)} MB limit"
+            ),
+        )
+    ext = Path(original_filename or "").suffix.lower()
+    if ext not in _AVATAR_ALLOWED_EXT:
+        raise DomainValidationError(
+            code="INVALID_FILENAME",
+            message=(
+                f"Avatar extension '{ext}' is not allowed. Allowed: "
+                + ", ".join(sorted(_AVATAR_ALLOWED_EXT))
+            ),
+        )
+
+    # Remove any previous file (extension may differ from the new one).
+    for existing_ext in _AVATAR_ALLOWED_EXT:
+        p = _avatar_path_for(user.id, existing_ext)
+        if p.exists():
+            p.unlink()
+
+    target = _avatar_path_for(user.id, ext)
+    target.write_bytes(payload)
+    user.avatar_url = ext.lstrip(".")  # store just "png", "jpg", … — id is implicit
+    await _audit(db, "user.avatar_uploaded", user, user, {"ext": ext})
+    logger.info("user_avatar_uploaded", username=user.username, size=len(payload))
+    return await _build_response(db, user)
+
+
+async def delete_avatar(db: AsyncSession, user: User) -> UserResponse:
+    """Remove the calling user's avatar file and clear the column."""
+    if user.avatar_url:
+        ext = "." + user.avatar_url.lstrip(".")
+        p = _avatar_path_for(user.id, ext)
+        if p.exists():
+            p.unlink()
+    user.avatar_url = None
+    await _audit(db, "user.avatar_deleted", user, user)
+    logger.info("user_avatar_deleted", username=user.username)
+    return await _build_response(db, user)
+
+
+def read_avatar(user: User) -> tuple[bytes, str] | None:
+    """Return ``(bytes, content_type)`` for *user*'s avatar or ``None``.
+
+    Public helper consumed by the serve endpoint. The ``user.avatar_url``
+    column stores just the extension (e.g. ``"png"``); the file lives at
+    ``settings.media_dir / "avatars" / <user_id>.<ext>``.
+    """
+    if not user.avatar_url:
+        return None
+    ext = "." + user.avatar_url.lstrip(".")
+    if ext not in _AVATAR_ALLOWED_EXT:
+        return None
+    p = _avatar_path_for(user.id, ext)
+    if not p.exists():
+        return None
+    return p.read_bytes(), _AVATAR_CONTENT_TYPE.get(ext, "application/octet-stream")

@@ -23,6 +23,13 @@ interface UserMe {
   role: string;
   preferred_lang: string;
   orcid: string | null;
+  /** Extension of the uploaded avatar ("png", "jpg", …) — null when
+   * the user has no upload and the UI should fall back to a
+   * deterministic monogram. */
+  avatar_url: string | null;
+  /** Short freeform bio shown on the Profile page. Tiny Markdown
+   * subset (``**bold**``, ``*italic*``, ``__underline__``). */
+  bio: string | null;
   created_at: string;
   last_login_at: string | null;
 }
@@ -102,11 +109,28 @@ export const useAuthStore = defineStore("auth", () => {
     display_name?: string | null;
     preferred_lang?: string;
     orcid?: string | null;
+    bio?: string | null;
   }): Promise<void> {
     const res = await api.patch<UserMe>("/auth/me", patch);
     user.value = res.data.data;
     if (res.data.data.preferred_lang) {
       applyLocale(res.data.data.preferred_lang);
+    }
+  }
+
+  async function uploadAvatar(file: File): Promise<void> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    const res = await api.post<UserMe>("/users/me/avatar", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    user.value = res.data.data;
+  }
+
+  async function deleteAvatar(): Promise<void> {
+    await api.delete("/users/me/avatar");
+    if (user.value) {
+      user.value = { ...user.value, avatar_url: null };
     }
   }
 
@@ -167,6 +191,8 @@ export const useAuthStore = defineStore("auth", () => {
     refresh,
     loadMe,
     updateMe,
+    uploadAvatar,
+    deleteAvatar,
     hydrate,
     startImpersonation,
     exitImpersonation,

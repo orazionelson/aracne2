@@ -39,6 +39,8 @@ class UserMeResponse(BaseModel):
     role: str
     preferred_lang: str
     orcid: str | None = None
+    avatar_url: str | None = None
+    bio: str | None = None
     created_at: str
     last_login_at: str | None
 
@@ -50,12 +52,14 @@ class UserMeUpdate(BaseModel):
 
     Only exposes fields the user can safely change about themselves.
     Email, password and role transitions stay on dedicated flows.
-    Pass ``orcid=""`` to clear the stored ORCID.
+    Pass ``orcid=""`` to clear the stored ORCID; pass ``bio=""`` to
+    clear the stored bio.
     """
 
     display_name: str | None = Field(default=None, max_length=128)
     preferred_lang: str | None = None
     orcid: str | None = Field(default=None, max_length=80)
+    bio: str | None = Field(default=None, max_length=500)
 
     @field_validator("preferred_lang")
     @classmethod

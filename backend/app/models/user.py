@@ -40,6 +40,16 @@ class User(Base):
     # Flows through to Zenodo creator.identifiers and LOD schema:sameAs when
     # this user is the editor of a deposited / published collection.
     orcid: Mapped[str | None] = mapped_column(String(19), default=None)
+    # Filename suffix of the uploaded avatar — when set, the file lives at
+    # ``settings.media_dir / "avatars" / <user_id>.<ext>`` and is served via
+    # ``GET /api/v1/users/{username}/avatar``. None means "no upload, fall
+    # back to a deterministic monogram in the UI".
+    avatar_url: Mapped[str | None] = mapped_column(Text, default=None)
+    # Short freeform bio shown on the in-app Profile page. A tiny Markdown
+    # subset is allowed (``**bold**``, ``*italic*``, ``__underline__``);
+    # rendering is the frontend's job. Max 500 characters enforced at the
+    # API schema layer.
+    bio: Mapped[str | None] = mapped_column(Text, default=None)
 
     user_roles: Mapped[list["UserRole"]] = relationship(  # type: ignore[name-defined]
         "UserRole",
