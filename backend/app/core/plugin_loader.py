@@ -1,16 +1,23 @@
 """
 PluginLoader — discovers, syncs and mounts Aracne2 plugins.
 
-Lifecycle (called once in the FastAPI lifespan startup):
+Startup (called once in the FastAPI lifespan):
   1. discover()        — scan filesystem for PluginBase subclasses
   2. sync_registry()   — upsert Plugin rows in PostgreSQL
   3. load_active()     — mount routers for active plugins on the FastAPI app
 
-Native plugins (meta.native=True) are always active and are mounted
-regardless of their DB status.  Non-native plugins are mounted only when
-Plugin.status == PluginStatus.active.
+Runtime activation / deactivation:
+  • mount_plugin(app, plugin_id)   — append the plugin's router to the
+    live ASGI app and remember the appended Route objects.
+  • unmount_plugin(app, plugin_id) — pop those Route objects off so the
+    URL space goes back to 404 for that plugin.
 
-Changes to activation status take effect after the next server restart.
+Both are called by the ``/plugins/{name}/activate`` and
+``/plugins/{name}/deactivate`` endpoints, so toggling a plugin in the
+admin UI takes effect immediately — no backend restart required.
+
+Native plugins (meta.native=True) are always active and are mounted at
+startup regardless of their DB status.
 """
 
 import importlib
@@ -38,6 +45,14 @@ _PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
 class PluginLoader:
     def __init__(self) -> None:
         self._discovered: dict[str, type[PluginBase]] = {}
+        # plugin_id → list of Route objects that ``app.include_router``
+        # appended on the running ASGI app. Populated at startup
+        # (``load_active``) and at every runtime activation
+        # (``mount_plugin``); consumed by ``unmount_plugin`` to remove
+        # the exact same Route instances on deactivation, so toggling
+        # a plugin in the admin UI does not require a backend
+        # restart anymore.
+        self._mounted_routes: dict[str, list[object]] = {}
 
     # ── Discovery ─────────────────────────────────────────────────────────────
 
@@ -146,11 +161,75 @@ class PluginLoader:
                 select(Plugin).where(Plugin.name == plugin_id)
             )
             if row and row.status == PluginStatus.active:
-                if cls.router.routes:
-                    app.include_router(cls.router, prefix="/api/v1")
-                logger.info(
-                    "plugin_loaded", id=plugin_id, native=cls.meta.native
-                )
+                self._mount(app, plugin_id, cls)
+
+    # ── Runtime mount / unmount ───────────────────────────────────────────────
+
+    def _mount(
+        self, app: "FastAPI", plugin_id: str, cls: type[PluginBase]
+    ) -> None:
+        """Append the plugin's router to the running ASGI app and remember
+        which Route objects came from us, so we can pop them later."""
+        if not cls.router.routes:
+            return
+        if plugin_id in self._mounted_routes:
+            # Already mounted — guard against accidental double-mounts.
+            return
+        before = set(id(r) for r in app.router.routes)
+        app.include_router(cls.router, prefix="/api/v1")
+        added = [r for r in app.router.routes if id(r) not in before]
+        self._mounted_routes[plugin_id] = added
+        # OpenAPI schema is cached after the first /docs hit; invalidate
+        # so the new routes show up the next time someone opens it.
+        app.openapi_schema = None
+        logger.info(
+            "plugin_loaded",
+            id=plugin_id,
+            native=cls.meta.native,
+            route_count=len(added),
+        )
+
+    def mount_plugin(self, app: "FastAPI", plugin_id: str) -> bool:
+        """Hot-mount a plugin's router on the live FastAPI app.
+
+        Called by the admin "activate" endpoint after the DB row has
+        been flipped, so the new routes start serving requests
+        immediately — no backend restart required. Returns ``True`` on
+        success, ``False`` if the plugin id is unknown, has no router
+        defined, or is already mounted.
+        """
+        cls = self._discovered.get(plugin_id)
+        if cls is None:
+            return False
+        if plugin_id in self._mounted_routes:
+            return False  # already serving — nothing to do
+        if not cls.router.routes:
+            return False  # plugin has no HTTP surface (hook-only)
+        self._mount(app, plugin_id, cls)
+        return True
+
+    def unmount_plugin(self, app: "FastAPI", plugin_id: str) -> bool:
+        """Remove a plugin's routes from the live FastAPI app.
+
+        Called by the admin "deactivate" endpoint. Returns ``True`` on
+        success, ``False`` if no routes were tracked for that plugin
+        (e.g. it was never active in this process). Native plugins
+        should not be deactivatable in the first place — the caller
+        guards on ``meta.native`` before invoking this.
+        """
+        routes = self._mounted_routes.pop(plugin_id, None)
+        if not routes:
+            return False
+        # ``app.router.routes`` is a regular Python list — remove every
+        # tracked instance. Use identity comparison via ``is`` to
+        # survive any ``__eq__`` overrides on Route subclasses.
+        kept = [r for r in app.router.routes if all(r is not x for x in routes)]
+        app.router.routes[:] = kept
+        app.openapi_schema = None
+        logger.info(
+            "plugin_unloaded", id=plugin_id, route_count=len(routes)
+        )
+        return True
 
     # ── Public helpers ────────────────────────────────────────────────────────
 
