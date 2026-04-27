@@ -1188,6 +1188,14 @@ function openAiPanel(): void {
   showGettyAatPanel.value = false;
   showOpenAlexPanel.value = false;
   showTrismegistosPanel.value = false;
+  // The AI store is shared across features (Bibliobuilder, the TEI
+  // editor, the Validate dialog, …). When the user lands on the
+  // editor's AI panel after running a Bibliobuilder pass, the
+  // leftover response/chat history would render until they clicked
+  // Validate/Improve. Reset on open so the panel always starts fresh.
+  aiStore.resetChat();
+  lastAiPrompt.value = null;
+  aiNoErrors.value = false;
   showAiPanel.value = true;
 }
 
