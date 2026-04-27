@@ -11,6 +11,10 @@ const { t } = useI18n();
 const settingStore = useSettingStore();
 const uiConfigStore = useUiConfigStore();
 
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+type TabKey = "aspetto" | "homepage" | "pagine" | "documento";
+const activeTab = ref<TabKey>("aspetto");
+
 onMounted(async () => {
   // The store already caches by key, so this is a no-op when SettingsView
   // has already loaded — but a direct deep-link to /admin/public-pages
@@ -514,6 +518,71 @@ function downloadHomepageCss(): void {
     <h1 class="mb-1 text-2xl font-bold">{{ t("settings.homepage_title") }}</h1>
     <p class="mb-6 text-sm text-gray-500">{{ t("settings.homepage_subtitle") }}</p>
 
+    <!-- Master toggle: Enable Public Pages (always visible, outside any tab) -->
+    <div class="mb-6 flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+      <div class="mr-4">
+        <p class="text-sm font-medium text-gray-800">
+          {{ t("settings.homepage_public_home_enabled") }}
+        </p>
+        <p class="mt-0.5 text-xs text-gray-500">
+          {{ t("settings.homepage_public_home_enabled_hint") }}
+        </p>
+      </div>
+      <button
+        :disabled="togglingHomeSetting['public_home_enabled']"
+        class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+        :class="publicHomeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+        @click="toggleHomeSetting('public_home_enabled', publicHomeEnabled)"
+      >
+        <span
+          class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+          :class="publicHomeEnabled ? 'translate-x-5' : 'translate-x-0'"
+        />
+      </button>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="mb-6 flex gap-4 border-b border-gray-200 dark:border-gray-700">
+      <button
+        v-for="tab in (['aspetto', 'homepage', 'pagine', 'documento'] as TabKey[])"
+        :key="tab"
+        :class="[
+          'pb-2 text-sm font-medium',
+          activeTab === tab
+            ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100',
+        ]"
+        @click="activeTab = tab"
+      >
+        {{ t(`settings.public_pages_tab_${tab}`) }}
+      </button>
+    </div>
+
+    <!-- ── Tab: Aspetto ── -->
+    <template v-if="activeTab === 'aspetto'">
+      <!-- home_show_login_button -->
+      <div class="mb-6 flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+        <div class="mr-4">
+          <p class="text-sm font-medium text-gray-800">
+            {{ t("settings.homepage_show_login_button") }}
+          </p>
+          <p class="mt-0.5 text-xs text-gray-500">
+            {{ t("settings.homepage_show_login_button_hint") }}
+          </p>
+        </div>
+        <button
+          :disabled="togglingHomeSetting['home_show_login_button']"
+          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+          :class="homeShowLoginButton ? 'bg-indigo-600' : 'bg-gray-200'"
+          @click="toggleHomeSetting('home_show_login_button', homeShowLoginButton)"
+        >
+          <span
+            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+            :class="homeShowLoginButton ? 'translate-x-5' : 'translate-x-0'"
+          />
+        </button>
+      </div>
+
     <!-- Logo section -->
     <section class="mb-8 rounded border border-gray-200 p-5">
       <h2 class="mb-4 text-sm font-semibold text-gray-800">
@@ -649,6 +718,95 @@ function downloadHomepageCss(): void {
       </div>
     </section>
 
+      <!-- Custom CSS tools (Aspetto tab) -->
+      <div class="mb-6 space-y-3 rounded border border-gray-200 bg-white p-4">
+        <p class="text-sm font-semibold text-gray-800">{{ t("settings.homepage_css_title") }}</p>
+        <p class="text-xs text-gray-500">{{ t("settings.homepage_css_hint") }}</p>
+
+        <div class="flex items-center gap-2">
+          <span
+            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+            :class="uiConfigStore.config.has_custom_homepage_css
+              ? 'bg-green-100 text-green-700'
+              : 'bg-gray-100 text-gray-500'"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="uiConfigStore.config.has_custom_homepage_css ? 'bg-green-500' : 'bg-gray-400'"
+            />
+            {{ uiConfigStore.config.has_custom_homepage_css
+                ? t("settings.homepage_css_status_active")
+                : t("settings.homepage_css_status_none") }}
+          </span>
+          <button
+            v-if="uiConfigStore.config.has_custom_homepage_css"
+            class="text-xs text-red-500 hover:underline"
+            @click="deleteCustomCss"
+          >
+            {{ t("settings.homepage_css_remove") }}
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input
+            ref="cssFileInput"
+            type="file"
+            accept=".css"
+            class="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 file:mr-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-0.5 file:text-xs file:font-medium"
+            @change="onCssFileChange"
+          />
+          <button
+            :disabled="!selectedCssFile || isUploadingCss"
+            class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            @click="uploadCustomCss"
+          >
+            {{ isUploadingCss ? t("common.saving") : t("settings.homepage_css_upload_btn") }}
+          </button>
+        </div>
+
+        <p v-if="cssUploadOk"    class="text-xs text-green-600">{{ t("settings.homepage_css_upload_ok") }}</p>
+        <p v-if="cssUploadError" class="text-xs text-red-600">{{ cssUploadError }}</p>
+
+        <div class="flex items-center justify-between border-t border-gray-100 pt-3">
+          <p class="text-xs text-gray-500">{{ t("settings.homepage_download_css_hint") }}</p>
+          <button
+            class="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            @click="downloadHomepageCss"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {{ t("settings.homepage_download_css_btn") }}
+          </button>
+        </div>
+      </div>
+
+      <!-- home_propagate_css -->
+      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+        <div class="mr-4">
+          <p class="text-sm font-medium text-gray-800">
+            {{ t("settings.homepage_propagate_css") }}
+          </p>
+          <p class="mt-0.5 text-xs text-gray-500">
+            {{ t("settings.homepage_propagate_css_hint") }}
+          </p>
+        </div>
+        <button
+          :disabled="togglingHomeSetting['home_propagate_css']"
+          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+          :class="homePropagateCss ? 'bg-indigo-600' : 'bg-gray-200'"
+          @click="toggleHomeSetting('home_propagate_css', homePropagateCss)"
+        >
+          <span
+            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+            :class="homePropagateCss ? 'translate-x-5' : 'translate-x-0'"
+          />
+        </button>
+      </div>
+    </template>
+
+    <!-- ── Tab: Homepage ── -->
+    <template v-if="activeTab === 'homepage'">
     <!-- Intro HTML — free-form cover text rendered above the collection list -->
     <section class="mb-8 rounded border border-gray-200 p-5">
       <h2 class="mb-1 text-sm font-semibold text-gray-800">
@@ -682,384 +840,258 @@ function downloadHomepageCss(): void {
       </div>
     </section>
 
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-      {{ t("settings.homepage_section_behavior") }}
-    </h2>
-    <div class="space-y-4">
-      <!-- public_home_enabled -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_public_home_enabled") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_public_home_enabled_hint") }}
-          </p>
+      <div class="space-y-4">
+        <!-- home_show_collections -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_show_collections") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_show_collections_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['home_show_collections']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="homeShowCollections ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('home_show_collections', homeShowCollections)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="homeShowCollections ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
         </div>
-        <button
-          :disabled="togglingHomeSetting['public_home_enabled']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="publicHomeEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('public_home_enabled', publicHomeEnabled)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="publicHomeEnabled ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
 
-      <!-- public_search_engine_enabled — foldable panel -->
-      <div class="rounded border border-gray-200 bg-white">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left"
-          @click="toggleSearchPanel"
-        >
-          <span class="flex items-center gap-2">
-            <svg
-              class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform"
-              :class="{ 'rotate-90': searchPanelOpen }"
-              viewBox="0 0 20 20" fill="currentColor"
-            >
-              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" />
-            </svg>
-            <span class="flex flex-col">
-              <span class="text-sm font-medium text-gray-800">
-                {{ t("settings.homepage_public_search_engine_enabled") }}
-              </span>
-              <span class="mt-0.5 text-xs text-gray-500">
-                {{ t("settings.homepage_public_search_engine_enabled_hint") }}
+        <!-- home_show_search -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
+          <div class="mr-4">
+            <p class="text-sm font-medium text-gray-800">
+              {{ t("settings.homepage_show_search") }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ t("settings.homepage_show_search_hint") }}
+            </p>
+          </div>
+          <button
+            :disabled="togglingHomeSetting['home_show_search']"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+            :class="homeShowSearch ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('home_show_search', homeShowSearch)"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="homeShowSearch ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Tab: Pagine ── -->
+    <template v-if="activeTab === 'pagine'">
+      <div class="space-y-4">
+        <!-- public_search_engine_enabled — foldable panel -->
+        <div class="rounded border border-gray-200 bg-white">
+          <button
+            type="button"
+            class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left"
+            @click="toggleSearchPanel"
+          >
+            <span class="flex items-center gap-2">
+              <svg
+                class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform"
+                :class="{ 'rotate-90': searchPanelOpen }"
+                viewBox="0 0 20 20" fill="currentColor"
+              >
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" />
+              </svg>
+              <span class="flex flex-col">
+                <span class="text-sm font-medium text-gray-800">
+                  {{ t("settings.homepage_public_search_engine_enabled") }}
+                </span>
+                <span class="mt-0.5 text-xs text-gray-500">
+                  {{ t("settings.homepage_public_search_engine_enabled_hint") }}
+                </span>
               </span>
             </span>
-          </span>
-          <span
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="publicSearchEngineEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-            :aria-disabled="savingSearchEngine"
-            @click.stop="togglePublicSearchEngine"
-          >
             <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="publicSearchEngineEnabled ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </span>
-        </button>
-        <div v-if="searchPanelOpen" class="border-t border-gray-100 px-4 py-4">
-          <p class="mb-2 text-xs font-medium text-gray-700">
-            {{ t("public_search.engine_label") }}
-          </p>
-          <p v-if="enginesLoading" class="text-xs text-gray-400">
-            {{ t("public_search.loading_engines") }}
-          </p>
-          <p v-else-if="enginesError" class="text-xs text-red-600">{{ enginesError }}</p>
-          <p v-else-if="enginesList.length === 0" class="text-xs text-gray-400">
-            {{ t("public_search.no_engines") }}
-          </p>
-          <select
-            v-else
-            :value="publicSearchEngineSlug"
-            :disabled="savingSearchEngine"
-            class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none disabled:opacity-50"
-            @change="setPublicSearchEngineSlug(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="" disabled>{{ t("public_search.engine_select_placeholder") }}</option>
-            <option v-for="e in enginesList" :key="e.slug" :value="e.slug">
-              {{ e.title }} ({{ e.slug }})
-            </option>
-          </select>
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="publicSearchEngineEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              :aria-disabled="savingSearchEngine"
+              @click.stop="togglePublicSearchEngine"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicSearchEngineEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </span>
+          </button>
+          <div v-if="searchPanelOpen" class="border-t border-gray-100 px-4 py-4">
+            <p class="mb-2 text-xs font-medium text-gray-700">
+              {{ t("public_search.engine_label") }}
+            </p>
+            <p v-if="enginesLoading" class="text-xs text-gray-400">
+              {{ t("public_search.loading_engines") }}
+            </p>
+            <p v-else-if="enginesError" class="text-xs text-red-600">{{ enginesError }}</p>
+            <p v-else-if="enginesList.length === 0" class="text-xs text-gray-400">
+              {{ t("public_search.no_engines") }}
+            </p>
+            <select
+              v-else
+              :value="publicSearchEngineSlug"
+              :disabled="savingSearchEngine"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none disabled:opacity-50"
+              @change="setPublicSearchEngineSlug(($event.target as HTMLSelectElement).value)"
+            >
+              <option value="" disabled>{{ t("public_search.engine_select_placeholder") }}</option>
+              <option v-for="e in enginesList" :key="e.slug" :value="e.slug">
+                {{ e.title }} ({{ e.slug }})
+              </option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      <!-- home_show_collections -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_show_collections") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_show_collections_hint") }}
-          </p>
-        </div>
-        <button
-          :disabled="togglingHomeSetting['home_show_collections']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="homeShowCollections ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('home_show_collections', homeShowCollections)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="homeShowCollections ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
-
-      <!-- home_show_search -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_show_search") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_show_search_hint") }}
-          </p>
-        </div>
-        <button
-          :disabled="togglingHomeSetting['home_show_search']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="homeShowSearch ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('home_show_search', homeShowSearch)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="homeShowSearch ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
-
-      <!-- home_show_login_button -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_show_login_button") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_show_login_button_hint") }}
-          </p>
-        </div>
-        <button
-          :disabled="togglingHomeSetting['home_show_login_button']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="homeShowLoginButton ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('home_show_login_button', homeShowLoginButton)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="homeShowLoginButton ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
-
-      <!-- home_propagate_css -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_propagate_css") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_propagate_css_hint") }}
-          </p>
-        </div>
-        <button
-          :disabled="togglingHomeSetting['home_propagate_css']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="homePropagateCss ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('home_propagate_css', homePropagateCss)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="homePropagateCss ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
-
-      <!-- sitemap_include_search_engines -->
-      <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
-        <div class="mr-4">
-          <p class="text-sm font-medium text-gray-800">
-            {{ t("settings.homepage_sitemap_include_search_engines") }}
-          </p>
-          <p class="mt-0.5 text-xs text-gray-500">
-            {{ t("settings.homepage_sitemap_include_search_engines_hint") }}
-          </p>
-        </div>
-        <button
-          :disabled="togglingHomeSetting['sitemap_include_search_engines']"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-          :class="sitemapIncludeSearchEngines ? 'bg-indigo-600' : 'bg-gray-200'"
-          @click="toggleHomeSetting('sitemap_include_search_engines', sitemapIncludeSearchEngines)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="sitemapIncludeSearchEngines ? 'translate-x-5' : 'translate-x-0'"
-          />
-        </button>
-      </div>
-    </div>
-
-    <!-- Document options -->
-    <div class="mt-8 rounded border border-gray-200 bg-white p-5">
-      <h3 class="mb-1 text-sm font-semibold text-gray-800">
-        {{ t("settings.public_doc_options_title") }}
-      </h3>
-      <p class="mb-4 text-xs text-gray-500">
-        {{ t("settings.public_doc_options_subtitle") }}
-      </p>
-
-      <p class="mb-2 text-xs font-medium text-gray-700">
-        {{ t("settings.public_doc_note_mode_label") }}
-      </p>
-      <div class="space-y-1.5 text-xs text-gray-700">
-        <label class="flex items-start gap-2">
-          <input
-            type="radio"
-            class="mt-0.5 text-indigo-600"
-            value="end-of-text"
-            :checked="publicNoteMode === 'end-of-text'"
-            :disabled="savingNoteMode"
-            @change="setPublicNoteMode('end-of-text')"
-          />
-          <span>
-            <span class="font-medium">{{ t("settings.public_doc_note_mode_end_of_text") }}</span>
-            <br />
-            <span class="text-gray-400">{{ t("settings.public_doc_note_mode_end_of_text_hint") }}</span>
-          </span>
-        </label>
-        <label class="flex items-start gap-2">
-          <input
-            type="radio"
-            class="mt-0.5 text-indigo-600"
-            value="tooltip"
-            :checked="publicNoteMode === 'tooltip'"
-            :disabled="savingNoteMode"
-            @change="setPublicNoteMode('tooltip')"
-          />
-          <span>
-            <span class="font-medium">{{ t("settings.public_doc_note_mode_tooltip") }}</span>
-            <br />
-            <span class="text-gray-400">{{ t("settings.public_doc_note_mode_tooltip_hint") }}</span>
-          </span>
-        </label>
-        <label class="flex items-start gap-2">
-          <input
-            type="radio"
-            class="mt-0.5 text-indigo-600"
-            value="frame"
-            :checked="publicNoteMode === 'frame'"
-            :disabled="savingNoteMode"
-            @change="setPublicNoteMode('frame')"
-          />
-          <span>
-            <span class="font-medium">{{ t("settings.public_doc_note_mode_frame") }}</span>
-            <br />
-            <span class="text-gray-400">{{ t("settings.public_doc_note_mode_frame_hint") }}</span>
-          </span>
-        </label>
-      </div>
-
-      <div class="mt-5 border-t border-gray-100 pt-4">
-        <div class="flex items-start justify-between">
+        <!-- sitemap_include_search_engines -->
+        <div class="flex items-start justify-between rounded border border-gray-200 bg-white p-4">
           <div class="mr-4">
             <p class="text-sm font-medium text-gray-800">
-              {{ t("settings.public_doc_entity_hover_label") }}
+              {{ t("settings.homepage_sitemap_include_search_engines") }}
             </p>
             <p class="mt-0.5 text-xs text-gray-500">
-              {{ t("settings.public_doc_entity_hover_hint") }}
+              {{ t("settings.homepage_sitemap_include_search_engines_hint") }}
             </p>
           </div>
           <button
-            :disabled="togglingHomeSetting['public_pages_entity_hover_enabled']"
+            :disabled="togglingHomeSetting['sitemap_include_search_engines']"
             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-            :class="publicEntityHoverEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-            @click="toggleHomeSetting('public_pages_entity_hover_enabled', publicEntityHoverEnabled)"
+            :class="sitemapIncludeSearchEngines ? 'bg-indigo-600' : 'bg-gray-200'"
+            @click="toggleHomeSetting('sitemap_include_search_engines', sitemapIncludeSearchEngines)"
           >
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="publicEntityHoverEnabled ? 'translate-x-5' : 'translate-x-0'"
+              :class="sitemapIncludeSearchEngines ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
         </div>
-        <p v-if="publicEntityHoverEnabled" class="mt-2 text-xs text-amber-700">
-          {{ t("settings.public_doc_entity_hover_privacy") }}
+      </div>
+    </template>
+
+    <!-- ── Tab: Documento ── -->
+    <template v-if="activeTab === 'documento'">
+      <div class="rounded border border-gray-200 bg-white p-5">
+        <h3 class="mb-1 text-sm font-semibold text-gray-800">
+          {{ t("settings.public_doc_options_title") }}
+        </h3>
+        <p class="mb-4 text-xs text-gray-500">
+          {{ t("settings.public_doc_options_subtitle") }}
         </p>
-      </div>
 
-      <div class="mt-5 border-t border-gray-100 pt-4">
-        <div class="flex items-start justify-between">
-          <div class="mr-4">
-            <p class="text-sm font-medium text-gray-800">
-              {{ t("settings.public_doc_frame_enabled_label") }}
-            </p>
-            <p class="mt-0.5 text-xs text-gray-500">
-              {{ t("settings.public_doc_frame_enabled_hint") }}
-            </p>
-          </div>
-          <button
-            :disabled="togglingHomeSetting['public_pages_doc_frame_enabled']"
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
-            :class="publicDocFrameEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
-            @click="toggleHomeSetting('public_pages_doc_frame_enabled', publicDocFrameEnabled)"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="publicDocFrameEnabled ? 'translate-x-5' : 'translate-x-0'"
+        <p class="mb-2 text-xs font-medium text-gray-700">
+          {{ t("settings.public_doc_note_mode_label") }}
+        </p>
+        <div class="space-y-1.5 text-xs text-gray-700">
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="end-of-text"
+              :checked="publicNoteMode === 'end-of-text'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('end-of-text')"
             />
-          </button>
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_end_of_text") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_end_of_text_hint") }}</span>
+            </span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="tooltip"
+              :checked="publicNoteMode === 'tooltip'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('tooltip')"
+            />
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_tooltip") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_tooltip_hint") }}</span>
+            </span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="frame"
+              :checked="publicNoteMode === 'frame'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('frame')"
+            />
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_frame") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_frame_hint") }}</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="mt-5 border-t border-gray-100 pt-4">
+          <div class="flex items-start justify-between">
+            <div class="mr-4">
+              <p class="text-sm font-medium text-gray-800">
+                {{ t("settings.public_doc_entity_hover_label") }}
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ t("settings.public_doc_entity_hover_hint") }}
+              </p>
+            </div>
+            <button
+              :disabled="togglingHomeSetting['public_pages_entity_hover_enabled']"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+              :class="publicEntityHoverEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              @click="toggleHomeSetting('public_pages_entity_hover_enabled', publicEntityHoverEnabled)"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicEntityHoverEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+          <p v-if="publicEntityHoverEnabled" class="mt-2 text-xs text-amber-700">
+            {{ t("settings.public_doc_entity_hover_privacy") }}
+          </p>
+        </div>
+
+        <div class="mt-5 border-t border-gray-100 pt-4">
+          <div class="flex items-start justify-between">
+            <div class="mr-4">
+              <p class="text-sm font-medium text-gray-800">
+                {{ t("settings.public_doc_frame_enabled_label") }}
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ t("settings.public_doc_frame_enabled_hint") }}
+              </p>
+            </div>
+            <button
+              :disabled="togglingHomeSetting['public_pages_doc_frame_enabled']"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+              :class="publicDocFrameEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              @click="toggleHomeSetting('public_pages_doc_frame_enabled', publicDocFrameEnabled)"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicDocFrameEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
 
-    <!-- Custom CSS tools -->
-    <div class="mt-6 space-y-3 rounded border border-gray-200 bg-white p-4">
-      <p class="text-sm font-semibold text-gray-800">{{ t("settings.homepage_css_title") }}</p>
-      <p class="text-xs text-gray-500">{{ t("settings.homepage_css_hint") }}</p>
-
-      <div class="flex items-center gap-2">
-        <span
-          class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-          :class="uiConfigStore.config.has_custom_homepage_css
-            ? 'bg-green-100 text-green-700'
-            : 'bg-gray-100 text-gray-500'"
-        >
-          <span
-            class="h-1.5 w-1.5 rounded-full"
-            :class="uiConfigStore.config.has_custom_homepage_css ? 'bg-green-500' : 'bg-gray-400'"
-          />
-          {{ uiConfigStore.config.has_custom_homepage_css
-              ? t("settings.homepage_css_status_active")
-              : t("settings.homepage_css_status_none") }}
-        </span>
-        <button
-          v-if="uiConfigStore.config.has_custom_homepage_css"
-          class="text-xs text-red-500 hover:underline"
-          @click="deleteCustomCss"
-        >
-          {{ t("settings.homepage_css_remove") }}
-        </button>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <input
-          ref="cssFileInput"
-          type="file"
-          accept=".css"
-          class="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 file:mr-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-0.5 file:text-xs file:font-medium"
-          @change="onCssFileChange"
-        />
-        <button
-          :disabled="!selectedCssFile || isUploadingCss"
-          class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-          @click="uploadCustomCss"
-        >
-          {{ isUploadingCss ? t("common.saving") : t("settings.homepage_css_upload_btn") }}
-        </button>
-      </div>
-
-      <p v-if="cssUploadOk"    class="text-xs text-green-600">{{ t("settings.homepage_css_upload_ok") }}</p>
-      <p v-if="cssUploadError" class="text-xs text-red-600">{{ cssUploadError }}</p>
-
-      <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-        <p class="text-xs text-gray-500">{{ t("settings.homepage_download_css_hint") }}</p>
-        <button
-          class="flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          @click="downloadHomepageCss"
-        >
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          {{ t("settings.homepage_download_css_btn") }}
-        </button>
-      </div>
-    </div>
   </div>
 </template>
