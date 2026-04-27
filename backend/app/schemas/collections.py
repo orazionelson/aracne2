@@ -107,6 +107,11 @@ class CollectionResponse(BaseModel):
     is_public: bool
     owner_id: uuid.UUID | None
     editor_id: uuid.UUID | None
+    # Resolved editor display info — populated by list / detail endpoints
+    # to save the frontend a per-row user lookup. NULL when no editor
+    # is assigned or when the assigned editor was deleted.
+    editor_username: str | None = None
+    editor_display_name: str | None = None
     assigned_at: datetime | None
     submitted_at: datetime | None
     published_at: datetime | None

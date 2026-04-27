@@ -32,6 +32,10 @@ export interface Collection {
   is_public: boolean;
   owner_id: string | null;
   editor_id: string | null;
+  // Resolved on the backend so the list table can show a name without
+  // a per-row user lookup.
+  editor_username: string | null;
+  editor_display_name: string | null;
   assigned_at: string | null;
   submitted_at: string | null;
   published_at: string | null;

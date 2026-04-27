@@ -303,7 +303,26 @@ async def list_collections(
     stmt = stmt.order_by(Collection.created_at.desc())
     stmt = stmt.offset((page - 1) * per_page).limit(per_page)
     rows = list(await db.scalars(stmt))
-    return [CollectionResponse.model_validate(r) for r in rows], total
+
+    # Batch-resolve assigned editors so the table can show a name
+    # instead of (or in addition to) a UUID. One query per page —
+    # cheaper than one User lookup per row.
+    editor_ids = {r.editor_id for r in rows if r.editor_id is not None}
+    editor_map: dict[uuid.UUID, User] = {}
+    if editor_ids:
+        editor_rows = await db.scalars(
+            select(User).where(User.id.in_(editor_ids))
+        )
+        editor_map = {u.id: u for u in editor_rows}
+
+    items: list[CollectionResponse] = []
+    for r in rows:
+        cr = CollectionResponse.model_validate(r)
+        if r.editor_id and (u := editor_map.get(r.editor_id)) is not None:
+            cr.editor_username = u.username
+            cr.editor_display_name = u.display_name
+        items.append(cr)
+    return items, total
 
 
 async def get_collection(
@@ -314,7 +333,13 @@ async def get_collection(
 ) -> CollectionResponse:
     col = await _get_or_404(db, collection_id)
     await _assert_read_access(db, col, actor, role)
-    return CollectionResponse.model_validate(col)
+    cr = CollectionResponse.model_validate(col)
+    if col.editor_id:
+        editor = await db.get(User, col.editor_id)
+        if editor is not None:
+            cr.editor_username = editor.username
+            cr.editor_display_name = editor.display_name
+    return cr
 
 
 # Workflow actions that show up in the editorial history panel. Kept as a

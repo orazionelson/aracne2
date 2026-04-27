@@ -207,6 +207,7 @@ async function confirmDelete(id: string, title: string): Promise<void> {
             <th class="py-2 pr-4">{{ t("collections.title_label") }}</th>
             <th class="py-2 pr-4">{{ t("collections.slug") }}</th>
             <th class="py-2 pr-4">{{ t("collections.status") }}</th>
+            <th class="py-2 pr-4">{{ t("collections.editor_label") }}</th>
             <th class="py-2 pr-4">{{ t("collections.is_public") }}</th>
             <th class="py-2 pr-4">{{ t("collections.created_at") }}</th>
             <th class="py-2"></th>
@@ -234,6 +235,9 @@ async function confirmDelete(id: string, title: string): Promise<void> {
               >
                 {{ t(`collections.status_${col.status}`) }}
               </span>
+            </td>
+            <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">
+              {{ col.editor_display_name || col.editor_username || "—" }}
             </td>
             <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">{{ col.is_public ? "✓" : "—" }}</td>
             <td class="py-2 pr-4 text-gray-500 dark:text-gray-400">
