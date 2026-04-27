@@ -815,6 +815,8 @@
     "field_is_published": "Pubblicato (accessibile al pubblico)",
     "field_show_in_public_home": "Mostra collegamento nella home pubblica",
     "field_show_in_public_home_hint": "Se attivo e il sito è pubblicato, appare un pulsante di collegamento a questo sito nella home pubblica, accanto alla collezione collegata.",
+    "publish_nudge_show_without_publish": "Il pulsante nella home pubblica richiede entrambi i flag. Attiva anche \"Pubblicato\", altrimenti il link resta nascosto.",
+    "publish_nudge_publish_without_show": "Il sito è pubblicato ma non verrà promosso dalla home pubblica. Attiva \"Mostra collegamento nella home pubblica\" se vuoi un pulsante nella landing pubblica.",
     "field_maintenance_on_unpublish": "Mostra banner di manutenzione quando la collezione collegata viene spubblicata",
     "field_maintenance_on_unpublish_hint": "Quando la collezione di questo sito viene spubblicata o resa privata, ogni URL del sito risponde con 503 e la pagina di manutenzione qui sotto. Default: attivo per Dynamic / Hybrid (il rendering non funziona senza collezione pubblica), disattivato per Static (il sito statico è una release che può sopravvivere a una spubblicazione temporanea).",
     "field_maintenance_message": "Messaggio del banner",

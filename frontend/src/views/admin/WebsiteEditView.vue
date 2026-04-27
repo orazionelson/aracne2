@@ -961,6 +961,20 @@ onBeforeUnmount(() => {
               <label :for="`edit-sph-${website.slug}`" class="text-xs text-gray-700">{{ t("websites.field_show_in_public_home") }}</label>
             </div>
             <p class="text-xs text-gray-400">{{ t("websites.field_show_in_public_home_hint") }}</p>
+
+            <!-- Nudge: both flags must be on for the public-home button to appear -->
+            <p
+              v-if="!editForm.is_published && editForm.show_in_public_home"
+              class="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800"
+            >
+              ⚠ {{ t("websites.publish_nudge_show_without_publish") }}
+            </p>
+            <p
+              v-else-if="editForm.is_published && !editForm.show_in_public_home"
+              class="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800"
+            >
+              ⚠ {{ t("websites.publish_nudge_publish_without_show") }}
+            </p>
           </div>
 
           <!-- Maintenance banner on collection unpublish -->

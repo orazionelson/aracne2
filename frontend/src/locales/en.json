@@ -815,6 +815,8 @@
     "field_is_published": "Published (publicly accessible)",
     "field_show_in_public_home": "Show link on public home page",
     "field_show_in_public_home_hint": "When enabled and the site is published, a button linking to this website appears on the public home page alongside the linked collection.",
+    "publish_nudge_show_without_publish": "The public-home button needs both flags. Turn on \"Published\" too, otherwise the link stays hidden.",
+    "publish_nudge_publish_without_show": "The site is published but won't be advertised on the public home. Turn on \"Show link on public home page\" if you want a button on the public landing.",
     "field_maintenance_on_unpublish": "Show maintenance banner when the linked collection is unpublished",
     "field_maintenance_on_unpublish_hint": "When the collection backing this website is unpublished or set private, every site URL returns a 503 page with the banner below. Default: on for Dynamic / Hybrid (rendering breaks without a published collection), off for Static (the built site is a release that can outlive a transient unpublish).",
     "field_maintenance_message": "Banner message",

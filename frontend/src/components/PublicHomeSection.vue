@@ -34,6 +34,11 @@ function clearSearch(): void {
 
 function isSafeUrl(url: string | null | undefined): boolean {
   if (!url) return false
+  // Same-origin relative path (e.g. ``/sites/<slug>/`` — what the
+  // backend emits as a fallback when no explicit website_url is set).
+  // A single leading slash is safe; a double slash would be protocol-
+  // relative and could navigate cross-origin, so reject it.
+  if (url.startsWith("/") && !url.startsWith("//")) return true
   try {
     const parsed = new URL(url)
     return parsed.protocol === "http:" || parsed.protocol === "https:"
