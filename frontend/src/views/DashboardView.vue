@@ -15,6 +15,7 @@ import {
   PuzzlePieceIcon,
   QuestionMarkCircleIcon,
   BellIcon,
+  UserCircleIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useAuthStore } from "@/stores/auth";
@@ -237,8 +238,10 @@ const helpVisible = computed(() => plugins.isActive("help"));
           </div>
         </section>
 
-        <!-- Standalone Help + Notifiche row -->
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <!-- Standalone Help + Notifiche + Profilo row.
+             Help spans two columns when present so it stays the most
+             prominent target; Notifiche and Profilo each take one. -->
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
           <button
             v-if="helpVisible"
             class="group col-span-1 flex items-center gap-4 rounded-lg border-2 border-amber-200 bg-amber-50 px-5 py-5 text-left transition-all hover:border-amber-400 hover:bg-amber-100 hover:shadow-sm md:col-span-2 dark:border-amber-700 dark:bg-amber-900/20 dark:hover:border-amber-500 dark:hover:bg-amber-900/40"
@@ -256,7 +259,6 @@ const helpVisible = computed(() => plugins.isActive("help"));
           </button>
           <button
             class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
-            :class="helpVisible ? '' : 'col-span-1 md:col-span-3'"
             @click="router.push({ name: 'notifications' })"
           >
             <span class="relative">
@@ -270,6 +272,15 @@ const helpVisible = computed(() => plugins.isActive("help"));
             </span>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
               {{ t("home.shortcut_notifications") }}
+            </span>
+          </button>
+          <button
+            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+            @click="router.push({ name: 'profile' })"
+          >
+            <UserCircleIcon class="h-7 w-7 text-gray-500 group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300" />
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+              {{ t("home.shortcut_profile") }}
             </span>
           </button>
         </div>
