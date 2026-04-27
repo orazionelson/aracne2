@@ -447,6 +447,8 @@
   "documents": {
     "action_view": "visualizza",
     "action_edit": "modifica",
+    "action_download_tei": "Scarica TEI",
+    "action_download_pdf": "Scarica PDF",
     "saved": "Salvato",
     "schema_loaded": "Schema TEI P5 caricato — autocomplete attivo",
     "schema_error": "Errore schema CM5 — controlla la console",

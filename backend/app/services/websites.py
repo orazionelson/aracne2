@@ -399,6 +399,17 @@ li { margin-bottom: 0.3rem; }
 .tei-header .tei-author { opacity: 0.85; font-style: italic; font-size: 0.95rem; margin-top: 0.3rem; }
 .tei-header .tei-pub { opacity: 0.7; font-size: 0.8rem; margin-top: 0.2rem; }
 .tei-body { padding-top: 0.5rem; }
+/* ── Document action bar (Scarica TEI / Scarica PDF) ──────────────── */
+.doc-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0 0 1.25rem; }
+.doc-action  {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.85rem; border-radius: 0.375rem;
+  font-size: 0.82rem; font-family: var(--font); cursor: pointer;
+  border: 1px solid #d1d5db; background: #fff; color: #374151;
+  text-decoration: none;
+}
+.doc-action:hover { background: #f3f4f6; color: #1f2937; }
+@media print { .doc-actions { display: none !important; } }
 footer {
   margin-top: 4rem;
   border-top: 1px solid #e5e7eb;
@@ -1568,6 +1579,30 @@ def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
         "</div>"
     )
     return gallery + doc_body
+
+
+def _doc_actions_toolbar(slug: str, filename: str) -> str:
+    """Two-button toolbar prepended to every rendered doc page.
+
+    'Scarica TEI' downloads the raw XML from the source endpoint;
+    'Scarica PDF' triggers ``window.print()`` so the visitor's
+    browser can save the page as a PDF (Chrome / Firefox / Safari /
+    Edge all show "Save as PDF" as a default print destination).
+
+    The toolbar uses the ``.doc-actions`` class which is hidden in
+    print media — that way the rendered PDF never contains the
+    buttons themselves.
+    """
+    safe_filename = _html.escape(filename, quote=True)
+    src_href = f"/sites/{_html.escape(slug, quote=True)}/docs/{safe_filename}/source"
+    return (
+        '<div class="doc-actions">'
+        f'<a class="doc-action doc-action-tei" href="{src_href}" '
+        f'download="{safe_filename}">⬇ Scarica TEI</a>'
+        '<button type="button" class="doc-action doc-action-pdf" '
+        'onclick="window.print()">⬇ Scarica PDF</button>'
+        '</div>'
+    )
 
 
 def _readable_text_on(bg_hex: str) -> str | None:
@@ -3643,10 +3678,11 @@ async def render_dynamic_doc(
         crumbs = [(f"{base}/", "Home"), (f"{base}/browse", "Browse"), (None, label)]
     footer_note, identifier_url = _footer_parts(col)
     tei_valid_badge = await _tei_valid_badge_html(db, col)
+    actions = _doc_actions_toolbar(website.slug, filename)
     html = _render_page(
         site_title=website.title,
         page_title=label,
-        content=f'<div class="tei-body">{doc_body}</div>',
+        content=f'{actions}<div class="tei-body">{doc_body}</div>',
         style=_style_block(theme, website.custom_css, _doc_extra_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb(crumbs),
@@ -5055,10 +5091,11 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
                     ("../browse.html", "Browse"),
                     (None, label),
                 ]
+            doc_actions = _doc_actions_toolbar(website.slug, filename)
             doc_html = _render_page(
                 site_title=website.title,
                 page_title=label,
-                content=f'<div class="tei-body">{doc_body}</div>',
+                content=f'{doc_actions}<div class="tei-body">{doc_body}</div>',
                 style=doc_style,
                 navbar=navbar("../"),
                 breadcrumb=_render_breadcrumb(doc_crumbs),

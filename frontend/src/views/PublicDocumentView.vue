@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from "vue";
 import { useRoute } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { apiClient } from "@/services/api";
 import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 import { useJsonLd } from "@/composables/useJsonLd";
+
+const { t } = useI18n();
 
 interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
 interface PublicCollectionDetail {
@@ -29,6 +32,28 @@ const renderUrl = computed(() => {
   const h = route.query.highlight;
   return h ? `${base}?highlight=${encodeURIComponent(String(h))}` : base;
 });
+
+// Direct download of the original TEI XML.
+const sourceUrl = computed(
+  () => `/api/v1/public/collections/${slug}/documents/${encodeURIComponent(filename)}/source`,
+);
+
+// "Download as PDF" — trigger the iframe's own print dialog so the
+// browser captures only the rendered document, not the SPA chrome.
+// Modern browsers default to "Save as PDF" in the destination drop-
+// down, so a click → confirm yields a real PDF in the user's
+// downloads folder.
+function downloadPdf(): void {
+  const iframe = docFrame.value;
+  // The fixed-frame mode mounts a different iframe (no ref); fall back
+  // to printing the host window, which still produces a usable PDF.
+  if (iframe?.contentWindow) {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    return;
+  }
+  window.print();
+}
 
 // Frame mode (default true) keeps the historical fixed-height,
 // internally-scrolling iframe. When the admin turns the setting off
@@ -142,9 +167,28 @@ useJsonLd(
         <span class="font-mono text-gray-700">{{ filename }}</span>
       </nav>
 
+      <!-- Document download / print actions -->
+      <div class="doc-actions mb-4 flex flex-wrap gap-2 print:hidden">
+        <a
+          :href="sourceUrl"
+          :download="filename"
+          class="doc-action-tei inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          ⬇ {{ t("documents.action_download_tei") }}
+        </a>
+        <button
+          type="button"
+          class="doc-action-pdf inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          @click="downloadPdf"
+        >
+          ⬇ {{ t("documents.action_download_pdf") }}
+        </button>
+      </div>
+
       <!-- Rendered document — fixed-height frame OR auto-grow inline -->
       <iframe
         v-if="frameEnabled"
+        ref="docFrame"
         :src="renderUrl"
         class="doc-frame flex-1 w-full rounded-xl border border-gray-200 bg-white shadow-sm"
         style="min-height: 70vh;"

@@ -720,6 +720,48 @@ async def serve_site_bibliography(
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 
 
+@router.get("/sites/{slug}/docs/{filename}/source", include_in_schema=False)
+async def serve_site_doc_source(
+    slug: str,
+    filename: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    user: OptionalUser,
+) -> Response:
+    """Return the raw TEI XML of a document as an attachment.
+
+    Mirrors the access rules of the rendered ``/sites/{slug}/docs/
+    {filename}`` endpoint — same site-access check, same maintenance
+    short-circuit. ``Content-Disposition: attachment`` triggers a
+    download instead of an inline render.
+
+    Declared *before* the catch-all ``/docs/{filename:path}`` route so
+    FastAPI matches the more-specific path first.
+    """
+    from app.db.existdb import existdb_client
+    from fastapi.responses import Response as _Response
+
+    website = await svc.get_website(db, slug)
+    _check_site_access(website, user, request)
+    if (maint := await _maybe_maintenance_response(db, website)) is not None:
+        return maint
+    if website.collection_id is None:
+        raise HTTPException(status_code=404, detail="Linked collection not found.")
+    from app.models.collection import Collection
+    col = await db.get(Collection, website.collection_id)
+    if col is None:
+        raise HTTPException(status_code=404, detail="Linked collection not found.")
+    try:
+        xml_bytes = await existdb_client.get_document(col.slug, filename)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/sites/{slug}/docs/{filename:path}", include_in_schema=False)
 async def serve_site_doc(
     slug: str,

@@ -177,6 +177,34 @@ async def public_document_render(
     return HTMLResponse(content=html)
 
 
+@router.get("/collections/{slug}/documents/{filename}/source")
+async def public_document_source(
+    slug: str,
+    filename: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Return the raw TEI XML of a public document as an attachment.
+
+    Same access rules as the rendered HTML endpoint: the collection
+    must be published AND publicly visible. ``Content-Disposition:
+    attachment`` makes the click a download rather than an inline
+    render.
+    """
+    from app.db.existdb import existdb_client
+    from app.core.exceptions import NotFoundError as _NotFound
+
+    await get_public_collection(db, slug)
+    try:
+        xml_bytes = await existdb_client.get_document(slug, filename)
+    except Exception as exc:
+        raise _NotFound(f"Document '{filename}' not found.") from exc
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/collections/{slug}/documents/{doc_filename}/media/{filename}")
 async def public_serve_document_media(
     slug: str,

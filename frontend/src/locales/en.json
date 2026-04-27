@@ -447,6 +447,8 @@
   "documents": {
     "action_view": "view",
     "action_edit": "edit",
+    "action_download_tei": "Download TEI",
+    "action_download_pdf": "Download PDF",
     "saved": "Saved",
     "schema_loaded": "TEI P5 schema loaded — autocomplete active",
     "schema_error": "CM5 schema error — check console",
