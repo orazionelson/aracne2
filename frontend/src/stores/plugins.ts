@@ -4,9 +4,9 @@ import { apiClient } from "@/services/api";
 
 /**
  * Per-capability UI metadata. The platform doesn't interpret these
- * dicts — each capability tag (e.g. ``inline_authority``) defines
- * its own contract, documented inline below and on the backend in
- * ``app/core/plugin_base.py``.
+ * dicts — each capability tag (e.g. ``inline_authority``,
+ * ``collection_deposit``) defines its own contract, documented
+ * inline below and on the backend in ``app/core/plugin_base.py``.
  */
 export interface InlineAuthorityDescriptor {
   /** Vue component name registered in src/components/lookup/registry.ts. */
@@ -24,6 +24,18 @@ export interface InlineAuthorityDescriptor {
    * "doi" — seed with selection text expected to be a DOI (e.g. CrossRef). */
   initial_context: "selection" | "selection-or-empty" | "kind-picker" | "doi";
   /** Toolbar sort key — lower = leftmost. */
+  priority?: number;
+}
+
+/** UI metadata for the collection detail page's "Deposita" foldable. */
+export interface CollectionDepositDescriptor {
+  /** Vue component name registered in src/components/deposit/registry.ts. */
+  component: string;
+  /** Plain-text fallback label for the tab (used when label_key is absent or unresolved). */
+  label?: string;
+  /** Optional vue-i18n key for the tab label — wins over `label` when defined and resolvable. */
+  label_key?: string;
+  /** Tab sort key — lower = leftmost. */
   priority?: number;
 }
 

@@ -40,5 +40,13 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("collection_deposit",),
+        ui_descriptor={
+            "collection_deposit": {
+                "component": "CodebergCollectionDepositPanel",
+                "label": "Codeberg",
+                "priority": 200,
+            }
+        },
     )
     router = router

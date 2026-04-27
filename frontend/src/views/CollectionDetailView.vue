@@ -20,12 +20,11 @@ import {
   useInternetArchiveStore,
   type ArchiveStatus as IaStatus,
 } from "@/stores/internet_archive";
-import { useCodebergStore } from "@/stores/codeberg";
-import { useGithubStore } from "@/stores/github";
-import { useGitlabStore } from "@/stores/gitlab";
-import { usePluginStore } from "@/stores/plugins";
-import ForgeCollectionSection from "@/components/ui/ForgeCollectionSection.vue";
-import DataverseCollectionSection from "@/components/ui/DataverseCollectionSection.vue";
+import {
+  usePluginStore,
+  type CollectionDepositDescriptor,
+} from "@/stores/plugins";
+import { DEPOSIT_COMPONENTS } from "@/components/deposit/registry";
 import WorkflowTimeline from "@/components/ui/WorkflowTimeline.vue";
 import ZoteroImportModal from "@/components/ui/ZoteroImportModal.vue";
 import AiPanel from "@/components/AiPanel.vue";
@@ -49,9 +48,6 @@ const aiStore = useAiStore();
 const settingStore = useSettingStore();
 const zenodoStore = useZenodoStore();
 const iaStore = useInternetArchiveStore();
-const codebergStore = useCodebergStore();
-const githubStore = useGithubStore();
-const gitlabStore = useGitlabStore();
 const pluginStore = usePluginStore();
 
 // Zotero import modal visibility + last-run summary.
@@ -63,46 +59,19 @@ const zoteroImportActive = computed(() =>
   ),
 );
 
+// Zenodo / Internet Archive status — fetched for EiC+ at mount and used
+// to render the deposit badges in the page header. The deposit panels
+// own the manual deposit / archive / refresh actions and notify us via
+// @status-changed so the badges stay in sync.
 const zenodoStatus = ref<DepositStatus | null>(null);
-const isForcingDeposit = ref(false);
-const zenodoDepositError = ref<string | null>(null);
-
-// Internet Archive — same pattern as Zenodo: status fetched for EiC+ on
-// mount, manual archive + refresh buttons live in the same footer row.
 const iaStatus = ref<IaStatus | null>(null);
-const isArchiving = ref(false);
-const iaError = ref<string | null>(null);
-
-// Per-forge plugin-active flags — gate the matching <ForgeCollectionSection>.
-// All other state (link, edit draft, push/init results, error) is owned by
-// the section component itself; the parent only needs to know which plugins
-// are active and to reload its document list when one of them runs Initialize.
-const codebergPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === "codeberg_integration" && p.status === "active"),
-);
-const githubPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === "github_integration" && p.status === "active"),
-);
-const gitlabPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === "gitlab_integration" && p.status === "active"),
-);
-const dataversePluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === "dataverse_integration" && p.status === "active"),
-);
 
 async function onForgeInitialized(): Promise<void> {
-  // Initialize populated eXist with the imported XML files; reload the
-  // document list so the rest of the page reflects the new state.
+  // The Codeberg / GitHub / GitLab deposit panels emit @initialized
+  // after a forge → Aracne2 import; reload the document list so the
+  // rest of the page reflects eXist's new state.
   await store.fetchDocuments(slug);
 }
-
-// Per-collection Zenodo resource_type override. Empty string → "use default"
-// (sent as an empty string, mapped to NULL on the backend).
-const zenodoResourceTypeDraft = ref<string>("");
-const zenodoUploadAsZipDraft = ref<boolean>(false);
-const isSavingZenodoResourceType = ref(false);
-const zenodoResourceTypeError = ref<string | null>(null);
-const zenodoResourceTypeSaved = ref(false);
 
 // ── AI panel per-document ─────────────────────────────────────────────────────
 const aiDocFilename = ref<string | null>(null);
@@ -630,9 +599,6 @@ onMounted(async () => {
       tasks.push(aiStore.fetchConfig().catch(() => { /* non-fatal */ }));
       tasks.push(store.listBibliographies(slug).catch(() => { /* non-fatal */ }));
       tasks.push(loadZenodoStatus());
-      // Populates the dropdown used by the per-collection override below.
-      // Silent failure — the plugin may simply not be active yet.
-      tasks.push(zenodoStore.fetchResourceTypes().catch(() => undefined));
       tasks.push(loadInternetArchiveStatus());
       // Needed to decide whether to render the "Import from Zotero" button
       // and to gate the Codeberg / git-forge sections.
@@ -643,12 +609,6 @@ onMounted(async () => {
       );
     }
     await Promise.all(tasks);
-    // Forge sections (Codeberg / GitHub / GitLab) load their own links
-    // on mount — no parent-side fetch needed any more.
-    // Seed the override draft from the loaded collection (runs after
-    // fetchCollection has populated store.current).
-    zenodoResourceTypeDraft.value = store.current?.zenodo_resource_type ?? "";
-    zenodoUploadAsZipDraft.value = store.current?.zenodo_upload_as_zip ?? false;
     // Workflow history fetched after store.current is populated because the
     // endpoint is keyed on the UUID, not the slug.
     await loadWorkflowHistory();
@@ -670,21 +630,6 @@ async function loadZenodoStatus(): Promise<void> {
   }
 }
 
-async function forceZenodoDeposit(): Promise<void> {
-  zenodoDepositError.value = null;
-  isForcingDeposit.value = true;
-  try {
-    zenodoStatus.value = await zenodoStore.forceDeposit(slug);
-  } catch (err) {
-    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message;
-    zenodoDepositError.value = msg ?? t("common.error");
-  } finally {
-    isForcingDeposit.value = false;
-  }
-}
-
-// ── Internet Archive controls ────────────────────────────────────────────
 async function loadInternetArchiveStatus(): Promise<void> {
   try {
     iaStatus.value = await iaStore.fetchStatus(slug);
@@ -692,21 +637,6 @@ async function loadInternetArchiveStatus(): Promise<void> {
     iaStatus.value = null;
   }
 }
-
-async function forceArchive(): Promise<void> {
-  iaError.value = null;
-  isArchiving.value = true;
-  try {
-    iaStatus.value = await iaStore.forceArchive(slug);
-  } catch (err) {
-    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message;
-    iaError.value = msg ?? t("common.error");
-  } finally {
-    isArchiving.value = false;
-  }
-}
-
 
 async function onZoteroImported(payload: { imported: number; version: number }): Promise<void> {
   zoteroJustImportedMsg.value = t("zotero_import.success_toast", {
@@ -722,114 +652,72 @@ async function onZoteroImported(payload: { imported: number; version: number }):
   }, 5000);
 }
 
-async function refreshArchive(): Promise<void> {
-  iaError.value = null;
-  isArchiving.value = true;
-  try {
-    iaStatus.value = await iaStore.refreshArchive(slug);
-  } catch (err) {
-    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message;
-    iaError.value = msg ?? t("common.error");
-  } finally {
-    isArchiving.value = false;
-  }
-}
-
-// Group Zenodo's resource_type vocabulary into {group, options[]} buckets
-// so the UI can render a single <select> with <optgroup> sub-lists.
-const zenodoGroupedResourceTypes = computed(() => {
-  const groups = new Map<string, { id: string; label: string }[]>();
-  for (const opt of zenodoStore.resourceTypes) {
-    const bucket = groups.get(opt.group);
-    if (bucket) bucket.push({ id: opt.id, label: opt.label });
-    else groups.set(opt.group, [{ id: opt.id, label: opt.label }]);
-  }
-  return Array.from(groups, ([group, options]) => ({ group, options }));
-});
-
-const zenodoSectionDirty = computed(() => {
-  if (!store.current) return false;
-  const currentType = store.current.zenodo_resource_type ?? "";
-  const currentZip = store.current.zenodo_upload_as_zip ?? false;
-  return (
-    zenodoResourceTypeDraft.value !== currentType ||
-    zenodoUploadAsZipDraft.value !== currentZip
-  );
-});
-
-async function saveZenodoCollectionSettings(): Promise<void> {
-  if (!store.current) return;
-  zenodoResourceTypeError.value = null;
-  zenodoResourceTypeSaved.value = false;
-  isSavingZenodoResourceType.value = true;
-  try {
-    // Empty string clears the override on the backend (stored as NULL).
-    await store.updateCollection(store.current.id, {
-      zenodo_resource_type: zenodoResourceTypeDraft.value || null,
-      zenodo_upload_as_zip: zenodoUploadAsZipDraft.value,
-    });
-    zenodoResourceTypeSaved.value = true;
-    setTimeout(() => {
-      zenodoResourceTypeSaved.value = false;
-    }, 3000);
-  } catch (err) {
-    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message;
-    zenodoResourceTypeError.value = msg ?? t("common.error");
-  } finally {
-    isSavingZenodoResourceType.value = false;
-  }
-}
-
 // ── Deposit foldable panel ───────────────────────────────────────────────
-// Collapses what used to be five stacked card-panels (Zenodo, Internet
-// Archive, Codeberg, GitHub, GitLab, Dataverse) into a single foldable
-// "Deposita" container with one tab per active external service.
+// Tabs are auto-cabled from the plugin store: every active plugin that
+// declares the ``collection_deposit`` capability contributes one tab,
+// rendered via DEPOSIT_COMPONENTS[descriptor.component]. Adding a new
+// deposit backend is one plugin folder + one entry in the registry.
 const depositOpen = ref(false);
-const activeDepositTab = ref<string>("");
+const activeDepositPluginName = ref<string>("");
 
-interface DepositTab {
-  id: string;
+interface DepositTabEntry {
+  pluginName: string;
   label: string;
+  descriptor: CollectionDepositDescriptor;
 }
 
-const depositTabs = computed<DepositTab[]>(() => {
-  const tabs: DepositTab[] = [];
-  if (!isEiC.value) return tabs;
-  // Zenodo: the per-collection override surface appears only once the
-  // vocabulary has loaded (proxy for "Zenodo plugin reachable").
-  if (zenodoGroupedResourceTypes.value.length > 0) {
-    tabs.push({ id: "zenodo", label: "Zenodo" });
+const depositTabs = computed<DepositTabEntry[]>(() => {
+  if (!isEiC.value) return [];
+  const out: DepositTabEntry[] = [];
+  for (const p of pluginStore.plugins) {
+    if (p.status !== "active") continue;
+    if (!p.capabilities?.includes("collection_deposit")) continue;
+    const desc = (p.ui_descriptor?.["collection_deposit"] as CollectionDepositDescriptor | undefined) ?? null;
+    if (!desc?.component) continue;
+    if (!(desc.component in DEPOSIT_COMPONENTS)) continue;
+    const labelKey = desc.label_key;
+    const label = labelKey ? t(labelKey) : (desc.label ?? p.display_name);
+    out.push({ pluginName: p.name, label, descriptor: desc });
   }
-  // Internet Archive appears when the collection is published.
-  if (store.current?.status === "published") {
-    tabs.push({ id: "internet_archive", label: "Internet Archive" });
-  }
-  if (codebergPluginActive.value) tabs.push({ id: "codeberg", label: "Codeberg" });
-  if (githubPluginActive.value) tabs.push({ id: "github", label: "GitHub" });
-  if (gitlabPluginActive.value) tabs.push({ id: "gitlab", label: "GitLab" });
-  if (dataversePluginActive.value) tabs.push({ id: "dataverse", label: "Dataverse" });
-  return tabs;
+  out.sort((a, b) => (a.descriptor.priority ?? 999) - (b.descriptor.priority ?? 999));
+  return out;
 });
 
-const hasAnyDepositTab = computed(() => depositTabs.value.length > 0);
+const activeDepositComponent = computed(() => {
+  const tab = depositTabs.value.find((t) => t.pluginName === activeDepositPluginName.value);
+  if (!tab) return null;
+  return DEPOSIT_COMPONENTS[tab.descriptor.component] ?? null;
+});
 
-// Keep activeDepositTab valid as the list changes (status transitions,
-// plugin activation). Default to the first visible tab.
+const showDepositSection = computed(() => isEiC.value);
+
+// Keep activeDepositPluginName valid as the list of active deposit
+// plugins changes (activation/deactivation, role transitions).
 watch(
   depositTabs,
   (tabs) => {
     if (tabs.length === 0) {
-      activeDepositTab.value = "";
+      activeDepositPluginName.value = "";
       return;
     }
-    if (!tabs.some((t) => t.id === activeDepositTab.value)) {
-      activeDepositTab.value = tabs[0].id;
+    if (!tabs.some((t) => t.pluginName === activeDepositPluginName.value)) {
+      activeDepositPluginName.value = tabs[0].pluginName;
     }
   },
   { immediate: true },
 );
+
+// Keep the page-header badges in sync when a deposit panel emits a
+// status change after a manual deposit / archive / refresh. Routed
+// by the active plugin name because all panels share the same event
+// name on the dynamic <component>.
+function onDepositStatusChanged(s: unknown): void {
+  if (activeDepositPluginName.value === "zenodo_deposit") {
+    zenodoStatus.value = s as DepositStatus | null;
+  } else if (activeDepositPluginName.value === "internet_archive") {
+    iaStatus.value = s as IaStatus | null;
+  }
+}
 
 function statusClass(s: string): string {
   const map: Record<string, string> = {
@@ -1235,12 +1123,15 @@ function statusClass(s: string): string {
         </p>
       </section>
 
-      <!-- Deposit foldable panel — consolidates Zenodo, Internet Archive
-           and the forge/Dataverse integrations into a single container
-           with one tab per active external service. Keeps the collection
-           page compact regardless of how many deposit plugins are on. -->
+      <!-- Deposit foldable panel — auto-cabled from the plugin store.
+           Every active plugin advertising the ``collection_deposit``
+           capability contributes one tab; the body is rendered via the
+           DEPOSIT_COMPONENTS registry. Adding a new deposit backend is
+           one plugin folder + one entry in the registry — no edits
+           here. Box stays visible (with a placeholder) when no plugins
+           are active so the surface is discoverable. -->
       <section
-        v-if="hasAnyDepositTab"
+        v-if="showDepositSection"
         class="mb-6 rounded border border-gray-200 dark:border-gray-700"
       >
         <button
@@ -1261,210 +1152,41 @@ function statusClass(s: string): string {
             {{ t("collections.deposit_panel_hint") }}
           </p>
 
-          <!-- Tab bar -->
-          <div class="flex flex-wrap gap-1 border-b border-gray-200 px-5 pt-3 dark:border-gray-700">
-            <button
-              v-for="tab in depositTabs"
-              :key="tab.id"
-              class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
-              :class="
-                activeDepositTab === tab.id
-                  ? 'border border-b-0 border-gray-200 bg-white text-indigo-700 dark:border-gray-700 dark:bg-gray-900 dark:text-indigo-300'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              "
-              @click="activeDepositTab = tab.id"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
+          <!-- Empty-state placeholder — the box stays so admins can
+               discover that activating a deposit plugin populates it. -->
+          <p v-if="depositTabs.length === 0" class="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+            {{ t("collections.deposit_panel_empty") }}
+          </p>
 
-          <!-- Tab panels -->
-          <div class="px-5 py-4">
-            <!-- Zenodo tab -->
-            <div v-show="activeDepositTab === 'zenodo'">
-              <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-                {{ t("zenodo.collection_section_hint") }}
-              </p>
-
-              <p v-if="zenodoResourceTypeError" class="mb-2 text-sm text-red-600 dark:text-red-400">
-                {{ zenodoResourceTypeError }}
-              </p>
-              <p v-if="zenodoResourceTypeSaved" class="mb-2 text-sm text-green-600 dark:text-green-400">
-                {{ t("zenodo.collection_section_saved") }}
-              </p>
-
-              <div class="space-y-3">
-                <!-- Resource type dropdown -->
-                <div class="flex flex-wrap items-center gap-2">
-                  <select
-                    v-model="zenodoResourceTypeDraft"
-                    class="min-w-[18rem] rounded border border-gray-300 px-3 py-1.5 text-sm bg-white text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">{{ t("zenodo.collection_use_default") }}</option>
-                    <optgroup
-                      v-for="grp in zenodoGroupedResourceTypes"
-                      :key="grp.group"
-                      :label="grp.group"
-                    >
-                      <option
-                        v-for="opt in grp.options"
-                        :key="opt.id"
-                        :value="opt.id"
-                      >{{ opt.label }}</option>
-                    </optgroup>
-                  </select>
-                </div>
-
-                <!-- ZIP bundle toggle -->
-                <div class="flex items-start justify-between rounded border border-gray-200 p-3 dark:border-gray-700">
-                  <div class="mr-4">
-                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100">
-                      {{ t("zenodo.collection_upload_as_zip") }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {{ t("zenodo.collection_upload_as_zip_hint") }}
-                    </p>
-                  </div>
-                  <button
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                    :class="zenodoUploadAsZipDraft ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'"
-                    @click="zenodoUploadAsZipDraft = !zenodoUploadAsZipDraft"
-                  >
-                    <span
-                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                      :class="zenodoUploadAsZipDraft ? 'translate-x-5' : 'translate-x-0'"
-                    />
-                  </button>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <!-- Left: manual (re-)deposit action, only once the
-                       collection is published. -->
-                  <div
-                    v-if="store.current.status === 'published'"
-                    class="flex flex-wrap items-center gap-2"
-                  >
-                    <button
-                      :disabled="isForcingDeposit"
-                      class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
-                      @click="forceZenodoDeposit"
-                    >
-                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-                      </svg>
-                      {{ isForcingDeposit ? t("zenodo.working") : (zenodoStatus ? t("zenodo.redeposit_btn") : t("zenodo.deposit_btn")) }}
-                    </button>
-                    <span v-if="zenodoDepositError" class="text-xs text-red-600 dark:text-red-400">
-                      {{ zenodoDepositError }}
-                    </span>
-                  </div>
-                  <span v-else />
-
-                  <!-- Right: save the per-collection overrides -->
-                  <button
-                    :disabled="isSavingZenodoResourceType || !zenodoSectionDirty"
-                    class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
-                    @click="saveZenodoCollectionSettings"
-                  >
-                    {{ isSavingZenodoResourceType ? t("common.saving") : t("common.save") }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Internet Archive tab -->
-            <div v-show="activeDepositTab === 'internet_archive'">
-              <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-                {{ t("internet_archive.collection_section_hint") }}
-              </p>
-              <div
-                v-if="store.current.status === 'published'"
-                class="flex flex-wrap items-center gap-2"
+          <template v-else>
+            <!-- Tab bar -->
+            <div class="flex flex-wrap gap-1 border-b border-gray-200 px-5 pt-3 dark:border-gray-700">
+              <button
+                v-for="tab in depositTabs"
+                :key="tab.pluginName"
+                class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
+                :class="
+                  activeDepositPluginName === tab.pluginName
+                    ? 'border border-b-0 border-gray-200 bg-white text-indigo-700 dark:border-gray-700 dark:bg-gray-900 dark:text-indigo-300'
+                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                "
+                @click="activeDepositPluginName = tab.pluginName"
               >
-                <!-- Archive / Re-archive (terminal states) or
-                     Refresh (pending state, re-polls the SPN2 job). -->
-                <button
-                  v-if="!iaStatus || iaStatus.status !== 'pending'"
-                  :disabled="isArchiving"
-                  class="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
-                  @click="forceArchive"
-                >
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/>
-                  </svg>
-                  {{
-                    isArchiving
-                      ? t('internet_archive.working')
-                      : (iaStatus ? t('internet_archive.rearchive_btn') : t('internet_archive.archive_btn'))
-                  }}
-                </button>
-                <button
-                  v-else
-                  :disabled="isArchiving"
-                  class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                  @click="refreshArchive"
-                >
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M21 12a9 9 0 1 1-6.22-8.56"/><path d="M21 3v6h-6"/>
-                  </svg>
-                  {{ isArchiving ? t('internet_archive.working') : t('internet_archive.refresh_btn') }}
-                </button>
-                <span v-if="iaError" class="text-xs text-red-600 dark:text-red-400">
-                  {{ iaError }}
-                </span>
-              </div>
-              <p v-else class="text-sm text-gray-500 dark:text-gray-400">
-                {{ t("internet_archive.collection_needs_published") }}
-              </p>
+                {{ tab.label }}
+              </button>
             </div>
 
-            <!-- Codeberg tab -->
-            <div v-show="activeDepositTab === 'codeberg'">
-              <ForgeCollectionSection
+            <!-- Active tab body — registry-driven, lazy-loaded. -->
+            <div class="px-5 py-4">
+              <component
+                :is="activeDepositComponent"
+                v-if="activeDepositComponent"
                 :slug="slug"
-                :document-count="store.documents.length"
-                :is-plugin-active="codebergPluginActive"
-                :store="codebergStore"
-                i18n-prefix="codeberg"
-                default-base-url="https://codeberg.org"
-                bare
+                @status-changed="onDepositStatusChanged"
                 @initialized="onForgeInitialized"
               />
             </div>
-
-            <!-- GitHub tab -->
-            <div v-show="activeDepositTab === 'github'">
-              <ForgeCollectionSection
-                :slug="slug"
-                :document-count="store.documents.length"
-                :is-plugin-active="githubPluginActive"
-                :store="githubStore"
-                i18n-prefix="github"
-                default-base-url="https://github.com"
-                bare
-                @initialized="onForgeInitialized"
-              />
-            </div>
-
-            <!-- GitLab tab -->
-            <div v-show="activeDepositTab === 'gitlab'">
-              <ForgeCollectionSection
-                :slug="slug"
-                :document-count="store.documents.length"
-                :is-plugin-active="gitlabPluginActive"
-                :store="gitlabStore"
-                i18n-prefix="gitlab"
-                default-base-url="https://gitlab.com"
-                bare
-                @initialized="onForgeInitialized"
-              />
-            </div>
-
-            <!-- Dataverse tab -->
-            <div v-show="activeDepositTab === 'dataverse'">
-              <DataverseCollectionSection :slug="slug" bare />
-            </div>
-          </div>
+          </template>
         </div>
       </section>
 

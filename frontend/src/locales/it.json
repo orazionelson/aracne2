@@ -365,6 +365,7 @@
     "target_overdue_label": "In ritardo di {days} giorni",
     "deposit_panel_title": "Deposita",
     "deposit_panel_hint": "Servizi esterni configurati per ricevere questa collezione. Cambia tab per configurare e avviare ciascun deposito.",
+    "deposit_panel_empty": "Nessun plugin di deposito attivo. Attivane uno da Plugin per popolare questa sezione.",
     "assign_editor": "Assegna editor",
     "reassign_editor": "Riassegna editor",
     "assign_user_id": "ID utente editor (UUID)",

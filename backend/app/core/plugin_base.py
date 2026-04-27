@@ -52,12 +52,17 @@ class PluginMeta:
 
     * ``inline_authority`` — adds a button + side panel to the TEI
       editor toolbar that opens an authority lookup for the current
-      selection (Wikidata, ORCID, ROR, …). The plugin must also
-      declare an ``inline_authority`` entry under
-      :attr:`ui_descriptor`.
+      selection (Wikidata, ORCID, ROR, …).
 
-    Future capabilities will follow the same shape — a string tag
-    here plus a typed entry under ``ui_descriptor``.
+    * ``collection_deposit`` — adds a tab to the collection detail
+      page's "Deposita" foldable, exposing the per-collection
+      configuration / actions for an external deposit target
+      (Zenodo, Internet Archive, Codeberg, GitHub, GitLab,
+      Dataverse, …). The plugin owns its tab body component.
+
+    The plugin must also declare a matching entry under
+    :attr:`ui_descriptor`. Future capabilities follow the same
+    shape — a string tag here plus a typed entry there.
     """
 
     ui_descriptor: dict[str, dict[str, object]] | None = field(default=None)
@@ -72,6 +77,15 @@ class PluginMeta:
           "apply": "ref",                     # "ref" | "fragment"
           "initial_context": "selection",     # "selection" | "selection-or-empty" | "kind-picker"
           "priority": 100,                    # toolbar sort key (lower = leftmost)
+        }
+
+    For ``collection_deposit`` the dict is shaped::
+
+        {
+          "component": "ZenodoCollectionDepositPanel",  # name in the SPA registry
+          "label": "Zenodo",                            # tab label (plain text)
+          "label_key": "deposits.zenodo",               # optional vue-i18n key (overrides label)
+          "priority": 100,                              # tab sort key (lower = leftmost)
         }
     """
 

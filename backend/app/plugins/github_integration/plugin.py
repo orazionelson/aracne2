@@ -43,5 +43,13 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("collection_deposit",),
+        ui_descriptor={
+            "collection_deposit": {
+                "component": "GithubCollectionDepositPanel",
+                "label": "GitHub",
+                "priority": 210,
+            }
+        },
     )
     router = router

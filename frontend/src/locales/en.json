@@ -365,6 +365,7 @@
     "target_overdue_label": "Overdue by {days} days",
     "deposit_panel_title": "Deposit",
     "deposit_panel_hint": "External services configured to receive this collection. Switch tab to configure and trigger each deposit.",
+    "deposit_panel_empty": "No deposit plugins are active. Activate one under Plugins to populate this section.",
     "assign_editor": "Assign editor",
     "reassign_editor": "Reassign editor",
     "assign_user_id": "Editor user ID (UUID)",
