@@ -27,6 +27,7 @@ onMounted(async () => {
     await Promise.all([
       collectionsStore.fetchCollection(slug),
       aiStore.fetchConfig(),
+      aiStore.fetchPrompts(),
     ]);
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : t("common.error");
@@ -68,9 +69,36 @@ async function doExtract(): Promise<void> {
 
 const responseContainer = ref<HTMLElement | null>(null);
 
+// Prompts available to the Bibliobuilder workflow — every AiPrompt
+// row scoped ``bibliobuilder``. Defaults to the seeded
+// "bibliobuilder" prompt; the dropdown lets the admin pick a custom
+// variant once they author one (e.g. a stricter validator, a
+// shorter-batch normaliser, etc.). Sorted alphabetical by label.
+const bibliobuilderPrompts = computed(() =>
+  aiStore.prompts
+    .filter((p) => p.scope === "bibliobuilder")
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
+);
+
+const selectedBibliobuilderSlug = ref<string>("bibliobuilder");
+
+watch(
+  bibliobuilderPrompts,
+  (rows) => {
+    if (rows.length === 0) return;
+    if (!rows.some((p) => p.slug === selectedBibliobuilderSlug.value)) {
+      // Prefer the canonical "bibliobuilder" prompt when present;
+      // otherwise pick whichever sorts first.
+      selectedBibliobuilderSlug.value =
+        rows.find((p) => p.slug === "bibliobuilder")?.slug ?? rows[0].slug;
+    }
+  },
+  { immediate: true },
+);
+
 async function runAi(): Promise<void> {
   if (!rawEntries.value || aiStore.isStreaming) return;
-  await aiStore.continueChat("bibliobuilder", {}, rawEntries.value);
+  await aiStore.continueChat(selectedBibliobuilderSlug.value, {}, rawEntries.value);
 }
 
 // Auto-scroll response area as chunks arrive.
@@ -93,7 +121,7 @@ async function sendFollowUp(): Promise<void> {
   const msg = chatInput.value.trim();
   if (!msg || aiStore.isStreaming) return;
   chatInput.value = "";
-  await aiStore.continueChat("bibliobuilder", {}, msg);
+  await aiStore.continueChat(selectedBibliobuilderSlug.value, {}, msg);
 }
 
 function onChatKeydown(event: KeyboardEvent): void {
@@ -259,6 +287,29 @@ async function saveResult(): Promise<void> {
               2. {{ t("bibliobuilder.run_btn") }}
             </h2>
             <span class="text-xs text-gray-400">{{ aiStore.config?.provider ?? "" }}</span>
+          </div>
+
+          <!-- Modality picker — appears only when the admin has more
+               than one prompt scoped 'bibliobuilder'. When there's
+               just the canonical native prompt the dropdown stays
+               hidden so the workflow looks the same as before. -->
+          <div v-if="bibliobuilderPrompts.length > 1" class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600">
+              {{ t("bibliobuilder.modality_label") }}
+            </label>
+            <select
+              v-model="selectedBibliobuilderSlug"
+              :disabled="aiStore.isStreaming"
+              class="w-full max-w-md rounded border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-violet-500 focus:outline-none disabled:opacity-50"
+            >
+              <option
+                v-for="p in bibliobuilderPrompts"
+                :key="p.slug"
+                :value="p.slug"
+              >
+                {{ p.label }}<span v-if="p.is_native"> ★</span>
+              </option>
+            </select>
           </div>
 
           <div class="mb-3 flex gap-2">

@@ -1,28 +1,48 @@
-# AI prompts — built-in catalogue and where they live
+# AI prompts — catalogue, scopes and where they live
 
-Aracne2 ships with **nine built-in AI prompts**. They are seeded the
-first time the platform boots and stay editable from
+Aracne2 ships with **nine built-in AI prompts**. They are seeded
+the first time the platform boots and stay editable from
 **Settings → AI** ([/admin/settings, AI tab](/admin/settings)). Each
 prompt is a templated instruction that the platform sends to the
 chosen provider together with the variables you fill in.
 
-This page is the map: which prompt powers which button, what the
-button does, where to find it in the UI, and what each prompt
-expects as input.
+The platform is **scope-driven**: every prompt declares a *scope*,
+and the editor surfaces auto-render a button (or a picker entry)
+for each prompt whose scope matches their context. Custom prompts
+inherit this for free — give your new prompt one of the eight
+recognised scopes and it appears in the matching toolbar without a
+single line of frontend code.
 
-## At a glance
+## The eight scopes
 
-| Slug | Label | Surface | Trigger | Output |
-|---|---|---|---|---|
-| `validate_errors_explain` | Explain validation errors | TEI editor + Collection detail | "Validate with AI" / Validate panel | Plain-language fix list |
-| `document_edit_suggest`   | Suggest TEI encoding improvements | TEI editor | "Improve XML" button | Raw TEI XML (replace selection) |
-| `document_discuss`        | Discuss document content | TEI editor | "Discuss" button | Multi-turn chat |
-| `tei_bibl_inline`         | Normalize inline bibliography | TEI editor | "Biblio" button | Single `<biblStruct>` |
-| `tei_extract_entities`    | Tag named entities | TEI editor | "Entities" button | Same text with `<persName>` / `<placeName>` / `<orgName>` wrapping |
-| `tei_header_scaffold`     | Scaffold a teiHeader | TEI editor | "Header" button | Minimal `<teiHeader>` block |
-| `xslt_debug`              | Debug XSLT stylesheet | Website editor (XSLT tab) | "Debug" button | Plain-language explanation + fix |
-| `xslt_discuss`            | Discuss XSLT stylesheet | Website editor (XSLT tab) | "Discuss XSLT" button | Multi-turn chat |
-| `bibliobuilder`           | Bibliography Normalizer | Bibliobuilder view | "Run Bibliobuilder" | Deduplicated `<listBibl>` |
+| Scope | Where it appears | Input variables | Output |
+|---|---|---|---|
+| `editor.selection`  | TEI editor toolbar — one button per prompt | `filename`, `collection_slug`, `selection` (active editor selection, or whole document if nothing selected) | XML — read-only viewer + Apply button |
+| `editor.document`   | TEI editor toolbar — one button per prompt | same shape; `selection` filled with the entire document | XML — read-only viewer + Apply button |
+| `editor.validation` | TEI editor — Validate button | `filename`, `schema`, `errors` (the validator's error list) | Plain-language explanation, no Apply |
+| `editor.discuss`    | TEI editor — Discuss button | `filename`, `collection_slug`, `selection` | Multi-turn chat |
+| `xslt.debug`        | Website editor → XSLT tab — Debug button | `xslt_source`, optional `error_msg` | Plain text |
+| `xslt.discuss`      | Website editor → XSLT tab — Discuss button | `xslt_source` | Multi-turn chat |
+| `bibliobuilder`     | Bibliobuilder view — Modality dropdown above the Run button | none (the bundle of `<bibl>` / `<biblStruct>` is sent as the user-message body) | Deduplicated `<listBibl>` |
+| _empty_ (orphan)    | **Nowhere.** Visible only in Settings → AI. | — | — |
+
+The orphan state is the deliberate "I'm drafting, don't ship me yet"
+mode — leave the scope blank when creating a custom prompt and no
+editor will surface it until you pick one.
+
+## Native prompts at a glance
+
+| Slug | Label | Scope | What it does |
+|---|---|---|---|
+| `validate_errors_explain` | Explain validation errors | `editor.validation` | Walks the user through the schema validator's output |
+| `document_edit_suggest`   | Suggest TEI encoding improvements | `editor.selection` | Cleans up the selected XML fragment |
+| `document_discuss`        | Discuss document content | `editor.discuss` | Open chat about the selected fragment |
+| `tei_bibl_inline`         | Normalize inline bibliography | `editor.selection` | Free-text bib note → `<biblStruct>` |
+| `tei_extract_entities`    | Tag named entities | `editor.selection` | Wraps `persName` / `placeName` / `orgName` |
+| `tei_header_scaffold`     | Scaffold a teiHeader | `editor.document` | Builds a minimal `<teiHeader>` from free-text metadata |
+| `xslt_debug`              | Debug XSLT stylesheet | `xslt.debug` | Explains a build error against the stylesheet |
+| `xslt_discuss`            | Discuss XSLT stylesheet | `xslt.discuss` | Open chat about an XSLT |
+| `bibliobuilder`           | Bibliography Normalizer | `bibliobuilder` | Deduplicates and structures the corpus' raw bib entries |
 
 The "★" badge in **Settings → AI** marks the seeded ones — you can
 edit them, but native prompts cannot be deleted (the system would
@@ -175,10 +195,11 @@ Two things to keep in mind:
   substituted at request time. Edit the surrounding prose freely;
   don't rename the placeholders or the call sites stop being able
   to fill them in.
-- **The `target_context` field** (the violet badge — `editor`,
-  `xslt`, `validation`) is a hint for future surface filtering. It
-  doesn't gate visibility today; the call site picks a prompt by
-  slug.
+- **The `scope` field** (the violet badge in the prompt detail) is
+  the load-bearing connection between a prompt and a UI surface.
+  Edit it to move a prompt to a different surface; clear it to take
+  a prompt out of circulation without deleting it. The eight allowed
+  values are listed in the table at the top of this page.
 
 ## Privacy posture
 
@@ -198,18 +219,30 @@ which provider is in use.
 
 Hit **+ Nuovo prompt** in the AI tab. The form takes:
 
-- a **slug** (snake_case, unique) — used by code if you ever wire
-  it to a button;
-- a **label** — what the user sees in the picker;
-- an optional **description** — shown under the label;
+- a **slug** (snake_case, unique) — the platform's internal handle;
+- a **label** — what the user sees on the button or in the picker;
+- an optional **description** — shown under the label and as the
+  button's tooltip;
+- a **scope** — pick from the eight recognised values (or leave
+  blank to keep the prompt in draft mode, visible only here);
 - a **template** — your prompt text with `{variable}` placeholders.
 
-The template lives untouched until you save. Custom prompts don't
-gain a UI button automatically — that's a code change. They show
-up everywhere a prompt picker is rendered (currently only Settings
-→ AI; the editor's hard-coded buttons stay native).
+**Scope is what wires the prompt to a button.** A new
+`editor.selection`-scoped prompt appears as a button in the TEI
+editor next to Improve XML / Biblio / Entities / Header on the very
+next page reload. A new `xslt.debug`-scoped prompt overrides the
+existing Debug button (or, when there are multiple, the
+alphabetically first one wins; the others are reachable only via
+direct edit). A `bibliobuilder`-scoped prompt joins the modality
+dropdown in the Bibliobuilder workflow.
+
+**Variable placeholders** like `{filename}` and `{selection}` must
+match the scope's contract — see the table at the top of this page.
+The platform fills them in at request time; if your template
+references `{foo}` and `foo` isn't in the scope's input variables,
+the run fails with a clear error.
 
 Pattern that works: copy a native template (slug `xslt_discuss`,
-say), tweak the persona / domain / examples, save with a new slug.
-The infrastructure handles streaming, retries, history, applying —
-your job is just the words.
+say), tweak the persona / domain / examples, give it a new slug
+and the same scope, save. The infrastructure handles streaming,
+retries, chat history and Apply — your job is just the words.

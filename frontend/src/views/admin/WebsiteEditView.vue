@@ -213,16 +213,33 @@ function closeXsltAiPanel(): void {
   xsltDiscussContext.value = null;
 }
 
+// Both XSLT-tab buttons are auto-cabled from aiStore.prompts via
+// scope (xslt.debug / xslt.discuss). When multiple prompts share a
+// scope the first by alphabetical label wins — matches the editor
+// surface's pattern.
+const xsltDebugPrompt = computed(() =>
+  aiStore.prompts
+    .filter((p) => p.scope === "xslt.debug")
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }))[0] ?? null,
+);
+const xsltDiscussPrompt = computed(() =>
+  aiStore.prompts
+    .filter((p) => p.scope === "xslt.discuss")
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }))[0] ?? null,
+);
+
 async function runXsltDebug(): Promise<void> {
+  if (!xsltDebugPrompt.value) return;
   xsltAiMode.value = "debug";
   aiStore.clearResponse();
-  await aiStore.startStream("xslt_debug", {
+  await aiStore.startStream(xsltDebugPrompt.value.slug, {
     error_msg: xsltDebugError.value,
     xslt_source: xsltCm.getValue(),
   });
 }
 
 function runXsltDiscuss(): void {
+  if (!xsltDiscussPrompt.value) return;
   aiStore.resetChat();
   xsltDiscussContext.value = { xslt_source: xsltCm.getValue() };
   xsltAiMode.value = "discuss";
@@ -846,6 +863,7 @@ onMounted(async () => {
     collectionStore.fetchCollections(),
     xsltStore.fetchTemplates().catch(() => { /* non-blocking for non-Designer roles */ }),
     aiStore.fetchConfig().catch(() => { /* non-fatal if AI is not configured */ }),
+    aiStore.fetchPrompts().catch(() => { /* non-fatal — XSLT toolbar simply hides its buttons */ }),
     // Needed to gate the Deposit tab's Codeberg section.
     pluginStore.plugins.length === 0
       ? pluginStore.fetchPlugins().catch(() => undefined)
@@ -1933,8 +1951,8 @@ onBeforeUnmount(() => {
         >
           <!-- Discuss mode: AiPanel component handles full sidebar -->
           <AiPanel
-            v-if="xsltAiMode === 'discuss' && xsltDiscussContext"
-            prompt-slug="xslt_discuss"
+            v-if="xsltAiMode === 'discuss' && xsltDiscussContext && xsltDiscussPrompt"
+            :prompt-slug="xsltDiscussPrompt.slug"
             :context="xsltDiscussContext"
             :title="t('ai.panel_xslt_discuss_title')"
             :chat="true"

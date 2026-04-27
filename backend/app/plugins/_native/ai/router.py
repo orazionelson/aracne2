@@ -35,10 +35,10 @@ _admin = Depends(require_role(min_role="Admin"))
 async def ai_prompts_list(
     current_user: Annotated[User, _editor],
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    context: Annotated[str | None, Query()] = None,
+    scope: Annotated[str | None, Query()] = None,
 ) -> DataResponse[list[AiPromptResponse]]:
-    """List AI prompt templates, optionally filtered by target context [E+]."""
-    data = await service.list_prompts(db, target_context=context)
+    """List AI prompt templates, optionally filtered by scope [E+]."""
+    data = await service.list_prompts(db, scope=scope)
     return DataResponse(data=data)
 
 

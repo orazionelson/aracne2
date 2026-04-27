@@ -9,7 +9,7 @@ import { useUiConfigStore } from "@/stores/ui_config";
 import { useAiStore } from "@/stores/ai";
 import { useXsltTemplateStore, type XsltTemplateSummary } from "@/stores/xslt_templates";
 import type { TeiSchema } from "@/stores/schemas";
-import type { AiPrompt } from "@/stores/ai";
+import type { AiPrompt, AiPromptScope } from "@/stores/ai";
 
 const { t, te, availableLocales, locale } = useI18n();
 const settingStore = useSettingStore();
@@ -455,14 +455,33 @@ async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
 
 const aiError = ref<string | null>(null);
 const editingPrompt = ref<string | null>(null);
-const promptDraft = ref<{ label: string; template: string }>({ label: "", template: "" });
+const promptDraft = ref<{ label: string; template: string; scope: string }>({
+  label: "",
+  template: "",
+  scope: "",
+});
+
+// Static list of scopes — kept in sync with the backend's
+// ALLOWED_PROMPT_SCOPES set. Used to populate both the create form's
+// dropdown and the edit form. Order is the same we present in the
+// help docs (editor first, then xslt, then bibliobuilder) so admins
+// scanning the dropdown see related scopes adjacent.
+const PROMPT_SCOPE_OPTIONS = [
+  "editor.selection",
+  "editor.document",
+  "editor.validation",
+  "editor.discuss",
+  "xslt.debug",
+  "xslt.discuss",
+  "bibliobuilder",
+] as const;
 const savingPrompt = ref<Record<string, boolean>>({});
 const savePromptError = ref<Record<string, string>>({});
 const isDeletingPrompt = ref<Record<string, boolean>>({});
 
 // Create prompt form
 const showCreatePrompt = ref(false);
-const newPrompt = ref({ slug: "", label: "", description: "", template: "" });
+const newPrompt = ref({ slug: "", label: "", description: "", template: "", scope: "" });
 const isCreatingPrompt = ref(false);
 const createPromptError = ref<string | null>(null);
 
@@ -478,7 +497,11 @@ async function loadAiPrompts(): Promise<void> {
 
 function startEditPrompt(prompt: AiPrompt): void {
   editingPrompt.value = prompt.slug;
-  promptDraft.value = { label: prompt.label, template: prompt.template };
+  promptDraft.value = {
+    label: prompt.label,
+    template: prompt.template,
+    scope: prompt.scope ?? "",
+  };
   savePromptError.value[prompt.slug] = "";
 }
 
@@ -493,6 +516,7 @@ async function saveEditPrompt(slug: string): Promise<void> {
     await aiStore.updatePrompt(slug, {
       label: promptDraft.value.label.trim(),
       template: promptDraft.value.template.trim(),
+      scope: (promptDraft.value.scope || null) as AiPromptScope | null,
     });
     editingPrompt.value = null;
   } catch (err) {
@@ -580,8 +604,9 @@ async function createAiPrompt(): Promise<void> {
       label: newPrompt.value.label.trim(),
       description: newPrompt.value.description.trim() || undefined,
       template: newPrompt.value.template.trim(),
+      scope: (newPrompt.value.scope || null) as AiPromptScope | null,
     });
-    newPrompt.value = { slug: "", label: "", description: "", template: "" };
+    newPrompt.value = { slug: "", label: "", description: "", template: "", scope: "" };
     showCreatePrompt.value = false;
   } catch (err) {
     createPromptError.value = (err as Error).message ?? t("common.error");
@@ -1506,6 +1531,22 @@ onMounted(async () => {
           </div>
           <div>
             <label class="mb-1 block text-xs font-medium text-gray-600">
+              {{ t("ai.field_scope") }}
+              <span class="font-normal text-gray-400">({{ t("ai.field_description_hint") }})</span>
+            </label>
+            <select
+              v-model="newPrompt.scope"
+              class="w-full rounded border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="">{{ t("ai.scope_none") }}</option>
+              <option v-for="opt in PROMPT_SCOPE_OPTIONS" :key="opt" :value="opt">
+                {{ opt }} — {{ t(`ai.scope_label.${opt.replace('.', '_')}`) }}
+              </option>
+            </select>
+            <p class="mt-0.5 text-xs text-gray-400">{{ t("ai.field_scope_hint") }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">
               {{ t("ai.field_template") }}
             </label>
             <textarea
@@ -1527,7 +1568,7 @@ onMounted(async () => {
           </button>
           <button
             class="rounded border border-gray-300 px-4 py-1.5 text-xs text-gray-600 hover:bg-white"
-            @click="showCreatePrompt = false; newPrompt = { slug: '', label: '', description: '', template: '' }; createPromptError = null"
+            @click="showCreatePrompt = false; newPrompt = { slug: '', label: '', description: '', template: '', scope: '' }; createPromptError = null"
           >
             {{ t("common.cancel") }}
           </button>
@@ -1603,10 +1644,18 @@ onMounted(async () => {
                   {{ t("ai.native_badge") }}
                 </span>
                 <span
-                  v-if="selectedPrompt.target_context"
-                  class="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-600"
+                  v-if="selectedPrompt.scope"
+                  class="rounded bg-violet-100 px-1.5 py-0.5 font-mono text-xs text-violet-600"
+                  :title="t('ai.scope_hint')"
                 >
-                  {{ selectedPrompt.target_context }}
+                  {{ selectedPrompt.scope }}
+                </span>
+                <span
+                  v-else
+                  class="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700"
+                  :title="t('ai.scope_orphan_hint')"
+                >
+                  {{ t("ai.scope_orphan") }}
                 </span>
               </div>
               <p v-if="selectedPrompt.description" class="mb-2 text-xs text-gray-400">
@@ -1639,6 +1688,15 @@ onMounted(async () => {
                   type="text"
                   class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
+                <select
+                  v-model="promptDraft.scope"
+                  class="w-full rounded border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">{{ t("ai.scope_none") }}</option>
+                  <option v-for="opt in PROMPT_SCOPE_OPTIONS" :key="opt" :value="opt">
+                    {{ opt }} — {{ t(`ai.scope_label.${opt.replace('.', '_')}`) }}
+                  </option>
+                </select>
                 <textarea
                   v-model="promptDraft.template"
                   rows="14"

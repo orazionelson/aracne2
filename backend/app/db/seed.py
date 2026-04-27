@@ -243,7 +243,7 @@ async def seed_body_templates(db: AsyncSession) -> None:
     logger.info("seed_body_templates_done")
 
 
-# slug, label, description, template, context_vars, target_context
+# slug, label, description, template, context_vars, scope
 DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
     (
         "validate_errors_explain",
@@ -257,7 +257,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Validation errors:\n{errors}"
         ),
         ["filename", "schema", "errors"],
-        "validation",
+        "editor.validation",
     ),
     (
         "document_edit_suggest",
@@ -273,7 +273,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Selection:\n{selection}"
         ),
         ["filename", "collection_slug", "selection"],
-        "editor",
+        "editor.selection",
     ),
     (
         "document_discuss",
@@ -290,7 +290,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Selection:\n{selection}"
         ),
         ["filename", "collection_slug", "selection"],
-        "editor",
+        "editor.discuss",
     ),
     (
         "xslt_debug",
@@ -303,7 +303,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Stylesheet:\n{xslt_source}"
         ),
         ["error_msg", "xslt_source"],
-        "xslt",
+        "xslt.debug",
     ),
     (
         "xslt_discuss",
@@ -317,7 +317,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Stylesheet:\n{xslt_source}"
         ),
         ["xslt_source"],
-        "xslt",
+        "xslt.discuss",
     ),
     (
         "tei_bibl_inline",
@@ -376,7 +376,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Selection:\n{selection}"
         ),
         ["filename", "collection_slug", "selection"],
-        "editor",
+        "editor.selection",
     ),
     (
         "tei_extract_entities",
@@ -412,7 +412,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Selection:\n{selection}"
         ),
         ["filename", "collection_slug", "selection"],
-        "editor",
+        "editor.selection",
     ),
     (
         "tei_header_scaffold",
@@ -480,7 +480,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "Selection:\n{selection}"
         ),
         ["filename", "collection_slug", "selection"],
-        "editor",
+        "editor.document",
     ),
     (
         "bibliobuilder",
@@ -530,7 +530,7 @@ DEFAULT_AI_PROMPTS: list[tuple[str, str, str, str, list[str], str | None]] = [
             "If entries exceed 80, process in batches of 80 and say NEXT to continue."
         ),
         [],
-        None,
+        "bibliobuilder",
     ),
 ]
 
@@ -541,7 +541,7 @@ async def seed_ai_prompts(db: AsyncSession) -> None:
     Updating on re-seed keeps native prompts in sync with the seed definition,
     so template fixes and label changes propagate without manual SQL.
     """
-    for slug, label, description, template, context_vars, target_context in DEFAULT_AI_PROMPTS:
+    for slug, label, description, template, context_vars, scope in DEFAULT_AI_PROMPTS:
         existing = await db.scalar(select(AiPrompt).where(AiPrompt.slug == slug))
         if not existing:
             db.add(
@@ -551,7 +551,7 @@ async def seed_ai_prompts(db: AsyncSession) -> None:
                     description=description,
                     template=template,
                     context_vars=context_vars,
-                    target_context=target_context,
+                    scope=scope,
                     is_native=True,
                 )
             )
@@ -562,7 +562,7 @@ async def seed_ai_prompts(db: AsyncSession) -> None:
             existing.description = description
             existing.template = template
             existing.context_vars = context_vars
-            existing.target_context = target_context
+            existing.scope = scope
     await db.flush()
     logger.info("seed_ai_prompts_done")
 

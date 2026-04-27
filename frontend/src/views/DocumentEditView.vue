@@ -506,6 +506,10 @@ onMounted(async () => {
   isLoading.value = false;
   // Fetch AI config to know whether to show the AI button (non-fatal).
   try { await aiStore.fetchConfig(); } catch { /* non-fatal */ }
+  // Pull the prompt catalogue so the AI panel toolbar can render its
+  // buttons. The aiStore caches across views, so this is a no-op
+  // when the user has already visited Settings → AI in this session.
+  try { await aiStore.fetchPrompts(); } catch { /* non-fatal */ }
 
   document.addEventListener('mousemove', onPanelDragMove);
   document.addEventListener('mouseup',   onPanelDragEnd);
@@ -1163,23 +1167,32 @@ async function handleSave(): Promise<void> {
 // ── AI ────────────────────────────────────────────────────────────────────────
 const showAiPanel = ref(false);
 const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== 'disabled');
-const lastAiPrompt = ref<
-  | 'validate'
-  | 'improve'
-  | 'discuss'
-  | 'bibl_inline'
-  | 'extract_entities'
-  | 'header_scaffold'
-  | null
->(null);
+// Tracks which kind of prompt last ran, so the response area can pick
+// the right viewer (CodeMirror for XML out, plain text for validation,
+// dedicated AiPanel for discuss):
+//
+//   'validate'  — scope editor.validation
+//   'xml_out'   — scope editor.selection | editor.document
+//   'discuss'   — scope editor.discuss
+//   null        — panel just opened, nothing run yet
+const lastAiPrompt = ref<'validate' | 'xml_out' | 'discuss' | null>(null);
 
-// XML-output prompts share the read-only CodeMirror viewer + Apply
-// button: their response is raw TEI XML the user wants to paste back
-// into the document. Keep this list in sync with the toolbar buttons
-// below and with the response-area template.
-const XML_OUTPUT_PROMPTS = ['improve', 'bibl_inline', 'extract_entities', 'header_scaffold'] as const;
-const isXmlOutputPrompt = computed(() =>
-  (XML_OUTPUT_PROMPTS as readonly string[]).includes(lastAiPrompt.value ?? ''),
+const isXmlOutputPrompt = computed(() => lastAiPrompt.value === 'xml_out');
+
+// Prompts auto-cabled into the editor toolbar — alphabetical by label,
+// driven entirely by the scope on each AiPrompt row. Custom prompts
+// the admin creates with one of these scopes show up here without
+// any code change.
+const editorXmlPrompts = computed(() =>
+  aiStore.prompts
+    .filter((p) => p.scope === 'editor.selection' || p.scope === 'editor.document')
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+);
+const editorDiscussPrompt = computed(() =>
+  aiStore.prompts.find((p) => p.scope === 'editor.discuss') ?? null,
+);
+const editorValidationPrompt = computed(() =>
+  aiStore.prompts.find((p) => p.scope === 'editor.validation') ?? null,
 );
 const schemaLabel = ref('TEI P5');
 const aiNoErrors = ref(false);
@@ -1255,55 +1268,28 @@ async function runValidateAi(): Promise<void> {
   const errorsText = validationResult.value.errors
     .map(e => `Line ${e.line}, col ${e.col}: ${e.message}`)
     .join('\n');
-  await aiStore.startStream('validate_errors_explain', {
+  const validatePrompt = editorValidationPrompt.value;
+  if (!validatePrompt) return;
+  await aiStore.startStream(validatePrompt.slug, {
     filename,
     schema: schemaLabel.value,
     errors: errorsText,
   });
 }
 
-async function runImproveAi(): Promise<void> {
-  lastAiPrompt.value = 'improve';
+// Generic XML-out runner — used by every prompt scoped
+// editor.selection or editor.document. The prompt template controls
+// what the AI does (improve, biblio, entities, header, …) — the
+// runner just streams the standard {filename, collection_slug,
+// selection} context. ``editor.document`` callers send the whole
+// buffer in selection; ``editor.selection`` callers send the active
+// selection (falls back to the whole buffer when nothing is
+// selected, mirroring the historical Improve XML behaviour).
+async function runXmlOutPrompt(promptSlug: string): Promise<void> {
+  lastAiPrompt.value = 'xml_out';
   aiNoErrors.value = false;
   aiStore.clearResponse();
-  await aiStore.startStream('document_edit_suggest', {
-    filename,
-    collection_slug: slug,
-    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
-  });
-}
-
-// Three "selection-in, XML-out" prompts seeded by Aracne but never
-// previously surfaced in the editor toolbar. They share the same
-// streaming + viewer + Apply contract as `runImproveAi`; only the
-// prompt slug + lastAiPrompt label differ.
-async function runBiblInlineAi(): Promise<void> {
-  lastAiPrompt.value = 'bibl_inline';
-  aiNoErrors.value = false;
-  aiStore.clearResponse();
-  await aiStore.startStream('tei_bibl_inline', {
-    filename,
-    collection_slug: slug,
-    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
-  });
-}
-
-async function runExtractEntitiesAi(): Promise<void> {
-  lastAiPrompt.value = 'extract_entities';
-  aiNoErrors.value = false;
-  aiStore.clearResponse();
-  await aiStore.startStream('tei_extract_entities', {
-    filename,
-    collection_slug: slug,
-    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
-  });
-}
-
-async function runHeaderScaffoldAi(): Promise<void> {
-  lastAiPrompt.value = 'header_scaffold';
-  aiNoErrors.value = false;
-  aiStore.clearResponse();
-  await aiStore.startStream('tei_header_scaffold', {
+  await aiStore.startStream(promptSlug, {
     filename,
     collection_slug: slug,
     selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
@@ -1311,6 +1297,8 @@ async function runHeaderScaffoldAi(): Promise<void> {
 }
 
 function runDiscussAi(): void {
+  const discussPrompt = editorDiscussPrompt.value;
+  if (!discussPrompt) return;
   openAiPanel();
   aiStore.resetChat();
   aiNoErrors.value = false;
@@ -1949,8 +1937,8 @@ async function runValidation(): Promise<void> {
   >
     <!-- Discuss mode: AiPanel takes over the full sidebar -->
     <AiPanel
-      v-if="lastAiPrompt === 'discuss' && discussContext"
-      prompt-slug="document_discuss"
+      v-if="lastAiPrompt === 'discuss' && discussContext && editorDiscussPrompt"
+      :prompt-slug="editorDiscussPrompt.slug"
       :context="discussContext"
       :title="t('ai.panel_discuss_title')"
       :chat="true"
@@ -1961,51 +1949,39 @@ async function runValidation(): Promise<void> {
 
     <!-- Validate / Improve mode: custom inline panel -->
     <template v-else>
-    <!-- Header with action buttons -->
+    <!-- Header with action buttons. Buttons are auto-cabled from
+         aiStore.prompts via scope: editor.validation → Validate,
+         editor.selection / editor.document → one button per prompt
+         (XML-out, alphabetical), editor.discuss → Discuss button on
+         the right. Custom prompts the admin authors with a matching
+         scope appear here with no code change. -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
       <div class="flex flex-wrap gap-1.5">
         <button
+          v-if="editorValidationPrompt"
           :disabled="aiStore.isStreaming || !hasValidationSchema"
+          :title="editorValidationPrompt.description ?? ''"
           class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           @click="runValidateAi"
         >
           {{ t('ai.validate') }}
         </button>
         <button
+          v-for="p in editorXmlPrompts"
+          :key="p.slug"
           :disabled="aiStore.isStreaming"
+          :title="p.description ?? ''"
           class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          @click="runImproveAi"
+          @click="runXmlOutPrompt(p.slug)"
         >
-          {{ t('ai.improve') }}
-        </button>
-        <button
-          :disabled="aiStore.isStreaming"
-          :title="t('ai.bibl_inline_hint')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          @click="runBiblInlineAi"
-        >
-          {{ t('ai.bibl_inline') }}
-        </button>
-        <button
-          :disabled="aiStore.isStreaming"
-          :title="t('ai.extract_entities_hint')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          @click="runExtractEntitiesAi"
-        >
-          {{ t('ai.extract_entities') }}
-        </button>
-        <button
-          :disabled="aiStore.isStreaming"
-          :title="t('ai.header_scaffold_hint')"
-          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          @click="runHeaderScaffoldAi"
-        >
-          {{ t('ai.header_scaffold') }}
+          {{ p.label }}
         </button>
       </div>
       <div class="flex items-center gap-2">
         <button
+          v-if="editorDiscussPrompt"
           :disabled="aiStore.isStreaming"
+          :title="editorDiscussPrompt.description ?? ''"
           class="inline-flex items-center gap-1.5 rounded border border-violet-300 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
           @click="runDiscussAi"
         >

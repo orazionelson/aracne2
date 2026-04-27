@@ -2,6 +2,21 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 
+/**
+ * Allowed values for ``AiPrompt.scope``. Each value corresponds to a
+ * specific UI surface that auto-renders the prompt as a button or
+ * picker entry. ``null`` means orphan — visible only in Settings →
+ * AI, never offered to a workflow.
+ */
+export type AiPromptScope =
+  | "editor.selection"
+  | "editor.document"
+  | "editor.validation"
+  | "editor.discuss"
+  | "xslt.debug"
+  | "xslt.discuss"
+  | "bibliobuilder";
+
 export interface AiPrompt {
   id: string;
   slug: string;
@@ -9,7 +24,7 @@ export interface AiPrompt {
   description: string | null;
   template: string;
   context_vars: string[];
-  target_context: string | null;
+  scope: AiPromptScope | null;
   is_native: boolean;
   created_at: string;
   updated_at: string;
@@ -39,8 +54,8 @@ export const useAiStore = defineStore("ai", () => {
 
   // ── Prompt library ──────────────────────────────────────────────────────────
 
-  async function fetchPrompts(context?: string): Promise<void> {
-    const params = context ? `?context=${encodeURIComponent(context)}` : "";
+  async function fetchPrompts(scope?: AiPromptScope): Promise<void> {
+    const params = scope ? `?scope=${encodeURIComponent(scope)}` : "";
     const res = await _authFetch(`/api/v1/ai/prompts${params}`);
     const json = await res.json();
     prompts.value = json.data ?? [];
@@ -58,7 +73,7 @@ export const useAiStore = defineStore("ai", () => {
     description?: string;
     template: string;
     context_vars?: string[];
-    target_context?: string;
+    scope?: AiPromptScope | null;
   }): Promise<AiPrompt> {
     const res = await _authFetch("/api/v1/ai/prompts", {
       method: "POST",
@@ -76,7 +91,7 @@ export const useAiStore = defineStore("ai", () => {
 
   async function updatePrompt(
     slug: string,
-    data: Partial<Pick<AiPrompt, "label" | "description" | "template" | "context_vars" | "target_context">>,
+    data: Partial<Pick<AiPrompt, "label" | "description" | "template" | "context_vars" | "scope">>,
   ): Promise<AiPrompt> {
     const res = await _authFetch(`/api/v1/ai/prompts/${slug}`, {
       method: "PATCH",

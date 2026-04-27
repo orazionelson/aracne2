@@ -42,13 +42,17 @@ class AiRateLimitError(PlatformException):
 # ── Prompt helpers ─────────────────────────────────────────────────────────────
 
 async def list_prompts(
-    db: AsyncSession, target_context: str | None = None
+    db: AsyncSession, scope: str | None = None
 ) -> list[AiPromptResponse]:
+    """Return every prompt the admin has, optionally narrowed to one scope.
+
+    When ``scope`` is provided, returns rows that match that exact
+    scope. (Unscoped/orphan prompts are excluded — they are
+    intentionally invisible to the auto-cabling surfaces.)
+    """
     q = select(AiPrompt).order_by(AiPrompt.label)
-    if target_context:
-        q = q.where(
-            (AiPrompt.target_context == target_context) | AiPrompt.target_context.is_(None)
-        )
+    if scope:
+        q = q.where(AiPrompt.scope == scope)
     rows = await db.scalars(q)
     return [AiPromptResponse.model_validate(r) for r in rows]
 

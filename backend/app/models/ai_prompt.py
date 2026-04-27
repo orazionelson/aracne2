@@ -27,8 +27,16 @@ class AiPrompt(Base):
     context_vars: Mapped[list[str]] = mapped_column(
         JSON, nullable=False, default=list, server_default="[]"
     )
-    # "editor" | "validation" | "xslt" | None (all contexts).
-    target_context: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Where the prompt is auto-cabled in the UI. One of:
+    #   "editor.selection"   — TEI editor button, input = active selection.
+    #   "editor.document"    — TEI editor button, input = whole document.
+    #   "editor.validation"  — TEI editor / Collection detail validation panel.
+    #   "editor.discuss"     — TEI editor multi-turn chat.
+    #   "xslt.debug"         — Website XSLT editor debug button.
+    #   "xslt.discuss"       — Website XSLT editor multi-turn chat.
+    #   "bibliobuilder"      — Bibliobuilder workflow modality picker.
+    #   None                 — orphan: visible only in Settings → AI.
+    scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Native prompts are seeded by the platform and cannot be deleted.
     is_native: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="FALSE"

@@ -61,14 +61,14 @@ _SAMPLE_CONTEXT: dict[str, str] = {
 }
 
 
-@pytest.mark.parametrize("slug,label,description,template,context_vars,target_context", DEFAULT_AI_PROMPTS)
+@pytest.mark.parametrize("slug,label,description,template,context_vars,scope", DEFAULT_AI_PROMPTS)
 def test_prompt_template_renders_with_declared_context_vars(
     slug: str,
     label: str,
     description: str,
     template: str,
     context_vars: list[str],
-    target_context: str | None,
+    scope: str | None,
 ) -> None:
     """Every {variable} in the template body must be covered by context_vars
     or by the service layer's automatic injections.
@@ -98,8 +98,8 @@ def test_prompt_template_renders_with_declared_context_vars(
 async def test_new_tei_prompts_cover_editor_context(
     db_session: AsyncSession,
 ) -> None:
-    """The three new TEI prompts are scoped to the editor context so the
-    document editor's AI panel surfaces them."""
+    """The three TEI prompts are scoped so the document editor's AI panel
+    surfaces them automatically."""
     await seed_ai_prompts(db_session)
     rows = {
         r.slug: r
@@ -112,6 +112,13 @@ async def test_new_tei_prompts_cover_editor_context(
         )
     }
     assert set(rows) == {"tei_bibl_inline", "tei_extract_entities", "tei_header_scaffold"}
-    for prompt in rows.values():
-        assert prompt.target_context == "editor"
+    # tei_header_scaffold acts on the whole document; the other two on the
+    # current selection — both scopes are surfaced in the editor toolbar.
+    expected = {
+        "tei_bibl_inline":      "editor.selection",
+        "tei_extract_entities": "editor.selection",
+        "tei_header_scaffold":  "editor.document",
+    }
+    for slug, prompt in rows.items():
+        assert prompt.scope == expected[slug]
         assert set(prompt.context_vars) == {"filename", "collection_slug", "selection"}
