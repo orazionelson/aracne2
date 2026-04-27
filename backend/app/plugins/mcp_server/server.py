@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError, DomainValidationError
 from app.plugins.mcp_server.auth import McpAuthContext
 from app.plugins.mcp_server.resources import (
+    list_concrete_resources,
     list_resource_templates,
     read_resource,
 )
@@ -35,15 +36,19 @@ from app.plugins.mcp_server.tools.collections import (
     GET_DOCUMENT_SOURCE_SCHEMA,
     LIST_COLLECTIONS_SCHEMA,
     LIST_DOCUMENTS_SCHEMA,
+    TEI_TO_TEXT_SCHEMA,
     get_collection,
     get_document_source,
     list_collections,
     list_documents,
+    tei_to_text,
 )
 from app.plugins.mcp_server.tools.entities import (
     FIND_ENTITY_OCCURRENCES_SCHEMA,
+    LOOKUP_AUTHORITY_SCHEMA,
     SEARCH_ENTITIES_SCHEMA,
     find_entity_occurrences,
+    lookup_authority,
     search_entities,
 )
 
@@ -122,6 +127,27 @@ TOOLS: list[ToolSpec] = [
         ),
         schema=FIND_ENTITY_OCCURRENCES_SCHEMA,
         handler=find_entity_occurrences,
+    ),
+    ToolSpec(
+        name="tei_to_text",
+        description=(
+            "Strip TEI markup from a document and return the body text. "
+            "Lighter on the LLM context than get_document_source when "
+            "the assistant only needs the prose content (no apparatus)."
+        ),
+        schema=TEI_TO_TEXT_SCHEMA,
+        handler=tei_to_text,
+    ),
+    ToolSpec(
+        name="lookup_authority",
+        description=(
+            "Resolve a name through an external authority API "
+            "(Wikidata / ORCID / ROR / VIAF) and return canonical IDs "
+            "+ URIs. Useful when the assistant needs an authoritative "
+            "URI for an entity not yet indexed in this instance."
+        ),
+        schema=LOOKUP_AUTHORITY_SCHEMA,
+        handler=lookup_authority,
     ),
 ]
 
@@ -215,7 +241,13 @@ async def dispatch(
         return _ok(req_id, {"content": _wrap_text(result), "isError": False})
 
     if method == "resources/list":
-        return _ok(req_id, {"resourceTemplates": list_resource_templates(), "resources": []})
+        return _ok(
+            req_id,
+            {
+                "resourceTemplates": list_resource_templates(),
+                "resources": list_concrete_resources(ctx),
+            },
+        )
 
     if method == "resources/read":
         uri = params.get("uri")

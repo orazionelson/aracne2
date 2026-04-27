@@ -242,3 +242,85 @@ async def get_document_source(
         "size_bytes": len(body),
         "content": body.decode("utf-8", errors="replace"),
     }
+
+
+# ── tei_to_text ───────────────────────────────────────────────────────────────
+
+
+TEI_TO_TEXT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "collection_slug": {"type": "string", "minLength": 1, "maxLength": 128},
+        "filename": {"type": "string", "minLength": 1, "maxLength": 256},
+    },
+    "required": ["collection_slug", "filename"],
+    "additionalProperties": False,
+}
+
+
+async def tei_to_text(
+    db: AsyncSession, ctx: McpAuthContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Strip TEI markup and return the body text.
+
+    Useful when the LLM's context budget is tight: a TEI document with
+    rich apparatus markup can balloon to 10x its plain-text payload.
+    Uses ``defusedxml`` so the parse is XXE-proof and ``etree.tostring``
+    with ``method="text"`` to extract the document text content.
+
+    Falls back to a regex-based tag-strip if the document fails to
+    parse (some TEI files in the wild have entity references the
+    parser can't resolve without a DTD).
+    """
+    import re
+
+    from defusedxml import ElementTree as DET
+    from app.services.xmldb import _validate_filename
+
+    slug = str(args["collection_slug"]).strip()
+    filename = str(args["filename"]).strip()
+    _validate_filename(filename)
+
+    in_scope = await db.scalar(
+        _publishable_filter(
+            select(Collection.id).where(Collection.slug == slug),
+            ctx.collection_ids,
+        )
+    )
+    if in_scope is None:
+        raise NotFoundError(f"Collection {slug!r} not found in this corpus.")
+    try:
+        body = await existdb_client.get_document(slug, filename)
+    except Exception as exc:
+        raise NotFoundError(f"Document {filename!r} not found.") from exc
+
+    try:
+        root = DET.fromstring(body)
+        # itertext walks every text node in document order; we join
+        # with single spaces and collapse runs of whitespace so the
+        # output is one paragraph-friendly string.
+        text = " ".join(
+            t.strip() for t in root.itertext() if t and t.strip()
+        )
+    except Exception:
+        # Fallback: brutal tag strip. Loses some structure but keeps
+        # the text content so the LLM still has something to chew on.
+        decoded = body.decode("utf-8", errors="replace")
+        text = re.sub(r"<[^>]+>", " ", decoded)
+        text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text.encode("utf-8")) > _MAX_DOCUMENT_BYTES:
+        truncated = True
+        text = text.encode("utf-8")[:_MAX_DOCUMENT_BYTES].decode(
+            "utf-8", errors="replace"
+        )
+    else:
+        truncated = False
+
+    return {
+        "slug": slug,
+        "filename": filename,
+        "truncated": truncated,
+        "char_count": len(text),
+        "text": text,
+    }

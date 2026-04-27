@@ -93,6 +93,61 @@ You need: the **bearer token** and the **snippet** the Admin sent you.
 
 4. Save the file and start Claude Desktop.
 
+## Editor: Cursor
+
+Cursor reads MCP servers from `~/.cursor/mcp.json` (the location is the
+same on macOS / Linux / Windows — Cursor expands `~` to the user's
+home). The schema is identical to Claude Desktop's:
+
+```json
+{
+  "mcpServers": {
+    "aracne2": {
+      "url": "https://your-aracne2.example/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer aracne2_mcp_..."
+      }
+    }
+  }
+}
+```
+
+After saving, restart Cursor. You can verify the server is reachable
+in `Settings → MCP` — Aracne2 should appear with a green dot. From the
+Composer panel, the assistant can now use the same tools described
+below.
+
+## Editor: Claude Code (CLI)
+
+Claude Code reads its config from `~/.claude.json` (or per-project
+`.claude/settings.json`). For an HTTP-streamable MCP server like
+Aracne2, the entry goes in the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "aracne2": {
+      "type": "http",
+      "url": "https://your-aracne2.example/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer aracne2_mcp_..."
+      }
+    }
+  }
+}
+```
+
+The `"type": "http"` field is what tells Claude Code to use the
+Streamable-HTTP transport (instead of the default stdio child-process
+mode used by local MCP servers). No restart is required — Claude Code
+re-reads the config at the start of every conversation.
+
+In a Claude Code session you can confirm the server is wired up with:
+
+```bash
+claude mcp list   # should include "aracne2" as connected
+```
+
 In any new conversation you can now ask things like:
 
 - *"List the collections in this corpus and their publication dates."*
@@ -113,16 +168,36 @@ Tools (callable actions):
 | `get_collection` | Single-collection detail: license, schema, document count, editor display name. |
 | `list_documents` | Filenames inside a collection, paged. |
 | `get_document_source` | Raw TEI XML for one filename. Capped at 2 MB; the response carries a hint when truncated. |
+| `tei_to_text` | Strip TEI markup and return the body text. Uses much less LLM context than `get_document_source` when the assistant only needs the prose. |
 | `search_entities` | Free-text search of the named-entities index, restricted to the corpus. |
 | `find_entity_occurrences` | Document occurrences of one entity, with surrounding context. |
+| `lookup_authority` | Resolve a name through Wikidata / ORCID / ROR / VIAF and return canonical id + URI. Useful when the entity is not yet indexed in the local instance. |
 
 Resources (linkable URIs):
 
 | Scheme | What it returns |
 |---|---|
+| `corpus://<name>` | Markdown manifest of the bearer's corpus (member collections). The bearer's own corpus is also pre-listed in `resources/list` so the LLM finds it without a tool call. |
 | `collection://<slug>` | Markdown summary of the collection. |
 | `document://<slug>/<filename>` | Raw TEI for one document (size-capped). |
 | `entity://<uuid>` | Canonical form, type, and authority URI of one entity. |
+
+### Why there is no `summarize_collection` tool
+
+By design. The MCP client *is* an LLM — it's already capable of
+producing a summary once it has read the source material. Adding a
+server-side summariser would mean either:
+
+- duplicating the platform's AI rate-limit / audit pipeline for a
+  bearer-token context (which has no real `User` row behind it), or
+- bypassing the audit trail entirely.
+
+Both have downsides. The current design lets the LLM client read the
+collection metadata (`get_collection`) and a sample of documents
+(`list_documents` + `tei_to_text`) and write the summary itself, in
+the same conversation, with the same model the user already pays
+for. No round-trip to the server's own AI infrastructure, no double
+audit.
 
 Every tool intersects its query with two filters:
 

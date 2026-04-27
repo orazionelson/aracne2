@@ -1,16 +1,21 @@
 """Resource resolvers for the MCP plugin.
 
-Three URI schemes:
+Four URI schemes:
 
+* ``corpus://<name>`` → markdown manifest of the corpus the bearer
+  token belongs to (title + description + member collections). The
+  ``<name>`` segment is informational; the resolver always returns
+  the corpus encoded in the auth context, so a token can't peek at
+  a different corpus by guessing names.
 * ``collection://<slug>`` → markdown summary (title + description +
   document count + top entities)
 * ``document://<slug>/<filename>`` → raw TEI XML (size-capped, same
   guard as the get_document_source tool)
 * ``entity://<uuid>`` → entity name + recent occurrences
 
-Resource discovery (``resources/list``) advertises only the templates
-— not the materialised list of every collection / document / entity —
-so the LLM client can paste any URL it computed from a tool call.
+Resource discovery (``resources/list``) advertises the templates
+plus a single materialised ``corpus://`` URI for the bearer's own
+corpus — so the LLM client can find it without a tool call.
 """
 
 from __future__ import annotations
@@ -35,6 +40,15 @@ def list_resource_templates() -> list[dict[str, Any]]:
     """Manifest returned by ``resources/list``."""
     return [
         {
+            "uriTemplate": "corpus://{name}",
+            "name": "Corpus manifest",
+            "description": (
+                "Markdown manifest of the bearer's corpus: name, "
+                "description, and the list of member collections."
+            ),
+            "mimeType": "text/markdown",
+        },
+        {
             "uriTemplate": "collection://{slug}",
             "name": "Collection summary",
             "description": "Markdown summary of one collection (title, description, document count).",
@@ -55,6 +69,22 @@ def list_resource_templates() -> list[dict[str, Any]]:
     ]
 
 
+def list_concrete_resources(ctx) -> list[dict[str, Any]]:  # type: ignore[no-untyped-def]
+    """Materialised resources advertised by ``resources/list``.
+
+    Just the bearer's own ``corpus://`` URI — listing every collection
+    or document would defeat the lazy-discovery point.
+    """
+    return [
+        {
+            "uri": f"corpus://{ctx.corpus.name}",
+            "name": ctx.corpus.name,
+            "description": ctx.corpus.description or "",
+            "mimeType": "text/markdown",
+        }
+    ]
+
+
 async def read_resource(
     db: AsyncSession, ctx: McpAuthContext, uri: str
 ) -> dict[str, Any]:
@@ -63,6 +93,8 @@ async def read_resource(
     Raises ``NotFoundError`` for unknown schemes / out-of-scope IDs /
     parse failures — the JSON-RPC layer maps that to a -32602 error.
     """
+    if uri.startswith("corpus://"):
+        return _read_corpus(ctx)
     if uri.startswith("collection://"):
         slug = uri[len("collection://"):]
         return await _read_collection(db, ctx, slug)
@@ -76,6 +108,32 @@ async def read_resource(
         eid = uri[len("entity://"):]
         return await _read_entity(db, ctx, eid)
     raise NotFoundError(f"Unknown resource scheme: {uri}")
+
+
+def _read_corpus(ctx: McpAuthContext) -> dict[str, Any]:
+    """Render the bearer's corpus as a markdown manifest.
+
+    Always returns the corpus encoded in *ctx*, regardless of the
+    ``<name>`` segment in the URI — a token can't peek at someone
+    else's corpus by guessing names.
+    """
+    corpus = ctx.corpus
+    md = [f"# {corpus.name}"]
+    if corpus.description:
+        md.extend(["", corpus.description])
+    md.extend(["", "## Collections", ""])
+    if not corpus.collections:
+        md.append("_No collections in this corpus yet._")
+    else:
+        for c in sorted(corpus.collections, key=lambda x: x.title):
+            visible = c.is_public and c.status.value == "published"
+            badge = "" if visible else " *(not public/published — currently invisible)*"
+            md.append(f"- **{c.title}** — `{c.slug}`{badge}")
+    return {
+        "uri": f"corpus://{corpus.name}",
+        "mimeType": "text/markdown",
+        "text": "\n".join(md),
+    }
 
 
 async def _read_collection(

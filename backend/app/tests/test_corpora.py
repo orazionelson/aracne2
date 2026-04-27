@@ -371,3 +371,83 @@ async def test_mcp_initialize_and_tools_list(
     # The out-of-scope collection is not in this token's corpus and must
     # not appear, even though it is public+published.
     assert "cancelleria-aragonese" not in slugs
+
+
+@pytest.mark.asyncio
+async def test_mcp_resources_list_includes_concrete_corpus(
+    client: AsyncClient,
+    issued_token: str,
+) -> None:
+    """`resources/list` advertises the bearer's own corpus as a concrete URI
+    so the LLM client can find it without first calling a tool."""
+    from app.main import app
+    from app.plugins.mcp_server.router import router as mcp_router
+
+    if not any(getattr(r, "path", "").startswith("/api/v1/mcp") for r in app.routes):
+        app.include_router(mcp_router, prefix="/api/v1")
+
+    res = await client.post(
+        "/api/v1/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "resources/list", "params": {}},
+        headers=_bearer(issued_token),
+    )
+    body = res.json()["result"]
+    # The bearer's corpus must appear pre-listed.
+    assert any(r["uri"].startswith("corpus://") for r in body["resources"])
+    # Templates must include all four URI schemes.
+    template_schemes = {t["uriTemplate"].split("://")[0] for t in body["resourceTemplates"]}
+    assert template_schemes == {"corpus", "collection", "document", "entity"}
+
+
+@pytest.mark.asyncio
+async def test_mcp_resources_read_corpus(
+    client: AsyncClient,
+    issued_token: str,
+) -> None:
+    """Reading the corpus:// resource returns a markdown manifest listing
+    the corpus's collections."""
+    from app.main import app
+    from app.plugins.mcp_server.router import router as mcp_router
+
+    if not any(getattr(r, "path", "").startswith("/api/v1/mcp") for r in app.routes):
+        app.include_router(mcp_router, prefix="/api/v1")
+
+    # The exact `<name>` in the URI is informational — the resolver
+    # always returns the bearer's own corpus.
+    res = await client.post(
+        "/api/v1/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "resources/read",
+            "params": {"uri": "corpus://Shakespeare-only"},
+        },
+        headers=_bearer(issued_token),
+    )
+    body = res.json()["result"]
+    assert len(body["contents"]) == 1
+    text = body["contents"][0]["text"]
+    assert "Shakespeare-only" in text
+    assert "hamlet-folio" in text
+
+
+@pytest.mark.asyncio
+async def test_mcp_tools_list_includes_phase_1_5_additions(
+    client: AsyncClient,
+    issued_token: str,
+) -> None:
+    """The Phase 1.5 additions must surface in tools/list."""
+    from app.main import app
+    from app.plugins.mcp_server.router import router as mcp_router
+
+    if not any(getattr(r, "path", "").startswith("/api/v1/mcp") for r in app.routes):
+        app.include_router(mcp_router, prefix="/api/v1")
+
+    res = await client.post(
+        "/api/v1/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+        headers=_bearer(issued_token),
+    )
+    names = {t["name"] for t in res.json()["result"]["tools"]}
+    assert "tei_to_text" in names
+    assert "lookup_authority" in names

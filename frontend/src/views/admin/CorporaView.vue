@@ -174,6 +174,22 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
+/** Categorise a token by its last_used_at into "fresh" / "stale" / "never".
+ *
+ * The thresholds are tuned for the closed-editorial audience: a token
+ * not seen in 90 days is almost certainly forgotten by the editor and
+ * a candidate for revocation; a token never used after 14 days is a
+ * sign the editor never set up Claude Desktop or hit a config issue. */
+function tokenFreshness(tok: McpToken): "fresh" | "stale" | "never" | "unused" {
+  if (tok.revoked_at) return "fresh"; // not really, but no warning needed for revoked tokens
+  if (!tok.last_used_at) {
+    const ageDays = (Date.now() - new Date(tok.created_at).getTime()) / 86_400_000;
+    return ageDays > 14 ? "never" : "unused";
+  }
+  const idleDays = (Date.now() - new Date(tok.last_used_at).getTime()) / 86_400_000;
+  return idleDays > 90 ? "stale" : "fresh";
+}
+
 function dismissJustIssued(): void {
   justIssued.value = null;
 }
@@ -354,8 +370,20 @@ function dismissJustIssued(): void {
                 >
                   <td class="py-1.5">{{ tok.label }}</td>
                   <td class="py-1.5 text-xs text-gray-500">{{ new Date(tok.created_at).toLocaleString() }}</td>
-                  <td class="py-1.5 text-xs text-gray-500">
-                    {{ tok.last_used_at ? new Date(tok.last_used_at).toLocaleString() : t("corpora.token_never_used") }}
+                  <td class="py-1.5 text-xs">
+                    <span
+                      class="text-gray-500"
+                    >{{ tok.last_used_at ? new Date(tok.last_used_at).toLocaleString() : t("corpora.token_never_used") }}</span>
+                    <span
+                      v-if="!tok.revoked_at && tokenFreshness(tok) === 'stale'"
+                      class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                      :title="t('corpora.token_stale_hint')"
+                    >{{ t("corpora.token_stale") }}</span>
+                    <span
+                      v-else-if="!tok.revoked_at && tokenFreshness(tok) === 'never'"
+                      class="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                      :title="t('corpora.token_never_hint')"
+                    >{{ t("corpora.token_never_badge") }}</span>
                   </td>
                   <td class="py-1.5">
                     <span

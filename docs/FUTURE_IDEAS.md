@@ -1789,4 +1789,215 @@ maintainer.
 
 ---
 
-*Last updated: 2026-04-27*
+## 21. MCP server — Phase 2 (write tools) 🟡 Medium
+
+The MCP server shipped in Phase 1 is read-only by design (eight tools
++ four resource templates, all gated behind a per-corpus bearer
+token). Phase 2 turns it into an active assistant: tools that
+*produce* TEI and, in some cases, *mutate* the platform.
+
+**Idea**
+
+Add four write or write-adjacent tools, each individually toggleable
+per corpus via a new `mcp_allow_writes` boolean column on
+`mcp_tokens` (default false):
+
+| Tool | Mutation? | Sketch |
+|---|---|---|
+| `crossref_to_tei(doi[])` | No — output only | Editor in chat: "import these 30 DOIs as bibliography". The tool returns ready-to-paste `<biblStruct>` TEI; the editor pastes them into the TEI editor manually. Reuses the existing `crossref_lookup` plugin's service layer. |
+| `crossref_lookup(query)` | No | Search CrossRef by title / author. Returns candidates so the LLM can ask the editor to confirm before chaining into `crossref_to_tei`. |
+| `zotero_import_to_collection(group_id, slug)` | Yes (DB write to `collection_bibliography`) | Import a Zotero group library as a bibliography in a corpus collection. Reuses the `zotero_import` plugin's importer. Real mutation — sits behind the per-corpus consent toggle and an optional second factor (admin re-confirm by email / Slack). |
+| `start_collection_validation(slug)` | Trigger only — read-only effect | Kick the validation job that already exists as a REST endpoint. The result lands in `collection_validation_runs` and is queryable via existing tools. |
+
+**Open questions**
+
+- **Consent model**. Claude Desktop calls tools without asking the
+  user (the LLM decides when to call them). For destructive writes
+  that isn't enough — we want each `tools/call` on a write tool to
+  log a proposal that an admin must approve out-of-band before the
+  side effect lands. Sketch:
+  - First call → write a `mcp_pending_action(token_id, tool, args,
+    expires_at)` row, return `{"status": "pending", "approval_url":
+    "https://aracne2.example/admin/mcp/pending/<id>"}`.
+  - Admin clicks approve → the write goes through, the LLM sees the
+    success on a follow-up `tools/call` keyed by the same id.
+  - Open: does the consent UX make the tools too clunky to actually
+    use? An alternative is per-corpus *blanket consent* — once the
+    admin enables `mcp_allow_writes`, every write is allowed without
+    second-factor. Blast radius is bounded by the corpus, so blanket
+    consent is defensible if revocation is fast.
+- **TEI insertion vs return-only**. `crossref_to_tei` is the safest
+  shape (LLM produces text, editor pastes). `zotero_import_to_collection`
+  cannot be made return-only — the bibliography must end up in the
+  DB. Differentiate the two consent levels: "return TEI snippets"
+  (default-on) vs "mutate DB" (default-off, per-corpus opt-in).
+- **Outcome reporting**. After a successful write, the tool result
+  needs to carry enough information for the LLM to confirm to the
+  editor *what* happened — not just "OK" but "imported 27 of 30
+  Zotero items, 3 skipped because of missing DOIs". The wire
+  format is the standard MCP `content` envelope; the design choice
+  is which fields to include without leaking IDs the editor doesn't
+  control (e.g. internal UUIDs).
+- **Audit log impact**. Every write tool emits an `audit_log` row
+  attributed to the token's `created_by` user, not to the bearer
+  context (which is anonymous to the platform). The token's row
+  already records the issuer's user id, so this is a one-line
+  patch — but worth calling out because it conflates "Admin issues
+  the token" with "Editor uses the token", which can mislead an
+  auditor reading the log later.
+
+**Why deferred**
+
+- Phase 1 has been live for less than a week (as of 2026-04-28); we
+  don't yet know which of these tools editors actually want. Two of
+  the four (Zotero, GROBID derivatives) duplicate plugins that
+  already have UI surfaces — adding a chat-driven path is only
+  worthwhile if those surfaces feel cumbersome in real use.
+- The consent UX is the genuinely hard part. The simpler "blanket
+  per-corpus consent" model is fine technically but skips the
+  editor's chance to refuse a specific call. The proposal-pending
+  flow needs UI work and probably an out-of-band notification (email
+  / webhook) to the admin, which is feature-creep.
+
+**Prerequisites**
+
+- A new column `mcp_allow_writes BOOL DEFAULT FALSE` on `mcp_tokens`,
+  flipped in the corpora admin panel.
+- (Optional, for the consent flow) a new table
+  `mcp_pending_actions(id, token_id, tool, args_json, expires_at,
+  approved_at, executed_at)` plus an admin route to approve / reject.
+- Audit attribution lookup (`token.created_by`) plumbed into every
+  write tool's audit row.
+
+**Trigger for implementation**
+
+- An editor explicitly asks for chat-driven Zotero / CrossRef
+  imports more than once, or
+- The Phase-1 `last_used_at` analytics show heavy daily MCP use —
+  signal that the editorial team has internalised the chat workflow
+  and would benefit from removing the round-trip to the TEI editor.
+
+*Added: 2026-04-28*
+
+---
+
+## 22. MCP server — Phase 3 (identity, members, audit) 🟡 Medium
+
+Once Phase 1 is in heavy use across multiple editors and Phase 2 is
+shipping writes, the next bottleneck is **identity**: today every
+MCP request is anonymous from the platform's perspective (the bearer
+token resolves to a corpus, not a user), and Admin manually
+distributes per-corpus tokens. Phase 3 introduces a personal-token
+model and an audit surface that scales beyond a handful of editors.
+
+**Idea**
+
+Three coordinated additions:
+
+### a. Personal MCP tokens
+
+An editor opens `/profile/mcp-tokens`, generates a token tied to
+their own user. The token's effective scope is the *union* of every
+corpus the editor is a member of (see point b). Replaces or
+complements per-corpus tokens.
+
+- Pro: removes the Admin-distributes-tokens bottleneck. Editor
+  rotates their own token any time without touching the Admin.
+- Pro: every MCP request now has a real user attached, which solves
+  Phase 2's audit-attribution problem properly.
+- Con: needs `corpus_members` (b) to be useful — a personal token
+  with no membership can't access anything.
+
+### b. `corpus_members` table
+
+The schema introduced in Phase 1 already anticipated this — see
+the docstring of `app/models/corpus.py`. Two columns: `corpus_id`,
+`user_id`. UI in the corpora admin panel ("Add member" pulldown
+with the existing user list).
+
+Membership is the source of truth for *both* personal MCP tokens
+(point a) and a future feature where the TEI editor's AI panel can
+filter to "the corpus I'm working on" — closing the gap that Phase 1
+intentionally left open for the in-itinere case.
+
+### c. Per-token audit log
+
+A new `mcp_audit_log(timestamp, token_id, user_id, tool_name,
+args_hash, result_size_bytes)` table, written by the JSON-RPC
+dispatcher on every `tools/call`. Visualised in the corpora admin
+panel as "Last 100 calls" per token, and exposed as a filterable
+view (`/admin/mcp/audit`) for instance-wide monitoring.
+
+Cardinality is much higher than `audit_log` — a single editor can
+trip 60 calls/minute — so it warrants its own table with a TTL
+(`mcp_audit_retention_days`, default 30) so it doesn't grow
+unbounded.
+
+### d. Per-corpus rate limit override
+
+`mcp_rate_limit_per_minute` column on `corpora`, default null = use
+the global 60/min. An admin can dial up a "Demo public" corpus to
+600/min and dial down a sandbox corpus to 5/min. Trivial backend
+change — slowapi already supports per-key limits.
+
+**Open questions**
+
+- **Personal-token membership UX**. When an editor generates a
+  personal token, should they see *which* corpora it covers? A
+  "scope preview" list at generation time would be honest but
+  intricate UI. The simpler answer: just say "this token grants
+  access to every corpus you are currently a member of" and let the
+  editor check `/admin/corpora/membership` separately. The simpler
+  UX wins.
+- **Personal vs corpus tokens — coexistence or replacement?** If
+  both exist, an admin can issue per-corpus *and* an editor can
+  have personal tokens. That's nice for flexibility but doubles
+  the surface to maintain. Cleaner: deprecate per-corpus tokens
+  once personal tokens land, and migrate existing per-corpus
+  tokens by re-issuing personal ones. Decision belongs to the
+  implementation turn.
+- **AI panel scope filter (in-itinere)**. The TEI editor's AI panel
+  today operates on a single document at a time. Once `corpus_members`
+  exists, we can offer "ask the AI about my whole corpus" with
+  RAG over only the editor's corpora. Big feature on its own;
+  worth a separate FUTURE_IDEAS entry when its time comes.
+
+**Why deferred**
+
+- Personal tokens are a UX win, not a security win — the per-corpus
+  model already satisfies the security model (corpus-scoped, fully
+  revocable). The trigger to add personal tokens is operational
+  pain ("Admin spends 30 minutes every Friday issuing tokens"), not
+  a fundamental gap. As of 2026-04-28 we have zero editors actually
+  using MCP; defer until that pain materialises.
+- Audit log is the *right* feature for compliance reviews and large
+  multi-tenant deployments. For the closed-editorial audience it is
+  overkill — the corpora admin panel already shows `last_used_at`,
+  which answers ~80% of "is this token active?" questions without
+  a dedicated audit table.
+
+**Prerequisites**
+
+- `mcp_tokens.user_id` foreign key (nullable for legacy per-corpus
+  tokens).
+- New table `corpus_members(corpus_id, user_id)`.
+- New table `mcp_audit_log(...)` + retention sweeper job (the same
+  `apscheduler` already used for session expiry / audit log retention).
+- New endpoint `/profile/mcp-tokens` for editor self-service.
+- Frontend: a thin token-management surface at `/profile/mcp-tokens`
+  + a filterable audit view at `/admin/mcp/audit`.
+
+**Trigger for implementation**
+
+- The deployment grows past ~5 active MCP editors and Admin
+  reports "issuing tokens has become a chore", or
+- A compliance review explicitly requires per-user attribution in
+  audit logs, or
+- The first deployment hosts multiple research groups in the same
+  Aracne2 instance and groups want self-service token management.
+
+*Added: 2026-04-28*
+
+---
+
+*Last updated: 2026-04-28*

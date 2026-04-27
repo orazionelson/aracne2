@@ -142,3 +142,117 @@ async def find_entity_occurrences(
             }
         )
     return out
+
+
+# ── lookup_authority ──────────────────────────────────────────────────────────
+#
+# Single tool that fans out to one of four authority APIs (Wikidata,
+# ORCID, ROR, VIAF) so the LLM can resolve names without the editor
+# having to open the TEI editor's authority panel. GeoNames is left
+# out because it requires a configured GeoNames username — adding it
+# would mean threading the config lookup into a context that doesn't
+# have a DB-aware UI to show "API key missing" errors gracefully.
+# A future tool can wrap GeoNames + Getty AAT + GND once we surface
+# the missing-config case in a structured way.
+
+
+_LOOKUP_SERVICES = ("wikidata", "orcid", "ror", "viaf")
+
+
+LOOKUP_AUTHORITY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "service": {
+            "type": "string",
+            "enum": list(_LOOKUP_SERVICES),
+            "description": "Which authority to query.",
+        },
+        "q": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200,
+            "description": "Free-text query (name, term, identifier).",
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 25,
+            "default": 10,
+        },
+    },
+    "required": ["service", "q"],
+    "additionalProperties": False,
+}
+
+
+async def lookup_authority(
+    db: AsyncSession,  # noqa: ARG001 — kept for signature symmetry
+    ctx: McpAuthContext,  # noqa: ARG001 — outbound only, no corpus filter
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Proxy a query to an external authority and return normalised hits.
+
+    Each upstream returns a different schema; we project to a common
+    ``{ id, label, description?, uri }`` shape so the LLM sees one
+    consistent format regardless of service.
+
+    Outbound calls are unauthenticated (all four services have public
+    endpoints) and short-timeout; failures degrade to an empty hits
+    list rather than an error.
+    """
+    service = str(args["service"])
+    q = str(args["q"]).strip()
+    limit = max(1, min(int(args.get("limit", 10)), 25))
+
+    if service == "wikidata":
+        from app.plugins.wikidata.service import search as wikidata_search
+
+        rows = await wikidata_search(q, limit=limit)
+        hits = [
+            {"id": h.qid, "label": h.label, "description": h.description, "uri": h.uri}
+            for h in rows
+        ]
+    elif service == "orcid":
+        from app.plugins.orcid.service import search as orcid_search
+
+        rows = await orcid_search(q, rows=limit)
+        hits = [
+            {
+                "id": h.orcid,
+                "label": h.label,
+                "description": ", ".join(h.affiliations) if h.affiliations else None,
+                "uri": h.uri,
+            }
+            for h in rows
+        ]
+    elif service == "ror":
+        from app.plugins.ror.service import search as ror_search
+
+        rows = await ror_search(q, rows=limit)
+        hits = [
+            {
+                "id": h.ror_id,
+                "label": h.name,
+                "description": h.country,
+                "uri": h.uri,
+            }
+            for h in rows
+        ]
+    elif service == "viaf":
+        from app.plugins.viaf.service import search as viaf_search
+
+        rows = await viaf_search(q, rows=limit)
+        hits = [
+            {
+                "id": h.viaf_id,
+                "label": h.display,
+                "description": h.name_type,
+                "uri": h.uri,
+            }
+            for h in rows
+        ]
+    else:
+        # Schema enum validation should have already rejected this.
+        return {"service": service, "hits": []}
+
+    return {"service": service, "query": q, "hits": hits}
