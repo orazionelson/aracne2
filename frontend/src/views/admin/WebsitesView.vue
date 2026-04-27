@@ -147,7 +147,7 @@ function buildStatusClass(status: string): string {
 // ── Site URL / preview modal ──────────────────────────────────────────────────
 
 function siteUrl(slug: string, isPublished: boolean): string {
-  const base = `/api/v1/sites/${slug}/`;
+  const base = `/sites/${slug}/`;
   if (isPublished) return base;
   const token = authStore.accessToken;
   return token ? `${base}?_preview=${encodeURIComponent(token)}` : base;

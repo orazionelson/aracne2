@@ -3279,7 +3279,7 @@ async def render_dynamic_index(db: AsyncSession, website: Website) -> str:
     doc_infos = await _fetch_doc_infos(col) if col else []
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -3336,7 +3336,7 @@ async def render_dynamic_browse(db: AsyncSession, website: Website) -> str:
     doc_infos = await _fetch_doc_infos(col) if col else []
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -3425,7 +3425,7 @@ async def render_dynamic_search(
             )
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -3474,7 +3474,7 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
         return cached
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -3578,7 +3578,7 @@ async def render_dynamic_doc(
         pass
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -3676,7 +3676,7 @@ async def render_dynamic_page(
         raise NotFoundError(f"Page '{page_slug}' not found.")
 
     theme = website.theme_config or {}
-    base = f"/api/v1/sites/{website.slug}"
+    base = f"/sites/{website.slug}"
     visible_pages = [p for p in website.pages if not p.is_hidden]
     hide_header: bool = bool(theme.get("hide_header", False))
 
@@ -4335,7 +4335,7 @@ def render_website_index_html(website: Website, index: WebsiteIndex) -> str:
     """
     theme = website.theme_config or {}
     style = _style_block(theme, website.custom_css)
-    site_base_url = f"/api/v1/sites/{website.slug}"
+    site_base_url = f"/sites/{website.slug}"
 
     navbar = _render_navbar(
         site_title=website.title,
@@ -4398,7 +4398,7 @@ def render_all_indices_html(
 
     Only indices whose ``cached_data`` is not None are included.
     ``site_base_url`` is used for dynamic/hybrid rendering (e.g.
-    ``/api/v1/sites/my-site``).  For static builds, leave it empty and set
+    ``/sites/my-site``).  For static builds, leave it empty and set
     ``path_prefix`` to the relative path from the current page to the site root
     (empty string for root-level pages, ``../`` for subdirectory pages).
     """
@@ -4407,7 +4407,7 @@ def render_all_indices_html(
     theme = website.theme_config or {}
     style = _style_block(theme, website.custom_css)
 
-    effective_base = site_base_url or f"/api/v1/sites/{website.slug}"
+    effective_base = site_base_url or f"/sites/{website.slug}"
 
     navbar = _render_navbar(
         site_title=website.title,
@@ -5161,13 +5161,13 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
       search           — server-side FT search via render_dynamic_search()
 
     All hrefs inside the built pages use absolute paths rooted at
-    ``/api/v1/sites/{slug}/`` so that navbar and content links resolve
+    ``/sites/{slug}/`` so that navbar and content links resolve
     correctly regardless of which static file is being served.
     """
     slug = website.slug
     theme = website.theme_config or {}
     logo_url: str | None = theme.get("logo_url") or None
-    base = f"/api/v1/sites/{slug}"
+    base = f"/sites/{slug}"
 
     site_dir = settings.websites_root / slug
     if not site_dir.resolve().is_relative_to(settings.websites_root.resolve()):

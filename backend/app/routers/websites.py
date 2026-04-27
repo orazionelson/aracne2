@@ -613,7 +613,7 @@ async def serve_site_index_redirect(slug: str) -> RedirectResponse:
 
     Required so that relative asset links inside generated HTML resolve correctly.
     """
-    return RedirectResponse(url=f"/api/v1/sites/{slug}/", status_code=301)
+    return RedirectResponse(url=f"/sites/{slug}/", status_code=301)
 
 
 @router.get("/sites/{slug}/", include_in_schema=False)
@@ -641,7 +641,7 @@ async def serve_site_index(
 @router.get("/sites/{slug}/browse.html", include_in_schema=False)
 async def serve_browse_html_compat(slug: str) -> RedirectResponse:
     """Backward-compat alias for static links that include the .html extension."""
-    return RedirectResponse(url=f"/api/v1/sites/{slug}/browse", status_code=301)
+    return RedirectResponse(url=f"/sites/{slug}/browse", status_code=301)
 
 
 @router.get("/sites/{slug}/browse", include_in_schema=False)
@@ -800,7 +800,7 @@ async def serve_site_all_indices(
         return maint
     html = svc.render_all_indices_html(
         website,
-        site_base_url=f"/api/v1/sites/{slug}",
+        site_base_url=f"/sites/{slug}",
     )
     return _dynamic_html_response(html, svc.compute_etag(website), request)
 

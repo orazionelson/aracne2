@@ -28,6 +28,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => `/api/v1${path}`,
       },
+      // Public website pages live at /api/v1/sites/<slug>/... on the
+      // backend but should appear at /sites/<slug>/... in the address
+      // bar — the /api/v1 prefix is API noise that doesn't belong on
+      // a rendered HTML surface. Vite rewrites the dev request; nginx
+      // mirrors the rewrite in production.
+      "^/sites/": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+        rewrite: (path) => `/api/v1${path}`,
+      },
     },
   },
   build: {
