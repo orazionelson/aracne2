@@ -963,6 +963,20 @@ function closeModal(): void {
   modalOpen.value = false;
 }
 
+function _cleanedAdvancedConfig(): AdvancedSearchConfig {
+  // Drop rows with any empty field — the backend enforces min_length=1
+  // on every label/element/attribute, so half-filled placeholders that
+  // ``addTag`` / ``addAttrFilter`` insert as scratch rows would 422.
+  return {
+    named_tags: form.value.advanced_search_config.named_tags
+      .map((t) => ({ label: t.label.trim(), element: t.element.trim() }))
+      .filter((t) => t.label && t.element),
+    attribute_filters: form.value.advanced_search_config.attribute_filters
+      .map((f) => ({ label: f.label.trim(), attribute: f.attribute.trim() }))
+      .filter((f) => f.label && f.attribute),
+  };
+}
+
 async function saveForm(): Promise<void> {
   formError.value = null;
   if (!form.value.title.trim()) {
@@ -975,6 +989,7 @@ async function saveForm(): Promise<void> {
   }
   saving.value = true;
   try {
+    const cleanedAdvanced = _cleanedAdvancedConfig();
     if (isCreating.value) {
       await store.create({
         slug: form.value.slug,
@@ -991,7 +1006,7 @@ async function saveForm(): Promise<void> {
         custom_js: form.value.custom_js || null,
         include_jquery: form.value.include_jquery,
         advanced_search_enabled: form.value.advanced_search_enabled,
-        advanced_search_config: form.value.advanced_search_config,
+        advanced_search_config: cleanedAdvanced,
       });
     } else {
       await store.update(editingSlug.value!, {
@@ -1008,14 +1023,42 @@ async function saveForm(): Promise<void> {
         custom_js: form.value.custom_js || null,
         include_jquery: form.value.include_jquery,
         advanced_search_enabled: form.value.advanced_search_enabled,
-        advanced_search_config: form.value.advanced_search_config,
+        advanced_search_config: cleanedAdvanced,
       });
     }
+    // Persist the cleanup so the form state matches what we just sent.
+    form.value.advanced_search_config = {
+      named_tags: cleanedAdvanced.named_tags.map((t) => ({ ...t })),
+      attribute_filters: cleanedAdvanced.attribute_filters.map((f) => ({ ...f })),
+    };
     closeModal();
   } catch (err: unknown) {
-    const msg =
-      err instanceof Error ? err.message : t("search_engines.error_save");
-    formError.value = msg;
+    // Surface FastAPI 422 details when present so the user sees the real
+    // reason (e.g. "advanced_search_config.named_tags.0.label: too short")
+    // instead of just "Request failed with status code 422".
+    type AxiosLikeError = {
+      response?: {
+        data?: {
+          error?: { message?: string };
+          detail?: unknown;
+        };
+      };
+      message?: string;
+    };
+    const e = err as AxiosLikeError;
+    const apiMsg = e?.response?.data?.error?.message;
+    let detailMsg: string | null = null;
+    const detail = e?.response?.data?.detail;
+    if (Array.isArray(detail)) {
+      detailMsg = detail
+        .map((d: { loc?: unknown[]; msg?: string }) => {
+          const path = (d.loc ?? []).join(".");
+          return `${path}: ${d.msg ?? ""}`;
+        })
+        .join("; ");
+    }
+    formError.value =
+      apiMsg ?? detailMsg ?? e.message ?? t("search_engines.error_save");
   } finally {
     saving.value = false;
   }
