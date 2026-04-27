@@ -11,8 +11,9 @@ to jump directly to a topic.
   workflow from draft to published.
 - **Advanced** — facsimile images, bibliography, named entities, and AI
   assistance.
-- **Publishing** — turning a collection into a public website, standalone
-  search portals, and OAI-PMH exposure.
+- **Publishing** — the platform's default public pages, dedicated
+  websites per collection, standalone search portals, OAI-PMH
+  exposure, deposit on external repositories, and outbound webhooks.
 
 ## Tips
 
@@ -34,7 +35,9 @@ to jump directly to a topic.
 - [Editorial workflow](/help/page?path=02-editing/04-workflow)
 - [AI assistance](/help/page?path=03-advanced/04-ai-assistance)
 - [External reference lookups](/help/page?path=03-advanced/05-external-reference-lookups)
+- [Public Pages — your default public face](/help/page?path=04-publishing/00-public-pages)
 - [Publishing a website](/help/page?path=04-publishing/01-websites)
 - [OAI-PMH](/help/page?path=04-publishing/03-oai-pmh)
 - [Depositing on external repositories](/help/page?path=04-publishing/04-external-repositories)
+- [Webhooks — push-notify external systems](/help/page?path=04-publishing/05-webhooks)
 - [Extensions catalog](/help/page?path=05-reference/02-extensions-catalog)
