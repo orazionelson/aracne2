@@ -582,12 +582,31 @@ def _theme_css_block(
     header_bg_color: str | None,
     header_hidden: bool,
 ) -> str:
-    """Return a <style> block that applies the theme overrides, or empty string."""
+    """Return a <style> block that applies the theme overrides, or empty string.
+
+    Foreground colours are auto-derived from each background's luminance
+    (WCAG sRGB formula, via :func:`app.services.websites._readable_text_on`)
+    so admins can pick any hex value without breaking text contrast — the
+    same adaptive behaviour already used by websites and the public
+    homepage navbar.
+    """
+    from app.services.websites import _readable_text_on  # noqa: PLC0415
+
     rules: list[str] = []
     if page_bg_color:
+        page_text = _readable_text_on(page_bg_color)
         rules.append(f"    body {{ background: {page_bg_color} !important; }}")
+        if page_text:
+            rules.append(f"    body {{ color: {page_text} !important; }}")
     if header_bg_color:
+        header_text = _readable_text_on(header_bg_color)
         rules.append(f"    header {{ background: {header_bg_color} !important; }}")
+        if header_text:
+            # The header inherits its own color and contains the title +
+            # (advanced page) the link back to simple search; both must
+            # remain readable on the chosen bg.
+            rules.append(f"    header, header h1 {{ color: {header_text} !important; }}")
+            rules.append(f"    header a {{ color: {header_text} !important; }}")
     if header_hidden:
         rules.append("    header { display: none !important; }")
         rules.append("    main { margin-top: 1.5rem; }")
