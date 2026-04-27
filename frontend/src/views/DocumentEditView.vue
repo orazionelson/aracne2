@@ -1163,7 +1163,24 @@ async function handleSave(): Promise<void> {
 // ── AI ────────────────────────────────────────────────────────────────────────
 const showAiPanel = ref(false);
 const aiEnabled = computed(() => aiStore.config !== null && aiStore.config.provider !== 'disabled');
-const lastAiPrompt = ref<'validate' | 'improve' | 'discuss' | null>(null);
+const lastAiPrompt = ref<
+  | 'validate'
+  | 'improve'
+  | 'discuss'
+  | 'bibl_inline'
+  | 'extract_entities'
+  | 'header_scaffold'
+  | null
+>(null);
+
+// XML-output prompts share the read-only CodeMirror viewer + Apply
+// button: their response is raw TEI XML the user wants to paste back
+// into the document. Keep this list in sync with the toolbar buttons
+// below and with the response-area template.
+const XML_OUTPUT_PROMPTS = ['improve', 'bibl_inline', 'extract_entities', 'header_scaffold'] as const;
+const isXmlOutputPrompt = computed(() =>
+  (XML_OUTPUT_PROMPTS as readonly string[]).includes(lastAiPrompt.value ?? ''),
+);
 const schemaLabel = ref('TEI P5');
 const aiNoErrors = ref(false);
 // Snapshot of context captured at the moment "Discuss" is clicked; kept stable
@@ -1250,6 +1267,43 @@ async function runImproveAi(): Promise<void> {
   aiNoErrors.value = false;
   aiStore.clearResponse();
   await aiStore.startStream('document_edit_suggest', {
+    filename,
+    collection_slug: slug,
+    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+  });
+}
+
+// Three "selection-in, XML-out" prompts seeded by Aracne but never
+// previously surfaced in the editor toolbar. They share the same
+// streaming + viewer + Apply contract as `runImproveAi`; only the
+// prompt slug + lastAiPrompt label differ.
+async function runBiblInlineAi(): Promise<void> {
+  lastAiPrompt.value = 'bibl_inline';
+  aiNoErrors.value = false;
+  aiStore.clearResponse();
+  await aiStore.startStream('tei_bibl_inline', {
+    filename,
+    collection_slug: slug,
+    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+  });
+}
+
+async function runExtractEntitiesAi(): Promise<void> {
+  lastAiPrompt.value = 'extract_entities';
+  aiNoErrors.value = false;
+  aiStore.clearResponse();
+  await aiStore.startStream('tei_extract_entities', {
+    filename,
+    collection_slug: slug,
+    selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
+  });
+}
+
+async function runHeaderScaffoldAi(): Promise<void> {
+  lastAiPrompt.value = 'header_scaffold';
+  aiNoErrors.value = false;
+  aiStore.clearResponse();
+  await aiStore.startStream('tei_header_scaffold', {
     filename,
     collection_slug: slug,
     selection: activeEditor.value?.getSelection() || activeEditor.value?.getValue() || '',
@@ -1909,7 +1963,7 @@ async function runValidation(): Promise<void> {
     <template v-else>
     <!-- Header with action buttons -->
     <div class="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2">
-      <div class="flex gap-1.5">
+      <div class="flex flex-wrap gap-1.5">
         <button
           :disabled="aiStore.isStreaming || !hasValidationSchema"
           class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1923,6 +1977,30 @@ async function runValidation(): Promise<void> {
           @click="runImproveAi"
         >
           {{ t('ai.improve') }}
+        </button>
+        <button
+          :disabled="aiStore.isStreaming"
+          :title="t('ai.bibl_inline_hint')"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runBiblInlineAi"
+        >
+          {{ t('ai.bibl_inline') }}
+        </button>
+        <button
+          :disabled="aiStore.isStreaming"
+          :title="t('ai.extract_entities_hint')"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runExtractEntitiesAi"
+        >
+          {{ t('ai.extract_entities') }}
+        </button>
+        <button
+          :disabled="aiStore.isStreaming"
+          :title="t('ai.header_scaffold_hint')"
+          class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+          @click="runHeaderScaffoldAi"
+        >
+          {{ t('ai.header_scaffold') }}
         </button>
       </div>
       <div class="flex items-center gap-2">
@@ -1951,13 +2029,13 @@ async function runValidation(): Promise<void> {
         {{ t('ai.thinking') }}
       </span>
       <span v-else-if="aiStore.streamError" class="block px-4 py-3 font-mono text-sm text-red-600">{{ aiStore.streamError }}</span>
-      <!-- Improve XML: read-only CM5 with syntax highlighting (only when stream done) -->
+      <!-- XML-output prompts: read-only CM5 with syntax highlighting (only when stream done) -->
       <div
-        v-else-if="lastAiPrompt === 'improve' && !aiStore.isStreaming"
+        v-else-if="isXmlOutputPrompt && !aiStore.isStreaming"
         ref="improveViewContainer"
         class="[&_.CodeMirror]:border-x-0 [&_.CodeMirror]:border-b-0 [&_.CodeMirror]:text-sm"
       />
-      <!-- Improve XML during streaming / other prompts: plain pre-formatted text -->
+      <!-- XML output during streaming / other prompts: plain pre-formatted text -->
       <span v-else class="block whitespace-pre-wrap px-4 py-3 font-mono text-sm text-gray-800">{{ aiStore.response }}</span>
     </div>
 
@@ -1972,7 +2050,7 @@ async function runValidation(): Promise<void> {
       </button>
       <span v-else class="text-xs text-gray-400">{{ aiStore.config?.provider ?? '' }}</span>
       <button
-        v-if="lastAiPrompt === 'improve' && !aiStore.isStreaming && aiStore.response && !aiStore.streamError"
+        v-if="isXmlOutputPrompt && !aiStore.isStreaming && aiStore.response && !aiStore.streamError"
         class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700"
         @click="applyAiResponse"
       >
