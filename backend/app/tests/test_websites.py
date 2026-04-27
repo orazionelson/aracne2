@@ -370,3 +370,50 @@ async def test_website_url_defaults_to_none(
     assert res.status_code == 200
     assert res.json()["data"]["website_url"] is None
     assert res.json()["data"]["show_in_public_home"] is False
+
+
+# ── Bibliography filename linkification ──────────────────────────────────────
+
+
+_LISTBIBL = """<?xml version="1.0"?>
+<listBibl xmlns="http://www.tei-c.org/ns/1.0">
+  <bibl>Smith 1998, see also R1.1.1.xml</bibl>
+  <bibl>Reference to missing-doc.xml not in collection</bibl>
+  <bibl>Filename embedded in archive.xml.zip should not match</bibl>
+  <bibl>Plain entry without any filename reference</bibl>
+</listBibl>"""
+
+
+def test_build_bibliography_content_no_linkification_when_no_set() -> None:
+    """Without ``available_filenames`` and ``doc_url_for`` the renderer
+    keeps every entry as plain text — preserving legacy behaviour for
+    callers that don't opt in."""
+    from app.services.websites import _build_bibliography_content
+
+    html = _build_bibliography_content(_LISTBIBL)
+    assert "R1.1.1.xml" in html
+    assert "<a class=\"bibl-doc-link\"" not in html
+
+
+def test_build_bibliography_content_linkifies_known_filenames() -> None:
+    """Filenames listed in ``available_filenames`` become anchors;
+    others stay as plain text. ``foo.xml.zip`` must not falsely match."""
+    from app.services.websites import _build_bibliography_content
+
+    html = _build_bibliography_content(
+        _LISTBIBL,
+        available_filenames={"R1.1.1.xml"},
+        doc_url_for=lambda fn: f"/site/docs/{fn}.html",
+    )
+    # Whitelisted filename → linked.
+    assert (
+        '<a class="bibl-doc-link" href="/site/docs/R1.1.1.xml.html">R1.1.1.xml</a>'
+        in html
+    )
+    # Filename mentioned but not in the visible set → plain text, no anchor.
+    assert "missing-doc.xml" in html
+    assert "/docs/missing-doc.xml.html" not in html
+    # ``archive.xml.zip`` carries an .xml mid-token; the boundary regex
+    # must reject it so we don't generate a bogus anchor.
+    assert "/docs/archive.xml" not in html
+    assert "archive.xml.zip" in html
