@@ -16,8 +16,13 @@ const slug = computed(() => uiConfig.config.public_search_engine_slug || "");
 const enabled = computed(
   () => uiConfig.config.public_search_engine_enabled && !!slug.value,
 );
+// ``embed=1`` tells the backend this is the iframe inside /search and
+// makes it inject the public custom CSS into the served HTML's <head>
+// so the search engine inherits the same look-and-feel as the rest of
+// the public pages (only when an admin has uploaded a stylesheet and
+// turned on "Propaga CSS personalizzato").
 const embedUrl = computed(() =>
-  enabled.value ? `/api/v1/search-pages/${slug.value}/` : "",
+  enabled.value ? `/api/v1/search-pages/${slug.value}/?embed=1` : "",
 );
 </script>
 
@@ -33,8 +38,8 @@ const embedUrl = computed(() =>
       <iframe
         v-else
         :src="embedUrl"
-        class="ps-frame flex-1 w-full rounded-xl border border-gray-200 bg-white shadow-sm"
-        style="min-height: 80vh;"
+        class="ps-frame flex-1 w-full"
+        style="min-height: 80vh; border: none; background: transparent;"
         :title="t('nav.search')"
       />
     </main>

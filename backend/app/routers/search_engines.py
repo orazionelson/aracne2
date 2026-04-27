@@ -192,24 +192,78 @@ async def build_search_engine(
 
 # ── Public page serve endpoints [pub] ────────────────────────────────────────
 
+# When the search-page is requested with ``?embed=1`` (the iframe inside
+# /search uses this), inject a <link> to the public custom stylesheet
+# so the engine inherits the same look-and-feel as the rest of the
+# public pages — but only when an admin has actually uploaded a CSS
+# file AND turned on "Propaga CSS personalizzato". Direct visits
+# without ``embed=1`` keep the historical hard-coded styling.
+_EMBED_CSS_LINK = (
+    '<link rel="stylesheet" href="/api/v1/settings/homepage-css/file" />'
+)
+
+
+async def _serve_search_html(
+    index: Path,
+    embed: bool,
+    db: AsyncSession,
+) -> Response:
+    """Read *index*, optionally inject the public custom-CSS link, return HTML."""
+    if not index.is_file():
+        raise NotFoundError("Search page not found")
+    if not embed:
+        return FileResponse(str(index), media_type="text/html")
+
+    from app.services.settings import (  # noqa: PLC0415
+        get_decrypted_setting,
+        get_homepage_css_path,
+    )
+
+    propagate = (await get_decrypted_setting(db, "home_propagate_css")) == "true"
+    has_custom = get_homepage_css_path() is not None
+    html = index.read_text(encoding="utf-8")
+    if propagate and has_custom:
+        html = html.replace("</head>", f"{_EMBED_CSS_LINK}</head>", 1)
+    # Carry the embed flag across the in-engine simple ↔ advanced
+    # navigation. The built HTML hard-codes those two URLs without a
+    # query string, so without this rewrite the second page would
+    # drop back to the default styling.
+    import re  # noqa: PLC0415
+
+    html = re.sub(
+        r'(href="/api/v1/search-pages/[A-Za-z0-9_-]+/(?:advanced/)?)"',
+        r'\1?embed=1"',
+        html,
+    )
+    return HTMLResponse(html)
+
+
 @router.get("/search-pages/{slug}/", response_class=HTMLResponse)
-async def serve_search_page(slug: str) -> FileResponse:
+async def serve_search_page(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    embed: int = Query(0, ge=0, le=1),
+) -> Response:
     """Serve the built HTML search page for the given search engine slug."""
     index = settings.search_engines_root / slug / "index.html"
     if not index.is_file():
         raise NotFoundError(f"Search page for '{slug}' has not been built yet")
-    return FileResponse(str(index), media_type="text/html")
+    return await _serve_search_html(index, embed=bool(embed), db=db)
 
 
 @router.get("/search-pages/{slug}/advanced/", response_class=HTMLResponse)
-async def serve_advanced_search_page(slug: str) -> FileResponse:
+async def serve_advanced_search_page(
+    slug: str,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    embed: int = Query(0, ge=0, le=1),
+) -> Response:
     """Serve the built advanced search page for the given search engine slug."""
     index = settings.search_engines_root / slug / "advanced" / "index.html"
     if not index.is_file():
         raise NotFoundError(
             f"Advanced search page for '{slug}' has not been built yet"
         )
-    return FileResponse(str(index), media_type="text/html")
+    return await _serve_search_html(index, embed=bool(embed), db=db)
 
 
 # ── Public search endpoints [pub] ─────────────────────────────────────────────
