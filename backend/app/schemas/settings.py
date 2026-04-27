@@ -33,6 +33,9 @@ class UiConfigResponse(BaseModel):
     # height (no fixed box, parent page scrolls). Default true keeps
     # the historical fixed-height frame.
     public_pages_doc_frame_enabled: bool
+    # Free-form intro HTML rendered above the collection list on the
+    # public homepage. Empty when no intro has been authored yet.
+    home_intro_html: str
 
 
 class LogoUploadResponse(BaseModel):

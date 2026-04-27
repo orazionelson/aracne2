@@ -8,7 +8,8 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "error": "An error occurred",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "saved": "Saved"
   },
   "auth": {
     "sign_in": "Sign in",
@@ -215,6 +216,10 @@
     "homepage_public_home_enabled_hint": "Unauthenticated visitors can access the public home page",
     "homepage_public_search_engine_enabled": "Enable Search engine",
     "homepage_public_search_engine_enabled_hint": "Show a 'Search' link in the public navbar that opens a page embedding the chosen search engine.",
+    "home_intro_title": "Cover text",
+    "home_intro_subtitle": "Free-form text rendered above the collection list on the public homepage. Use the toolbar to format text, add links, or pick images from the homepage media folder.",
+    "home_intro_clear": "Clear",
+    "home_intro_confirm_clear": "Remove the cover text from the public homepage?",
     "homepage_show_collections": "Show collection list",
     "homepage_show_collections_hint": "Display published collections on the public home page",
     "homepage_show_search": "Show search bar",

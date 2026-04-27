@@ -16,6 +16,7 @@ export interface UiConfig {
   public_search_engine_enabled: boolean;
   public_search_engine_slug: string;
   public_pages_doc_frame_enabled: boolean;
+  home_intro_html: string;
 }
 
 const DEFAULTS: UiConfig = {
@@ -32,6 +33,7 @@ const DEFAULTS: UiConfig = {
   public_search_engine_enabled: false,
   public_search_engine_slug: "",
   public_pages_doc_frame_enabled: true,
+  home_intro_html: "",
 };
 
 export const useUiConfigStore = defineStore("uiConfig", () => {

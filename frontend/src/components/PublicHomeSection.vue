@@ -15,6 +15,7 @@ const activeSearch = ref("");
 const showCollections = computed(() => uiConfig.config.home_show_collections);
 const showSearch = computed(() => uiConfig.config.home_show_search);
 const isSearching = computed(() => activeSearch.value !== "");
+const introHtml = computed(() => uiConfig.config.home_intro_html || "");
 
 /** First 3 items from page 1, used as the "recent additions" feature row. */
 const recentItems = computed(() =>
@@ -76,6 +77,15 @@ onMounted(() => {
 <template>
   <div class="ph-page">
     <main class="ph-main mx-auto max-w-4xl px-4 py-10">
+      <!-- Intro (free-form admin-authored HTML) -->
+      <!-- eslint-disable vue/no-v-html — sanitised at write time and authored by Admins. -->
+      <section
+        v-if="introHtml"
+        class="ph-intro prose prose-sm mb-8 max-w-none text-gray-800"
+        v-html="introHtml"
+      />
+      <!-- eslint-enable vue/no-v-html -->
+
       <!-- Search bar -->
       <div v-if="showSearch" class="ph-search mb-8">
         <form class="ph-search-form flex gap-2" @submit.prevent="handleSearch">

@@ -98,7 +98,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         "public_home_enabled", "home_show_collections", "home_show_search",
         "home_show_login_button", "home_propagate_css", "evt_enabled",
         "public_search_engine_enabled", "public_search_engine_slug",
-        "public_pages_doc_frame_enabled",
+        "public_pages_doc_frame_enabled", "home_intro_html",
     }
     rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
     values = {r.key: r.value for r in rows}
@@ -134,6 +134,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         public_pages_doc_frame_enabled=values.get(
             "public_pages_doc_frame_enabled", "true"
         ) == "true",
+        home_intro_html=values.get("home_intro_html", ""),
     )
 
 

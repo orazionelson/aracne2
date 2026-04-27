@@ -108,6 +108,15 @@ const props = defineProps<{
    * URL dialog remains available).
    */
   websiteSlug?: string;
+  /**
+   * When true, the toolbar's library button opens the *homepage*
+   * media picker instead of the per-website one. Picked files come
+   * back as absolute paths (``/api/v1/settings/homepage-media/...``)
+   * which are inserted as-is — the public homepage doesn't have a
+   * media:// rewrite layer because it isn't statically built.
+   * Mutually exclusive with ``websiteSlug``.
+   */
+  homepageMedia?: boolean;
 }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
@@ -383,14 +392,16 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
         🖼
       </button>
 
-      <!-- Media library picker — appears only when the editor was
-           mounted with a website slug (e.g. inside the website editor).
-           Clicking it opens the per-site image library; picking a file
-           inserts it with the stable ``media://filename`` ref. -->
+      <!-- Media library picker — appears when the editor was mounted
+           with a website slug or with homepageMedia=true. Clicking it
+           opens the matching image library; picking a file inserts it
+           with the stable ``media://filename`` ref (websites) or with
+           an absolute ``/api/v1/settings/homepage-media/...`` URL
+           (homepage). -->
       <button
-        v-if="websiteSlug"
+        v-if="websiteSlug || homepageMedia"
         type="button"
-        title="Insert image from website media library"
+        title="Insert image from media library"
         class="toolbar-btn"
         @click="mediaPickerOpen = true"
       >
@@ -542,10 +553,19 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
       </div>
     </div>
 
-    <!-- Media library picker — Teleport'd to body by the component itself. -->
+    <!-- Media library picker — Teleport'd to body by the component itself.
+         Two flavours: per-website (slug) or platform-wide homepage. -->
     <MediaPicker
       v-if="websiteSlug"
       :slug="websiteSlug"
+      mode="modal"
+      :open="mediaPickerOpen"
+      @update:open="mediaPickerOpen = $event"
+      @selected="onMediaPicked"
+    />
+    <MediaPicker
+      v-else-if="homepageMedia"
+      homepage
       mode="modal"
       :open="mediaPickerOpen"
       @update:open="mediaPickerOpen = $event"

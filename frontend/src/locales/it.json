@@ -8,7 +8,8 @@
     "delete": "Elimina",
     "confirm": "Conferma",
     "error": "Si è verificato un errore",
-    "saving": "Salvataggio..."
+    "saving": "Salvataggio...",
+    "saved": "Salvato"
   },
   "auth": {
     "sign_in": "Accedi",
@@ -215,6 +216,10 @@
     "homepage_public_home_enabled_hint": "I visitatori non autenticati possono accedere alla homepage pubblica",
     "homepage_public_search_engine_enabled": "Abilita Search engine",
     "homepage_public_search_engine_enabled_hint": "Mostra una voce 'Cerca' nell'header pubblico che apre una pagina con il motore di ricerca scelto.",
+    "home_intro_title": "Testo di presentazione",
+    "home_intro_subtitle": "Testo libero mostrato sopra l'elenco delle collezioni nella homepage pubblica. Usa la toolbar per formattare, inserire link o pescare immagini dalla cartella media della homepage.",
+    "home_intro_clear": "Cancella",
+    "home_intro_confirm_clear": "Rimuovere il testo di presentazione dalla homepage pubblica?",
     "homepage_show_collections": "Mostra lista collezioni",
     "homepage_show_collections_hint": "Mostra le collezioni pubblicate nella homepage pubblica",
     "homepage_show_search": "Mostra barra di ricerca",

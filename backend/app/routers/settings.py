@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from app.middleware.rate_limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,6 +123,118 @@ async def settings_homepage_css_delete(
 ) -> None:
     """Remove the custom homepage CSS file [Admin]."""
     await delete_homepage_css(current_user)
+
+
+# ── Homepage media library + intro HTML ───────────────────────────────────────
+#
+# Shared media folder for the public Pagine Pubbliche surface. Same
+# upload / list / delete pattern as the per-website media; a single
+# pool because there is exactly one homepage per platform.
+#
+# Public read at ``GET /settings/homepage-media/{filename}`` so the
+# rendered ``home_intro_html`` can carry stable absolute URLs into
+# every visitor's browser.
+
+from fastapi.responses import Response  # noqa: E402
+
+from app.services import homepage_media as homepage_media_svc  # noqa: E402
+
+
+@router.get("/homepage-media")
+async def settings_homepage_media_list(
+    current_user: Annotated[User, _admin],
+) -> DataResponse[list[dict[str, object]]]:
+    """List uploaded homepage media files [Admin]."""
+    files = homepage_media_svc.list_media()
+    return DataResponse(
+        data=[
+            {
+                "filename": f.filename,
+                "size_bytes": f.size_bytes,
+                "content_type": f.content_type,
+                "uploaded_at": f.uploaded_at.isoformat(),
+                # Absolute serve path — homepage media lives at a fixed
+                # endpoint with no slug, so the picker can paste this
+                # straight into the WYSIWYG without needing a rewrite
+                # layer at render time.
+                "ref": f"/api/v1/settings/homepage-media/{f.filename}",
+            }
+            for f in files
+        ]
+    )
+
+
+@router.post("/homepage-media")
+async def settings_homepage_media_upload(
+    file: UploadFile,
+    current_user: Annotated[User, _admin],
+) -> DataResponse[dict[str, object]]:
+    """Upload an image into the homepage media folder [Admin]."""
+    content = await file.read()
+    saved = homepage_media_svc.save_media(file.filename or "image", content)
+    return DataResponse(
+        data={
+            "filename": saved.filename,
+            "size_bytes": saved.size_bytes,
+            "content_type": saved.content_type,
+            "uploaded_at": saved.uploaded_at.isoformat(),
+            "ref": f"/api/v1/settings/homepage-media/{saved.filename}",
+        }
+    )
+
+
+@router.get("/homepage-media/{filename}")
+@limiter.limit("120/minute")
+async def settings_homepage_media_serve(
+    filename: str, request: Request
+) -> Response:
+    """Serve a homepage media file (public, no authentication)."""
+    payload, content_type = homepage_media_svc.read_media(filename)
+    return Response(content=payload, media_type=content_type)
+
+
+@router.delete("/homepage-media/{filename}", status_code=204)
+async def settings_homepage_media_delete(
+    filename: str,
+    current_user: Annotated[User, _admin],
+) -> None:
+    """Delete a homepage media file [Admin]."""
+    homepage_media_svc.delete_media(filename)
+
+
+# ── Homepage intro HTML ───────────────────────────────────────────────────────
+#
+# Stored as a ``system_settings`` row keyed ``home_intro_html``. A
+# dedicated endpoint bypasses ``SettingUpdate``'s ``not_empty``
+# validator so admins can clear the intro by sending an empty string.
+
+class HomeIntroBody(BaseModel):
+    html: str
+
+
+@router.put("/home-intro")
+async def settings_home_intro_update(
+    body: HomeIntroBody,
+    current_user: Annotated[User, _admin],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[dict[str, str]]:
+    """Set or clear the public homepage intro HTML [Admin]."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.system_setting import SystemSetting
+
+    row = await db.scalar(select(SystemSetting).where(SystemSetting.key == "home_intro_html"))
+    if row is None:
+        row = SystemSetting(key="home_intro_html", value=body.html, type="string")
+        db.add(row)
+    else:
+        row.value = body.html
+        row.updated_by = current_user.id
+        row.updated_at = datetime.now(UTC)
+    await db.flush()
+    return DataResponse(data={"html": body.html})
 
 
 # ── Authenticated settings CRUD ────────────────────────────────────────────────

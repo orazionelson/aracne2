@@ -21,16 +21,23 @@ import {
   useWebsiteMediaStore,
   type WebsiteMediaFile,
 } from "@/stores/website_media";
+import {
+  useHomepageMediaStore,
+  type HomepageMediaFile,
+} from "@/stores/homepage_media";
 
 const props = withDefaults(
   defineProps<{
-    slug: string;
+    /** Per-website media folder. Mutually exclusive with ``homepage``. */
+    slug?: string;
+    /** Public homepage media folder (platform-wide singleton). */
+    homepage?: boolean;
     /** ``"inline"`` (always-on grid) or ``"modal"`` (dialog, closable). */
     mode?: "inline" | "modal";
     /** Only relevant in modal mode — v-model:open. */
     open?: boolean;
   }>(),
-  { mode: "inline", open: false },
+  { mode: "inline", open: false, homepage: false },
 );
 
 const emit = defineEmits<{
@@ -39,21 +46,37 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const store = useWebsiteMediaStore();
+// One of the two stores is active per pickup instance — the prop
+// shape guarantees mutual exclusion.
+const websiteStore = useWebsiteMediaStore();
+const homepageStore = useHomepageMediaStore();
+
+type AnyMediaFile = WebsiteMediaFile | HomepageMediaFile;
 
 const uploadError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const justCopiedFilename = ref<string | null>(null);
 
-const files = computed(() => store.getFiles(props.slug));
-const isEmpty = computed(() => !store.isLoading && files.value.length === 0);
+const isLoading = computed(() =>
+  props.homepage ? homepageStore.isLoading : websiteStore.isLoading,
+);
+const isUploading = computed(() =>
+  props.homepage ? homepageStore.isUploading : websiteStore.isUploading,
+);
+const files = computed<AnyMediaFile[]>(() =>
+  props.homepage
+    ? homepageStore.files
+    : websiteStore.getFiles(props.slug ?? ""),
+);
+const isEmpty = computed(() => !isLoading.value && files.value.length === 0);
 
 // Keep in sync with the backend's ``_ALLOWED_EXT``.
 const ACCEPT = ".jpg,.jpeg,.png,.gif,.webp,.avif,.svg";
 
 onMounted(async () => {
   try {
-    await store.fetchFiles(props.slug);
+    if (props.homepage) await homepageStore.fetchFiles();
+    else if (props.slug) await websiteStore.fetchFiles(props.slug);
   } catch {
     // Non-fatal: the grid renders with an Upload CTA when empty.
   }
@@ -70,7 +93,8 @@ async function onFileChosen(event: Event): Promise<void> {
   if (!file) return;
   uploadError.value = null;
   try {
-    await store.uploadFile(props.slug, file);
+    if (props.homepage) await homepageStore.uploadFile(file);
+    else if (props.slug) await websiteStore.uploadFile(props.slug, file);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -78,12 +102,13 @@ async function onFileChosen(event: Event): Promise<void> {
   }
 }
 
-async function handleDelete(file: WebsiteMediaFile): Promise<void> {
+async function handleDelete(file: AnyMediaFile): Promise<void> {
   if (!window.confirm(t("website_media.confirm_delete", { filename: file.filename }))) {
     return;
   }
   try {
-    await store.deleteFile(props.slug, file.filename);
+    if (props.homepage) await homepageStore.deleteFile(file.filename);
+    else if (props.slug) await websiteStore.deleteFile(props.slug, file.filename);
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: { message?: string } } } })
       ?.response?.data?.error?.message;
@@ -91,14 +116,14 @@ async function handleDelete(file: WebsiteMediaFile): Promise<void> {
   }
 }
 
-function handlePick(file: WebsiteMediaFile): void {
+function handlePick(file: AnyMediaFile): void {
   if (props.mode === "modal") {
     emit("selected", file.ref);
     close();
     return;
   }
-  // Inline mode — copy the ``media://`` ref to the clipboard so the
-  // Designer can paste it into a textarea without picker button.
+  // Inline mode — copy the ref to the clipboard so the Designer can
+  // paste it into a textarea without a picker button.
   navigator.clipboard.writeText(file.ref).catch(() => undefined);
   justCopiedFilename.value = file.filename;
   setTimeout(() => {
@@ -117,8 +142,12 @@ function humanSize(bytes: number): string {
 }
 
 /** Public preview URL. Resolves via the backend — works on published
- * sites and, via staff ACL, on drafts. */
+ * sites and, via staff ACL, on drafts. The homepage scope serves
+ * files at a fixed path (no slug). */
 function previewUrl(filename: string): string {
+  if (props.homepage) {
+    return `/api/v1/settings/homepage-media/${encodeURIComponent(filename)}`;
+  }
   return `/api/v1/websites/${props.slug}/media/${encodeURIComponent(filename)}`;
 }
 
@@ -151,15 +180,15 @@ const renderModal = computed(() => props.mode === "modal");
             <button
               type="button"
               class="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-              :disabled="store.isUploading"
+              :disabled="isUploading"
               @click="triggerUpload"
             >
-              {{ store.isUploading ? t("website_media.uploading") : t("website_media.upload") }}
+              {{ isUploading ? t("website_media.uploading") : t("website_media.upload") }}
             </button>
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ t("website_media.upload_hint") }}</span>
           </div>
           <p v-if="uploadError" class="mb-3 text-sm text-red-600 dark:text-red-400">{{ uploadError }}</p>
-          <p v-if="store.isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
+          <p v-if="isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
           <p v-else-if="isEmpty" class="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{{ t("website_media.empty") }}</p>
           <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             <div
@@ -204,15 +233,15 @@ const renderModal = computed(() => props.mode === "modal");
       <button
         type="button"
         class="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        :disabled="store.isUploading"
+        :disabled="isUploading"
         @click="triggerUpload"
       >
-        {{ store.isUploading ? t("website_media.uploading") : t("website_media.upload") }}
+        {{ isUploading ? t("website_media.uploading") : t("website_media.upload") }}
       </button>
       <span class="text-xs text-gray-500 dark:text-gray-400">{{ t("website_media.upload_hint") }}</span>
     </div>
     <p v-if="uploadError" class="mb-3 text-sm text-red-600 dark:text-red-400">{{ uploadError }}</p>
-    <p v-if="store.isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
+    <p v-if="isLoading" class="text-sm text-gray-400 dark:text-gray-500">{{ t("common.loading") }}</p>
     <p v-else-if="isEmpty" class="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{{ t("website_media.empty") }}</p>
     <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       <div

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { apiClient } from "@/services/api";
 import { contrastingTextColor } from "@/utils/color";
 import { useSettingStore } from "@/stores/settings";
 import { useUiConfigStore } from "@/stores/ui_config";
+import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 
 const { t } = useI18n();
 const settingStore = useSettingStore();
@@ -123,6 +124,52 @@ async function saveNavbarColor(): Promise<void> {
   } finally {
     isSavingNavbarColor.value = false;
   }
+}
+
+// ── Intro HTML (homepage cover text + media) ─────────────────────────────────
+//
+// Free-form HTML rendered above the collection list on the public
+// homepage. Edited via the standard WysiwygEditor with the
+// homepage-media library wired in. Saved via a dedicated PUT
+// endpoint (the generic SettingUpdate validator rejects empty
+// strings, but the admin must be able to *clear* the intro).
+
+const introDraft = ref<string>("");
+const isSavingIntro = ref(false);
+const introSaveOk = ref(false);
+const introError = ref<string | null>(null);
+
+function syncIntroFromConfig(): void {
+  introDraft.value = uiConfigStore.config.home_intro_html || "";
+}
+
+watch(() => uiConfigStore.config.home_intro_html, syncIntroFromConfig, { immediate: true });
+
+async function saveIntro(): Promise<void> {
+  isSavingIntro.value = true;
+  introError.value = null;
+  introSaveOk.value = false;
+  try {
+    await apiClient.put<{ html: string }>("/settings/home-intro", {
+      html: introDraft.value,
+    });
+    await uiConfigStore.fetchConfig();
+    introSaveOk.value = true;
+    setTimeout(() => { introSaveOk.value = false; }, 1500);
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    introError.value = msg ?? t("common.error");
+  } finally {
+    isSavingIntro.value = false;
+  }
+}
+
+async function clearIntro(): Promise<void> {
+  if (!introDraft.value.trim()) return;
+  if (!window.confirm(t("settings.home_intro_confirm_clear"))) return;
+  introDraft.value = "";
+  await saveIntro();
 }
 
 // ── Behaviour toggles ─────────────────────────────────────────────────────────
@@ -599,6 +646,39 @@ function downloadHomepageCss(): void {
           <span class="text-sm font-bold">{{ uiConfigStore.config.platform_name }}</span>
           <span class="ml-auto text-xs opacity-70">{{ t("auth.sign_in") }}</span>
         </div>
+      </div>
+    </section>
+
+    <!-- Intro HTML — free-form cover text rendered above the collection list -->
+    <section class="mb-8 rounded border border-gray-200 p-5">
+      <h2 class="mb-1 text-sm font-semibold text-gray-800">
+        {{ t("settings.home_intro_title") }}
+      </h2>
+      <p class="mb-3 text-xs text-gray-500">
+        {{ t("settings.home_intro_subtitle") }}
+      </p>
+
+      <WysiwygEditor v-model="introDraft" homepage-media />
+
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          :disabled="isSavingIntro || introDraft === (uiConfigStore.config.home_intro_html || '')"
+          class="rounded bg-gray-900 px-3 py-1.5 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+          @click="saveIntro"
+        >
+          {{ isSavingIntro ? t("common.saving") : t("common.save") }}
+        </button>
+        <button
+          v-if="introDraft.trim()"
+          type="button"
+          class="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+          @click="clearIntro"
+        >
+          {{ t("settings.home_intro_clear") }}
+        </button>
+        <span v-if="introSaveOk" class="text-xs text-green-600">{{ t("common.saved") }}</span>
+        <span v-if="introError" class="text-xs text-red-600">{{ introError }}</span>
       </div>
     </section>
 

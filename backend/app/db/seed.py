@@ -122,6 +122,12 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # parent page scrolls instead (false). Pure UI knob — no impact
     # on the rendered HTML itself.
     ("public_pages_doc_frame_enabled", "true", "bool"),
+    # Free-form HTML shown above the homepage's collection list.
+    # Authored from Settings → Pagine Pubbliche via a WYSIWYG editor;
+    # may reference images uploaded to the homepage media folder
+    # (served at /api/v1/settings/homepage-media/<filename>).
+    # Empty by default.
+    ("home_intro_html", "", "string"),
     # Public-pages "Search" header link. When enabled, the public
     # navbar shows a "Search" entry pointing at /search, which embeds
     # the built search engine identified by the slug below. The slug
