@@ -475,6 +475,28 @@ const PROMPT_SCOPE_OPTIONS = [
   "xslt.discuss",
   "bibliobuilder",
 ] as const;
+
+// Variables the platform injects into a prompt template based on its
+// scope. Mirrors the contract documented in
+// help_docs/03-advanced/06-ai-prompts.md and the call sites in
+// DocumentEditView / WebsiteEditView / CollectionBibliobuilderview.
+// Used by the legend panel below the prompt library.
+const PROMPT_VARIABLES: Array<{
+  name: string;
+  scopes: readonly string[];
+  descriptionKey: string;
+}> = [
+  { name: "filename",         scopes: ["editor.selection", "editor.document", "editor.validation", "editor.discuss"], descriptionKey: "ai.var_filename" },
+  { name: "collection_slug",  scopes: ["editor.selection", "editor.document", "editor.discuss"],                       descriptionKey: "ai.var_collection_slug" },
+  { name: "selection",        scopes: ["editor.selection", "editor.document", "editor.discuss"],                       descriptionKey: "ai.var_selection" },
+  { name: "schema",           scopes: ["editor.validation"],                                                            descriptionKey: "ai.var_schema" },
+  { name: "errors",           scopes: ["editor.validation"],                                                            descriptionKey: "ai.var_errors" },
+  { name: "xslt_source",      scopes: ["xslt.debug", "xslt.discuss"],                                                   descriptionKey: "ai.var_xslt_source" },
+  { name: "error_msg",        scopes: ["xslt.debug"],                                                                   descriptionKey: "ai.var_error_msg" },
+  { name: "rag_context",      scopes: ["editor.selection", "editor.document"],                                          descriptionKey: "ai.var_rag_context" },
+];
+
+const showVariablesLegend = ref(false);
 const savingPrompt = ref<Record<string, boolean>>({});
 const savePromptError = ref<Record<string, string>>({});
 const isDeletingPrompt = ref<Record<string, boolean>>({});
@@ -1572,6 +1594,72 @@ onMounted(async () => {
           >
             {{ t("common.cancel") }}
           </button>
+        </div>
+      </div>
+
+      <!-- Variables legend — foldable cheat-sheet listing every
+           {placeholder} the platform fills in, with a description and
+           the scopes that receive it. Useful while authoring a custom
+           prompt: the user can keep the dropdown closed in normal
+           operation and pop it open when they need to remember which
+           variables a given scope accepts. -->
+      <div class="mb-4 rounded border border-gray-200 bg-white">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left"
+          @click="showVariablesLegend = !showVariablesLegend"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform"
+              :class="{ 'rotate-90': showVariablesLegend }"
+              viewBox="0 0 20 20" fill="currentColor"
+            >
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" />
+            </svg>
+            <span class="text-sm font-medium text-gray-800">
+              {{ t("ai.variables_legend_title") }}
+            </span>
+          </span>
+          <span class="text-xs text-gray-400">
+            {{ showVariablesLegend ? t("common.close") : t("ai.variables_legend_open") }}
+          </span>
+        </button>
+        <div v-if="showVariablesLegend" class="border-t border-gray-100 px-4 py-3">
+          <p class="mb-3 text-xs text-gray-500">{{ t("ai.variables_legend_subtitle") }}</p>
+          <table class="w-full border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-gray-200 text-left font-semibold uppercase tracking-wide text-gray-500">
+                <th class="py-1.5 pr-3">{{ t("ai.variables_col_var") }}</th>
+                <th class="py-1.5 pr-3">{{ t("ai.variables_col_desc") }}</th>
+                <th class="py-1.5">{{ t("ai.variables_col_scopes") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="v in PROMPT_VARIABLES"
+                :key="v.name"
+                class="border-b border-gray-100 last:border-b-0 align-top"
+              >
+                <td class="py-1.5 pr-3">
+                  <code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-800">
+                    {{ '{' + v.name + '}' }}
+                  </code>
+                </td>
+                <td class="py-1.5 pr-3 text-gray-600">{{ t(v.descriptionKey) }}</td>
+                <td class="py-1.5">
+                  <span
+                    v-for="s in v.scopes"
+                    :key="s"
+                    class="mr-1 inline-block rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] text-violet-700"
+                  >
+                    {{ s }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="mt-3 text-xs text-gray-400">{{ t("ai.variables_legend_footer") }}</p>
         </div>
       </div>
 
