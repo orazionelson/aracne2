@@ -65,6 +65,11 @@ interface Shortcut {
   labelKey: string;
   routeName: string;
   icon: FunctionalComponent;
+  // Tailwind classes — kept as full literals so the JIT picks them up.
+  // ``iconColor`` paints the heroicon, ``ringHover`` tints the border /
+  // background on hover so each card has a distinct accent.
+  iconColor: string;
+  ringHover: string;
   visible?: () => boolean;
 }
 
@@ -77,8 +82,20 @@ const SECTIONS: ShortcutSection[] = [
   {
     titleKey: "home.section_curate",
     items: [
-      { labelKey: "home.shortcut_collections", routeName: "collections", icon: FolderOpenIcon },
-      { labelKey: "home.shortcut_entities",    routeName: "entities",    icon: TagIcon },
+      {
+        labelKey: "home.shortcut_collections",
+        routeName: "collections",
+        icon: FolderOpenIcon,
+        iconColor: "text-indigo-500",
+        ringHover: "hover:border-indigo-300 hover:bg-indigo-50 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40",
+      },
+      {
+        labelKey: "home.shortcut_entities",
+        routeName: "entities",
+        icon: TagIcon,
+        iconColor: "text-emerald-500",
+        ringHover: "hover:border-emerald-300 hover:bg-emerald-50 dark:hover:border-emerald-700 dark:hover:bg-emerald-900/40",
+      },
     ],
   },
   {
@@ -88,18 +105,24 @@ const SECTIONS: ShortcutSection[] = [
         labelKey: "home.shortcut_public_pages",
         routeName: "admin-public-pages",
         icon: DocumentTextIcon,
+        iconColor: "text-sky-500",
+        ringHover: "hover:border-sky-300 hover:bg-sky-50 dark:hover:border-sky-700 dark:hover:bg-sky-900/40",
         visible: () => auth.hasMinRole("Admin"),
       },
       {
         labelKey: "home.shortcut_websites",
         routeName: "admin-websites",
         icon: GlobeAltIcon,
+        iconColor: "text-cyan-500",
+        ringHover: "hover:border-cyan-300 hover:bg-cyan-50 dark:hover:border-cyan-700 dark:hover:bg-cyan-900/40",
         visible: () => auth.hasRole("Designer") || auth.hasMinRole("EditorInChief"),
       },
       {
         labelKey: "home.shortcut_search_engines",
         routeName: "admin-search-engines",
         icon: MagnifyingGlassIcon,
+        iconColor: "text-violet-500",
+        ringHover: "hover:border-violet-300 hover:bg-violet-50 dark:hover:border-violet-700 dark:hover:bg-violet-900/40",
         visible: () => auth.hasRole("Designer") || auth.hasMinRole("EditorInChief"),
       },
     ],
@@ -111,30 +134,40 @@ const SECTIONS: ShortcutSection[] = [
         labelKey: "home.shortcut_users",
         routeName: "users",
         icon: UsersIcon,
+        iconColor: "text-rose-500",
+        ringHover: "hover:border-rose-300 hover:bg-rose-50 dark:hover:border-rose-700 dark:hover:bg-rose-900/40",
         visible: () => auth.hasMinRole("EditorInChief"),
       },
       {
         labelKey: "home.shortcut_plugins",
         routeName: "admin-plugins",
         icon: PuzzlePieceIcon,
+        iconColor: "text-fuchsia-500",
+        ringHover: "hover:border-fuchsia-300 hover:bg-fuchsia-50 dark:hover:border-fuchsia-700 dark:hover:bg-fuchsia-900/40",
         visible: () => auth.hasMinRole("Admin"),
       },
       {
         labelKey: "home.shortcut_webhooks",
         routeName: "admin-webhooks",
         icon: BoltIcon,
+        iconColor: "text-yellow-500",
+        ringHover: "hover:border-yellow-300 hover:bg-yellow-50 dark:hover:border-yellow-700 dark:hover:bg-yellow-900/40",
         visible: () => auth.hasMinRole("Admin"),
       },
       {
         labelKey: "home.shortcut_settings",
         routeName: "admin-settings",
         icon: Cog6ToothIcon,
+        iconColor: "text-slate-500",
+        ringHover: "hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-900/40",
         visible: () => auth.hasMinRole("Admin"),
       },
       {
         labelKey: "home.shortcut_backup",
         routeName: "admin-backup",
         icon: ArchiveBoxArrowDownIcon,
+        iconColor: "text-orange-500",
+        ringHover: "hover:border-orange-300 hover:bg-orange-50 dark:hover:border-orange-700 dark:hover:bg-orange-900/40",
         visible: () => auth.hasMinRole("Admin"),
       },
     ],
@@ -224,12 +257,14 @@ const helpVisible = computed(() => plugins.isActive("help"));
             <button
               v-for="sc in sec.items"
               :key="sc.routeName"
-              class="group flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+              class="group flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 text-center transition-all hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              :class="sc.ringHover"
               @click="router.push({ name: sc.routeName })"
             >
               <component
                 :is="sc.icon"
-                class="h-7 w-7 text-gray-500 transition-colors group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300"
+                class="h-8 w-8 transition-transform group-hover:scale-110"
+                :class="sc.iconColor"
               />
               <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
                 {{ t(sc.labelKey) }}
@@ -258,11 +293,11 @@ const helpVisible = computed(() => plugins.isActive("help"));
             </span>
           </button>
           <button
-            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-red-300 hover:bg-red-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-red-700 dark:hover:bg-red-900/30"
             @click="router.push({ name: 'notifications' })"
           >
             <span class="relative">
-              <BellIcon class="h-7 w-7 text-gray-500 group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300" />
+              <BellIcon class="h-8 w-8 text-red-500 transition-transform group-hover:scale-110" />
               <span
                 v-if="notif.unreadCount > 0"
                 class="absolute -right-1.5 -top-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white"
@@ -275,10 +310,10 @@ const helpVisible = computed(() => plugins.isActive("help"));
             </span>
           </button>
           <button
-            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-sky-300 hover:bg-sky-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-sky-700 dark:hover:bg-sky-900/30"
             @click="router.push({ name: 'profile' })"
           >
-            <UserCircleIcon class="h-7 w-7 text-gray-500 group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300" />
+            <UserCircleIcon class="h-8 w-8 text-sky-500 transition-transform group-hover:scale-110" />
             <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
               {{ t("home.shortcut_profile") }}
             </span>
