@@ -106,6 +106,16 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # Off by default because built search pages are not always meaningful
     # crawl targets; admins opt in from the Homepage tab.
     ("sitemap_include_search_engines", "false", "bool"),
+    # Public document rendering — note display mode and Wikidata
+    # entity-hover preview. Both apply to /browse/<slug>/<filename>
+    # (the PublicDocumentView iframe). Mirror the per-website knobs
+    # already exposed for the Websites module so deployments without
+    # a website still get the same reading affordances on the core
+    # public pages. Note mode: "end-of-text" (default), "tooltip",
+    # "frame". Entity hover: opt-in because each hover hits a third-
+    # party API (Wikidata).
+    ("public_pages_note_mode", "end-of-text", "string"),
+    ("public_pages_entity_hover_enabled", "false", "bool"),
     # Zotero import plugin (non-native, opt-in). API key is read-only
     # (scope: access restricted to groups or user library listed below);
     # library_type is "user" or "group"; library_id is the numeric id.

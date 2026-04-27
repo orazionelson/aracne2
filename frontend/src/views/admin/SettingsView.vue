@@ -583,6 +583,35 @@ async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
   }
 }
 
+// ── Document options (public document pages) ──────────────────────────────────
+//
+// These two settings shape /browse/<slug>/<filename> (the public-document
+// iframe). They mirror the per-website knobs already exposed by the
+// Websites module so deployments without a website still get the same
+// reading affordances on the core public pages.
+
+const NOTE_MODES = ["end-of-text", "tooltip", "frame"] as const;
+type NoteMode = (typeof NOTE_MODES)[number];
+
+const publicNoteMode = computed<NoteMode>(() => {
+  const v = settingStore.getSetting("public_pages_note_mode") || "end-of-text";
+  return (NOTE_MODES as readonly string[]).includes(v) ? (v as NoteMode) : "end-of-text";
+});
+const publicEntityHoverEnabled = computed(
+  () => settingStore.getSetting("public_pages_entity_hover_enabled") === "true",
+);
+const savingNoteMode = ref(false);
+
+async function setPublicNoteMode(mode: NoteMode): Promise<void> {
+  if (publicNoteMode.value === mode) return;
+  savingNoteMode.value = true;
+  try {
+    await settingStore.updateSetting("public_pages_note_mode", mode);
+  } finally {
+    savingNoteMode.value = false;
+  }
+}
+
 // ── Custom CSS upload ──────────────────────────────────────────────────────────
 
 const cssFileInput   = ref<HTMLInputElement | null>(null)
@@ -2244,6 +2273,96 @@ onMounted(async () => {
               :class="sitemapIncludeSearchEngines ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
+        </div>
+      </div>
+
+      <!-- Document options (public-document iframe) -->
+      <div class="mt-8 rounded border border-gray-200 bg-white p-5">
+        <h3 class="mb-1 text-sm font-semibold text-gray-800">
+          {{ t("settings.public_doc_options_title") }}
+        </h3>
+        <p class="mb-4 text-xs text-gray-500">
+          {{ t("settings.public_doc_options_subtitle") }}
+        </p>
+
+        <!-- Note rendering mode -->
+        <p class="mb-2 text-xs font-medium text-gray-700">
+          {{ t("settings.public_doc_note_mode_label") }}
+        </p>
+        <div class="space-y-1.5 text-xs text-gray-700">
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="end-of-text"
+              :checked="publicNoteMode === 'end-of-text'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('end-of-text')"
+            />
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_end_of_text") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_end_of_text_hint") }}</span>
+            </span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="tooltip"
+              :checked="publicNoteMode === 'tooltip'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('tooltip')"
+            />
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_tooltip") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_tooltip_hint") }}</span>
+            </span>
+          </label>
+          <label class="flex items-start gap-2">
+            <input
+              type="radio"
+              class="mt-0.5 text-indigo-600"
+              value="frame"
+              :checked="publicNoteMode === 'frame'"
+              :disabled="savingNoteMode"
+              @change="setPublicNoteMode('frame')"
+            />
+            <span>
+              <span class="font-medium">{{ t("settings.public_doc_note_mode_frame") }}</span>
+              <br />
+              <span class="text-gray-400">{{ t("settings.public_doc_note_mode_frame_hint") }}</span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Entity hover preview -->
+        <div class="mt-5 border-t border-gray-100 pt-4">
+          <div class="flex items-start justify-between">
+            <div class="mr-4">
+              <p class="text-sm font-medium text-gray-800">
+                {{ t("settings.public_doc_entity_hover_label") }}
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ t("settings.public_doc_entity_hover_hint") }}
+              </p>
+            </div>
+            <button
+              :disabled="togglingHomeSetting['public_pages_entity_hover_enabled']"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+              :class="publicEntityHoverEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              @click="toggleHomeSetting('public_pages_entity_hover_enabled', publicEntityHoverEnabled)"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicEntityHoverEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+          <p v-if="publicEntityHoverEnabled" class="mt-2 text-xs text-amber-700">
+            {{ t("settings.public_doc_entity_hover_privacy") }}
+          </p>
         </div>
       </div>
 

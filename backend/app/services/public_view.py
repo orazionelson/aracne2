@@ -19,6 +19,12 @@ from app.core.exceptions import DomainValidationError, NotFoundError
 from app.db.existdb import existdb_client
 from app.models.collection import Collection, CollectionStatus
 from app.schemas.public_view import PublicCollectionDetail, PublicDocumentInfo
+from app.services.settings import get_decrypted_setting
+from app.services.websites import (
+    _build_entity_hover_js,
+    _build_note_rendering_css,
+    _build_note_rendering_js,
+)
 from app.services.xmldb import _natural_sort_key
 
 logger = structlog.get_logger()
@@ -33,6 +39,34 @@ _xslt_transform: etree.XSLT | None = None
 # Reads ?highlight=TERM from location.search, wraps matching text nodes in
 # <mark> elements, and smooth-scrolls to the first match.
 # Exits silently when ?highlight is absent — safe to inject unconditionally.
+# Entity-hover CSS — copy of the rules embedded in websites.py's
+# _STATIC_CSS, scoped here so the public-document iframe can opt in
+# without inheriting the whole website stylesheet. Inert until the
+# JS in _build_entity_hover_js inserts a .tei-entity-hover-tip node.
+_ENTITY_HOVER_CSS = (
+    ".tei-entity-hover-tip{position:absolute;z-index:1000;max-width:280px;"
+    "background:#1e293b;color:#f8fafc;padding:.5rem .7rem;border-radius:6px;"
+    "box-shadow:0 4px 18px rgba(0,0,0,.35);font-size:.82rem;line-height:1.4;"
+    "pointer-events:none;}"
+    ".tei-entity-hover-tip img.tei-entity-hover-img{display:block;"
+    "max-width:100%;max-height:140px;object-fit:contain;border-radius:3px;"
+    "margin-bottom:.4rem;background:rgba(255,255,255,.04);}"
+    ".tei-entity-hover-tip .tei-entity-hover-label{font-weight:600;"
+    "margin-bottom:.15rem;color:#f8fafc;}"
+    ".tei-entity-hover-tip .tei-entity-hover-desc{color:#cbd5e1;"
+    "font-size:.78rem;font-style:italic;}"
+    ".tei-entity-hover-tip .tei-entity-hover-src{color:#94a3b8;"
+    "font-size:.7rem;margin-top:.35rem;letter-spacing:.02em;}"
+    ".tei-entity-hover-tip .tei-entity-hover-loading,"
+    ".tei-entity-hover-tip .tei-entity-hover-error{color:#cbd5e1;"
+    "font-style:italic;}"
+    "a.tei-persname.tei-has-preview,"
+    "a.tei-placename.tei-has-preview,"
+    "a.tei-orgname.tei-has-preview{"
+    "border-bottom-style:dashed;border-bottom-width:1.5px;}"
+)
+
+
 _HIGHLIGHT_SCRIPT = (
     '<script>(function(){'
     'var m=location.search.match(/[?&]highlight=([^&]+)/);'
@@ -142,6 +176,45 @@ async def get_public_collection_detail(
     )
 
 
+async def _read_render_overrides(db: AsyncSession) -> tuple[str, bool]:
+    """Read the public-document rendering knobs from system_settings.
+
+    Returns ``(note_mode, entity_hover_enabled)`` with safe defaults so a
+    missing row never breaks the renderer.
+    """
+    note_mode = (await get_decrypted_setting(db, "public_pages_note_mode")) or "end-of-text"
+    if note_mode not in {"end-of-text", "tooltip", "frame"}:
+        note_mode = "end-of-text"
+    eh_raw = (await get_decrypted_setting(db, "public_pages_entity_hover_enabled")) or "false"
+    return note_mode, eh_raw == "true"
+
+
+def _build_public_overrides(note_mode: str, entity_hover: bool) -> tuple[str, str]:
+    """Compose the extra ``<style>`` and ``<script>`` blocks to inject.
+
+    Reuses the website helpers so behaviour stays identical to a website
+    that has note_rendering and entity_hover enabled in its xslt_config.
+    """
+    css_parts: list[str] = []
+    js_parts: list[str] = []
+
+    nr_cfg = {"enabled": note_mode != "end-of-text", "mode": note_mode}
+    nr_css = _build_note_rendering_css(nr_cfg)
+    nr_js = _build_note_rendering_js(nr_cfg)
+    if nr_css:
+        css_parts.append(nr_css)
+    if nr_js:
+        js_parts.append(nr_js)
+
+    if entity_hover:
+        css_parts.append(_ENTITY_HOVER_CSS)
+        js_parts.append(_build_entity_hover_js({"enabled": True}))
+
+    style_block = f"<style>{''.join(css_parts)}</style>" if css_parts else ""
+    script_block = f"<script>{''.join(js_parts)}</script>" if js_parts else ""
+    return style_block, script_block
+
+
 async def render_document_html(
     db: AsyncSession,
     slug: str,
@@ -159,6 +232,9 @@ async def render_document_html(
     except Exception as exc:
         raise NotFoundError(f"Document '{filename}' not found.") from exc
 
+    note_mode, entity_hover = await _read_render_overrides(db)
+    extra_style, extra_script = _build_public_overrides(note_mode, entity_hover)
+
     try:
         transform = _get_transform()
         # lxml.etree.fromstring is safe here: the XML comes from our own
@@ -166,7 +242,10 @@ async def render_document_html(
         xml_doc = etree.fromstring(xml_bytes)  # noqa: S320
         result = transform(xml_doc)
         html = str(result)
-        html = html.replace("</body>", f"{_HIGHLIGHT_SCRIPT}</body>", 1)
+        if extra_style:
+            html = html.replace("</head>", f"{extra_style}</head>", 1)
+        tail = f"{extra_script}{_HIGHLIGHT_SCRIPT}"
+        html = html.replace("</body>", f"{tail}</body>", 1)
         return html
     except Exception as exc:
         logger.error("render_document_failed", slug=slug, filename=filename, error=str(exc))
