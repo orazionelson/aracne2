@@ -13,6 +13,8 @@ export interface UiConfig {
   has_custom_homepage_css: boolean;
   home_propagate_css: boolean;
   evt_enabled: boolean;
+  public_search_engine_enabled: boolean;
+  public_search_engine_slug: string;
 }
 
 const DEFAULTS: UiConfig = {
@@ -26,6 +28,8 @@ const DEFAULTS: UiConfig = {
   has_custom_homepage_css: false,
   home_propagate_css: false,
   evt_enabled: false,
+  public_search_engine_enabled: false,
+  public_search_engine_slug: "",
 };
 
 export const useUiConfigStore = defineStore("uiConfig", () => {

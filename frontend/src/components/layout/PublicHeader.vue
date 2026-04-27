@@ -32,6 +32,13 @@ const { bg, text } = useNavbarColors();
 
     <div class="ml-auto flex items-center gap-2 text-sm">
       <router-link
+        v-if="uiConfig.config.public_search_engine_enabled && uiConfig.config.public_search_engine_slug"
+        to="/search"
+        class="rounded px-3 py-1.5 opacity-80 transition-colors hover:bg-black/10 hover:opacity-100"
+      >
+        {{ t("nav.search") }}
+      </router-link>
+      <router-link
         v-if="auth.isAuthenticated"
         to="/dashboard"
         class="rounded px-3 py-1.5 opacity-80 transition-colors hover:bg-black/10 hover:opacity-100"

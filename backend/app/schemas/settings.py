@@ -24,6 +24,11 @@ class UiConfigResponse(BaseModel):
     has_custom_homepage_css: bool
     home_propagate_css: bool
     evt_enabled: bool
+    # When ``public_search_engine_enabled`` is true and ``public_search_engine_slug``
+    # is non-empty, the public navbar shows a "Search" entry pointing at
+    # /search, which embeds the built engine identified by the slug.
+    public_search_engine_enabled: bool
+    public_search_engine_slug: str
 
 
 class LogoUploadResponse(BaseModel):

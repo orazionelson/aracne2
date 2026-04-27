@@ -116,6 +116,13 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # party API (Wikidata).
     ("public_pages_note_mode", "end-of-text", "string"),
     ("public_pages_entity_hover_enabled", "false", "bool"),
+    # Public-pages "Search" header link. When enabled, the public
+    # navbar shows a "Search" entry pointing at /search, which embeds
+    # the built search engine identified by the slug below. The slug
+    # is left empty until an admin picks one from the foldable panel
+    # under Settings → Homepage.
+    ("public_search_engine_enabled", "false", "bool"),
+    ("public_search_engine_slug", "", "string"),
     # Zotero import plugin (non-native, opt-in). API key is read-only
     # (scope: access restricted to groups or user library listed below);
     # library_type is "user" or "group"; library_id is the numeric id.

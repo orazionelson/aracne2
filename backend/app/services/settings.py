@@ -97,6 +97,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         "platform_name", "platform_logo_url", "navbar_bg_color",
         "public_home_enabled", "home_show_collections", "home_show_search",
         "home_show_login_button", "home_propagate_css", "evt_enabled",
+        "public_search_engine_enabled", "public_search_engine_slug",
     }
     rows = await db.scalars(select(SystemSetting).where(SystemSetting.key.in_(keys)))
     values = {r.key: r.value for r in rows}
@@ -106,6 +107,13 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     # would point at an unmounted endpoint.
     evt_setting_on = values.get("evt_enabled", "false") == "true"
     evt_plugin_active = await _is_plugin_active(db, "evt")
+    # Mirror the EVT pattern: the "Search" header entry only lights up
+    # when the toggle is on AND a slug has been chosen. An orphan slug
+    # (engine deleted) just hides the link instead of producing a
+    # broken /search page — the iframe target check happens server-
+    # side at render time.
+    se_enabled = values.get("public_search_engine_enabled", "false") == "true"
+    se_slug = values.get("public_search_engine_slug", "").strip()
     return UiConfigResponse(
         platform_name=values.get("platform_name", "Aracne2"),
         platform_logo_url=values.get(
@@ -120,6 +128,8 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
         has_custom_homepage_css=get_homepage_css_path() is not None,
         home_propagate_css=values.get("home_propagate_css", "false") == "true",
         evt_enabled=evt_setting_on and evt_plugin_active,
+        public_search_engine_enabled=se_enabled and bool(se_slug),
+        public_search_engine_slug=se_slug,
     )
 
 

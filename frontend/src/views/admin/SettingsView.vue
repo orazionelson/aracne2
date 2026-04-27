@@ -583,6 +583,81 @@ async function toggleHomeSetting(key: string, current: boolean): Promise<void> {
   }
 }
 
+// ── Public Search header link ────────────────────────────────────────────────
+//
+// Foldable panel that lets the admin attach one of the existing
+// search engines to the public navbar. The list is fetched lazily
+// when the panel is first expanded.
+
+interface AdminSearchEngineItem { slug: string; title: string }
+const publicSearchEngineEnabled = computed(
+  () => settingStore.getSetting("public_search_engine_enabled") === "true",
+);
+const publicSearchEngineSlug = computed(
+  () => settingStore.getSetting("public_search_engine_slug") || "",
+);
+const searchPanelOpen = ref(false);
+const enginesList = ref<AdminSearchEngineItem[]>([]);
+const enginesLoading = ref(false);
+const enginesError = ref<string | null>(null);
+const savingSearchEngine = ref(false);
+
+async function loadAdminEngines(): Promise<void> {
+  if (enginesList.value.length > 0 || enginesLoading.value) return;
+  enginesLoading.value = true;
+  enginesError.value = null;
+  try {
+    const data = await apiClient.get<AdminSearchEngineItem[]>("/search-engines");
+    enginesList.value = data.map((e) => ({ slug: e.slug, title: e.title }));
+  } catch {
+    enginesError.value = t("common.error");
+  } finally {
+    enginesLoading.value = false;
+  }
+}
+
+function toggleSearchPanel(): void {
+  searchPanelOpen.value = !searchPanelOpen.value;
+  if (searchPanelOpen.value) loadAdminEngines();
+}
+
+async function setPublicSearchEngineSlug(newSlug: string): Promise<void> {
+  if (!newSlug || newSlug === publicSearchEngineSlug.value) return;
+  savingSearchEngine.value = true;
+  try {
+    await settingStore.updateSetting("public_search_engine_slug", newSlug);
+    await uiConfigStore.fetchConfig();
+  } finally {
+    savingSearchEngine.value = false;
+  }
+}
+
+async function togglePublicSearchEngine(): Promise<void> {
+  // Don't let the user turn the toggle on without a slug — the navbar
+  // entry would point at /search with an empty embed URL. Default to
+  // the first available engine when none is selected yet.
+  const wantOn = !publicSearchEngineEnabled.value;
+  if (wantOn && !publicSearchEngineSlug.value) {
+    await loadAdminEngines();
+    const first = enginesList.value[0];
+    if (!first) {
+      enginesError.value = t("public_search.no_engines");
+      return;
+    }
+    await setPublicSearchEngineSlug(first.slug);
+  }
+  savingSearchEngine.value = true;
+  try {
+    await settingStore.updateSetting(
+      "public_search_engine_enabled",
+      wantOn ? "true" : "false",
+    );
+    await uiConfigStore.fetchConfig();
+  } finally {
+    savingSearchEngine.value = false;
+  }
+}
+
 // ── Document options (public document pages) ──────────────────────────────────
 //
 // These two settings shape /browse/<slug>/<filename> (the public-document
@@ -2158,6 +2233,68 @@ onMounted(async () => {
               :class="publicHomeEnabled ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
+        </div>
+
+        <!-- public_search_engine_enabled — foldable panel -->
+        <div class="rounded border border-gray-200 bg-white">
+          <button
+            type="button"
+            class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left"
+            @click="toggleSearchPanel"
+          >
+            <span class="flex items-center gap-2">
+              <svg
+                class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform"
+                :class="{ 'rotate-90': searchPanelOpen }"
+                viewBox="0 0 20 20" fill="currentColor"
+              >
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" />
+              </svg>
+              <span class="flex flex-col">
+                <span class="text-sm font-medium text-gray-800">
+                  {{ t("settings.homepage_public_search_engine_enabled") }}
+                </span>
+                <span class="mt-0.5 text-xs text-gray-500">
+                  {{ t("settings.homepage_public_search_engine_enabled_hint") }}
+                </span>
+              </span>
+            </span>
+            <span
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="publicSearchEngineEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              :aria-disabled="savingSearchEngine"
+              @click.stop="togglePublicSearchEngine"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicSearchEngineEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </span>
+          </button>
+          <div v-if="searchPanelOpen" class="border-t border-gray-100 px-4 py-4">
+            <p class="mb-2 text-xs font-medium text-gray-700">
+              {{ t("public_search.engine_label") }}
+            </p>
+            <p v-if="enginesLoading" class="text-xs text-gray-400">
+              {{ t("public_search.loading_engines") }}
+            </p>
+            <p v-else-if="enginesError" class="text-xs text-red-600">{{ enginesError }}</p>
+            <p v-else-if="enginesList.length === 0" class="text-xs text-gray-400">
+              {{ t("public_search.no_engines") }}
+            </p>
+            <select
+              v-else
+              :value="publicSearchEngineSlug"
+              :disabled="savingSearchEngine"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none disabled:opacity-50"
+              @change="setPublicSearchEngineSlug(($event.target as HTMLSelectElement).value)"
+            >
+              <option value="" disabled>{{ t("public_search.engine_select_placeholder") }}</option>
+              <option v-for="e in enginesList" :key="e.slug" :value="e.slug">
+                {{ e.title }} ({{ e.slug }})
+              </option>
+            </select>
+          </div>
         </div>
 
         <!-- home_show_collections -->

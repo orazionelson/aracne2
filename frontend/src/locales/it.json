@@ -49,6 +49,7 @@
   },
   "nav": {
     "home": "Home",
+    "search": "Cerca",
     "dashboard": "Dashboard",
     "collections": "Collezioni",
     "users": "Utenti",
@@ -202,6 +203,8 @@
     "homepage_section_behavior": "Comportamento",
     "homepage_public_home_enabled": "Abilita homepage pubblica",
     "homepage_public_home_enabled_hint": "I visitatori non autenticati possono accedere alla homepage pubblica",
+    "homepage_public_search_engine_enabled": "Abilita Search engine",
+    "homepage_public_search_engine_enabled_hint": "Mostra una voce 'Cerca' nell'header pubblico che apre una pagina con il motore di ricerca scelto.",
     "homepage_show_collections": "Mostra lista collezioni",
     "homepage_show_collections_hint": "Mostra le collezioni pubblicate nella homepage pubblica",
     "homepage_show_search": "Mostra barra di ricerca",
@@ -586,6 +589,13 @@
     "page_prev": "Precedente",
     "page_next": "Successiva",
     "pagination_label": "Navigazione pagine"
+  },
+  "public_search": {
+    "disabled": "La ricerca è attualmente disattivata.",
+    "loading_engines": "Caricamento motori di ricerca…",
+    "no_engines": "Nessun motore di ricerca disponibile — creane uno da Motori di ricerca.",
+    "engine_label": "Motore",
+    "engine_select_placeholder": "Scegli un motore di ricerca…"
   },
   "public_browse": {
     "filter_placeholder": "Filtra documenti…",
