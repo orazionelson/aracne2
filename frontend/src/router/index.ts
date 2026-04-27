@@ -207,6 +207,12 @@ const router = createRouter({
       meta: { requiresAuth: true, layout: "admin" },
     },
     {
+      path: "/admin/public-pages",
+      name: "admin-public-pages",
+      component: () => import("@/views/admin/PublicPagesView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
       path: "/entities",
       name: "entities",
       component: () => import("@/views/EntitiesView.vue"),

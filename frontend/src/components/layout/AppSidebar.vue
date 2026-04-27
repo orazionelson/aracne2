@@ -9,6 +9,7 @@ import {
   UsersIcon,
   GlobeAltIcon,
   MagnifyingGlassIcon,
+  DocumentTextIcon,
   PuzzlePieceIcon,
   BoltIcon,
   ArchiveBoxArrowDownIcon,
@@ -103,6 +104,12 @@ const SECTIONS: NavSection[] = [
         to: { name: "admin-search-engines" },
         icon: MagnifyingGlassIcon,
         visible: () => auth.hasRole("Designer") || auth.hasMinRole("EditorInChief"),
+      },
+      {
+        labelKey: "nav.public_pages",
+        to: { name: "admin-public-pages" },
+        icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Admin"),
       },
       {
         labelKey: "nav.users",

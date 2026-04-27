@@ -50,6 +50,7 @@
   "nav": {
     "home": "Home",
     "search": "Search",
+    "public_pages": "Public Pages",
     "dashboard": "Dashboard",
     "collections": "Collections",
     "users": "Users",
