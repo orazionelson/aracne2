@@ -143,7 +143,8 @@ async def test_create_corpus_rejects_unknown_collection_id(
         },
         headers=_bearer(token),
     )
-    assert res.status_code == 400
+    # DomainValidationError → 422 (platform-wide convention).
+    assert res.status_code == 422
     assert res.json()["error"]["code"] == "UNKNOWN_COLLECTION"
 
 
@@ -157,7 +158,8 @@ async def test_create_corpus_rejects_duplicate_name(
     r1 = await client.post("/api/v1/corpora", json=payload, headers=_bearer(token))
     assert r1.status_code == 201
     r2 = await client.post("/api/v1/corpora", json=payload, headers=_bearer(token))
-    assert r2.status_code == 400
+    # DomainValidationError → 422 (platform-wide convention).
+    assert r2.status_code == 422
     assert r2.json()["error"]["code"] == "DUPLICATE_NAME"
 
 
