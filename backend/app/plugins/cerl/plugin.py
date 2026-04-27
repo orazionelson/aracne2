@@ -25,7 +25,7 @@ PLUGIN_ID = "cerl"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="CERL Thesaurus lookup",
+        name="CERL Thesaurus",
         version="1.0.0",
         native=False,
         description=(

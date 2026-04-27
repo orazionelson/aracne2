@@ -24,7 +24,7 @@ PLUGIN_ID = "orcid"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="ORCID lookup",
+        name="ORCID",
         version="1.0.0",
         native=False,
         description=(

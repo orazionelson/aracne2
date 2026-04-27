@@ -21,7 +21,7 @@ PLUGIN_ID = "openalex"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="OpenAlex lookup",
+        name="OpenAlex",
         version="1.0.0",
         native=False,
         description=(

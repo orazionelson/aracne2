@@ -27,7 +27,7 @@ PLUGIN_ID = "getty_aat"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="Getty AAT lookup",
+        name="Getty AAT",
         version="1.0.0",
         native=False,
         description=(

@@ -22,7 +22,7 @@ PLUGIN_ID = "ror"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="ROR lookup",
+        name="ROR",
         version="1.0.0",
         native=False,
         description=(

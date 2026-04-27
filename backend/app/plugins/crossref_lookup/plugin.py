@@ -25,7 +25,7 @@ PLUGIN_ID = "crossref_lookup"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="CrossRef Lookup",
+        name="CrossRef",
         version="1.0.0",
         native=False,
         description=(

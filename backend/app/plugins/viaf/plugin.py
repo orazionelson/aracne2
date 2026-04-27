@@ -27,7 +27,7 @@ PLUGIN_ID = "viaf"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="VIAF lookup",
+        name="VIAF",
         version="1.0.0",
         native=False,
         description=(

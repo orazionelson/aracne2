@@ -24,7 +24,7 @@ PLUGIN_ID = "peripleo"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="Peripleo lookup (ancient places)",
+        name="Peripleo (ancient places)",
         version="1.0.0",
         native=False,
         description=(

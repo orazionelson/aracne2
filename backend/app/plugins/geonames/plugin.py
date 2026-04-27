@@ -26,7 +26,7 @@ PLUGIN_ID = "geonames"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="GeoNames lookup",
+        name="GeoNames",
         version="1.0.0",
         native=False,
         description=(

@@ -31,7 +31,7 @@ PLUGIN_ID = "trismegistos"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="Trismegistos lookup",
+        name="Trismegistos",
         version="2.0.0",
         native=False,
         description=(

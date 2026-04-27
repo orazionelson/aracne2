@@ -25,7 +25,7 @@ PLUGIN_ID = "gnd"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="GND lookup",
+        name="GND",
         version="1.0.0",
         native=False,
         description=(

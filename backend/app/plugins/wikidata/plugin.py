@@ -26,7 +26,7 @@ PLUGIN_ID = "wikidata"
 class Plugin(PluginBase):
     meta = PluginMeta(
         id=PLUGIN_ID,
-        name="Wikidata lookup",
+        name="Wikidata",
         version="1.0.0",
         native=False,
         description=(
