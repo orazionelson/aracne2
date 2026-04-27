@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onBeforeUnmount, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { apiClient } from "@/services/api";
@@ -28,6 +28,49 @@ const renderUrl = computed(() => {
   const base = `/api/v1/public/collections/${slug}/documents/${filename}`;
   const h = route.query.highlight;
   return h ? `${base}?highlight=${encodeURIComponent(String(h))}` : base;
+});
+
+// Frame mode (default true) keeps the historical fixed-height,
+// internally-scrolling iframe. When the admin turns the setting off
+// in Settings → Homepage → "Opzioni documento", the iframe auto-grows
+// to the document's height so the parent page scrolls instead — no
+// visible chrome, no nested scrollbars.
+const frameEnabled = computed(() => uiConfig.config.public_pages_doc_frame_enabled);
+
+const docFrame = ref<HTMLIFrameElement | null>(null);
+const docHeight = ref<number | null>(null);
+let resizeObs: ResizeObserver | null = null;
+
+function syncFrameHeight(): void {
+  const iframe = docFrame.value;
+  if (!iframe) return;
+  const doc = iframe.contentDocument;
+  if (!doc || !doc.documentElement) return;
+  // Pick the larger of body/html so we cover both quirks-mode and
+  // standards-mode rendering of long TEI bodies.
+  const h = Math.max(
+    doc.documentElement.scrollHeight,
+    doc.body ? doc.body.scrollHeight : 0,
+  );
+  if (h > 0) docHeight.value = h;
+}
+
+function onFrameLoad(): void {
+  syncFrameHeight();
+  // Reflow on async content (image loads, facsimile gallery, hover
+  // tooltips). ResizeObserver covers the steady state.
+  const iframe = docFrame.value;
+  const doc = iframe?.contentDocument;
+  if (doc && "ResizeObserver" in window) {
+    resizeObs?.disconnect();
+    resizeObs = new ResizeObserver(syncFrameHeight);
+    resizeObs.observe(doc.documentElement);
+  }
+}
+
+onBeforeUnmount(() => {
+  resizeObs?.disconnect();
+  resizeObs = null;
 });
 
 // Fetch the collection metadata once so the JSON-LD block can include
@@ -99,12 +142,23 @@ useJsonLd(
         <span class="font-mono text-gray-700">{{ filename }}</span>
       </nav>
 
-      <!-- Rendered document -->
+      <!-- Rendered document — fixed-height frame OR auto-grow inline -->
       <iframe
+        v-if="frameEnabled"
         :src="renderUrl"
         class="doc-frame flex-1 w-full rounded-xl border border-gray-200 bg-white shadow-sm"
         style="min-height: 70vh;"
         :title="filename"
+      />
+      <iframe
+        v-else
+        ref="docFrame"
+        :src="renderUrl"
+        class="doc-frame-inline w-full"
+        :style="{ height: docHeight ? docHeight + 'px' : 'auto', border: 'none', background: 'transparent' }"
+        scrolling="no"
+        :title="filename"
+        @load="onFrameLoad"
       />
     </main>
   </div>

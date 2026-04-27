@@ -675,6 +675,9 @@ const publicNoteMode = computed<NoteMode>(() => {
 const publicEntityHoverEnabled = computed(
   () => settingStore.getSetting("public_pages_entity_hover_enabled") === "true",
 );
+const publicDocFrameEnabled = computed(
+  () => settingStore.getSetting("public_pages_doc_frame_enabled") === "true",
+);
 const savingNoteMode = ref(false);
 
 async function setPublicNoteMode(mode: NoteMode): Promise<void> {
@@ -2500,6 +2503,31 @@ onMounted(async () => {
           <p v-if="publicEntityHoverEnabled" class="mt-2 text-xs text-amber-700">
             {{ t("settings.public_doc_entity_hover_privacy") }}
           </p>
+        </div>
+
+        <!-- Frame mode -->
+        <div class="mt-5 border-t border-gray-100 pt-4">
+          <div class="flex items-start justify-between">
+            <div class="mr-4">
+              <p class="text-sm font-medium text-gray-800">
+                {{ t("settings.public_doc_frame_enabled_label") }}
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ t("settings.public_doc_frame_enabled_hint") }}
+              </p>
+            </div>
+            <button
+              :disabled="togglingHomeSetting['public_pages_doc_frame_enabled']"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+              :class="publicDocFrameEnabled ? 'bg-indigo-600' : 'bg-gray-200'"
+              @click="toggleHomeSetting('public_pages_doc_frame_enabled', publicDocFrameEnabled)"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="publicDocFrameEnabled ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
         </div>
       </div>
 

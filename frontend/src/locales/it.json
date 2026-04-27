@@ -227,6 +227,8 @@
     "public_doc_entity_hover_label": "Anteprima Wikidata al passaggio del mouse",
     "public_doc_entity_hover_hint": "Nelle pagine del documento, passando il mouse su un link persName / placeName / orgName con {'@'}ref a Wikidata si apre un tooltip con etichetta, descrizione e immagine (quando disponibile). MVP — solo Wikidata. ORCID, GeoNames, ROR, VIAF e le altre autorità arriveranno in una release successiva.",
     "public_doc_entity_hover_privacy": "Nota privacy: ogni hover genera una richiesta HTTP verso Wikidata. Lascia disattivato se il tuo deployment deve prima annunciare ai visitatori le chiamate a servizi terzi.",
+    "public_doc_frame_enabled_label": "Mostra documento in un frame",
+    "public_doc_frame_enabled_hint": "Se attivo, il documento è renderizzato in un riquadro a altezza fissa con scroll interno. Se disattivo, il documento si espande all'altezza piena e scorre la pagina — niente scroll annidato, niente cornice visibile.",
     "homepage_css_title": "Foglio di stile personalizzato",
     "homepage_css_hint": "Carica un file .css per sovrascrivere gli stili della homepage pubblica. Viene iniettato come ultimo foglio di stile, quindi ha precedenza su tutti i valori predefiniti.",
     "homepage_css_status_active": "CSS personalizzato attivo",

@@ -116,6 +116,12 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # party API (Wikidata).
     ("public_pages_note_mode", "end-of-text", "string"),
     ("public_pages_entity_hover_enabled", "false", "bool"),
+    # Whether the public-document iframe stays as a fixed-height,
+    # internally-scrolling box (true, default — preserves the
+    # historical look) or auto-grows to its content height so the
+    # parent page scrolls instead (false). Pure UI knob — no impact
+    # on the rendered HTML itself.
+    ("public_pages_doc_frame_enabled", "true", "bool"),
     # Public-pages "Search" header link. When enabled, the public
     # navbar shows a "Search" entry pointing at /search, which embeds
     # the built search engine identified by the slug below. The slug

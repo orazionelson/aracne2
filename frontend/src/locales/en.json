@@ -227,6 +227,8 @@
     "public_doc_entity_hover_label": "Wikidata hover preview",
     "public_doc_entity_hover_hint": "On document pages, hovering a persName / placeName / orgName link with {'@'}ref to Wikidata opens a tooltip with the label, description and image (when available). MVP — Wikidata only. ORCID, GeoNames, ROR, VIAF and the other authorities will land in a follow-up release.",
     "public_doc_entity_hover_privacy": "Privacy note: every hover triggers an HTTP request to Wikidata. Leave disabled if your deployment must first announce third-party calls to visitors.",
+    "public_doc_frame_enabled_label": "Show document inside a frame",
+    "public_doc_frame_enabled_hint": "When on, the document renders in a fixed-height box with its own scrollbar. When off, the document expands to its full height and the page scrolls — no nested scrollbar, no visible frame.",
     "homepage_css_title": "Custom stylesheet",
     "homepage_css_hint": "Upload a .css file to override the public homepage styles. It is injected as the last stylesheet, so it takes precedence over all defaults.",
     "homepage_css_status_active": "Custom CSS active",

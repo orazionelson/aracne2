@@ -29,6 +29,10 @@ class UiConfigResponse(BaseModel):
     # /search, which embeds the built engine identified by the slug.
     public_search_engine_enabled: bool
     public_search_engine_slug: str
+    # When false, the public-document iframe auto-grows to its content
+    # height (no fixed box, parent page scrolls). Default true keeps
+    # the historical fixed-height frame.
+    public_pages_doc_frame_enabled: bool
 
 
 class LogoUploadResponse(BaseModel):
