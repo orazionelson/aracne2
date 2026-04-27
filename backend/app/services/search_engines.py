@@ -675,6 +675,7 @@ def _render_search_page(
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <base target="_top" />
           <title>{escaped_title}</title>
           <style>
             *, *::before, *::after {{ box-sizing: border-box; }}
@@ -889,6 +890,7 @@ def _render_advanced_search_page(
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <base target="_top" />
           <title>{escaped_title} — Ricerca avanzata</title>
           <style>
             *, *::before, *::after {{ box-sizing: border-box; }}
