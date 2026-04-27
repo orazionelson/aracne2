@@ -39,6 +39,18 @@ export interface CollectionDepositDescriptor {
   priority?: number;
 }
 
+/** UI metadata for the website edit page's "Deposito" tab. */
+export interface WebsiteDepositDescriptor {
+  /** Vue component name registered in src/components/website-deposit/registry.ts. */
+  component: string;
+  /** Plain-text fallback label for the sub-tab. */
+  label?: string;
+  /** Optional vue-i18n key — wins over `label` when defined and resolvable. */
+  label_key?: string;
+  /** Sub-tab sort key — lower = leftmost. */
+  priority?: number;
+}
+
 export interface PluginInfo {
   id: string;
   name: string;

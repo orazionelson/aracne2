@@ -37,13 +37,18 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
-        capabilities=("collection_deposit",),
+        capabilities=("collection_deposit", "website_deposit"),
         ui_descriptor={
             "collection_deposit": {
                 "component": "InternetArchiveCollectionDepositPanel",
                 "label": "Internet Archive",
                 "priority": 110,
-            }
+            },
+            "website_deposit": {
+                "component": "InternetArchiveWebsiteSection",
+                "label": "Internet Archive",
+                "priority": 110,
+            },
         },
     )
     router = router

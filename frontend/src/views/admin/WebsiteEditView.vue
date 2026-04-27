@@ -23,15 +23,13 @@ import {
 } from "@/stores/websites";
 import { useXsltTemplateStore } from "@/stores/xslt_templates";
 import { useCollectionStore } from "@/stores/collections";
-import { usePluginStore } from "@/stores/plugins";
+import {
+  usePluginStore,
+  type WebsiteDepositDescriptor,
+} from "@/stores/plugins";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
 import MediaPicker from "@/components/ui/MediaPicker.vue";
-import CodebergWebsiteSection from "@/components/ui/CodebergWebsiteSection.vue";
-import GithubWebsiteSection from "@/components/ui/GithubWebsiteSection.vue";
-import GitlabWebsiteSection from "@/components/ui/GitlabWebsiteSection.vue";
-import ZenodoWebsiteSection from "@/components/ui/ZenodoWebsiteSection.vue";
-import InternetArchiveWebsiteSection from "@/components/ui/InternetArchiveWebsiteSection.vue";
-import DataverseWebsiteSection from "@/components/ui/DataverseWebsiteSection.vue";
+import { WEBSITE_DEPOSIT_COMPONENTS } from "@/components/website-deposit/registry";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -42,38 +40,52 @@ const xsltStore = useXsltTemplateStore();
 const aiStore = useAiStore();
 const pluginStore = usePluginStore();
 
-// Gate the Deposit tab's Codeberg section: the plugin must be active
-// in the DB registry. When inactive the tab still shows, rendering a
-// helpful message — matches the pattern used elsewhere.
-const codebergPluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "codeberg_integration" && p.status === "active",
-  ),
-);
-const githubPluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "github_integration" && p.status === "active",
-  ),
-);
-const gitlabPluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "gitlab_integration" && p.status === "active",
-  ),
-);
-const zenodoPluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "zenodo_deposit" && p.status === "active",
-  ),
-);
-const internetArchivePluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "internet_archive" && p.status === "active",
-  ),
-);
-const dataversePluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === "dataverse_integration" && p.status === "active",
-  ),
+// Deposit tab — auto-cabled from the plugin store. Every active
+// plugin advertising the ``website_deposit`` capability contributes
+// one sub-tab; the body is rendered via WEBSITE_DEPOSIT_COMPONENTS.
+// Adding a new deposit backend is one plugin folder + one entry in
+// the registry — no edits here.
+interface WebsiteDepositTabEntry {
+  pluginName: string;
+  label: string;
+  descriptor: WebsiteDepositDescriptor;
+}
+
+const websiteDepositTabs = computed<WebsiteDepositTabEntry[]>(() => {
+  const out: WebsiteDepositTabEntry[] = [];
+  for (const p of pluginStore.plugins) {
+    if (p.status !== "active") continue;
+    if (!p.capabilities?.includes("website_deposit")) continue;
+    const desc = (p.ui_descriptor?.["website_deposit"] as WebsiteDepositDescriptor | undefined) ?? null;
+    if (!desc?.component) continue;
+    if (!(desc.component in WEBSITE_DEPOSIT_COMPONENTS)) continue;
+    const label = desc.label_key ? t(desc.label_key) : (desc.label ?? p.display_name);
+    out.push({ pluginName: p.name, label, descriptor: desc });
+  }
+  out.sort((a, b) => (a.descriptor.priority ?? 999) - (b.descriptor.priority ?? 999));
+  return out;
+});
+
+const activeWebsiteDepositPluginName = ref<string>("");
+
+const activeWebsiteDepositComponent = computed(() => {
+  const tab = websiteDepositTabs.value.find((t) => t.pluginName === activeWebsiteDepositPluginName.value);
+  if (!tab) return null;
+  return WEBSITE_DEPOSIT_COMPONENTS[tab.descriptor.component] ?? null;
+});
+
+watch(
+  websiteDepositTabs,
+  (tabs) => {
+    if (tabs.length === 0) {
+      activeWebsiteDepositPluginName.value = "";
+      return;
+    }
+    if (!tabs.some((t) => t.pluginName === activeWebsiteDepositPluginName.value)) {
+      activeWebsiteDepositPluginName.value = tabs[0].pluginName;
+    }
+  },
+  { immediate: true },
 );
 
 // ── Route param ───────────────────────────────────────────────────────────────
@@ -2146,55 +2158,45 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Deposit tab: per-forge sections gated on plugin activation. For
-           now only Codeberg is wired; GitHub and GitLab will add their
-           own section components here when they ship. -->
+      <!-- Deposit tab — auto-cabled from the plugin store. Every active
+           plugin advertising the ``website_deposit`` capability adds
+           one sub-tab; the body is rendered via the registry. Empty
+           state shown when no deposit plugin is on so admins can
+           discover the surface. -->
       <div v-if="editTab === 'deposit'" class="bg-indigo-50 p-4 space-y-4">
         <p class="text-xs text-gray-600">
           {{ t("websites.deposit_intro") }}
         </p>
-        <CodebergWebsiteSection
-          v-if="website && codebergPluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !codebergPluginActive" class="text-xs text-gray-500">
-          {{ t("codeberg.website_plugin_not_active") }}
+
+        <p v-if="websiteDepositTabs.length === 0" class="text-sm text-gray-500">
+          {{ t("websites.deposit_empty") }}
         </p>
-        <GithubWebsiteSection
-          v-if="website && githubPluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !githubPluginActive" class="text-xs text-gray-500">
-          {{ t("github.website_plugin_not_active") }}
-        </p>
-        <GitlabWebsiteSection
-          v-if="website && gitlabPluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !gitlabPluginActive" class="text-xs text-gray-500">
-          {{ t("gitlab.website_plugin_not_active") }}
-        </p>
-        <ZenodoWebsiteSection
-          v-if="website && zenodoPluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !zenodoPluginActive" class="text-xs text-gray-500">
-          {{ t("zenodo.website_plugin_not_active") }}
-        </p>
-        <InternetArchiveWebsiteSection
-          v-if="website && internetArchivePluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !internetArchivePluginActive" class="text-xs text-gray-500">
-          {{ t("internet_archive.website_plugin_not_active") }}
-        </p>
-        <DataverseWebsiteSection
-          v-if="website && dataversePluginActive"
-          :website="website"
-        />
-        <p v-else-if="website && !dataversePluginActive" class="text-xs text-gray-500">
-          {{ t("dataverse.website_plugin_not_active") }}
-        </p>
+
+        <template v-else>
+          <!-- Sub-tab bar -->
+          <div class="flex flex-wrap gap-1 border-b border-gray-200">
+            <button
+              v-for="tab in websiteDepositTabs"
+              :key="tab.pluginName"
+              class="rounded-t px-3 py-1.5 text-xs font-medium transition-colors"
+              :class="
+                activeWebsiteDepositPluginName === tab.pluginName
+                  ? 'border border-b-0 border-gray-200 bg-white text-indigo-700'
+                  : 'text-gray-500 hover:text-gray-800'
+              "
+              @click="activeWebsiteDepositPluginName = tab.pluginName"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <!-- Active sub-tab body — registry-driven, lazy-loaded. -->
+          <component
+            :is="activeWebsiteDepositComponent"
+            v-if="website && activeWebsiteDepositComponent"
+            :website="website"
+          />
+        </template>
       </div>
 
     </div>

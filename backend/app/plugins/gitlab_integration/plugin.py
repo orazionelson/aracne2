@@ -43,13 +43,18 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
-        capabilities=("collection_deposit",),
+        capabilities=("collection_deposit", "website_deposit"),
         ui_descriptor={
             "collection_deposit": {
                 "component": "GitlabCollectionDepositPanel",
                 "label": "GitLab",
                 "priority": 220,
-            }
+            },
+            "website_deposit": {
+                "component": "GitlabWebsiteSection",
+                "label": "GitLab",
+                "priority": 220,
+            },
         },
     )
     router = router

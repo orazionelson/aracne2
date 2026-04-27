@@ -60,6 +60,11 @@ class PluginMeta:
       (Zenodo, Internet Archive, Codeberg, GitHub, GitLab,
       Dataverse, …). The plugin owns its tab body component.
 
+    * ``website_deposit`` — same idea for the website edit page's
+      "Deposito" tab: every plugin advertising the capability
+      contributes one sub-tab whose body shows the per-website
+      connection / push surface for that backend.
+
     The plugin must also declare a matching entry under
     :attr:`ui_descriptor`. Future capabilities follow the same
     shape — a string tag here plus a typed entry there.
@@ -87,6 +92,11 @@ class PluginMeta:
           "label_key": "deposits.zenodo",               # optional vue-i18n key (overrides label)
           "priority": 100,                              # tab sort key (lower = leftmost)
         }
+
+    For ``website_deposit`` the dict has the same shape, but the
+    component name resolves against the website-deposit registry
+    (e.g. ``ZenodoWebsiteSection``) and the tab is rendered inside
+    the website edit page's "Deposito" tab.
     """
 
 

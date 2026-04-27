@@ -49,13 +49,18 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
-        capabilities=("collection_deposit",),
+        capabilities=("collection_deposit", "website_deposit"),
         ui_descriptor={
             "collection_deposit": {
                 "component": "DataverseCollectionDepositPanel",
                 "label": "Dataverse",
                 "priority": 230,
-            }
+            },
+            "website_deposit": {
+                "component": "DataverseWebsiteSection",
+                "label": "Dataverse",
+                "priority": 230,
+            },
         },
     )
     router = router

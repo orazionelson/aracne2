@@ -41,13 +41,18 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
-        capabilities=("collection_deposit",),
+        capabilities=("collection_deposit", "website_deposit"),
         ui_descriptor={
             "collection_deposit": {
                 "component": "ZenodoCollectionDepositPanel",
                 "label": "Zenodo",
                 "priority": 100,
-            }
+            },
+            "website_deposit": {
+                "component": "ZenodoWebsiteSection",
+                "label": "Zenodo",
+                "priority": 100,
+            },
         },
     )
     router = router
