@@ -12,6 +12,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.url_safety import assert_public_http_url
+
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 # GitLab owner may contain a nested group path (``group/subgroup``);
@@ -81,7 +83,10 @@ class GitlabLinkBase(BaseModel):
         v = v.strip()
         if not (v.startswith("http://") or v.startswith("https://")):
             raise ValueError("base_url must start with http:// or https://")
-        return v.rstrip("/")
+        v = v.rstrip("/")
+        # See app/core/url_safety.py — reject IP literals in non-routable ranges.
+        assert_public_http_url(v)
+        return v
 
     @field_validator("repo_owner")
     @classmethod

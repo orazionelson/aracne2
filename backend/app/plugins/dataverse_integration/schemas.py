@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.url_safety import assert_public_http_url
+
 
 PublishType = Literal["major", "minor", "updatecurrent"]
 
@@ -49,8 +51,12 @@ class DataverseConfigUpdate(BaseModel):
         if v is None:
             return None
         s = v.strip().rstrip("/")
-        if s and not (s.startswith("http://") or s.startswith("https://")):
+        if not s:
+            return s
+        if not (s.startswith("http://") or s.startswith("https://")):
             raise ValueError("base_url must start with http:// or https://")
+        # See app/core/url_safety.py — reject IP literals in non-routable ranges.
+        assert_public_http_url(s)
         return s
 
 

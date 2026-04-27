@@ -74,6 +74,7 @@ from app.schemas.websites import (
 )
 from app.services import websites as svc
 from app.services import website_media as media_svc
+from app.services.uploads import read_capped
 from app.schemas.websites import WebsiteMediaFile
 
 logger = structlog.get_logger()
@@ -555,7 +556,7 @@ async def upload_website_media(
     removed) before being written to disk.
     """
     await svc.get_website(db, slug)
-    payload = await file.read()
+    payload = await read_capped(file, media_svc._MAX_UPLOAD_BYTES)
     m = media_svc.save_media(slug, file.filename or "file", payload)
     return DataResponse(
         data=WebsiteMediaFile(

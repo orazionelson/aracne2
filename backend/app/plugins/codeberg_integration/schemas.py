@@ -12,6 +12,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.url_safety import assert_public_http_url
+
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
@@ -72,7 +74,12 @@ class CodebergLinkBase(BaseModel):
         v = v.strip()
         if not (v.startswith("http://") or v.startswith("https://")):
             raise ValueError("base_url must start with http:// or https://")
-        return v.rstrip("/")
+        v = v.rstrip("/")
+        # Reject IP literals in the loopback / private / link-local /
+        # multicast / reserved / unspecified ranges. Closes the obvious
+        # PAT-exfiltration typo (``http://169.254.169.254/`` etc.).
+        assert_public_http_url(v)
+        return v
 
     @field_validator("repo_owner", "repo_name")
     @classmethod

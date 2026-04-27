@@ -1,6 +1,7 @@
 import mimetypes
 from typing import Annotated
 
+import bleach
 from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from app.middleware.rate_limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import DomainValidationError
 from app.db.postgres import get_async_session
 from app.middleware.acl import require_role
 from app.models.user import User
@@ -20,6 +22,8 @@ from app.schemas.settings import (
     UiConfigResponse,
 )
 from app.services.settings import (
+    _MAX_CSS_BYTES,
+    _MAX_LOGO_BYTES,
     delete_homepage_css,
     get_homepage_css_path,
     get_logo_path,
@@ -30,6 +34,7 @@ from app.services.settings import (
     upload_homepage_css,
     upload_logo,
 )
+from app.services.uploads import read_capped
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -63,7 +68,7 @@ async def settings_logo_upload(
     The uploaded file is stored in MEDIA_DIR and the platform_logo_url
     setting is updated to point to the serve endpoint.
     """
-    content = await file.read()
+    content = await read_capped(file, _MAX_LOGO_BYTES)
     data = await upload_logo(db, content, file.filename or "logo.png", current_user)
     return DataResponse(data=data)
 
@@ -98,7 +103,7 @@ async def settings_homepage_css_upload(
     public ``GET /settings/homepage-css/file`` endpoint, which the public
     homepage injects as its last stylesheet.
     """
-    content = await file.read()
+    content = await read_capped(file, _MAX_CSS_BYTES)
     data = await upload_homepage_css(content, file.filename or "custom_homepage.css", current_user)
     return DataResponse(data=data)
 
@@ -170,7 +175,9 @@ async def settings_homepage_media_upload(
     current_user: Annotated[User, _admin],
 ) -> DataResponse[dict[str, object]]:
     """Upload an image into the homepage media folder [Admin]."""
-    content = await file.read()
+    from app.services.website_media import _MAX_UPLOAD_BYTES
+
+    content = await read_capped(file, _MAX_UPLOAD_BYTES)
     saved = homepage_media_svc.save_media(file.filename or "image", content)
     return DataResponse(
         data={
@@ -207,6 +214,50 @@ async def settings_homepage_media_delete(
 # Stored as a ``system_settings`` row keyed ``home_intro_html``. A
 # dedicated endpoint bypasses ``SettingUpdate``'s ``not_empty``
 # validator so admins can clear the intro by sending an empty string.
+#
+# The body is rendered with ``v-html`` on the public homepage, so we
+# run it through ``bleach`` first with a strict tag/attribute allowlist.
+# CSP already blocks inline scripts in production, but the sanitiser
+# closes the gap for dev mode and protects against accidental paste of
+# tracking pixels / third-party widgets the admin didn't realise were
+# embedded in copied markup.
+
+# Tags an admin can put in the cover text. No <script>, no <iframe>,
+# no <style> — those carry execution / framing surfaces we don't want.
+_HOME_INTRO_ALLOWED_TAGS: frozenset[str] = frozenset({
+    "p", "br", "strong", "em", "u", "s", "code", "pre", "blockquote",
+    "ul", "ol", "li", "h2", "h3", "h4",
+    "a", "img", "figure", "figcaption", "hr", "span",
+})
+_HOME_INTRO_ALLOWED_ATTRS: dict[str, list[str]] = {
+    "a": ["href", "title", "rel", "target"],
+    "img": ["src", "alt", "title", "width", "height"],
+    "span": ["class"],
+}
+# `media://` is rewritten client-side to a same-origin URL — see
+# useHomepageMedia. The other two are the only schemes we want for
+# href / src outside of bare relative paths.
+_HOME_INTRO_ALLOWED_PROTOCOLS: list[str] = ["http", "https", "media"]
+_HOME_INTRO_MAX_BYTES: int = 64 * 1024  # 64 KB UTF-8
+
+
+def _sanitise_home_intro(raw: str) -> str:
+    """Apply size cap + ``bleach.clean`` allowlist to the cover text."""
+    if len(raw.encode("utf-8")) > _HOME_INTRO_MAX_BYTES:
+        raise DomainValidationError(
+            code="FILE_TOO_LARGE",
+            message=(
+                f"Cover text must be ≤ {_HOME_INTRO_MAX_BYTES // 1024} KB"
+            ),
+        )
+    return bleach.clean(
+        raw,
+        tags=_HOME_INTRO_ALLOWED_TAGS,
+        attributes=_HOME_INTRO_ALLOWED_ATTRS,
+        protocols=_HOME_INTRO_ALLOWED_PROTOCOLS,
+        strip=True,
+    )
+
 
 class HomeIntroBody(BaseModel):
     html: str
@@ -225,16 +276,17 @@ async def settings_home_intro_update(
 
     from app.models.system_setting import SystemSetting
 
+    cleaned = _sanitise_home_intro(body.html)
     row = await db.scalar(select(SystemSetting).where(SystemSetting.key == "home_intro_html"))
     if row is None:
-        row = SystemSetting(key="home_intro_html", value=body.html, type="string")
+        row = SystemSetting(key="home_intro_html", value=cleaned, type="string")
         db.add(row)
     else:
-        row.value = body.html
+        row.value = cleaned
         row.updated_by = current_user.id
         row.updated_at = datetime.now(UTC)
     await db.flush()
-    return DataResponse(data={"html": body.html})
+    return DataResponse(data={"html": cleaned})
 
 
 # ── Authenticated settings CRUD ────────────────────────────────────────────────

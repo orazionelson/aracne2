@@ -192,16 +192,25 @@ async def public_document_source(
     """
     from app.db.existdb import existdb_client
     from app.core.exceptions import NotFoundError as _NotFound
+    from app.services.xmldb import _validate_filename as _validate_doc_filename
 
+    # Reject anything that isn't a documented `.xml` filename — guards
+    # both the eXist URL builder (which doesn't URL-encode segments)
+    # and the Content-Disposition interpolation below.
+    _validate_doc_filename(filename)
     await get_public_collection(db, slug)
     try:
         xml_bytes = await existdb_client.get_document(slug, filename)
     except Exception as exc:
         raise _NotFound(f"Document '{filename}' not found.") from exc
+    # Filename has already passed _FILENAME_RE (alphanum + . _ -), so no
+    # quote / CR / LF can land inside the header value — but explicit
+    # stripping documents the invariant for future readers.
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
     return Response(
         content=xml_bytes,
         media_type="application/xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
     )
 
 

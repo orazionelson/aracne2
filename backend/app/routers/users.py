@@ -21,6 +21,7 @@ from app.schemas.users import (
     UserResponse,
     UserUpdate,
 )
+from app.services.uploads import read_capped
 from app.services.users import (
     assign_role,
     create_user,
@@ -106,7 +107,12 @@ async def upload_my_avatar(
     Allowed: jpg/jpeg/png/gif/webp/avif, up to 1 MB. Replaces any
     previous upload. Returns the refreshed UserResponse.
     """
-    payload = await file.read()
+    from app.services.users import _AVATAR_MAX_BYTES
+
+    # Stream the body in 64 KB chunks so a malicious / buggy client
+    # can't allocate 50 MB (nginx cap) per request before the per-route
+    # size check runs. read_capped raises FILE_TOO_LARGE early.
+    payload = await read_capped(file, _AVATAR_MAX_BYTES)
     data = await upload_avatar(db, current_user, payload, file.filename or "avatar")
     return DataResponse(data=data)
 
