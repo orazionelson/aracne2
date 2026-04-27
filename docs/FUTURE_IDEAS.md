@@ -1656,4 +1656,137 @@ a credential a green ✅ badge does not replicate.
 
 ---
 
-*Last updated: 2026-04-23*
+## 20. Admin view for the global audit log 🟡 Medium
+
+The `audit_log` PostgreSQL table is already populated by the platform —
+auth events (login / refresh / password change), XML DB writes
+(`collection.created`, `document.uploaded`, `collection.published`, …),
+plugin activations, settings changes, and more. The data is consulted
+indirectly today (per-collection workflow history under
+[xmldb.py:345](backend/app/services/xmldb.py#L345-L360)) but there is
+no global admin surface — querying across actors, actions or time
+ranges requires opening psql.
+
+A `/admin/audit-log` view would close that gap.
+
+**Motivation**
+
+- **Compliance / accountability**: an institutional deployment auditing
+  who modified which collection at which time needs a queryable record;
+  pointing them at a SQL prompt is not a credible answer.
+- **Incident triage**: when a published collection appears to have lost
+  data or a user reports a permission anomaly, the audit trail is the
+  fastest path to "who did what just before the bug surfaced". Today
+  the maintainer has to open a shell on the prod DB.
+- **Editorial transparency**: EditorInChiefs already get a per-
+  collection workflow history; an admin-level cross-collection view is
+  the natural complement.
+- **Retention policy verification**: the `audit_log_retention_days`
+  setting (default 90) is already enforced by the seed/cleanup logic,
+  but there is no way to *see* the rows about to be pruned. A view
+  also makes the policy concrete to admins.
+
+**Scope**
+
+Backend:
+- `GET /api/v1/audit-log` — Admin-only, paginated.
+  Query params: `actor_id`, `actor_username` (substring match),
+  `action` (exact or `LIKE`), `target_type`, `target_id`,
+  `from`/`to` (ISO 8601 timestamps), `page`, `per_page`.
+  Returns a `PaginatedResponse[AuditLogEntry]` with the standard
+  envelope. ACL: `Depends(require_role("Admin"))`.
+- `GET /api/v1/audit-log/actions` — distinct action names for the
+  filter dropdown (cached, invalidated on insert).
+- `GET /api/v1/audit-log/{id}` — single row including the full JSONB
+  `payload`. Separate endpoint to keep the list response lean.
+- `GET /api/v1/audit-log/export.csv` — same filters as the list,
+  streams a CSV with the canonical columns. No pagination — the
+  filter is the only knob that bounds the size.
+
+Frontend:
+- `/admin/audit-log` view (Admin-gated).
+- A toolbar with the filters above; results in a paginated table —
+  columns: `occurred_at`, `actor_username`, `action`,
+  `target_type`/`target_label`, `ip_address` (already hashed in
+  prod by the existing logger middleware).
+- Row click opens a side panel with the JSONB `payload` rendered as
+  pretty JSON and the user-agent string.
+- Sidebar link under the **Amministra** section, next to Plugin and
+  Webhook (Admin role).
+
+Privacy:
+- `ip_address` is already a hash in production (SHA-256 with the
+  `JWT_SECRET` salt — see CLAUDE.md). The view shows the hash, never
+  a reverse lookup.
+- `payload` may contain references to internal IDs but never full
+  document bodies (the audit logger has always stored metadata only,
+  see [services/xmldb.py:199](backend/app/services/xmldb.py#L199)).
+
+**Open questions**
+
+- **Performance on large tables**. With 90-day retention and a busy
+  multi-editor deployment the table can reach low-millions of rows.
+  Need an index on `(occurred_at DESC)` and a composite on
+  `(actor_id, occurred_at DESC)` for the actor-filter case.
+  Alembic migration when the view ships.
+- **Full-text search on `target_label` and `payload`**. Optional, but
+  often the only useful filter ("when was this specific doc renamed?").
+  Would justify a `tsvector` GIN index.
+- **JSONB rendering**. Some payloads are flat (`{"old": "...", "new":
+  "..."}`), some nest deeply. Render as `<pre>` with syntax
+  highlighting via the existing `vue-i18n` consumer pattern, or
+  fall back to a tree widget?
+- **Action vocabulary**. Today action strings are free-form (e.g.
+  `collection.created`, `auth.login`, `plugin.activated`). Worth
+  cataloguing the canonical set so the filter dropdown is curated
+  instead of "every distinct value ever inserted".
+- **Free-text vs structured filtering**. A single search input that
+  matches against `actor_username`, `action`, `target_label` is
+  often what an admin actually wants — propose alongside the
+  structured filters and remove whichever turns out to be unused.
+- **Export format**. CSV is enough for spreadsheets; some institutional
+  audits ask for a signed JSON Lines export. Defer the signed variant
+  unless explicitly requested.
+- **Real-time tail mode**. A "live" toggle that polls every N seconds
+  and prepends new rows would be useful during an incident. Easy
+  add-on, gate behind an explicit toggle so the default page is
+  static.
+
+**Prerequisites**
+
+- `audit_log` table — already in place.
+- `AuditLog` ORM model — already in place
+  ([backend/app/models/audit_log.py](backend/app/models/audit_log.py)).
+- `audit_log_retention_days` setting — already seeded in
+  [db/seed.py:42](backend/app/db/seed.py#L42).
+- IP hashing in production logging — already in place (CLAUDE.md
+  §Security).
+- `PaginatedResponse` envelope — already used for collections / users.
+- Admin-gated route + sidebar pattern — already used by Plugin /
+  Webhook / Backup.
+
+**What this is not**
+
+- Not a replacement for application-level logs (structlog / Docker
+  logs). Those record HTTP traffic + diagnostics; the audit log
+  records *intentional, user-attributable* actions only.
+- Not a "history of every field change". The audit log captures
+  domain events, not row-level diffs. Per-collection workflow history
+  already covers the editorial side.
+
+**Trigger for implementation**
+
+- A first non-maintainer admin asks "who deleted X" and the answer
+  requires shell access, or
+- A deployment hits a compliance review that explicitly names "audit
+  trail accessible to admins" as a control.
+
+Until then, the per-collection workflow history covers ~80% of what
+editors actually ask for, and `psql` covers the rest for the
+maintainer.
+
+*Added: 2026-04-27*
+
+---
+
+*Last updated: 2026-04-27*
