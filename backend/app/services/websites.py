@@ -1343,6 +1343,14 @@ def _build_note_rendering_js(cfg: dict) -> str:
     if mode == "frame":
         return (
             "(function(){"
+            # Bail early on pages with no notes (home, browse, bibliography,
+            # search, …). The build pipeline ships this script into every
+            # page's <script> bundle for code-size reasons; the doc-only
+            # CSS that hides the panel by default isn't loaded elsewhere,
+            # so without this guard the panel header would render visible
+            # in the bottom-left of every non-doc page.
+            "var aside=document.querySelector('.tei-notes-section');"
+            "if(!aside)return;"
             # Build the frame panel.
             "var frame=document.createElement('div');"
             "frame.className='tei-notes-frame';"
@@ -1361,8 +1369,6 @@ def _build_note_rendering_js(cfg: dict) -> str:
             "});"
             "hdr.appendChild(ttl);hdr.appendChild(cls);frame.appendChild(hdr);"
             # Populate frame from the aside (used as data source).
-            "var aside=document.querySelector('.tei-notes-section');"
-            "if(aside){"
             "aside.querySelectorAll('.tei-note-entry').forEach(function(entry){"
             "var fe=document.createElement('div');"
             "fe.className='tei-note-frame-entry';"
@@ -1378,7 +1384,6 @@ def _build_note_rendering_js(cfg: dict) -> str:
             "fe.appendChild(lb);fe.appendChild(bd);"
             "frame.appendChild(fe);"
             "});"
-            "}"
             "document.body.appendChild(frame);"
             # Clicking a note marker opens the frame and highlights the entry.
             "document.querySelectorAll('sup.tei-note-ref a.tei-note-link').forEach(function(a){"
