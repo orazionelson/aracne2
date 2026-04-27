@@ -575,6 +575,18 @@
     "page_next": "Successiva",
     "pagination_label": "Navigazione pagine"
   },
+  "public_browse": {
+    "filter_placeholder": "Filtra documenti…",
+    "sort_by": "Ordina per:",
+    "sort_title": "Titolo",
+    "sort_filename": "Nome file",
+    "sort_author": "Autore",
+    "results": "{n} di {total}",
+    "no_match": "Nessun documento corrisponde al filtro corrente.",
+    "prev": "Precedente",
+    "next": "Successiva",
+    "page": "Pagina {page} di {total}"
+  },
   "entities": {
     "title": "Indice entità nominate",
     "subtitle": "Persone, luoghi e organizzazioni estratti dai documenti TEI.",

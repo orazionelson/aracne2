@@ -28,6 +28,79 @@ const collection = ref<PublicCollectionDetail | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
+// ── Filter / sort / paginate ────────────────────────────────────────────
+//
+// Same browsing affordances we already give website visitors (filter
+// box + sortable columns + page control), now also on the public
+// collection landing page so editors of long corpora are not forced
+// to scroll a 200-row list.
+type SortKey = "title" | "filename" | "author";
+const PAGE_SIZE = 20;
+
+const filterQuery = ref("");
+const sortKey = ref<SortKey>("title");
+const sortAsc = ref(true);
+const currentPage = ref(1);
+
+function toggleSort(key: SortKey): void {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value;
+  } else {
+    sortKey.value = key;
+    sortAsc.value = true;
+  }
+  currentPage.value = 1;
+}
+
+function compareStrings(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+}
+
+const filteredDocs = computed<PublicDocumentInfo[]>(() => {
+  if (!collection.value) return [];
+  const q = filterQuery.value.trim().toLowerCase();
+  let docs = collection.value.documents;
+  if (q) {
+    docs = docs.filter((d) => {
+      const title = (d.title || "").toLowerCase();
+      const author = (d.author || "").toLowerCase();
+      const filename = d.filename.toLowerCase();
+      return title.includes(q) || author.includes(q) || filename.includes(q);
+    });
+  }
+  const sorted = [...docs].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    if (sortKey.value === "filename") {
+      av = a.filename;
+      bv = b.filename;
+    } else if (sortKey.value === "author") {
+      av = a.author || "";
+      bv = b.author || "";
+    } else {
+      av = a.title || a.filename;
+      bv = b.title || b.filename;
+    }
+    const c = compareStrings(av, bv);
+    return sortAsc.value ? c : -c;
+  });
+  return sorted;
+});
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredDocs.value.length / PAGE_SIZE)),
+);
+
+const pagedDocs = computed<PublicDocumentInfo[]>(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return filteredDocs.value.slice(start, start + PAGE_SIZE);
+});
+
+function goToPage(p: number): void {
+  if (p < 1 || p > totalPages.value) return;
+  currentPage.value = p;
+}
+
 onMounted(async () => {
   try {
     collection.value = await apiClient.get<PublicCollectionDetail>(
@@ -119,28 +192,94 @@ useJsonLd(
           {{ t("collections.no_documents") }}
         </p>
 
-        <ul v-else class="doc-list divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white shadow-sm">
-          <li
-            v-for="doc in collection.documents"
-            :key="doc.filename"
-            class="doc-item flex items-center justify-between px-5 py-3 hover:bg-gray-50"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="doc-title truncate text-sm font-medium text-gray-800">
-                {{ doc.title || doc.filename }}
-              </p>
-              <p v-if="doc.author" class="doc-author truncate text-xs text-gray-400 italic">
-                {{ doc.author }}
-              </p>
-            </div>
-            <router-link
-              :to="{ name: 'public-document', params: { slug, filename: doc.filename } }"
-              class="doc-view-link ml-4 shrink-0 text-sm text-indigo-600 hover:underline"
+        <template v-else>
+          <!-- Filter input -->
+          <input
+            v-model="filterQuery"
+            type="search"
+            :placeholder="t('public_browse.filter_placeholder')"
+            class="public-browse-filter mb-3 w-full max-w-lg rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            @input="currentPage = 1"
+          />
+
+          <!-- Sort buttons -->
+          <div class="public-browse-sort mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span class="public-browse-sort-label">{{ t("public_browse.sort_by") }}</span>
+            <button
+              v-for="key in (['title', 'filename', 'author'] as SortKey[])"
+              :key="key"
+              type="button"
+              class="public-browse-sort-btn rounded-full border px-3 py-1 transition"
+              :class="sortKey === key
+                ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                : 'border-gray-300 text-gray-600 hover:bg-gray-100'"
+              @click="toggleSort(key)"
             >
-              {{ t("documents.action_view") }}
-            </router-link>
-          </li>
-        </ul>
+              {{ t(`public_browse.sort_${key}`) }}
+              <span v-if="sortKey === key" class="ml-1">{{ sortAsc ? '↑' : '↓' }}</span>
+            </button>
+            <span class="public-browse-result-count ml-auto text-xs text-gray-400">
+              {{ t("public_browse.results", { n: filteredDocs.length, total: collection.documents.length }) }}
+            </span>
+          </div>
+
+          <p
+            v-if="filteredDocs.length === 0"
+            class="public-browse-empty rounded border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400"
+          >
+            {{ t("public_browse.no_match") }}
+          </p>
+
+          <ul
+            v-else
+            class="doc-list divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white shadow-sm"
+          >
+            <li
+              v-for="doc in pagedDocs"
+              :key="doc.filename"
+              class="doc-item flex items-center justify-between px-5 py-3 hover:bg-gray-50"
+            >
+              <div class="min-w-0 flex-1">
+                <p class="doc-title truncate text-sm font-medium text-gray-800">
+                  {{ doc.title || doc.filename }}
+                </p>
+                <p v-if="doc.author" class="doc-author truncate text-xs text-gray-400 italic">
+                  {{ doc.author }}
+                </p>
+              </div>
+              <router-link
+                :to="{ name: 'public-document', params: { slug, filename: doc.filename } }"
+                class="doc-view-link ml-4 shrink-0 text-sm text-indigo-600 hover:underline"
+              >
+                {{ t("documents.action_view") }}
+              </router-link>
+            </li>
+          </ul>
+
+          <!-- Pagination -->
+          <div
+            v-if="totalPages > 1"
+            class="public-browse-pagination mt-4 flex items-center justify-between text-xs text-gray-500"
+          >
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 disabled:opacity-40"
+              :disabled="currentPage <= 1"
+              @click="goToPage(currentPage - 1)"
+            >
+              ← {{ t("public_browse.prev") }}
+            </button>
+            <span>{{ t("public_browse.page", { page: currentPage, total: totalPages }) }}</span>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 disabled:opacity-40"
+              :disabled="currentPage >= totalPages"
+              @click="goToPage(currentPage + 1)"
+            >
+              {{ t("public_browse.next") }} →
+            </button>
+          </div>
+        </template>
       </template>
     </main>
   </div>

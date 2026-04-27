@@ -575,6 +575,18 @@
     "page_next": "Next",
     "pagination_label": "Page navigation"
   },
+  "public_browse": {
+    "filter_placeholder": "Filter documents…",
+    "sort_by": "Sort by:",
+    "sort_title": "Title",
+    "sort_filename": "Filename",
+    "sort_author": "Author",
+    "results": "{n} of {total}",
+    "no_match": "No documents match the current filter.",
+    "prev": "Previous",
+    "next": "Next",
+    "page": "Page {page} of {total}"
+  },
   "entities": {
     "title": "Named Entity Index",
     "subtitle": "Persons, places and organisations extracted from the TEI documents.",
