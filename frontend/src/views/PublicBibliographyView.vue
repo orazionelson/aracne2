@@ -101,7 +101,7 @@ const entries = computed<BibEntry[]>(() => {
 </script>
 
 <template>
-  <div class="pb-page bg-gray-50">
+  <div class="pb-page">
     <main class="pb-main mx-auto max-w-3xl px-4 py-10">
       <!-- Loading -->
       <p v-if="isLoading" class="text-sm text-gray-400">{{ t("common.loading") }}</p>

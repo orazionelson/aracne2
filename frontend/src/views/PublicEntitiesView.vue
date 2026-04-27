@@ -142,7 +142,7 @@ function typeLabel(type: EntityType): string {
 </script>
 
 <template>
-  <div class="pe-page bg-gray-50">
+  <div class="pe-page">
     <main class="pe-main mx-auto max-w-4xl px-4 py-8">
       <!-- Back link -->
       <router-link

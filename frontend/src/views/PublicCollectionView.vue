@@ -156,7 +156,7 @@ useJsonLd(
 </script>
 
 <template>
-  <div class="pc-page bg-gray-50">
+  <div class="pc-page">
     <main class="pc-main mx-auto max-w-4xl px-4 py-10">
       <p v-if="isLoading" class="text-gray-400 text-sm">{{ t("common.loading") }}</p>
       <p v-else-if="error" class="text-red-600 text-sm">{{ error }}</p>

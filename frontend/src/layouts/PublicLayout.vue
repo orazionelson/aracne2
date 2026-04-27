@@ -7,7 +7,7 @@ import AppFooter from "@/components/layout/AppFooter.vue";
 <template>
   <div class="flex min-h-screen flex-col">
     <PublicHeader />
-    <main class="flex-1">
+    <main class="flex-1 bg-gray-50">
       <RouterView />
     </main>
     <AppFooter />

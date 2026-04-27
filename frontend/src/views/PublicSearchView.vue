@@ -22,7 +22,7 @@ const embedUrl = computed(() =>
 </script>
 
 <template>
-  <div class="ps-page bg-gray-50">
+  <div class="ps-page">
     <main class="ps-main mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6">
       <p
         v-if="!enabled"

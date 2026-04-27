@@ -124,7 +124,7 @@ useJsonLd(
 </script>
 
 <template>
-  <div class="pd-page flex flex-col bg-gray-50">
+  <div class="pd-page flex flex-col">
     <main class="pd-main mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
       <!-- Breadcrumb -->
       <nav class="pd-breadcrumb mb-6 text-sm text-gray-400">

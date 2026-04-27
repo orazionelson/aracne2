@@ -69,7 +69,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="ph-page bg-gray-50">
+  <div class="ph-page">
     <main class="ph-main mx-auto max-w-4xl px-4 py-10">
       <!-- Search bar -->
       <div v-if="showSearch" class="ph-search mb-8">
