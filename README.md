@@ -1,16 +1,81 @@
 # Aracne2
 
-A modular, production-ready CMS for managing, editing and publishing collections of structured XML documents. Built with a separate frontend/backend architecture and a hook-based plugin system designed to be modular and extensible.
+A modular, production-ready CMS for editing and publishing structured
+TEI corpora. Built for philologists, historians, archivists and
+scholarly editors who want to take a corpus from raw text to a
+published, citable digital edition without also becoming sysadmins.
 
-## Goals
+## How we got here
 
-Aracne2 is designed around three core targets:
+**MaRa** *(2008)* started as a handful of PHP scripts that turned the
+Angevine Chancery Papers from typed text into XML and harmonised
+their bibliographies. Wrapped in a CodeIgniter web UI, it gave a
+workable editorial pipeline to a workflow that until then lived in
+one researcher's local files.
+*(Cosco, 2018 — [Zenodo](https://zenodo.org/records/1447195),
+[Academia.edu](https://www.academia.edu/37523540/))*
 
-- **A structured editing environment for TEI XML documents** — providing a schema-aware code editor with tag and attribute autocomplete, validation against RNG / DTD / XSD schemas, text-image alignment (facsimile zones), bibliography management, and AI-assisted encoding, correction, and annotation.
+**Aracne** *(2016)* tried the platform jump: an editorial framework in
+XQuery + HTML5 on top of eXist-db, with an early CodeMirror-based TEI
+editor, a sitebuilder and a draft → review → publish flow. The idea
+was right; XQuery as the platform language turned out to be a
+maintenance and extension dead-end.
+*([github.com/orazionelson/aracne](https://github.com/orazionelson/aracne))*
 
-- **An academic publication platform for TEI corpora** — transforming validated collections into navigable web publications via configurable XSLT rendering, with full-text and structural search, named entity browsing, public bibliography, OAI-PMH metadata exposure, and an embeddable search widget for integration into third-party sites.
+**Aracne2** *(2026)* is a clean rebuild. Backend and admin plane are
+Python + FastAPI + PostgreSQL; the frontend is a Vue 3 + TypeScript
+SPA; eXist-db goes back to doing what it does best — being a native
+XML store. The whole platform ships in Docker, the architecture is
+plugin-modular with hot activation, and integration with AI
+assistants is a first-class concern.
 
-- **An end-to-end editorial workflow framework** — supporting the full lifecycle of a scholarly edition, from collection creation and document ingestion through role-based review (Editor, EditorInChief, Designer, Admin) to controlled publication, with notifications, audit logging, and webhook integration for external systems.
+## What you can do
+
+### Edit and validate TEI
+
+- **Schema-aware TEI editor**: load your TEI ODD, the editor
+  autocompletes only the tags and attributes the schema allows.
+  Live validation — no nasty surprises at publication time.
+- **12 built-in authority lookups**: Wikidata, ORCID, ROR, VIAF,
+  GeoNames, GND, CERL Thesaurus, Peripleo, Getty AAT, OpenAlex,
+  Trismegistos, CrossRef. Select a name, pick the source, the
+  canonical URI lands in the `@ref` attribute.
+- **Structured bibliographies**: import from Zotero, resolve DOIs
+  via CrossRef, write `<biblStruct>` without memorising the TEI
+  grammar.
+
+### Publish
+
+- **Static or dynamic sites** generated from your collections —
+  custom theme, free Markdown pages, themed indices, drop-in
+  CSS/JS for the brave.
+- **Embeddable search engines** scoped to subsets of public
+  collections, copy-pasted into any external site with a three-line
+  snippet.
+- **6 deposit backends**: Zenodo, Internet Archive, Codeberg,
+  GitHub, GitLab, Dataverse. Publishing a collection automatically
+  pushes it to the depositories you wired up, with persistent DOIs
+  and front-end badges.
+
+### Work alongside an AI assistant
+
+- **Native AI integration** for marking up TEI, validating documents,
+  cleaning bibliographies, drafting XSLT — all with a per-deployment
+  prompt library.
+- **Built-in MCP server**: expose Aracne2 as a Model Context Protocol
+  endpoint. An editor on Claude Desktop, Cursor or Claude Code can
+  ask *"summarise the tragedies in this corpus"* and get answers
+  grounded in real TEI documents. Tokens are scoped by *corpus*, so
+  heterogeneous domains hosted on the same instance don't bleed into
+  each other's analyses.
+
+## Who it's for
+
+Aracne2 fits **small editorial teams** working on structured
+corpora — university projects, critical editions, diplomatic-papers
+archives, funded research groups. It is opt-in for plugins and
+external services, so a deployment can stay minimal or grow into a
+full publishing platform as the project does.
 
 ## Architecture overview
 
