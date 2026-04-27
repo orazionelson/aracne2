@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingStore } from "@/stores/settings";
 import { useSchemaStore } from "@/stores/schemas";
@@ -507,8 +507,63 @@ async function deleteAiPrompt(slug: string): Promise<void> {
   isDeletingPrompt.value[slug] = true;
   try {
     await aiStore.deletePrompt(slug);
+    if (selectedPromptSlug.value === slug) selectedPromptSlug.value = null;
   } finally {
     isDeletingPrompt.value[slug] = false;
+  }
+}
+
+// ── Split-panel browse: search box + alphabetical list + detail ──────────
+//
+// The library was a vertical scroll of cards — fine with 9 native prompts,
+// painful as soon as a deployment adds custom ones. Split panel mirrors the
+// pattern used elsewhere in the admin (Plugins / Webhooks): scrollable list
+// on the left, single detail on the right. Auto-selects the first prompt
+// once the catalogue loads.
+
+const promptSearch = ref("");
+const selectedPromptSlug = ref<string | null>(null);
+
+const filteredPrompts = computed<AiPrompt[]>(() => {
+  const q = promptSearch.value.trim().toLowerCase();
+  const sorted = [...aiStore.prompts].sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+  );
+  if (!q) return sorted;
+  return sorted.filter((p) =>
+    p.label.toLowerCase().includes(q)
+    || p.slug.toLowerCase().includes(q)
+    || (p.description ?? "").toLowerCase().includes(q),
+  );
+});
+
+const selectedPrompt = computed<AiPrompt | null>(
+  () => aiStore.prompts.find((p) => p.slug === selectedPromptSlug.value) ?? null,
+);
+
+watch(
+  () => aiStore.prompts,
+  (rows) => {
+    if (rows.length === 0) {
+      selectedPromptSlug.value = null;
+      return;
+    }
+    if (selectedPromptSlug.value && rows.some((p) => p.slug === selectedPromptSlug.value)) {
+      return;
+    }
+    const sorted = [...rows].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    selectedPromptSlug.value = sorted[0]?.slug ?? null;
+  },
+  { immediate: true, deep: true },
+);
+
+function selectPrompt(slug: string): void {
+  selectedPromptSlug.value = slug;
+  // Cancel any in-progress edit when switching rows.
+  if (editingPrompt.value && editingPrompt.value !== slug) {
+    editingPrompt.value = null;
   }
 }
 
@@ -1484,88 +1539,133 @@ onMounted(async () => {
         {{ t("settings.ai_no_prompts") }}
       </p>
 
-      <div v-else class="space-y-3">
-        <div
-          v-for="prompt in aiStore.prompts"
-          :key="prompt.slug"
-          class="rounded border border-gray-200 bg-white p-4"
-        >
-          <!-- View mode -->
-          <template v-if="editingPrompt !== prompt.slug">
-            <div class="mb-2 flex items-center gap-2">
-              <span class="font-medium text-gray-800">{{ prompt.label }}</span>
-              <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
+      <!-- Split panel: search + sorted list on the left, detail on the right -->
+      <div v-else class="flex gap-4 rounded border border-gray-200 bg-white">
+        <!-- Left: search + list -->
+        <aside class="flex w-64 shrink-0 flex-col border-r border-gray-200">
+          <div class="border-b border-gray-200 p-2">
+            <input
+              v-model="promptSearch"
+              type="search"
+              :placeholder="t('ai.search_placeholder')"
+              class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div class="max-h-[28rem] flex-1 overflow-y-auto">
+            <p
+              v-if="filteredPrompts.length === 0"
+              class="px-3 py-6 text-center text-xs text-gray-400"
+            >
+              {{ t("ai.no_match") }}
+            </p>
+            <button
+              v-for="prompt in filteredPrompts"
+              :key="prompt.slug"
+              type="button"
+              class="block w-full border-b border-gray-100 px-3 py-2 text-left transition-colors last:border-b-0"
+              :class="selectedPromptSlug === prompt.slug
+                ? 'bg-indigo-50 text-indigo-900'
+                : 'hover:bg-gray-50 text-gray-700'"
+              @click="selectPrompt(prompt.slug)"
+            >
+              <div class="flex items-center gap-1.5">
+                <span class="truncate text-sm font-medium">{{ prompt.label }}</span>
+                <span
+                  v-if="prompt.is_native"
+                  class="ml-auto rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-600"
+                  :title="t('ai.native_badge')"
+                >★</span>
+              </div>
+              <div class="mt-0.5 truncate font-mono text-[11px] text-gray-400">
                 {{ prompt.slug }}
-              </span>
-              <span
-                v-if="prompt.is_native"
-                class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-600"
-              >
-                {{ t("ai.native_badge") }}
-              </span>
-              <span
-                v-if="prompt.target_context"
-                class="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-600"
-              >
-                {{ prompt.target_context }}
-              </span>
-            </div>
-            <p v-if="prompt.description" class="mb-2 text-xs text-gray-400">
-              {{ prompt.description }}
-            </p>
-            <pre class="mb-3 max-h-32 overflow-y-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{{ prompt.template }}</pre>
-            <div class="flex gap-2">
-              <button
-                class="text-xs text-indigo-600 hover:text-indigo-800"
-                @click="startEditPrompt(prompt)"
-              >
-                {{ t("ai.edit_prompt") }}
-              </button>
-              <button
-                v-if="!prompt.is_native"
-                :disabled="isDeletingPrompt[prompt.slug]"
-                class="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
-                @click="deleteAiPrompt(prompt.slug)"
-              >
-                {{ t("ai.delete_prompt") }}
-              </button>
-            </div>
-          </template>
+              </div>
+            </button>
+          </div>
+        </aside>
 
-          <!-- Edit mode -->
+        <!-- Right: detail of the selected prompt -->
+        <section class="flex-1 p-4">
+          <div v-if="!selectedPrompt" class="text-sm text-gray-400">
+            {{ t("ai.select_a_prompt") }}
+          </div>
           <template v-else>
-            <div class="space-y-2">
-              <input
-                v-model="promptDraft.label"
-                type="text"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              <textarea
-                v-model="promptDraft.template"
-                rows="8"
-                class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
-              />
-            </div>
-            <p v-if="savePromptError[prompt.slug]" class="mt-1 text-xs text-red-600">
-              {{ savePromptError[prompt.slug] }}
-            </p>
-            <div class="mt-2 flex gap-2">
-              <button
-                :disabled="savingPrompt[prompt.slug]"
-                class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
-                @click="saveEditPrompt(prompt.slug)"
-              >
-                {{ t("common.save") }}
-              </button>
-              <button
-                class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
-                @click="cancelEditPrompt"
-              >
-                {{ t("common.cancel") }}
-              </button>
-            </div>
+            <!-- View mode -->
+            <template v-if="editingPrompt !== selectedPrompt.slug">
+              <div class="mb-2 flex flex-wrap items-center gap-2">
+                <span class="font-medium text-gray-800">{{ selectedPrompt.label }}</span>
+                <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
+                  {{ selectedPrompt.slug }}
+                </span>
+                <span
+                  v-if="selectedPrompt.is_native"
+                  class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-600"
+                >
+                  {{ t("ai.native_badge") }}
+                </span>
+                <span
+                  v-if="selectedPrompt.target_context"
+                  class="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-600"
+                >
+                  {{ selectedPrompt.target_context }}
+                </span>
+              </div>
+              <p v-if="selectedPrompt.description" class="mb-2 text-xs text-gray-400">
+                {{ selectedPrompt.description }}
+              </p>
+              <pre class="mb-3 max-h-96 overflow-y-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{{ selectedPrompt.template }}</pre>
+              <div class="flex gap-2">
+                <button
+                  class="text-xs text-indigo-600 hover:text-indigo-800"
+                  @click="startEditPrompt(selectedPrompt)"
+                >
+                  {{ t("ai.edit_prompt") }}
+                </button>
+                <button
+                  v-if="!selectedPrompt.is_native"
+                  :disabled="isDeletingPrompt[selectedPrompt.slug]"
+                  class="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
+                  @click="deleteAiPrompt(selectedPrompt.slug)"
+                >
+                  {{ t("ai.delete_prompt") }}
+                </button>
+              </div>
+            </template>
+
+            <!-- Edit mode -->
+            <template v-else>
+              <div class="space-y-2">
+                <input
+                  v-model="promptDraft.label"
+                  type="text"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+                <textarea
+                  v-model="promptDraft.template"
+                  rows="14"
+                  class="w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <p v-if="savePromptError[selectedPrompt.slug]" class="mt-1 text-xs text-red-600">
+                {{ savePromptError[selectedPrompt.slug] }}
+              </p>
+              <div class="mt-2 flex gap-2">
+                <button
+                  :disabled="savingPrompt[selectedPrompt.slug]"
+                  class="rounded bg-gray-900 px-3 py-1 text-xs text-white hover:bg-gray-700 disabled:opacity-40"
+                  @click="saveEditPrompt(selectedPrompt.slug)"
+                >
+                  {{ t("common.save") }}
+                </button>
+                <button
+                  class="rounded border px-3 py-1 text-xs hover:bg-gray-50"
+                  @click="cancelEditPrompt"
+                >
+                  {{ t("common.cancel") }}
+                </button>
+              </div>
+            </template>
           </template>
-        </div>
+        </section>
       </div>
     </template>
 

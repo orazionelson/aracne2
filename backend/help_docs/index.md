@@ -35,6 +35,7 @@ to jump directly to a topic.
 - [Editorial workflow](/help/page?path=02-editing/04-workflow)
 - [AI assistance](/help/page?path=03-advanced/04-ai-assistance)
 - [External reference lookups](/help/page?path=03-advanced/05-external-reference-lookups)
+- [AI prompts catalogue](/help/page?path=03-advanced/06-ai-prompts)
 - [Public Pages — your default public face](/help/page?path=04-publishing/00-public-pages)
 - [Publishing a website](/help/page?path=04-publishing/01-websites)
 - [OAI-PMH](/help/page?path=04-publishing/03-oai-pmh)
