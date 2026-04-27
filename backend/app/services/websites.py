@@ -2810,7 +2810,42 @@ def _extract_plain_text(xml_bytes: bytes) -> str:
         return ""
 
 
-def _build_bibliography_content(content_xml: str | None) -> str:
+# Bare ``foo.xml`` token in a bibliography entry. Anchored on a
+# non-word, non-dot, non-dash boundary so we only catch standalone
+# filenames and not, e.g. ``my-archive.xml.zip``.
+_BIBL_XML_FN_RE = re.compile(r"(?<![\w./\-])([A-Za-z0-9_][\w.\-]*\.xml)(?![\w./\-])")
+
+
+def _linkify_bibl_filenames(
+    text: str,
+    available: set[str] | None,
+    doc_url_for: Callable[[str], str] | None,
+) -> str:
+    """Wrap any whitelisted ``*.xml`` filename in *text* with an anchor tag.
+
+    *text* is HTML-escaped already, so the inserted markup is safe.  When
+    *available* is empty or *doc_url_for* is None the function is a no-op
+    — we never link to a document the visitor cannot actually reach.
+    """
+    if not available or doc_url_for is None:
+        return text
+
+    def repl(m: re.Match[str]) -> str:
+        fn = m.group(1)
+        if fn not in available:
+            return fn
+        href = _html.escape(doc_url_for(fn), quote=True)
+        return f'<a class="bibl-doc-link" href="{href}">{fn}</a>'
+
+    return _BIBL_XML_FN_RE.sub(repl, text)
+
+
+def _build_bibliography_content(
+    content_xml: str | None,
+    *,
+    available_filenames: set[str] | None = None,
+    doc_url_for: Callable[[str], str] | None = None,
+) -> str:
     """Return the bibliography page HTML from a TEI <listBibl> XML string.
 
     Parses ``content_xml`` with defusedxml, extracts each ``<bibl>`` or
@@ -2818,12 +2853,20 @@ def _build_bibliography_content(content_xml: str | None) -> str:
     CSS classes.  When ``content_xml`` is None, returns an empty-state
     message.
 
+    When *available_filenames* and *doc_url_for* are provided, any bare
+    ``foo.xml`` token in an entry that matches a real document on the
+    site is converted into an anchor pointing at the document page
+    (uses ``doc_url_for(filename)``).  Filenames not in the set are
+    rendered as plain text — we never link to a document the visitor
+    cannot actually reach.
+
     CSS classes used:
     - ``bibl-section``    — outer <section> wrapper
     - ``bibl-list``       — the <ul> element
     - ``bibl-entry``      — each <li>
     - ``bibl-number``     — the entry number span
     - ``bibl-text``       — the bibliographic text span
+    - ``bibl-doc-link``   — anchor wrapping a linked filename
     - ``bibl-empty``      — <p> shown when no entries are available
     """
     import defusedxml.ElementTree as ET  # mandatory: no xml.etree.ElementTree
@@ -2843,7 +2886,10 @@ def _build_bibliography_content(content_xml: str | None) -> str:
             for node in nodes:
                 text = " ".join("".join(node.itertext()).split()).strip()
                 if text:
-                    entries.append(_html.escape(text))
+                    escaped = _html.escape(text)
+                    entries.append(
+                        _linkify_bibl_filenames(escaped, available_filenames, doc_url_for)
+                    )
     except Exception:
         return '<section class="bibl-section"><p class="bibl-empty">Could not render bibliography.</p></section>'
 
@@ -3454,10 +3500,25 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
     footer_note, identifier_url = _footer_parts(col)
     tei_valid_badge = await _tei_valid_badge_html(db, col)
 
+    # List the collection's documents so we can linkify bibliography
+    # entries that mention an existing TEI filename. Failures here
+    # only mean no links are added — the bibliography itself is
+    # unaffected.
+    doc_filenames: set[str] = set()
+    if col is not None:
+        try:
+            doc_filenames = set(await existdb_client.list_collection(col.slug))
+        except Exception:
+            doc_filenames = set()
+
     html = _render_page(
         site_title=website.title,
         page_title="Bibliography",
-        content=_build_bibliography_content(content_xml),
+        content=_build_bibliography_content(
+            content_xml,
+            available_filenames=doc_filenames,
+            doc_url_for=lambda fn: f"{base}/docs/{fn}",
+        ),
         style=_style_block(theme, website.custom_css),
         navbar=navbar,
         breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),
@@ -4899,10 +4960,15 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             )
             if bib_row is not None:
                 bib_xml = bib_row.content
+        static_doc_set = {d["filename"] for d in doc_infos}
         bibliography_html = _render_page(
             site_title=website.title,
             page_title="Bibliography",
-            content=_build_bibliography_content(bib_xml),
+            content=_build_bibliography_content(
+                bib_xml,
+                available_filenames=static_doc_set,
+                doc_url_for=lambda fn: f"docs/{fn}.html",
+            ),
             style=style,
             navbar=navbar(),
             breadcrumb=_render_breadcrumb([("index.html", "Home"), (None, "Bibliography")]),
@@ -5199,10 +5265,15 @@ async def _build_hybrid_site(db: AsyncSession, website: Website) -> None:
             )
             if bib_row_h is not None:
                 bib_xml_h = bib_row_h.content
+        hybrid_doc_set = {d["filename"] for d in doc_infos}
         bibliography_html = _render_page(
             site_title=website.title,
             page_title="Bibliography",
-            content=_build_bibliography_content(bib_xml_h),
+            content=_build_bibliography_content(
+                bib_xml_h,
+                available_filenames=hybrid_doc_set,
+                doc_url_for=lambda fn: f"{base}/docs/{fn}",
+            ),
             style=style,
             navbar=_navbar(),
             breadcrumb=_render_breadcrumb([(f"{base}/", "Home"), (None, "Bibliography")]),

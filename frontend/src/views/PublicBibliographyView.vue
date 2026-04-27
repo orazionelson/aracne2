@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { useCollectionStore, type CollectionBibliography } from "@/stores/collections";
+import { apiClient } from "@/services/api";
 import { usePublicCustomCss } from "@/composables/usePublicCustomCss";
 
 const { t } = useI18n();
@@ -12,13 +13,24 @@ const uiConfig = useUiConfigStore();
 const collectionsStore = useCollectionStore();
 usePublicCustomCss();
 
+interface PublicDocumentInfo { filename: string; title: string | null; author: string | null }
+interface PublicCollectionDetail { documents: PublicDocumentInfo[] }
+
 const slug = route.params.slug as string;
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const bibliography = ref<CollectionBibliography | null>(null);
+const availableFilenames = ref<Set<string>>(new Set());
 
 onMounted(async () => {
   uiConfig.fetchConfig().catch(() => { /* non-fatal */ });
+  // Pull the collection detail in parallel so we can linkify any TEI
+  // filename mentioned in a bibliography entry, but only when the
+  // document is actually publicly accessible. A failure here is non-
+  // fatal — the page just renders without filename links.
+  apiClient.get<PublicCollectionDetail>(`/public/collections/${slug}`)
+    .then((d) => { availableFilenames.value = new Set(d.documents.map((x) => x.filename)); })
+    .catch(() => { /* leave the set empty */ });
   try {
     bibliography.value = await collectionsStore.fetchPublicBibliography(slug);
   } catch {
@@ -28,8 +40,35 @@ onMounted(async () => {
   }
 });
 
+// Bare ``foo.xml`` token. Anchored on a non-word, non-dot, non-dash
+// boundary so we only catch standalone filenames and not, e.g.
+// ``my-archive.xml.zip``.
+const XML_FN_RE = /(?<![\w./\-])([A-Za-z0-9_][\w.\-]*\.xml)(?![\w./\-])/g;
+
+interface BibFragment {
+  kind: "text" | "link";
+  value: string;
+  filename?: string;
+}
+
 interface BibEntry {
-  text: string;
+  fragments: BibFragment[];
+}
+
+function splitEntry(text: string, available: Set<string>): BibFragment[] {
+  if (available.size === 0) return [{ kind: "text", value: text }];
+  const out: BibFragment[] = [];
+  let last = 0;
+  for (const m of text.matchAll(XML_FN_RE)) {
+    const fn = m[1];
+    const start = m.index ?? 0;
+    if (!available.has(fn)) continue;
+    if (start > last) out.push({ kind: "text", value: text.slice(last, start) });
+    out.push({ kind: "link", value: fn, filename: fn });
+    last = start + fn.length;
+  }
+  if (last < text.length) out.push({ kind: "text", value: text.slice(last) });
+  return out.length ? out : [{ kind: "text", value: text }];
 }
 
 /**
@@ -51,7 +90,7 @@ const entries = computed<BibEntry[]>(() => {
       if (nodes.length === 0) nodes = doc.getElementsByTagName(tag);
       for (let i = 0; i < nodes.length; i++) {
         const text = nodes[i].textContent?.trim().replace(/\s+/g, " ") ?? "";
-        if (text) result.push({ text });
+        if (text) result.push({ fragments: splitEntry(text, availableFilenames.value) });
       }
     }
     return result;
@@ -107,7 +146,16 @@ const entries = computed<BibEntry[]>(() => {
             class="bibliography-item flex gap-3 rounded-lg border border-gray-100 bg-white px-5 py-3 shadow-sm"
           >
             <span class="mt-0.5 shrink-0 font-mono text-sm text-gray-300">{{ idx + 1 }}.</span>
-            <span class="text-sm leading-relaxed text-gray-800">{{ entry.text }}</span>
+            <span class="text-sm leading-relaxed text-gray-800">
+              <template v-for="(frag, fidx) in entry.fragments" :key="fidx">
+                <RouterLink
+                  v-if="frag.kind === 'link' && frag.filename"
+                  :to="{ name: 'public-document', params: { slug, filename: frag.filename } }"
+                  class="bibl-doc-link text-indigo-600 hover:underline"
+                >{{ frag.value }}</RouterLink>
+                <template v-else>{{ frag.value }}</template>
+              </template>
+            </span>
           </li>
         </ol>
       </template>
