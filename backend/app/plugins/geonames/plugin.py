@@ -38,5 +38,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "GeonamesLinkPanel",
+                "label_key": "lookups.geonames",
+                "icon_color": "text-orange-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 140,
+            }
+        },
     )
     router = router

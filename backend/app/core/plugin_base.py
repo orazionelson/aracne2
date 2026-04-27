@@ -44,6 +44,37 @@ class PluginMeta:
     min_role: str = field(default="Admin")
     """Minimum role required to interact with this plugin's UI."""
 
+    capabilities: tuple[str, ...] = field(default_factory=tuple)
+    """Tags describing what UI surfaces this plugin populates.
+
+    The platform itself does not interpret them — they are a contract
+    between the plugin and the frontend. Today the SPA recognises:
+
+    * ``inline_authority`` — adds a button + side panel to the TEI
+      editor toolbar that opens an authority lookup for the current
+      selection (Wikidata, ORCID, ROR, …). The plugin must also
+      declare an ``inline_authority`` entry under
+      :attr:`ui_descriptor`.
+
+    Future capabilities will follow the same shape — a string tag
+    here plus a typed entry under ``ui_descriptor``.
+    """
+
+    ui_descriptor: dict[str, dict[str, object]] | None = field(default=None)
+    """Per-capability UI metadata, keyed by capability name.
+
+    For ``inline_authority`` the dict is shaped::
+
+        {
+          "component": "WikidataLinkPanel",   # name in the SPA registry
+          "label_key": "lookups.wikidata",    # vue-i18n key
+          "icon_color": "text-amber-500",     # Tailwind class on toolbar icon
+          "apply": "ref",                     # "ref" | "fragment"
+          "initial_context": "selection",     # "selection" | "selection-or-empty" | "kind-picker"
+          "priority": 100,                    # toolbar sort key (lower = leftmost)
+        }
+    """
+
 
 class PluginBase(ABC):
     """Abstract base for all Aracne2 plugins.

@@ -40,6 +40,16 @@ class Plugin(Base):
     )
     config: Mapped[dict[str, object]] = mapped_column(JsonbType, nullable=False, default=dict)
     hooks: Mapped[list[object]] = mapped_column(JsonbType, nullable=False, default=list)
+    # Capabilities the plugin advertises to the SPA, keyed by tag (e.g.
+    # ``inline_authority``). Mirrors PluginMeta.capabilities.
+    capabilities: Mapped[list[str]] = mapped_column(
+        JsonbType, nullable=False, default=list, server_default="[]"
+    )
+    # Per-capability UI metadata the SPA reads to auto-cable the plugin
+    # into the right toolbar / panel. Mirrors PluginMeta.ui_descriptor.
+    ui_descriptor: Mapped[dict[str, object] | None] = mapped_column(
+        JsonbType, nullable=True, default=None
+    )
     installed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

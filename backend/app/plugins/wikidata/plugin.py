@@ -38,5 +38,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "WikidataLinkPanel",
+                "label_key": "lookups.wikidata",
+                "icon_color": "text-amber-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 100,
+            }
+        },
     )
     router = router

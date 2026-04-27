@@ -36,5 +36,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "PeripleoLinkPanel",
+                "label_key": "lookups.peripleo",
+                "icon_color": "text-sky-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 170,
+            }
+        },
     )
     router = router

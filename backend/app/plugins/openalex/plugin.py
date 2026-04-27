@@ -34,5 +34,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "OpenAlexPanel",
+                "label_key": "lookups.openalex",
+                "icon_color": "text-blue-500",
+                "apply": "fragment",
+                "initial_context": "selection",
+                "priority": 190,
+            }
+        },
     )
     router = router

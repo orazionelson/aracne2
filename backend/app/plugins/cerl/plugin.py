@@ -37,5 +37,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "CerlLinkPanel",
+                "label_key": "lookups.cerl",
+                "icon_color": "text-violet-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 160,
+            }
+        },
     )
     router = router

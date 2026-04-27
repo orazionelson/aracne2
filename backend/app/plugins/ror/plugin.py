@@ -34,5 +34,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "RorLinkPanel",
+                "label_key": "lookups.ror",
+                "icon_color": "text-cyan-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 120,
+            }
+        },
     )
     router = router

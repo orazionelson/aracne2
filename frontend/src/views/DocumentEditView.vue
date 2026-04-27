@@ -13,22 +13,12 @@ import CodeMirror, { type Editor as CM5Editor } from 'codemirror';
 import { loadTeiSchema, type CM5Schema } from '@/utils/teiSchema';
 import NoteModal from '@/components/ui/NoteModal.vue';
 import MediaPanel from '@/components/ui/MediaPanel.vue';
-import WikidataLinkPanel from '@/components/ui/WikidataLinkPanel.vue';
-import OrcidLinkPanel from '@/components/ui/OrcidLinkPanel.vue';
-import RorLinkPanel from '@/components/ui/RorLinkPanel.vue';
-import ViafLinkPanel from '@/components/ui/ViafLinkPanel.vue';
-import GeonamesLinkPanel from '@/components/ui/GeonamesLinkPanel.vue';
-import GndLinkPanel from '@/components/ui/GndLinkPanel.vue';
-import CerlLinkPanel from '@/components/ui/CerlLinkPanel.vue';
-import PeripleoLinkPanel from '@/components/ui/PeripleoLinkPanel.vue';
-import GettyAatLinkPanel from '@/components/ui/GettyAatLinkPanel.vue';
-import OpenAlexPanel from '@/components/ui/OpenAlexPanel.vue';
-import TrismegistosLinkPanel from '@/components/ui/TrismegistosLinkPanel.vue';
-import CrossrefPanel from '@/components/ui/CrossrefPanel.vue';
+import { LOOKUP_COMPONENTS } from '@/components/lookup/registry';
+import type { PluginInfo, InlineAuthorityDescriptor } from '@/stores/plugins';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const store = useCollectionStore();
@@ -37,48 +27,10 @@ const settingStore = useSettingStore();
 const aiStore = useAiStore();
 const pluginStore = usePluginStore();
 
-// Editor-side integrations that live as non-native plugins. The
-// toolbar buttons (ORCID lookup, CrossRef DOI resolver) are visible
-// only when the matching plugin is active in /admin/plugins —
-// otherwise clicking them would hit endpoints mounted conditionally.
-const wikidataPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'wikidata' && p.status === 'active'),
-);
-const orcidPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'orcid' && p.status === 'active'),
-);
-const rorPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'ror' && p.status === 'active'),
-);
-const viafPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'viaf' && p.status === 'active'),
-);
-const geonamesPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'geonames' && p.status === 'active'),
-);
-const gndPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'gnd' && p.status === 'active'),
-);
-const cerlPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'cerl' && p.status === 'active'),
-);
-const peripleoPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'peripleo' && p.status === 'active'),
-);
-const gettyAatPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'getty_aat' && p.status === 'active'),
-);
-const openalexPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'openalex' && p.status === 'active'),
-);
-const trismegistosPluginActive = computed(() =>
-  pluginStore.plugins.some((p) => p.name === 'trismegistos' && p.status === 'active'),
-);
-const crossrefPluginActive = computed(() =>
-  pluginStore.plugins.some(
-    (p) => p.name === 'crossref_lookup' && p.status === 'active',
-  ),
-);
+// Authority lookup plugins are auto-cabled — see ``activeLookups``
+// computed and ``openLookup`` further down. The 12 individual
+// "*PluginActive" computeds and "show*Panel" refs that lived here
+// are gone; one boolean (``activeLookupSlug``) replaces them.
 
 // settingStore imported above to keep the store registered; not used directly here.
 void settingStore;
@@ -130,84 +82,38 @@ const currentZoneSurface = ref<FacsimileSurface | null>(null);
 // ── Validation panel ──────────────────────────────────────────────────────────
 const showValidationPanel = ref(false);
 
-// ── Wikidata entity-linking panel ─────────────────────────────────────────────
-// Lets an editor resolve a <persName>/<placeName>/<orgName> selection to a
-// canonical Wikidata URI and write it back as @ref on the enclosing TEI tag.
-const showWikidataPanel = ref(false);
-const wikidataInitialQuery = ref('');
-// Whitelist of TEI entity elements that may receive an @ref via this panel.
-// Keep in sync with backend/app/db/seed.py -> entity_index_tags default; we
-// keep a local copy rather than fetching it from the settings store because
-// the helper runs synchronously against the editor buffer.
-const ENTITY_TAGS = ['persName', 'placeName', 'orgName'] as const;
+// ── Authority lookup panels ──────────────────────────────────────────────────
+//
+// Every authority lookup (Wikidata, ORCID, ROR, VIAF, GeoNames, GND,
+// CERL, Peripleo, Getty AAT, OpenAlex, Trismegistos, CrossRef) is now
+// auto-cabled from its backend plugin via the inline_authority
+// capability — the toolbar reads aiStore.plugins, filters by
+// capability, and renders one button per active plugin. The single
+// activeLookupSlug ref tracks which panel is open; activeLookupContext
+// carries the prefill payload (initial query / kind / DOI) the panel
+// expects via v-bind.
+//
+// Per-plugin TEI-tag whitelists for "ref"-mode application — the
+// scope of TEI elements that may receive an @ref via that authority.
+// Keep in sync with the descriptor on each plugin's PluginMeta.
+const LOOKUP_TAGS: Record<string, readonly string[]> = {
+  wikidata:        ['persName', 'placeName', 'orgName'],
+  orcid:           ['persName'],
+  ror:             ['orgName'],
+  viaf:            ['persName', 'orgName'],
+  geonames:        ['placeName'],
+  gnd:             ['persName', 'placeName', 'orgName'],
+  cerl:            ['persName', 'placeName', 'orgName'],
+  peripleo:        ['placeName'],
+  getty_aat:       ['term'],
+  trismegistos:    ['persName', 'placeName'],
+  // Fragment-mode plugins (openalex, crossref_lookup) don't apply a
+  // @ref attribute — they insert an XML fragment instead.
+};
 
-// ── ORCID lookup panel ────────────────────────────────────────────────────────
-// Resolves a <persName> selection to a canonical ORCID URI. Narrower
-// than the Wikidata panel — ORCID identifies people only.
-const ORCID_TAGS = ['persName'] as const;
-const showOrcidPanel = ref(false);
-const orcidInitialQuery = ref('');
+const activeLookupSlug = ref<string | null>(null);
+const activeLookupContext = ref<Record<string, unknown>>({});
 
-// ── ROR lookup panel ──────────────────────────────────────────────────────────
-// Resolves an <orgName> selection to a canonical ROR URI. Scoped to
-// institutions only — ROR does not identify people or places.
-const ROR_TAGS = ['orgName'] as const;
-const showRorPanel = ref(false);
-const rorInitialQuery = ref('');
-
-// ── VIAF lookup panel ─────────────────────────────────────────────────────────
-// Resolves a <persName> or <orgName> selection to a canonical VIAF URI.
-// VIAF covers both persons and corporate bodies; the panel shows the
-// returned name-type so the editor can pick the right record.
-const VIAF_TAGS = ['persName', 'orgName'] as const;
-const showViafPanel = ref(false);
-const viafInitialQuery = ref('');
-
-// ── GeoNames lookup panel ─────────────────────────────────────────────────────
-// Resolves a <placeName> selection to a canonical GeoNames URI. URI
-// format (web vs semantic-web) comes from the plugin's config — the
-// panel renders whatever the backend returns.
-const GEO_TAGS = ['placeName'] as const;
-const showGeonamesPanel = ref(false);
-const geonamesInitialQuery = ref('');
-
-// ── GND (lobid.org) — broad: persName / placeName / orgName.
-const GND_TAGS = ['persName', 'placeName', 'orgName'] as const;
-const showGndPanel = ref(false);
-const gndInitialQuery = ref('');
-
-// ── CERL Thesaurus — broad: persName / placeName / orgName
-// (imprints live on <orgName>).
-const CERL_TAGS = ['persName', 'placeName', 'orgName'] as const;
-const showCerlPanel = ref(false);
-const cerlInitialQuery = ref('');
-
-// ── Peripleo (ancient places) — placeName only.
-const PERIPLEO_TAGS = ['placeName'] as const;
-const showPeripleoPanel = ref(false);
-const peripleoInitialQuery = ref('');
-
-// ── Getty AAT — term only.
-const GETTY_AAT_TAGS = ['term'] as const;
-const showGettyAatPanel = ref(false);
-const gettyAatInitialQuery = ref('');
-
-// ── OpenAlex — biblStruct insert (no @ref on enclosing tag).
-const showOpenAlexPanel = ref(false);
-const openAlexInitialQuery = ref('');
-
-// ── Trismegistos — ID resolver; @ref application only on persName / placeName.
-const TMG_TAGS = ['persName', 'placeName'] as const;
-const showTrismegistosPanel = ref(false);
-const trismegistosInitialKind = ref<'person' | 'place' | 'text'>('place');
-
-// ── CrossRef DOI resolver panel ───────────────────────────────────────────────
-// Paste a DOI and get back a TEI <biblStruct> fragment (populated by the
-// backend via CrossRef's /works/{doi}). Complements the AI `tei_bibl_inline`
-// prompt which takes free prose and guesses structure — CrossRef is
-// deterministic.
-const showCrossrefPanel = ref(false);
-const crossrefInitialDoi = ref('');
 const _DOI_RE = /^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:)?10\.\d+\/[-._;()/:A-Za-z0-9]+$/;
 
 // ── Panel resize ──────────────────────────────────────────────────────────────
@@ -225,18 +131,7 @@ const anyPanelOpen = computed(
     showMediaPanel.value ||
     showValidationPanel.value ||
     showZonePanel.value ||
-    showWikidataPanel.value ||
-    showOrcidPanel.value ||
-    showRorPanel.value ||
-    showViafPanel.value ||
-    showGeonamesPanel.value ||
-    showGndPanel.value ||
-    showCerlPanel.value ||
-    showPeripleoPanel.value ||
-    showGettyAatPanel.value ||
-    showOpenAlexPanel.value ||
-    showTrismegistosPanel.value ||
-    showCrossrefPanel.value,
+    activeLookupSlug.value !== null,
 );
 
 function startPanelDrag(e: MouseEvent): void {
@@ -674,284 +569,16 @@ function handleZoneAssociate(zoneId: string): boolean {
 }
 
 /**
- * Toggle the Wikidata entity-linking panel. On open, pre-fills the search
- * query with the current editor selection (or, if nothing is selected, the
- * text content of the entity element enclosing the cursor — best-effort).
+ * Compute the prefill text for an authority lookup. Used by every
+ * "selection"-style panel: take the current editor selection, or fall
+ * back to the text content of the TEI element enclosing the cursor.
+ * Returns an empty string if neither path produces anything useful.
  */
-function toggleWikidataPanel(): void {
-  if (showWikidataPanel.value) {
-    showWikidataPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showCrossrefPanel.value = false;
-  showOrcidPanel.value = false;
-  showRorPanel.value = false;
-  showViafPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
-
+function _computeLookupPrefill(): string {
   const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) {
-    wikidataInitialQuery.value = sel;
-  } else if (cm) {
-    // Extract the text inside the enclosing entity tag, if any.
-    const text = cm.getValue();
-    const offset = cm.indexFromPos(cm.getCursor());
-    const open = text.lastIndexOf('<', offset - 1);
-    const close = text.indexOf('>', open);
-    const end = text.indexOf('<', close);
-    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
-      wikidataInitialQuery.value = text.slice(close + 1, end).trim();
-    } else {
-      wikidataInitialQuery.value = '';
-    }
-  } else {
-    wikidataInitialQuery.value = '';
-  }
-  showWikidataPanel.value = true;
-}
-
-type EntityRefOutcome =
-  | { ok: true; tagName: string }
-  | { ok: false; reason: 'no_enclosing_tag' }
-  | { ok: false; reason: 'not_entity_tag'; tagName: string };
-
-/** Apply the Wikidata URI chosen by the panel to the current selection. */
-function applyWikidataRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, ENTITY_TAGS);
-}
-
-/**
- * Toggle the ORCID lookup panel. Pre-fills the search query with the
- * current editor selection (or the text of the enclosing persName, if
- * any), same heuristic the Wikidata panel uses.
- */
-function toggleOrcidPanel(): void {
-  if (showOrcidPanel.value) {
-    showOrcidPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showCrossrefPanel.value = false;
-  showRorPanel.value = false;
-  showViafPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
-
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) {
-    orcidInitialQuery.value = sel;
-  } else if (cm) {
-    // Pull the text inside the enclosing tag when nothing is selected —
-    // typical case: cursor inside <persName>Dante Alighieri</persName>.
-    const text = cm.getValue();
-    const offset = cm.indexFromPos(cm.getCursor());
-    const open = text.lastIndexOf('<', offset - 1);
-    const close = text.indexOf('>', open);
-    const end = text.indexOf('<', close);
-    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
-      orcidInitialQuery.value = text.slice(close + 1, end).trim();
-    } else {
-      orcidInitialQuery.value = '';
-    }
-  } else {
-    orcidInitialQuery.value = '';
-  }
-  showOrcidPanel.value = true;
-}
-
-/** Apply the ORCID URI chosen by the panel — only to <persName> elements. */
-function applyOrcidRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, ORCID_TAGS);
-}
-
-/**
- * Toggle the ROR lookup panel. Pre-fills the search query with the
- * current editor selection (or the text of the enclosing orgName, if
- * any), same heuristic the ORCID panel uses.
- */
-function toggleRorPanel(): void {
-  if (showRorPanel.value) {
-    showRorPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showCrossrefPanel.value = false;
-  showOrcidPanel.value = false;
-  showViafPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
-
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) {
-    rorInitialQuery.value = sel;
-  } else if (cm) {
-    const text = cm.getValue();
-    const offset = cm.indexFromPos(cm.getCursor());
-    const open = text.lastIndexOf('<', offset - 1);
-    const close = text.indexOf('>', open);
-    const end = text.indexOf('<', close);
-    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
-      rorInitialQuery.value = text.slice(close + 1, end).trim();
-    } else {
-      rorInitialQuery.value = '';
-    }
-  } else {
-    rorInitialQuery.value = '';
-  }
-  showRorPanel.value = true;
-}
-
-/** Apply the ROR URI chosen by the panel — only to <orgName> elements. */
-function applyRorRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, ROR_TAGS);
-}
-
-/**
- * Toggle the VIAF lookup panel. Pre-fills the search query with the
- * current editor selection (or the text of the enclosing persName /
- * orgName, if any), same heuristic the ORCID and ROR panels use.
- */
-function toggleViafPanel(): void {
-  if (showViafPanel.value) {
-    showViafPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showCrossrefPanel.value = false;
-  showOrcidPanel.value = false;
-  showRorPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
-
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) {
-    viafInitialQuery.value = sel;
-  } else if (cm) {
-    const text = cm.getValue();
-    const offset = cm.indexFromPos(cm.getCursor());
-    const open = text.lastIndexOf('<', offset - 1);
-    const close = text.indexOf('>', open);
-    const end = text.indexOf('<', close);
-    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
-      viafInitialQuery.value = text.slice(close + 1, end).trim();
-    } else {
-      viafInitialQuery.value = '';
-    }
-  } else {
-    viafInitialQuery.value = '';
-  }
-  showViafPanel.value = true;
-}
-
-/** Apply the VIAF URI — targets persName or orgName (the two VIAF name types). */
-function applyViafRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, VIAF_TAGS);
-}
-
-/**
- * Toggle the GeoNames lookup panel. Pre-fills with the current
- * editor selection (or the text of the enclosing placeName, if any).
- */
-function toggleGeonamesPanel(): void {
-  if (showGeonamesPanel.value) {
-    showGeonamesPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showCrossrefPanel.value = false;
-  showOrcidPanel.value = false;
-  showRorPanel.value = false;
-  showViafPanel.value = false;
-
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) {
-    geonamesInitialQuery.value = sel;
-  } else if (cm) {
-    const text = cm.getValue();
-    const offset = cm.indexFromPos(cm.getCursor());
-    const open = text.lastIndexOf('<', offset - 1);
-    const close = text.indexOf('>', open);
-    const end = text.indexOf('<', close);
-    if (open !== -1 && close !== -1 && end !== -1 && end > close) {
-      geonamesInitialQuery.value = text.slice(close + 1, end).trim();
-    } else {
-      geonamesInitialQuery.value = '';
-    }
-  } else {
-    geonamesInitialQuery.value = '';
-  }
-  showGeonamesPanel.value = true;
-}
-
-/** Apply the GeoNames URI — only to <placeName> elements. */
-function applyGeonamesRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, GEO_TAGS);
-}
-
-
-// ── Shared toggle helpers for the new authority panels ───────────────────────
-//
-// Extract the "pre-fill query" from the editor: current selection when
-// present, else the text inside the enclosing TEI tag (best-effort
-// scan for "<…>…<"). Same heuristic every older toggle function uses
-// inline; factored out here to keep the six new toggles terse.
-
-function _computePrefill(): string {
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  if (sel) return sel;
   if (!cm) return '';
+  const sel = cm.getSelection()?.trim() ?? '';
+  if (sel) return sel;
   const text = cm.getValue();
   const offset = cm.indexFromPos(cm.getCursor());
   const open = text.lastIndexOf('<', offset - 1);
@@ -963,158 +590,131 @@ function _computePrefill(): string {
   return '';
 }
 
-/** Close every authority + non-authority panel except the one named. */
-function _closeAllExcept(keep: string): void {
-  const panels: Record<string, { value: boolean }> = {
-    help: showHelpPanel,
-    ai: showAiPanel,
-    media: showMediaPanel,
-    validation: showValidationPanel,
-    wikidata: showWikidataPanel,
-    orcid: showOrcidPanel,
-    ror: showRorPanel,
-    viaf: showViafPanel,
-    geonames: showGeonamesPanel,
-    gnd: showGndPanel,
-    cerl: showCerlPanel,
-    peripleo: showPeripleoPanel,
-    gettyAat: showGettyAatPanel,
-    openalex: showOpenAlexPanel,
-    trismegistos: showTrismegistosPanel,
-    crossref: showCrossrefPanel,
-  };
-  for (const [name, ref] of Object.entries(panels)) {
-    if (name !== keep) ref.value = false;
+/**
+ * Open (or close, if it's already open) an authority lookup panel.
+ * The plugin's ``ui_descriptor.inline_authority`` declares how to seed
+ * the panel — this dispatcher reads that descriptor and builds the
+ * v-bind payload for the dynamic <component>. Closes every other
+ * sidebar panel for the standard mutex behaviour.
+ */
+function openLookup(plugin: PluginInfo): void {
+  if (activeLookupSlug.value === plugin.name) {
+    activeLookupSlug.value = null;
+    return;
   }
+  // Mutex with the other panel families.
+  showHelpPanel.value = false;
+  showMediaPanel.value = false;
+  showValidationPanel.value = false;
+  showAiPanel.value = false;
+
+  const desc = (plugin.ui_descriptor as Record<string, unknown> | null)
+    ?.inline_authority as InlineAuthorityDescriptor | undefined;
+  if (!desc) {
+    activeLookupSlug.value = null;
+    return;
+  }
+
+  const ctx: Record<string, unknown> = {};
+  switch (desc.initial_context) {
+    case 'selection':
+    case 'selection-or-empty':
+      ctx['initial-query'] = _computeLookupPrefill();
+      break;
+    case 'doi': {
+      const sel = singleCm.editorInstance.value?.getSelection()?.trim() ?? '';
+      ctx['initial-doi'] = _DOI_RE.test(sel) ? sel : '';
+      break;
+    }
+    case 'kind-picker':
+      // Panel-specific seed; default to "place" — Trismegistos's most
+      // common authority shape. The panel still lets the user pick.
+      ctx['initial-kind'] = 'place';
+      break;
+  }
+
+  // Wire the apply callback prop the panel expects. Ref-mode panels
+  // emit a URI; fragment-mode panels emit a raw XML fragment.
+  if (desc.apply === 'ref') {
+    ctx['on-apply'] = applyLookupRef;
+  } else {
+    ctx['on-insert'] = applyLookupFragment;
+  }
+
+  activeLookupContext.value = ctx;
+  activeLookupSlug.value = plugin.name;
 }
 
-// ── GND ──────────────────────────────────────────────────────────────────────
-
-function toggleGndPanel(): void {
-  if (showGndPanel.value) { showGndPanel.value = false; return; }
-  _closeAllExcept('gnd');
-  gndInitialQuery.value = _computePrefill();
-  showGndPanel.value = true;
-}
-function applyGndRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, GND_TAGS);
-}
-
-// ── CERL ─────────────────────────────────────────────────────────────────────
-
-function toggleCerlPanel(): void {
-  if (showCerlPanel.value) { showCerlPanel.value = false; return; }
-  _closeAllExcept('cerl');
-  cerlInitialQuery.value = _computePrefill();
-  showCerlPanel.value = true;
-}
-function applyCerlRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, CERL_TAGS);
-}
-
-// ── Peripleo ─────────────────────────────────────────────────────────────────
-
-function togglePeripleoPanel(): void {
-  if (showPeripleoPanel.value) { showPeripleoPanel.value = false; return; }
-  _closeAllExcept('peripleo');
-  peripleoInitialQuery.value = _computePrefill();
-  showPeripleoPanel.value = true;
-}
-function applyPeripleoRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, PERIPLEO_TAGS);
-}
-
-// ── Getty AAT ────────────────────────────────────────────────────────────────
-
-function toggleGettyAatPanel(): void {
-  if (showGettyAatPanel.value) { showGettyAatPanel.value = false; return; }
-  _closeAllExcept('gettyAat');
-  gettyAatInitialQuery.value = _computePrefill();
-  showGettyAatPanel.value = true;
-}
-function applyGettyAatRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, GETTY_AAT_TAGS);
-}
-
-// ── OpenAlex ─────────────────────────────────────────────────────────────────
-
-function toggleOpenAlexPanel(): void {
-  if (showOpenAlexPanel.value) { showOpenAlexPanel.value = false; return; }
-  _closeAllExcept('openalex');
-  openAlexInitialQuery.value = _computePrefill();
-  showOpenAlexPanel.value = true;
-}
-function applyOpenAlexFragment(xml: string): void {
-  singleCm.insertXmlFragment(xml);
-}
-
-// ── Trismegistos ─────────────────────────────────────────────────────────────
-
-/** Sniff the enclosing TEI tag name and pick the matching TM kind —
- * so persName defaults to person, placeName to place, anything else
- * to place (the most common editorial need). */
-function _computeTmKindFromCursor(): 'person' | 'place' | 'text' {
-  const cm = singleCm.editorInstance.value;
-  if (!cm) return 'place';
-  const text = cm.getValue();
-  const offset = cm.indexFromPos(cm.getCursor());
-  const open = text.lastIndexOf('<', offset - 1);
-  if (open === -1) return 'place';
-  const m = /^<\/?([A-Za-z][A-Za-z0-9:._-]*)/.exec(text.slice(open));
-  if (!m) return 'place';
-  const tag = m[1];
-  if (tag === 'persName') return 'person';
-  if (tag === 'placeName') return 'place';
-  return 'place';
-}
-
-function toggleTrismegistosPanel(): void {
-  if (showTrismegistosPanel.value) { showTrismegistosPanel.value = false; return; }
-  _closeAllExcept('trismegistos');
-  trismegistosInitialKind.value = _computeTmKindFromCursor();
-  showTrismegistosPanel.value = true;
-}
-function applyTrismegistosRef(uri: string): EntityRefOutcome {
-  return singleCm.insertEntityRef(uri, TMG_TAGS);
+function closeActiveLookup(): void {
+  activeLookupSlug.value = null;
 }
 
 /**
- * Toggle the CrossRef DOI resolver panel. On open, pre-fills the DOI
- * input with the current editor selection when it looks like a DOI —
- * otherwise leaves it empty for the editor to paste.
+ * Apply a URI returned by a ref-mode authority panel. Looks up the
+ * allowed-tags whitelist for the active plugin and writes the URI as
+ * @ref on the enclosing TEI element when it matches.
  */
-function toggleCrossrefPanel(): void {
-  if (showCrossrefPanel.value) {
-    showCrossrefPanel.value = false;
-    return;
-  }
-  // Mutex: other panels close.
-  showHelpPanel.value = false;
-  showAiPanel.value = false;
-  showMediaPanel.value = false;
-  showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showOrcidPanel.value = false;
-  showRorPanel.value = false;
-  showViafPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
-
-  const cm = singleCm.editorInstance.value;
-  const sel = cm?.getSelection()?.trim() ?? '';
-  crossrefInitialDoi.value = sel && _DOI_RE.test(sel) ? sel : '';
-  showCrossrefPanel.value = true;
+function applyLookupRef(uri: string): EntityRefOutcome {
+  const slug = activeLookupSlug.value;
+  if (!slug) return { ok: false, reason: 'no_enclosing_tag' };
+  const tags = LOOKUP_TAGS[slug];
+  if (!tags) return { ok: false, reason: 'no_enclosing_tag' };
+  return singleCm.insertEntityRef(uri, tags);
 }
 
-/** Insert the biblStruct XML returned by the CrossRef panel at the cursor. */
-function applyCrossrefFragment(xml: string): void {
+/** Insert the XML fragment returned by a fragment-mode panel. */
+function applyLookupFragment(xml: string): void {
   singleCm.insertXmlFragment(xml);
 }
+
+type EntityRefOutcome =
+  | { ok: true; tagName: string }
+  | { ok: false; reason: 'no_enclosing_tag' }
+  | { ok: false; reason: 'not_entity_tag'; tagName: string };
+
+/**
+ * Resolves the active lookup's slug to the matching Vue component
+ * from the registry. Used by the dynamic <component> in the
+ * template. Null when no lookup is open or the descriptor points at
+ * a component name the registry doesn't know.
+ */
+const activeLookupComponent = computed(() => {
+  if (!activeLookupSlug.value) return null;
+  const lookup = pluginStore.plugins.find((p) => p.name === activeLookupSlug.value);
+  const desc = (lookup?.ui_descriptor as Record<string, unknown> | null)
+    ?.inline_authority as InlineAuthorityDescriptor | undefined;
+  if (!desc?.component) return null;
+  return LOOKUP_COMPONENTS[desc.component] ?? null;
+});
+
+/**
+ * Active authority-lookup plugins, sorted by descriptor.priority.
+ * Drives the toolbar's v-for so newly activated plugins appear with
+ * no further code change.
+ */
+const activeLookups = computed(() =>
+  pluginStore.plugins
+    .filter((p) =>
+      p.status === 'active'
+      && Array.isArray(p.capabilities)
+      && p.capabilities.includes('inline_authority'),
+    )
+    .map((p) => {
+      const desc = (p.ui_descriptor as Record<string, unknown> | null)
+        ?.inline_authority as InlineAuthorityDescriptor | undefined;
+      return { plugin: p, descriptor: desc };
+    })
+    .filter(({ descriptor }) =>
+      !!descriptor
+      && typeof descriptor.component === 'string'
+      && descriptor.component in LOOKUP_COMPONENTS,
+    )
+    .sort(
+      (a, b) =>
+        ((a.descriptor!.priority ?? 999) - (b.descriptor!.priority ?? 999))
+        || a.plugin.display_name.localeCompare(b.plugin.display_name),
+    ),
+);
 
 /**
  * Called when ZoneEditor successfully persists zones to eXist-db.
@@ -1206,18 +806,7 @@ function openAiPanel(): void {
   showHelpPanel.value = false;
   showMediaPanel.value = false;
   showValidationPanel.value = false;
-  showWikidataPanel.value = false;
-  showCrossrefPanel.value = false;
-  showOrcidPanel.value = false;
-  showRorPanel.value = false;
-  showViafPanel.value = false;
-  showGeonamesPanel.value = false;
-  showGndPanel.value = false;
-  showCerlPanel.value = false;
-  showPeripleoPanel.value = false;
-  showGettyAatPanel.value = false;
-  showOpenAlexPanel.value = false;
-  showTrismegistosPanel.value = false;
+  activeLookupSlug.value = null;
   // The AI store is shared across features (Bibliobuilder, the TEI
   // editor, the Validate dialog, …). When the user lands on the
   // editor's AI panel after running a Bibliobuilder pass, the
@@ -1434,244 +1023,30 @@ async function runValidation(): Promise<void> {
       </div>
 
       <!-- Row 1.5: authority-lookup cluster.
-           Dedicated strip so the main toolbar below stays focused on
-           editor actions (Format / Notes / Help / AI / Media / Save).
-           All six buttons are gated on their respective plugin being
-           active (Wikidata too, since it was refactored from a core
-           router to a non-native plugin for consistency with the rest
-           of the authority set). Service-branded colours in default
-           state make each chip legible at a glance; active state
-           inverts to a solid fill to signal the open panel. -->
+           Auto-cabled from every active plugin that advertises the
+           inline_authority capability — drop a new lookup into
+           src/components/lookup/registry.ts and a button appears
+           here with no further edit. -->
       <div class="flex flex-wrap items-center justify-end gap-1">
         <button
-          v-if="wikidataPluginActive"
+          v-for="{ plugin, descriptor } in activeLookups"
+          :key="plugin.name"
           :disabled="isLoading"
           :class="[
             'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showWikidataPanel
-              ? 'border-amber-600 bg-amber-600 text-white shadow-sm dark:border-amber-500 dark:bg-amber-500'
-              : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50',
+            activeLookupSlug === plugin.name
+              ? 'border-gray-700 bg-gray-700 text-white shadow-sm dark:border-gray-300 dark:bg-gray-300 dark:text-gray-900'
+              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
           ]"
-          :title="t('wikidata.button_hint')"
-          @click="toggleWikidataPanel"
+          :title="te(descriptor!.label_key ?? '') ? t(descriptor!.label_key!) : (plugin.description ?? plugin.display_name)"
+          @click="openLookup(plugin)"
         >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-          </svg>
-          {{ t('wikidata.button_label') }}
-        </button>
-
-        <button
-          v-if="orcidPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showOrcidPanel
-              ? 'border-lime-600 bg-lime-600 text-white shadow-sm dark:border-lime-500 dark:bg-lime-500'
-              : 'border-lime-400 bg-lime-50 text-lime-800 hover:bg-lime-100 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300 dark:hover:bg-lime-900/50',
-          ]"
-          :title="t('orcid.button_hint')"
-          @click="toggleOrcidPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 7v10" />
-            <path d="M8 17h4" />
-            <path d="M8 12a4 4 0 0 1 4-4" />
-          </svg>
-          {{ t('orcid.button_label') }}
-        </button>
-
-        <button
-          v-if="rorPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showRorPanel
-              ? 'border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500'
-              : 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50',
-          ]"
-          :title="t('ror.button_hint')"
-          @click="toggleRorPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="4" y="5" width="16" height="15" rx="1" />
-            <path d="M8 9h8M8 13h8M8 17h5" />
-            <path d="M10 5V3h4v2" />
-          </svg>
-          {{ t('ror.button_label') }}
-        </button>
-
-        <button
-          v-if="viafPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showViafPanel
-              ? 'border-red-600 bg-red-600 text-white shadow-sm dark:border-red-500 dark:bg-red-500'
-              : 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50',
-          ]"
-          :title="t('viaf.button_hint')"
-          @click="toggleViafPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 20 L12 4 L20 20 Z" />
-            <path d="M8 14 h8" />
-          </svg>
-          {{ t('viaf.button_label') }}
-        </button>
-
-        <button
-          v-if="geonamesPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showGeonamesPanel
-              ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-500'
-              : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50',
-          ]"
-          :title="t('geonames.button_hint')"
-          @click="toggleGeonamesPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 2 C7 2 3 6 3 11 c0 7 9 11 9 11 s9-4 9-11 c0-5-4-9-9-9 z" />
-            <circle cx="12" cy="11" r="3" />
-          </svg>
-          {{ t('geonames.button_label') }}
-        </button>
-
-        <button
-          v-if="gndPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showGndPanel
-              ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm dark:border-indigo-500 dark:bg-indigo-500'
-              : 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50',
-          ]"
-          :title="t('gnd.button_hint')"
-          @click="toggleGndPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="1" />
-            <path d="M7 9h10M7 13h10M7 17h7" />
-          </svg>
-          {{ t('gnd.button_label') }}
-        </button>
-
-        <button
-          v-if="cerlPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showCerlPanel
-              ? 'border-yellow-600 bg-yellow-600 text-white shadow-sm dark:border-yellow-500 dark:bg-yellow-500'
-              : 'border-yellow-300 bg-yellow-50 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50',
-          ]"
-          :title="t('cerl.button_hint')"
-          @click="toggleCerlPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 4h9a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z" />
-            <path d="M16 4h4v13h-4" />
-          </svg>
-          {{ t('cerl.button_label') }}
-        </button>
-
-        <button
-          v-if="peripleoPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showPeripleoPanel
-              ? 'border-orange-600 bg-orange-600 text-white shadow-sm dark:border-orange-500 dark:bg-orange-500'
-              : 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50',
-          ]"
-          :title="t('peripleo.button_hint')"
-          @click="togglePeripleoPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12h18" />
-          </svg>
-          {{ t('peripleo.button_label') }}
-        </button>
-
-        <button
-          v-if="gettyAatPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showGettyAatPanel
-              ? 'border-stone-700 bg-stone-700 text-white shadow-sm dark:border-stone-500 dark:bg-stone-500'
-              : 'border-stone-300 bg-stone-50 text-stone-800 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900/30 dark:text-stone-300 dark:hover:bg-stone-900/50',
-          ]"
-          :title="t('getty_aat.button_hint')"
-          @click="toggleGettyAatPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3l7 4v10l-7 4-7-4V7z" />
-          </svg>
-          {{ t('getty_aat.button_label') }}
-        </button>
-
-        <button
-          v-if="openalexPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showOpenAlexPanel
-              ? 'border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-500'
-              : 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50',
-          ]"
-          :title="t('openalex.button_hint')"
-          @click="toggleOpenAlexPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12a9 9 0 0 0 18 0" />
-          </svg>
-          {{ t('openalex.button_label') }}
-        </button>
-
-        <button
-          v-if="trismegistosPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showTrismegistosPanel
-              ? 'border-rose-700 bg-rose-700 text-white shadow-sm dark:border-rose-500 dark:bg-rose-500'
-              : 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50',
-          ]"
-          :title="t('trismegistos.button_hint')"
-          @click="toggleTrismegistosPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M5 3h14v18H5z" />
-            <path d="M9 7h6M9 11h6M9 15h6" />
-          </svg>
-          {{ t('trismegistos.button_label') }}
-        </button>
-
-        <button
-          v-if="crossrefPluginActive"
-          :disabled="isLoading"
-          :class="[
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-            showCrossrefPanel
-              ? 'border-sky-600 bg-sky-600 text-white shadow-sm dark:border-sky-500 dark:bg-sky-500'
-              : 'border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50',
-          ]"
-          :title="t('crossref.button_hint')"
-          @click="toggleCrossrefPanel"
-        >
-          <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
-          {{ t('crossref.button_label') }}
+          <span
+            class="inline-block h-1.5 w-1.5 rounded-full"
+            :class="descriptor!.icon_color ?? 'text-gray-400'"
+            style="background-color: currentColor"
+          />
+          {{ te(descriptor!.label_key ?? '') ? t(descriptor!.label_key!) : plugin.display_name }}
         </button>
       </div>
 
@@ -1745,7 +1120,7 @@ async function runValidation(): Promise<void> {
               ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; showGndPanel = false; showCerlPanel = false; showPeripleoPanel = false; showGettyAatPanel = false; showOpenAlexPanel = false; showTrismegistosPanel = false; }"
+          @click="showHelpPanel = !showHelpPanel; if (showHelpPanel) { showAiPanel = false; showMediaPanel = false; showValidationPanel = false; activeLookupSlug = null; }"
         >
           <!-- icon: book-open -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1779,7 +1154,7 @@ async function runValidation(): Promise<void> {
               ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
               : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
           ]"
-          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; showWikidataPanel = false; showCrossrefPanel = false; showOrcidPanel = false; showRorPanel = false; showViafPanel = false; showGeonamesPanel = false; showGndPanel = false; showCerlPanel = false; showPeripleoPanel = false; showGettyAatPanel = false; showOpenAlexPanel = false; showTrismegistosPanel = false; }"
+          @click="showMediaPanel = !showMediaPanel; if (showMediaPanel) { showHelpPanel = false; showAiPanel = false; showValidationPanel = false; activeLookupSlug = null; }"
         >
           <!-- icon: photo -->
           <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -2052,111 +1427,21 @@ async function runValidation(): Promise<void> {
     @close="showMediaPanel = false"
   />
 
-  <!-- Wikidata entity-linking panel -->
+  <!-- Authority lookup side panel — single dynamic <component> swap.
+       The active plugin's ui_descriptor.inline_authority.component
+       names the Vue component in lookup/registry.ts; the v-bind
+       payload (initial-query / initial-kind / initial-doi +
+       on-apply / on-insert) is built by openLookup() based on the
+       descriptor's apply mode and initial_context. -->
   <div
-    v-if="showWikidataPanel && !isLoading"
+    v-if="activeLookupSlug && !isLoading && activeLookupComponent"
     class="flex flex-shrink-0 flex-col border-l border-gray-200"
     :style="{ width: panelWidth + 'px' }"
   >
-    <WikidataLinkPanel
-      :initial-query="wikidataInitialQuery"
-      :on-apply="applyWikidataRef"
-      @close="showWikidataPanel = false"
-    />
-  </div>
-
-  <!-- ORCID lookup panel (persName only) -->
-  <div
-    v-if="showOrcidPanel && !isLoading"
-    class="flex flex-shrink-0 flex-col border-l border-gray-200"
-    :style="{ width: panelWidth + 'px' }"
-  >
-    <OrcidLinkPanel
-      :initial-query="orcidInitialQuery"
-      :on-apply="applyOrcidRef"
-      @close="showOrcidPanel = false"
-    />
-  </div>
-
-  <!-- ROR lookup panel (orgName only) -->
-  <div
-    v-if="showRorPanel && !isLoading"
-    class="flex flex-shrink-0 flex-col border-l border-gray-200"
-    :style="{ width: panelWidth + 'px' }"
-  >
-    <RorLinkPanel
-      :initial-query="rorInitialQuery"
-      :on-apply="applyRorRef"
-      @close="showRorPanel = false"
-    />
-  </div>
-
-  <!-- VIAF lookup panel (persName + orgName) -->
-  <div
-    v-if="showViafPanel && !isLoading"
-    class="flex flex-shrink-0 flex-col border-l border-gray-200"
-    :style="{ width: panelWidth + 'px' }"
-  >
-    <ViafLinkPanel
-      :initial-query="viafInitialQuery"
-      :on-apply="applyViafRef"
-      @close="showViafPanel = false"
-    />
-  </div>
-
-  <!-- GeoNames lookup panel (placeName only) -->
-  <div
-    v-if="showGeonamesPanel && !isLoading"
-    class="flex flex-shrink-0 flex-col border-l border-gray-200"
-    :style="{ width: panelWidth + 'px' }"
-  >
-    <GeonamesLinkPanel
-      :initial-query="geonamesInitialQuery"
-      :on-apply="applyGeonamesRef"
-      @close="showGeonamesPanel = false"
-    />
-  </div>
-
-  <!-- GND (lobid.org) lookup panel -->
-  <div v-if="showGndPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <GndLinkPanel :initial-query="gndInitialQuery" :on-apply="applyGndRef" @close="showGndPanel = false" />
-  </div>
-
-  <!-- CERL Thesaurus lookup panel -->
-  <div v-if="showCerlPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <CerlLinkPanel :initial-query="cerlInitialQuery" :on-apply="applyCerlRef" @close="showCerlPanel = false" />
-  </div>
-
-  <!-- Peripleo lookup panel (placeName only) -->
-  <div v-if="showPeripleoPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <PeripleoLinkPanel :initial-query="peripleoInitialQuery" :on-apply="applyPeripleoRef" @close="showPeripleoPanel = false" />
-  </div>
-
-  <!-- Getty AAT lookup panel (term only) -->
-  <div v-if="showGettyAatPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <GettyAatLinkPanel :initial-query="gettyAatInitialQuery" :on-apply="applyGettyAatRef" @close="showGettyAatPanel = false" />
-  </div>
-
-  <!-- OpenAlex panel (biblStruct insert) -->
-  <div v-if="showOpenAlexPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <OpenAlexPanel :initial-query="openAlexInitialQuery" :on-insert="applyOpenAlexFragment" @close="showOpenAlexPanel = false" />
-  </div>
-
-  <!-- Trismegistos lookup panel (persName + placeName) -->
-  <div v-if="showTrismegistosPanel && !isLoading" class="flex flex-shrink-0 flex-col border-l border-gray-200" :style="{ width: panelWidth + 'px' }">
-    <TrismegistosLinkPanel :initial-kind="trismegistosInitialKind" :on-apply="applyTrismegistosRef" @close="showTrismegistosPanel = false" />
-  </div>
-
-  <!-- CrossRef DOI resolver panel -->
-  <div
-    v-if="showCrossrefPanel && !isLoading"
-    class="flex flex-shrink-0 flex-col border-l border-gray-200"
-    :style="{ width: panelWidth + 'px' }"
-  >
-    <CrossrefPanel
-      :initial-doi="crossrefInitialDoi"
-      :on-insert="applyCrossrefFragment"
-      @close="showCrossrefPanel = false"
+    <component
+      :is="activeLookupComponent"
+      v-bind="activeLookupContext"
+      @close="closeActiveLookup"
     />
   </div>
 

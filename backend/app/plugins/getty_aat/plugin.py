@@ -38,5 +38,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "GettyAatLinkPanel",
+                "label_key": "lookups.getty_aat",
+                "icon_color": "text-fuchsia-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 180,
+            }
+        },
     )
     router = router

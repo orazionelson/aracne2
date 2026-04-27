@@ -123,6 +123,8 @@ class PluginLoader:
                 existing.author = meta.author
                 existing.is_native = meta.native
                 existing.entry_point = entry_point
+                existing.capabilities = list(meta.capabilities)
+                existing.ui_descriptor = meta.ui_descriptor
                 existing.updated_at = now
                 # Native plugins are always forced active in the registry.
                 if meta.native:
@@ -137,6 +139,8 @@ class PluginLoader:
                         author=meta.author,
                         is_native=meta.native,
                         entry_point=entry_point,
+                        capabilities=list(meta.capabilities),
+                        ui_descriptor=meta.ui_descriptor,
                         status=(
                             PluginStatus.active
                             if meta.native

@@ -16,6 +16,9 @@ class PluginResponse(BaseModel):
     entry_point: str | None
     is_native: bool
     status: PluginStatus
+    # UI auto-cabling contract — see app/core/plugin_base.py.
+    capabilities: list[str]
+    ui_descriptor: dict[str, object] | None
     installed_at: datetime
     updated_at: datetime
 

@@ -35,5 +35,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "OrcidLinkPanel",
+                "label_key": "lookups.orcid",
+                "icon_color": "text-emerald-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 110,
+            }
+        },
     )
     router = router

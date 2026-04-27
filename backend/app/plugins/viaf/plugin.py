@@ -38,5 +38,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "ViafLinkPanel",
+                "label_key": "lookups.viaf",
+                "icon_color": "text-rose-500",
+                "apply": "ref",
+                "initial_context": "selection",
+                "priority": 130,
+            }
+        },
     )
     router = router

@@ -37,5 +37,16 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="Admin",
+        capabilities=("inline_authority",),
+        ui_descriptor={
+            "inline_authority": {
+                "component": "CrossrefPanel",
+                "label_key": "lookups.crossref",
+                "icon_color": "text-slate-600",
+                "apply": "fragment",
+                "initial_context": "doi",
+                "priority": 210,
+            }
+        },
     )
     router = router

@@ -2,6 +2,31 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { apiClient } from "@/services/api";
 
+/**
+ * Per-capability UI metadata. The platform doesn't interpret these
+ * dicts — each capability tag (e.g. ``inline_authority``) defines
+ * its own contract, documented inline below and on the backend in
+ * ``app/core/plugin_base.py``.
+ */
+export interface InlineAuthorityDescriptor {
+  /** Vue component name registered in src/components/lookup/registry.ts. */
+  component: string;
+  /** vue-i18n key for the toolbar button label. Falls back to display_name. */
+  label_key?: string;
+  /** Tailwind class applied to the toolbar icon (e.g. "text-amber-500"). */
+  icon_color?: string;
+  /** "ref" → emit @apply(uri); "fragment" → emit @insert(xmlFragment). */
+  apply: "ref" | "fragment";
+  /** What seed value to feed the panel:
+   * "selection" — pass the active editor selection as initialQuery,
+   * "selection-or-empty" — same but tolerate emptiness silently,
+   * "kind-picker" — open the panel without seeding (e.g. Trismegistos),
+   * "doi" — seed with selection text expected to be a DOI (e.g. CrossRef). */
+  initial_context: "selection" | "selection-or-empty" | "kind-picker" | "doi";
+  /** Toolbar sort key — lower = leftmost. */
+  priority?: number;
+}
+
 export interface PluginInfo {
   id: string;
   name: string;
@@ -12,6 +37,10 @@ export interface PluginInfo {
   entry_point: string | null;
   is_native: boolean;
   status: "active" | "inactive" | "error";
+  /** Capability tags advertised by the plugin (e.g. ["inline_authority"]). */
+  capabilities: string[];
+  /** Per-capability UI descriptor blob, keyed by capability tag. */
+  ui_descriptor: Record<string, unknown> | null;
   installed_at: string;
   updated_at: string;
 }
