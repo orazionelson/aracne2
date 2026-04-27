@@ -19,6 +19,7 @@ from app.db.postgres import engine
 from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
 from app.routers import auth, body_templates as body_templates_router, health
+from app.routers import corpora as corpora_router
 from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import media as media_router
 from app.routers import zones as zones_router
@@ -319,6 +320,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(plugins.router, prefix="/api/v1")
+app.include_router(corpora_router.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
 app.include_router(licenses_router.router, prefix="/api/v1")

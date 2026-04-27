@@ -6,6 +6,7 @@ import {
   Squares2X2Icon,
   FolderOpenIcon,
   TagIcon,
+  RectangleStackIcon,
   UsersIcon,
   GlobeAltIcon,
   MagnifyingGlassIcon,
@@ -127,6 +128,12 @@ const SECTIONS: NavSection[] = [
         labelKey: "nav.plugins",
         to: { name: "admin-plugins" },
         icon: PuzzlePieceIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "nav.corpora",
+        to: { name: "admin-corpora" },
+        icon: RectangleStackIcon,
         visible: () => auth.hasMinRole("Admin"),
       },
       {

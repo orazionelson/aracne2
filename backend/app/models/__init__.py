@@ -2,6 +2,7 @@
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection
 from app.models.collection_bibliography import CollectionBibliography
+from app.models.corpus import Corpus, McpToken
 from app.models.tei_schema import TeiSchema
 from app.models.collection_permission import CollectionPermission
 from app.models.plugin_data import PluginData
@@ -24,6 +25,8 @@ __all__ = [
     "Collection",
     "CollectionBibliography",
     "CollectionPermission",
+    "Corpus",
+    "McpToken",
     "PluginData",
     "TeiSchema",
 ]

@@ -155,6 +155,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
     },
     {
+      path: "/admin/corpora",
+      name: "admin-corpora",
+      component: () => import("@/views/admin/CorporaView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
       path: "/admin/plugins/:slug/config",
       name: "admin-plugin-config",
       component: () => import("@/views/admin/PluginConfigView.vue"),
