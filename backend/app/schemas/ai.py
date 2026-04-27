@@ -54,7 +54,11 @@ class AiPromptUpdate(BaseModel):
 
 class AiChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(..., max_length=32_000)
+    # 500 KB per message — wide enough for a full bibliography dump
+    # (Bibliobuilder regularly ships 100k+ chars in one user turn) but
+    # still bounded against accidental DoS. The actual upper bound is
+    # the LLM provider's context window, not this number.
+    content: str = Field(..., max_length=500_000)
 
 
 class AiCompleteRequest(BaseModel):
