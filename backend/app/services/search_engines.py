@@ -675,7 +675,6 @@ def _render_search_page(
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <base target="_top" />
           <title>{escaped_title}</title>
           <style>
             *, *::before, *::after {{ box-sizing: border-box; }}
@@ -794,7 +793,7 @@ def _render_search_page(
                   var label = h.title || h.filename;
                   var meta  = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
                   return '<article>' +
-                    '<h3><a href="' + escapeHtml(h.doc_url) + '">' + escapeHtml(label) + '</a></h3>' +
+                    '<h3><a href="' + escapeHtml(h.doc_url) + '" target="_top">' + escapeHtml(label) + '</a></h3>' +
                     '<div class="meta">' + meta + '</div>' +
                     '<p>' + escapeHtml(h.kwic) + '</p>' +
                     '</article>';
@@ -890,7 +889,6 @@ def _render_advanced_search_page(
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <base target="_top" />
           <title>{escaped_title} — Ricerca avanzata</title>
           <style>
             *, *::before, *::after {{ box-sizing: border-box; }}
@@ -1121,7 +1119,7 @@ def _render_advanced_search_page(
                     : '';
                   var meta = escapeHtml(h.collection_slug) + ' \u00b7 ' + escapeHtml(h.filename);
                   return '<article>' +
-                    '<h3>' + badge + '<a href="' + escapeHtml(h.doc_url) + '">' +
+                    '<h3>' + badge + '<a href="' + escapeHtml(h.doc_url) + '" target="_top">' +
                     escapeHtml(label) + '</a></h3>' +
                     '<div class="meta">' + meta + '</div>' +
                     '<p>' + escapeHtml(h.kwic) + '</p>' +
