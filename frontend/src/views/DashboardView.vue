@@ -1,15 +1,32 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import {
+  FolderOpenIcon,
+  TagIcon,
+  DocumentTextIcon,
+  GlobeAltIcon,
+  MagnifyingGlassIcon,
+  Cog6ToothIcon,
+  UsersIcon,
+  ArchiveBoxArrowDownIcon,
+  BoltIcon,
+  PuzzlePieceIcon,
+  QuestionMarkCircleIcon,
+  BellIcon,
+} from "@heroicons/vue/24/outline";
+import type { FunctionalComponent } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useDashboardStore } from "@/stores/dashboard";
+import { useNotificationStore } from "@/stores/notifications";
 import { usePluginStore } from "@/stores/plugins";
 
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const dashboard = useDashboardStore();
+const notif = useNotificationStore();
 const plugins = usePluginStore();
 
 onMounted(async () => {
@@ -17,6 +34,9 @@ onMounted(async () => {
   if (plugins.plugins.length === 0) {
     await plugins.fetchPlugins().catch(() => undefined);
   }
+  // Refresh the unread badge — already happens in the sidebar but the
+  // dashboard may render before that mounts on direct deep-links.
+  notif.fetchUnreadCount().catch(() => undefined);
 });
 
 function statusClass(s: string): string {
@@ -33,32 +53,100 @@ function goToCollections(status?: string): void {
   router.push({ name: "collections", query: status ? { status } : {} });
 }
 
+// ── Quick access: sectioned shortcuts ─────────────────────────────────────────
+//
+// Three thematic blocks — Cura (editorial work), Pubblica (everything
+// the public sees), Amministra (system + access). Help and Notifiche
+// live below as standalone cards because they're cross-cutting and
+// should always be one click away regardless of role.
+
 interface Shortcut {
   labelKey: string;
   routeName: string;
-  icon: string;
-  minRole?: string;
-  pluginSlug?: string;
+  icon: FunctionalComponent;
+  visible?: () => boolean;
 }
 
-const SHORTCUTS: Shortcut[] = [
-  { labelKey: "home.shortcut_collections", routeName: "collections", icon: "📁" },
-  { labelKey: "home.shortcut_notifications", routeName: "notifications", icon: "🔔" },
-  { labelKey: "home.shortcut_help", routeName: "help", icon: "❓", pluginSlug: "help" },
-  { labelKey: "home.shortcut_users", routeName: "users", icon: "👤", minRole: "EditorInChief" },
-  { labelKey: "home.shortcut_websites", routeName: "admin-websites", icon: "🌐" },
-  { labelKey: "home.shortcut_search_engines", routeName: "admin-search-engines", icon: "🔍" },
-  { labelKey: "home.shortcut_settings", routeName: "admin-settings", icon: "⚙️", minRole: "Admin" },
-  { labelKey: "home.shortcut_plugins", routeName: "admin-plugins", icon: "🧩", minRole: "Admin" },
+interface ShortcutSection {
+  titleKey: string;
+  items: Shortcut[];
+}
+
+const SECTIONS: ShortcutSection[] = [
+  {
+    titleKey: "home.section_curate",
+    items: [
+      { labelKey: "home.shortcut_collections", routeName: "collections", icon: FolderOpenIcon },
+      { labelKey: "home.shortcut_entities",    routeName: "entities",    icon: TagIcon },
+    ],
+  },
+  {
+    titleKey: "home.section_publish",
+    items: [
+      {
+        labelKey: "home.shortcut_public_pages",
+        routeName: "admin-public-pages",
+        icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "home.shortcut_websites",
+        routeName: "admin-websites",
+        icon: GlobeAltIcon,
+        visible: () => auth.hasRole("Designer") || auth.hasMinRole("EditorInChief"),
+      },
+      {
+        labelKey: "home.shortcut_search_engines",
+        routeName: "admin-search-engines",
+        icon: MagnifyingGlassIcon,
+        visible: () => auth.hasRole("Designer") || auth.hasMinRole("EditorInChief"),
+      },
+    ],
+  },
+  {
+    titleKey: "home.section_administer",
+    items: [
+      {
+        labelKey: "home.shortcut_users",
+        routeName: "users",
+        icon: UsersIcon,
+        visible: () => auth.hasMinRole("EditorInChief"),
+      },
+      {
+        labelKey: "home.shortcut_plugins",
+        routeName: "admin-plugins",
+        icon: PuzzlePieceIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "home.shortcut_webhooks",
+        routeName: "admin-webhooks",
+        icon: BoltIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "home.shortcut_settings",
+        routeName: "admin-settings",
+        icon: Cog6ToothIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "home.shortcut_backup",
+        routeName: "admin-backup",
+        icon: ArchiveBoxArrowDownIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+    ],
+  },
 ];
 
-function visibleShortcuts(): Shortcut[] {
-  return SHORTCUTS.filter((s) => {
-    if (s.minRole && !auth.hasMinRole(s.minRole)) return false;
-    if (s.pluginSlug && !plugins.isActive(s.pluginSlug)) return false;
-    return true;
-  });
-}
+const visibleSections = computed<ShortcutSection[]>(() =>
+  SECTIONS
+    .map((s) => ({ ...s, items: s.items.filter((i) => !i.visible || i.visible()) }))
+    .filter((s) => s.items.length > 0),
+);
+
+const helpVisible = computed(() => plugins.isActive("help"));
 </script>
 
 <template>
@@ -117,20 +205,72 @@ function visibleShortcuts(): Shortcut[] {
         </button>
       </div>
 
-      <!-- Quick-access shortcuts -->
-      <div class="mb-8">
-        <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+      <!-- Quick-access shortcuts — sectioned -->
+      <div class="mb-8 space-y-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           {{ t("home.shortcuts_title") }}
         </h2>
-        <div class="flex flex-wrap gap-3">
+
+        <section
+          v-for="sec in visibleSections"
+          :key="sec.titleKey"
+          class="space-y-3"
+        >
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            {{ t(sec.titleKey) }}
+          </h3>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <button
+              v-for="sc in sec.items"
+              :key="sc.routeName"
+              class="group flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 text-center transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+              @click="router.push({ name: sc.routeName })"
+            >
+              <component
+                :is="sc.icon"
+                class="h-7 w-7 text-gray-500 transition-colors group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300"
+              />
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                {{ t(sc.labelKey) }}
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Standalone Help + Notifiche row -->
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <button
-            v-for="sc in visibleShortcuts()"
-            :key="sc.routeName"
-            class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-indigo-900/40 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
-            @click="router.push({ name: sc.routeName })"
+            v-if="helpVisible"
+            class="group col-span-1 flex items-center gap-4 rounded-lg border-2 border-amber-200 bg-amber-50 px-5 py-5 text-left transition-all hover:border-amber-400 hover:bg-amber-100 hover:shadow-sm md:col-span-2 dark:border-amber-700 dark:bg-amber-900/20 dark:hover:border-amber-500 dark:hover:bg-amber-900/40"
+            @click="router.push({ name: 'help' })"
           >
-            <span>{{ sc.icon }}</span>
-            {{ t(sc.labelKey) }}
+            <QuestionMarkCircleIcon class="h-10 w-10 shrink-0 text-amber-500 dark:text-amber-300" />
+            <span class="flex flex-col">
+              <span class="text-base font-semibold text-amber-900 dark:text-amber-100">
+                {{ t("home.shortcut_help") }}
+              </span>
+              <span class="text-xs text-amber-700 dark:text-amber-300">
+                {{ t("home.shortcut_help_hint") }}
+              </span>
+            </span>
+          </button>
+          <button
+            class="group flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-5 py-5 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/40"
+            :class="helpVisible ? '' : 'col-span-1 md:col-span-3'"
+            @click="router.push({ name: 'notifications' })"
+          >
+            <span class="relative">
+              <BellIcon class="h-7 w-7 text-gray-500 group-hover:text-indigo-600 dark:text-gray-400 dark:group-hover:text-indigo-300" />
+              <span
+                v-if="notif.unreadCount > 0"
+                class="absolute -right-1.5 -top-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white"
+              >
+                {{ notif.unreadCount > 99 ? "99+" : notif.unreadCount }}
+              </span>
+            </span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+              {{ t("home.shortcut_notifications") }}
+            </span>
           </button>
         </div>
       </div>
