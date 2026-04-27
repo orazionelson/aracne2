@@ -200,6 +200,7 @@ onMounted(async () => {
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="block text-xs font-medium text-gray-700">{{ t("websites.field_slug") }}</label>
+          <p class="mt-1 text-xs text-red-600">{{ t("common.slug_rules") }}</p>
           <input v-model="newWebsite.slug" type="text" class="mt-1 block w-full rounded border border-gray-300 px-3 py-1.5 text-sm" :placeholder="t('websites.field_slug_hint')" />
         </div>
         <div>

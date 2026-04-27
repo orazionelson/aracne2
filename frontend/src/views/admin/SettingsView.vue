@@ -1521,6 +1521,7 @@ onMounted(async () => {
               <label class="mb-1 block text-xs font-medium text-gray-600">
                 {{ t("ai.field_slug") }}
               </label>
+              <p class="mb-1 text-xs text-red-600">{{ t("common.slug_rules") }}</p>
               <input
                 v-model="newPrompt.slug"
                 type="text"

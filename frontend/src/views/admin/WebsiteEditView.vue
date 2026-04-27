@@ -1634,6 +1634,7 @@ onBeforeUnmount(() => {
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-xs text-gray-700">{{ t("websites.field_slug") }}</label>
+                <p class="mt-0.5 text-[10px] text-red-600">{{ t("common.slug_rules") }}</p>
                 <input v-model="newPage.slug" type="text" class="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs" :placeholder="t('websites.field_slug_hint')" />
               </div>
               <div>

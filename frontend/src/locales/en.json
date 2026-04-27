@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Loading...",
+    "slug_rules": "Lowercase letters, digits, and hyphens (-) only. No spaces, no accents, no special characters.",
     "save": "Save",
     "cancel": "Cancel",
     "close": "Close",

@@ -116,6 +116,7 @@ async function confirmDelete(id: string, title: string): Promise<void> {
           <label class="mb-1 block text-xs font-medium text-gray-600">
             {{ t("collections.slug") }}
           </label>
+          <p class="mb-1 text-xs text-red-600">{{ t("common.slug_rules") }}</p>
           <input
             v-model="newSlug"
             required

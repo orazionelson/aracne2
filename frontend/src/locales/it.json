@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Caricamento...",
+    "slug_rules": "Solo lettere minuscole, cifre e il trattino (-) come separatore. Niente spazi, niente accenti, niente caratteri speciali.",
     "save": "Salva",
     "cancel": "Annulla",
     "close": "Chiudi",

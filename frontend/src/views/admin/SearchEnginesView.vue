@@ -212,6 +212,7 @@
               <label class="mb-1 block text-xs font-medium text-gray-700">
                 {{ t("search_engines.slug_label") }}
               </label>
+              <p class="mb-1 text-xs text-red-600">{{ t("common.slug_rules") }}</p>
               <input
                 v-model="form.slug"
                 type="text"
