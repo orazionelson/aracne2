@@ -48,7 +48,7 @@ tooling, no production exposure). No new criticals.
 
 ---
 
-### 1. `PUT /settings/home-intro` stores unsanitised HTML rendered with `v-html` on the public homepage — **LOW**
+### 1. `PUT /settings/home-intro` stores unsanitised HTML rendered with `v-html` on the public homepage — **LOW** ✅ Fixed `ae36d61`
 
 **File:** [backend/app/routers/settings.py:215-237](backend/app/routers/settings.py#L215-L237)
 **Frontend sink:** [frontend/src/components/PublicHomeSection.vue](frontend/src/components/PublicHomeSection.vue) (`v-html="introHtml"`)
@@ -132,7 +132,7 @@ in the SPA imposes none either).
 
 ---
 
-### 2. File-upload endpoints buffer the full body in memory before checking the size cap — **LOW-MEDIUM**
+### 2. File-upload endpoints buffer the full body in memory before checking the size cap — **LOW-MEDIUM** ✅ Fixed `ae36d61`
 
 **Files:**
 - [backend/app/routers/users.py:101-114](backend/app/routers/users.py#L101-L114) (`POST /users/me/avatar`)
@@ -203,7 +203,7 @@ uploads on `/api/v1/collections/{slug}/upload`).
 
 ---
 
-### 3. Forge `base_url` validators allow loopback / link-local / private-IP hosts — SSRF + PAT exfiltration risk — **LOW**
+### 3. Forge `base_url` validators allow loopback / link-local / private-IP hosts — SSRF + PAT exfiltration risk — **LOW** ✅ Fixed `ae36d61`
 
 **Files:**
 - [backend/app/plugins/codeberg_integration/schemas.py](backend/app/plugins/codeberg_integration/schemas.py)
@@ -285,7 +285,7 @@ and is not affected.
 
 ---
 
-### 4. `GET /collections/{slug}/documents/{filename}/source` does not validate `filename` — **LOW**
+### 4. `GET /collections/{slug}/documents/{filename}/source` does not validate `filename` — **LOW** ✅ Fixed `ae36d61`
 
 **File:** [backend/app/routers/public_view.py:180-205](backend/app/routers/public_view.py#L180-L205)
 
@@ -395,12 +395,17 @@ a URL or a header (`download_pdf`, audit if any).
 
 ## Resolution summary
 
+All four findings fixed in commit `ae36d61` ("security: harden uploads,
+cover-text HTML, public download, forge SSRF"). New tests in
+[backend/app/tests/test_security_hardening.py](backend/app/tests/test_security_hardening.py)
+cover the three helpers (18 cases). Verified in the test environment:
+`pytest test_security_hardening.py test_plugin_capabilities.py test_plugins.py
+-v` → 41 passed, 1 skipped (the cross-tree coherence test, which only runs in
+repo-rooted pytest sessions).
+
 | # | Severity | Finding | Status |
 |---|----------|---------|--------|
-| 1 | LOW | `home_intro_html` accepted as raw HTML, rendered via `v-html` | Open |
-| 2 | LOW-MEDIUM | Upload endpoints buffer full body before size check | Open |
-| 3 | LOW | Forge `base_url` allows private / loopback hosts | Open |
-| 4 | LOW | Public TEI source download — `filename` not validated | Open |
-
-Recommended order of operations: **4 → 1 → 2 → 3** (smallest surgical fix to
-largest behavioural change). All four fit a single defensive-hardening commit.
+| 1 | LOW | `home_intro_html` accepted as raw HTML, rendered via `v-html` | ✅ Fixed `ae36d61` |
+| 2 | LOW-MEDIUM | Upload endpoints buffer full body before size check | ✅ Fixed `ae36d61` |
+| 3 | LOW | Forge `base_url` allows private / loopback hosts | ✅ Fixed `ae36d61` |
+| 4 | LOW | Public TEI source download — `filename` not validated | ✅ Fixed `ae36d61` |
