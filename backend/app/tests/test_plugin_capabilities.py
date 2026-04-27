@@ -35,16 +35,41 @@ from app.models.plugin import Plugin, PluginStatus
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FRONTEND_SRC = _REPO_ROOT / "frontend" / "src"
-_BACKEND_PLUGINS = _REPO_ROOT / "backend" / "app" / "plugins"
+# The Python package layout is app/tests/<file>.py — so parents[1] is
+# always app/, regardless of whether we run from the repo root, from
+# inside the Docker container (where backend/ is mounted at /app and
+# the frontend lives outside the mount), or from a checkout in CI.
+_APP_DIR = Path(__file__).resolve().parents[1]
+_BACKEND_PLUGINS = _APP_DIR / "plugins"
 
-# Capability tag → registry file relative to frontend/src
-_REGISTRY_PATHS: dict[str, Path] = {
-    "inline_authority": _FRONTEND_SRC / "components" / "lookup" / "registry.ts",
-    "collection_deposit": _FRONTEND_SRC / "components" / "deposit" / "registry.ts",
-    "website_deposit": _FRONTEND_SRC / "components" / "website-deposit" / "registry.ts",
-}
+# The frontend tree is *not* mounted into the backend container. When
+# running the suite under `docker compose exec backend pytest …` the
+# registry .ts files are unreachable, so the cross-tree coherence
+# test is skipped rather than failed. CI / local-checkout runs that
+# can see the frontend tree get the full check.
+_REPO_ROOT_CANDIDATES: list[Path] = [
+    Path(__file__).resolve().parents[3],          # repo checkout: backend/app/tests/...
+    Path("/repo"),                                 # mounted-repo convention used by some CI images
+    Path(__file__).resolve().parents[2] / "..",   # backward-compat fallback
+]
+
+
+def _find_frontend_src() -> Path | None:
+    """Return frontend/src/ if any candidate root holds it, else None."""
+    for root in _REPO_ROOT_CANDIDATES:
+        candidate = (root / "frontend" / "src").resolve()
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def _registry_paths(frontend_src: Path) -> dict[str, Path]:
+    """Capability tag → registry file relative to a known frontend/src."""
+    return {
+        "inline_authority": frontend_src / "components" / "lookup" / "registry.ts",
+        "collection_deposit": frontend_src / "components" / "deposit" / "registry.ts",
+        "website_deposit": frontend_src / "components" / "website-deposit" / "registry.ts",
+    }
 
 
 def _parse_registry(ts_path: Path) -> set[str]:
@@ -223,9 +248,20 @@ def test_every_capability_descriptor_resolves_to_a_registry_entry() -> None:
     strings are bound to actual ``.vue`` files (Vite needs the path
     literal at build time for code-splitting), so a typo on either
     side renders nothing — silently. This test fails loudly instead.
+
+    Skipped when the frontend tree isn't reachable (e.g. running
+    `pytest` inside a backend-only Docker container). CI and local
+    repo-checkout runs always see it.
     """
-    # Cache the registry contents once per test to avoid re-reading.
-    registries = {tag: _parse_registry(p) for tag, p in _REGISTRY_PATHS.items()}
+    frontend_src = _find_frontend_src()
+    if frontend_src is None:
+        pytest.skip(
+            "frontend/src/ not reachable from this run "
+            "(probably a backend-only container); coherence is checked "
+            "in repo-rooted runs and CI."
+        )
+    registries = {tag: _parse_registry(p) for tag, p in _registry_paths(frontend_src).items()}
+    registry_paths = _registry_paths(frontend_src)
 
     failures: list[str] = []
     for meta in _iter_real_plugin_metas():
@@ -248,13 +284,13 @@ def test_every_capability_descriptor_resolves_to_a_registry_entry() -> None:
             if registry is None:
                 failures.append(
                     f"{meta.id}: capability '{tag}' has no frontend registry "
-                    f"in {sorted(_REGISTRY_PATHS)}"
+                    f"in {sorted(registry_paths)}"
                 )
                 continue
             if component not in registry:
                 failures.append(
                     f"{meta.id}: '{tag}.component' = {component!r} not found in "
-                    f"{_REGISTRY_PATHS[tag].relative_to(_REPO_ROOT)} "
+                    f"{registry_paths[tag]} "
                     f"(registry has: {sorted(registry)})"
                 )
 
