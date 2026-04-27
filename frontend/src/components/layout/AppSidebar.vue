@@ -111,18 +111,18 @@ const SECTIONS: NavSection[] = [
         icon: DocumentTextIcon,
         visible: () => auth.hasMinRole("Admin"),
       },
-      {
-        labelKey: "nav.users",
-        to: { name: "users" },
-        icon: UsersIcon,
-        visible: () => auth.hasMinRole("EditorInChief"),
-      },
     ],
   },
   {
     key: "admin",
     labelKey: "nav.sections.admin",
     items: [
+      {
+        labelKey: "nav.users",
+        to: { name: "users" },
+        icon: UsersIcon,
+        visible: () => auth.hasMinRole("EditorInChief"),
+      },
       {
         labelKey: "nav.plugins",
         to: { name: "admin-plugins" },
