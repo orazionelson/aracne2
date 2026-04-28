@@ -59,8 +59,11 @@ assistants is a first-class concern.
 
 ### Work alongside an AI assistant
 
-AI is a first-class collaborator in the editorial workflow, not a
-side panel bolted on. Aracne2 plugs in along three axes:
+To our knowledge, Aracne2 is the **first TEI editorial CMS to treat
+AI as a first-class collaborator** — not a chat widget grafted onto
+an unrelated workflow, but a layer that knows TEI, knows your
+schema, knows your corpus, and plugs into the editorial steps where
+it actually saves time. The integration runs along five axes.
 
 **In-editor assistance** — the TEI editor ships an AI side panel
 that knows the document context. Common turns:
@@ -103,13 +106,53 @@ analyses. See [MCP_SERVER.md](docs/reference/MCP_SERVER.md).
   model on your own hardware, no key needed, traffic stays on
   the host.
 
-**Optional retrieval grounding (RAG)** — for deployments that turn
-on the local-AI profile, an opt-in `pgvector` store + an Ollama
-embeddings model let the editor's prompts retrieve from the
-ingested **TEI P5 Guidelines** (or your own corpus). The platform
-ships an ingestion script and a per-prompt RAG toggle; the
-retrieval surface degrades silently to "no augmentation" if the
-infra isn't reachable.
+**Retrieval-augmented generation (RAG) over TEI** — the part most
+generic AI tools cannot do.
+
+A frontier LLM is a confident generalist. It "knows" what
+`<persName ref="...">` should look like, but its knowledge is the
+average of every TEI snippet it saw during pretraining — including
+the wrong ones. When an editor asks *"is this `<msDesc>` block
+following the latest TEI P5 conventions?"* a vanilla model gives
+its average answer, not the canonical one.
+
+Aracne2 closes the gap with retrieval grounding:
+
+- **Ingest the TEI P5 Guidelines** (the *living* spec, not the
+  pretraining-frozen average) into a local `pgvector` store with
+  Ollama embeddings. The platform ships the ingestion script —
+  point it at the published Guidelines URL, walk away, come back to
+  a searchable corpus of canonical TEI markup rules. Re-ingest
+  whenever the TEI Council releases a revision; your editors are
+  always working against the current spec.
+- **Ingest your own corpus** alongside it — your published
+  collections, your project's encoding manual, your house style.
+  The same `pgvector` instance carries multiple sources at once;
+  retrieval queries pull from whatever's relevant.
+- **Per-prompt opt-in**: the prompt library has a `rag_enabled`
+  toggle on every entry. The validation-explainer prompt benefits
+  from retrieval (it should cite the Guidelines section it's
+  invoking); the casual-summary prompt doesn't. The editor doesn't
+  configure anything per turn — the prompt's metadata decides.
+- **No data leaves the host.** The full RAG pipeline (Postgres +
+  pgvector + Ollama embeddings + Ollama generation) runs in the
+  bundled `ai-local` Docker Compose profile. For institutions that
+  cannot ship their TEI to OpenAI / Anthropic for legal,
+  compliance, or sovereignty reasons, this is the difference
+  between *"AI is forbidden by policy"* and *"AI is mandatory for
+  productivity"*.
+- **Fail-soft**: if `pgvector` is offline, the embeddings model is
+  not pulled, or RAG is simply turned off, prompts run unaugmented
+  with a small structured note in the response. The editor never
+  sees a crash, just the same prompt without the retrieval
+  paragraph.
+
+Why this matters as a positioning claim: TEI is a vocabulary with
+1500+ tag definitions and decades of community guidance, most of it
+in long-form Guidelines prose. Generic chat tools cannot be
+*pointed* at that body of knowledge. A TEI-native CMS that ships
+the ingestion path **as part of the platform** is, as far as we
+know, unique today.
 
 ## Who it's for
 
