@@ -462,6 +462,9 @@ Before going to production:
 
 ## Reference documentation
 
+For a server-side install (test/dev or production) see
+[docs/INSTALL_LINUX_SERVER.md](docs/INSTALL_LINUX_SERVER.md).
+
 For day-to-day operations (applying `.env` changes, rotating credentials,
 troubleshooting port/DNS/bootstrap issues, backup) see
 [docs/OPERATIONS.md](docs/OPERATIONS.md).
