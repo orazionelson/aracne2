@@ -7,27 +7,138 @@ published, citable digital edition without also becoming sysadmins.
 
 ## How we got here
 
-**MaRa** *(2008)* started as a handful of PHP scripts that turned the
-Angevine Chancery Papers from typed text into XML and harmonised
-their bibliographies. Wrapped in a CodeIgniter web UI, it gave a
-workable editorial pipeline to a workflow that until then lived in
-one researcher's local files.
-*(Cosco, 2018 — [Zenodo](https://zenodo.org/records/1447195),
-[Academia.edu](https://www.academia.edu/37523540/))*
+Aracne2 is the third iteration of a tooling line that has spent
+fifteen years asking the same question: **how do we turn a stream
+of typed manuscript transcriptions into a citable, browsable,
+machine-actionable digital edition without making the editor learn
+to be an XML programmer?** Each iteration answered it differently,
+and the constraints we hit each time shaped what came next.
 
-**Aracne** *(2016)* tried the platform jump: an editorial framework in
-XQuery + HTML5 on top of eXist-db, with an early CodeMirror-based TEI
-editor, a sitebuilder and a draft → review → publish flow. The idea
-was right; XQuery as the platform language turned out to be a
-maintenance and extension dead-end.
-*([github.com/orazionelson/aracne](https://github.com/orazionelson/aracne))*
+### MaRa *(2008–2014)*
 
-**Aracne2** *(2026)* is a clean rebuild. Backend and admin plane are
-Python + FastAPI + PostgreSQL; the frontend is a Vue 3 + TypeScript
-SPA; eXist-db goes back to doing what it does best — being a native
-XML store. The whole platform ships in Docker, the architecture is
-plugin-modular with hot activation, and integration with AI
-assistants is a first-class concern.
+The starting point was the **Angevine Chancery Papers**, the
+administrative output of the Angevin kings of Sicily and Naples
+(13th–15th centuries). Their original registers were destroyed in
+the 1943 fire that gutted the Naples State Archive; what survives
+is a fragmentary reconstruction patched together by mid-20th-century
+archivists from secondary witnesses, copies, and citations
+scattered across European archives. Editing this corpus is a
+philological detective story: every entry carries its own apparatus
+of provenance notes, cross-references, and bibliographic citations
+in idiosyncratic short-forms inherited from the manual edition.
+
+**MaRa** (*Marcatore dei Registri Angioini*) was a set of PHP
+scripts written to take that mass of typed text — produced by the
+project's editors over years in plain Word documents — and lift it
+into TEI XML. The scripts handled three jobs that nobody wanted to
+do by hand:
+
+- **Tag insertion**: regular-expression passes that recognised
+  recurring patterns (dates in Roman numerals, persName/placeName
+  in capitalised forms, bibliographic short-forms) and proposed
+  TEI markup for the editor to accept or correct.
+- **Bibliography harmonisation**: the editors used six different
+  short-forms for the same source over the years; MaRa resolved
+  them against a canonical bibliography file and rewrote them as
+  consistent `<bibl>` references with `@xml:id` cross-pointers.
+- **Validation and reporting**: per-document syntactic checks plus
+  a corpus-wide report of unresolved short-forms, missing
+  cross-references, and inconsistent date formats.
+
+Around 2010 the scripts were wrapped in a CodeIgniter web UI so the
+philologists on the project could run the pipeline themselves
+instead of mailing batches to the developer. By the time MaRa was
+published in 2018 (*Cosco, "Southern Italian Angevine Chancery
+Papers in XML: the script MaRa v2.0"* —
+[Zenodo](https://zenodo.org/records/1447195),
+[Academia.edu](https://www.academia.edu/37523540/)) it had handled
+several thousand documents and was the de-facto editorial
+infrastructure for the project. But it was a **single-corpus, single
+-server tool** with the publishing layer (HTML rendering, faceted
+search, public access) bolted on as an afterthought.
+
+### Aracne *(2016–2024)*
+
+The lesson from MaRa was clear: the editorial flow was generalisable,
+the publication flow wasn't. **Aracne** was the first attempt to
+turn the Angevine workflow into a platform — something other
+philological projects could pick up without inheriting six years of
+project-specific PHP. The bet was on the **eXist-db / XQuery
+ecosystem**, which around 2015–2016 looked like the natural home
+for an XML-native CMS: a single language (XQuery 3.1) for storage,
+transformation, templating, and routing; a community of digital
+humanists who already spoke it; a small but real catalogue of
+projects (TEI Publisher, EVT) showing the path.
+
+Aracne shipped a CodeMirror-based TEI editor with attribute
+autocomplete, a draft → review → publish workflow with role gating,
+a sitebuilder that produced static HTML editions, and a faceted
+search interface — all in XQuery on top of eXist-db. It worked, and
+between 2018 and 2022 it backed three small academic editions.
+
+It also taught us where the XQuery-everywhere bet broke down:
+
+- **Hiring and onboarding.** A new contributor on the team needed
+  six months of XQuery before they could land a non-trivial change.
+  Python and JavaScript developers we could hire from a much wider
+  pool refused to invest in a niche language with shrinking
+  industry use.
+- **Library ecosystem.** Anything beyond the TEI core — image
+  cropping, OAuth, OAI-PMH, CrossRef, Zenodo, modern auth — meant
+  either reimplementing primitives in XQuery or shelling out to
+  external services with awkward bridges. The "everything in one
+  language" claim was true only for plain TEI manipulation.
+- **Debugging surface.** eXist-db's stack traces were terse and
+  often pointed at the wrong place; performance tuning required
+  reading the engine's internals; deploying to a production server
+  was a per-host adventure.
+- **Frontend stagnation.** The HTML5 + light-jQuery frontend aged
+  badly; the rest of the web moved to component frameworks while
+  Aracne stayed on hand-written templates.
+
+By 2024 the friction-per-feature curve was steep enough that adding
+a sixth integration cost more than re-architecting the platform from
+scratch. Aracne is preserved as a reference at
+[github.com/orazionelson/aracne](https://github.com/orazionelson/aracne)
+— still useful as documentation of what an eXist-db-native CMS
+looks like end to end.
+
+### Aracne2 *(2026 →)*
+
+The third iteration draws three lines from the previous two:
+
+- **Keep eXist-db, but only as an XML store.** Aracne2 still uses
+  eXist-db 6.4.1 to store TEI documents natively, run XQuery
+  transformations, and serve full-text search — the things eXist-db
+  is genuinely best at. Everything else (auth, ACL, workflow,
+  plugins, settings, audit, AI integration, REST API) moves to a
+  Python + FastAPI + PostgreSQL backend, a stack the digital-
+  humanities community can hire and onboard for.
+- **Clean separation between platform and corpus.** MaRa was a
+  corpus tool that grew a UI; Aracne was a platform that grew a UI
+  layer. Aracne2 is **two distinct data layers from day one**:
+  PostgreSQL for platform state (users, roles, sessions, plugin
+  registry, settings, audit), eXist-db for document state (TEI XML
+  in per-collection databases). The two never bleed into each
+  other. The platform is portable across corpora; the corpus is
+  portable across platforms.
+- **Modularity as the first-class concern.** Every integration that
+  was a hand-coded special case in Aracne is a plugin in Aracne2:
+  twelve authority lookups, six deposit backends, AI providers,
+  the MCP server, the EVT viewer feed. Activation hot-mounts a
+  plugin's routes without restarting the backend. New capability
+  tags (`inline_authority`, `collection_deposit`, `website_deposit`,
+  `ui_descriptor`) let plugins auto-cable themselves into the SPA
+  without anybody editing the SPA.
+
+Operationally the platform ships in Docker (one `make up` brings up
+postgres + existdb + backend + frontend), the SPA is Vue 3 +
+TypeScript, the backend is async Python 3.12 with strict typing, and
+**integration with AI assistants is a first-class concern, not an
+afterthought** — the only TEI editorial CMS we know of where AI
+sits next to validation, named-entity tagging, and bibliography
+work as a peer tool, not a chat widget. See [§ Work alongside an AI
+assistant](#work-alongside-an-ai-assistant) below.
 
 ## What you can do
 
