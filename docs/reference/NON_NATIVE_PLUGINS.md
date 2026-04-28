@@ -737,6 +737,33 @@ The viewer UI itself is not part of this plugin — it lives in a
 separate nginx container activated via the `evt` Docker Compose
 profile. This plugin only provides the data feed.
 
+**Activating the viewer container** (one-time build, then start):
+
+```bash
+docker compose --profile evt build evt   # downloads + compiles EVT from source
+docker compose --profile evt up -d evt   # runs the viewer nginx on :8181
+```
+
+When the plugin is active **and** `evt_enabled=true`, a
+**Leggi in EVT** button appears on the public collection detail
+page and opens a full-viewport iframe at
+`/collections/{slug}/read`. The button is hidden otherwise.
+
+**Routing inside the viewer container** — the EVT nginx proxies
+config and TEI requests back to the Aracne2 backend:
+
+```
+Browser (iframe)
+  └── EVT nginx :8181
+        ├── /evt/{slug}/config/config.json  → proxy → backend /public/collections/{slug}/evt-config
+        ├── /evt/{slug}/data/{file}.xml     → proxy → backend /public/collections/{slug}/documents/{file}/raw
+        └── /evt/{slug}/*                   → EVT static assets (JS/CSS built from source)
+```
+
+The two backend endpoints are public (no authentication). They
+verify that the collection is published and public before serving
+any data.
+
 **Why it's now non-native:** EVT is specific to deployments that
 expose editions through the EVT viewer; not every deployment wants
 that. Activating from `/admin/plugins` mounts the routes; the

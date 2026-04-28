@@ -71,7 +71,7 @@ assistants is a first-class concern.
 
 ## Who it's for
 
-Aracne2 fits **small editorial teams** working on structured
+Aracne2 fits **editorial teams** working on structured
 corpora — university projects, critical editions, diplomatic-papers
 archives, funded research groups. It is opt-in for plugins and
 external services, so a deployment can stay minimal or grow into a
@@ -156,87 +156,22 @@ full publishing platform as the project does.
 
 ## Quick start
 
-### Prerequisites
+The full, dummy-friendly walk-through — prerequisites, first-time
+configuration, default credentials, daily-workflow targets, and a
+troubleshooting section — lives in [quickstart.md](quickstart.md).
 
-- Docker Engine ≥ 24 with Compose plugin (install from https://get.docker.com — do not use the Snap version)
-- `make`
-
-### First run
+The bare-minimum sequence, for the impatient:
 
 ```bash
-# 1. Clone and enter the project
-git clone <repo-url>
-cd aracne2
-
-# 2. Create the environment file
-cp .env.example .env
-# Edit .env: set JWT_SECRET (min 64 chars), POSTGRES_PASSWORD, leave EXIST_PASSWORD empty
-
-# 3. Start all services
+git clone <repo-url> && cd aracne2
+cp .env.example .env       # then fill JWT_SECRET, POSTGRES_PASSWORD; leave EXIST_PASSWORD empty
 make up
-
-# 4. Run database migrations
 make migrate
-
-# 5. Seed initial data (roles, settings, admin user)
 make seed
-
-# 6. Verify
-curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 ```
 
-> **eXist-db passwords:** eXist-db starts with an **empty** admin password on first boot.
-> Leave `EXIST_PASSWORD=` empty and set `EXISTDB_APP_PASSWORD=<choose_a_password>` —
-> the backend creates the dedicated `aracne` runtime user automatically on startup.
-> See [EXISTDB_SETUP.md](docs/reference/EXISTDB_SETUP.md) for the full setup and security model.
-
-> **Full step-by-step guide** (including troubleshooting): see [quickstart.md](quickstart.md).
-
-| Service | URL |
-|---------|-----|
-| Frontend (dev) | http://localhost:5173 |
-| Backend API | http://localhost:8000/api/v1 |
-| API docs (dev only) | http://localhost:8000/api/docs |
-| eXist-db dashboard | http://localhost:8080/exist/apps/dashboard (login: admin / empty password) |
-| PostgreSQL | localhost:5432 (127.0.0.1 only) |
-
-### Stopping and restarting
-
-Always shut down cleanly before rebooting the machine:
-
-```bash
-make down   # stops containers and removes the Docker network
-# reboot
-make up     # recreates the network and starts all services in order
-```
-
-If you reboot without running `make down` first, Docker may leave the internal
-network in a broken state. Symptom: the backend starts but cannot reach
-PostgreSQL (`ConnectionRefusedError`). Fix: `docker compose down && make up`.
-
-### Common commands
-
-```bash
-make up            # Start all services
-make down          # Stop all services (always run before rebooting)
-make logs          # Follow all logs
-make logs-be       # Backend logs only
-
-make migrate       # Run pending migrations
-make migrate-new MSG="add collection_permissions table"
-make migrate-down  # Rollback last migration
-
-make seed          # Seed roles, settings, admin user (idempotent)
-
-make test          # Run backend tests with coverage
-make test-v        # Verbose test output
-make lint          # ruff check + mypy
-make format        # ruff format
-
-make shell-be      # bash inside backend container
-make shell-db      # psql inside postgres container
-make help          # Full command reference
-```
+Frontend at http://localhost:5173 — login `admin` / `changeme_admin`
+(unless you changed `ADMIN_PASSWORD` in `.env`).
 
 ## Project structure
 
@@ -338,61 +273,136 @@ The panel can be closed with the **✕** button. If schema errors were found, a 
 
 Validation failure is non-blocking: the document is saved to eXist-db regardless of schema errors. The panel contains a **Save & Validate** shortcut to re-run save and validation without leaving the panel.
 
-## EVT viewer
-
-Aracne2 integrates [EVT 2](https://github.com/evt-project/evt-viewer) as an optional public viewer for published collections. When active, a **Leggi in EVT** button appears on the collection detail page and opens a full-viewport iframe at `/collections/{slug}/read`.
-
-### Prerequisites
-
-- The collection must be **published** and **public** (`is_public = true`).
-- The `evt_enabled` setting must be set to `true` in **Settings → General**.
-
-### Activating the viewer
-
-**Step 1 — Build the EVT Docker image** (one-time, downloads and compiles EVT from source):
-
-```bash
-docker compose --profile evt build evt
-```
-
-**Step 2 — Start the EVT container:**
-
-```bash
-docker compose --profile evt up -d evt
-```
-
-The EVT nginx container runs on port **8181** and proxies config and XML requests to the Aracne2 backend.
-
-**Step 3 — Enable the setting:**
-
-In **Settings → General**, set `evt_enabled` to `true`. The button will appear automatically on any collection that is published and public.
-
-### How it works
-
-```
-Browser (iframe)
-  └── EVT nginx :8181
-        ├── /evt/{slug}/config/config.json  → proxy → backend /public/collections/{slug}/evt-config
-        ├── /evt/{slug}/data/{file}.xml     → proxy → backend /public/collections/{slug}/documents/{file}/raw
-        └── /evt/{slug}/*                   → EVT static assets (JS/CSS built from source)
-```
-
-The backend endpoints are public (no authentication required). They verify that the collection is published and public before serving any data.
-
 ## API conventions
 
-All responses use a consistent envelope:
+The full normative spec lives in
+[docs/reference/API_FORMAT.md](docs/reference/API_FORMAT.md) — this
+section is the orientation tour.
+
+### URL layout and versioning
+
+- All routes live under `/api/v1/`. The `v1` prefix is permanent for
+  the lifetime of the major version; a future breaking change
+  branches off as `/api/v2/` rather than mutating `v1`.
+- Public, unauthenticated routes (collection landing pages, search
+  widget feed, sitemap, OAI-PMH) are bundled under
+  `/api/v1/public/...`.
+- Plugin routes mount under `/api/v1/plugins/<plugin_name>/...` for
+  plugin-management and under whatever prefix the plugin declares
+  for its own surface (e.g. `/api/v1/mcp` for the MCP server).
+
+### Response envelope
+
+All JSON responses use one of three consistent shapes:
 
 ```jsonc
 // Single resource
 { "data": { ... } }
 
 // Paginated list
-{ "data": [...], "pagination": { "page": 1, "per_page": 10, "total": 142, "total_pages": 15 } }
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "per_page": 10,
+    "total": 142,
+    "total_pages": 15
+  }
+}
 
-// Error
-{ "error": { "code": "RESOURCE_NOT_FOUND", "message": "User not found", "details": {} } }
+// Error — codes are SCREAMING_SNAKE_CASE
+{
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "User not found",
+    "details": { ... }   // optional, only populated in development
+  }
+}
 ```
+
+**Why an envelope, instead of returning the resource directly.** Two
+reasons: it keeps every response self-describing for clients that
+generate types from the OpenAPI spec, and the same outer shape covers
+single-resource, paginated, and error cases — so an SPA-side helper
+can branch on `data` vs. `error` without sniffing status codes.
+
+### HTTP status codes
+
+| Code | When the API returns it |
+|---|---|
+| `200 OK` | Successful read or update |
+| `201 Created` | New resource created |
+| `204 No Content` | Successful delete or void mutation |
+| `400 Bad Request` | Malformed JSON / missing required field |
+| `401 Unauthorized` | Missing or expired access token |
+| `403 Forbidden` | Authenticated, but role lacks permission |
+| `404 Not Found` | Resource doesn't exist or is invisible to the caller |
+| `409 Conflict` | Domain conflict (e.g. duplicate slug) |
+| `422 Unprocessable Entity` | Pydantic validation failure or `DomainValidationError` |
+| `429 Too Many Requests` | Rate limit exceeded |
+| `500 Internal Server Error` | Uncaught exception (should never reach in dev) |
+
+### Authentication
+
+- **Access token** (short-lived JWT, 60 min default) sent as
+  `Authorization: Bearer <jwt>`. Stored in Pinia memory on the SPA
+  side — never in localStorage.
+- **Refresh token** (long-lived, 30 days default) sent as an
+  `httpOnly; SameSite=Strict; Secure` cookie. The SPA never reads it
+  directly — `POST /api/v1/auth/refresh` returns a fresh access
+  token using the cookie.
+- The SPA's axios instance has `withCredentials: true` so the refresh
+  cookie travels automatically with `/auth/refresh` calls.
+
+### Pagination
+
+Paginated endpoints accept `page` (1-based) and `per_page` (default
+20, capped at 100 — sometimes lower depending on the resource). The
+response embeds the `pagination` block with the canonical totals.
+
+```bash
+GET /api/v1/collections?page=2&per_page=50
+```
+
+### Rate limiting
+
+Two named bucket levels (`slowapi`):
+
+| Bucket | Default | Applied to |
+|---|---|---|
+| `STRICT` | 10 req / minute / IP | Login, register, password change, MCP endpoint |
+| `GLOBAL` | 200 req / minute / IP | Everything else |
+
+A few authority-lookup routes carry their own intermediate limit
+(30 req/min) tuned to the upstream's published quota.
+
+### Error codes
+
+Domain errors carry a typed code (in `error.code`) so the SPA can
+branch on the kind of failure without parsing the message string.
+Examples actually emitted by the platform:
+
+- `RESOURCE_NOT_FOUND`, `INVALID_FILENAME`, `FILE_TOO_LARGE`
+- `INVALID_TOKEN`, `EXPIRED_TOKEN`, `INSUFFICIENT_ROLE`
+- `DUPLICATE_SLUG`, `DUPLICATE_NAME`, `UNKNOWN_COLLECTION`
+- `WORKFLOW_TRANSITION_INVALID`, `COLLECTION_NOT_PUBLISHED`
+
+A complete list is enforced by code rather than enumerated here —
+new domain errors land alongside the feature that needs them.
+
+### File downloads
+
+Binary endpoints (TEI source, media, ZIP exports, etc.) return the
+body directly with `Content-Disposition: attachment; filename="..."`
+and the appropriate `Content-Type`. The envelope is **not** wrapped
+around binary bodies. Filenames in the header are validated upstream
+to prevent header-injection.
+
+### Discoverability
+
+In development mode (`ENVIRONMENT=development`), the full Swagger
+UI is at `http://localhost:8000/api/docs` and the raw OpenAPI JSON
+at `/api/openapi.json`. Both are disabled in production.
 
 ## Role hierarchy
 
