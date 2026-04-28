@@ -3,7 +3,8 @@
 *.local
 test_*.txt
 # Claude Code — personal tooling, not project code
-#.claude/
+.claude/
+CLAUDE.md
 
 # Python
 __pycache__/
