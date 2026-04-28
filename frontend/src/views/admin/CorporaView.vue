@@ -69,13 +69,22 @@ onMounted(async () => {
 async function loadAllCollections(): Promise<void> {
   isLoadingCollections.value = true;
   try {
-    // The /collections endpoint paginates; pull a generous page so the
-    // multi-select can render without further round-trips. Admin will
-    // iterate rarely and the page sizes are small (typically dozens).
-    const res = await apiClient.getPaginated<CollectionLite>("/collections", {
-      params: { page: 1, per_page: 200 },
-    });
-    allCollections.value = res.data as CollectionLite[];
+    // The /collections endpoint caps per_page at 100 (router-level
+    // Query(le=100)). Pull pages of 100 until we've seen everything;
+    // realistic deployments live well below the first page and the
+    // loop exits after one round-trip. The earlier per_page=200 hit
+    // 422 silently and left the multi-select empty.
+    const PER_PAGE = 100;
+    const collected: CollectionLite[] = [];
+    for (let page = 1; page < 100; page++) {
+      const res = await apiClient.getPaginated<CollectionLite>("/collections", {
+        params: { page, per_page: PER_PAGE },
+      });
+      collected.push(...(res.data as CollectionLite[]));
+      const totalPages = (res.pagination as { total_pages?: number })?.total_pages ?? 1;
+      if (page >= totalPages) break;
+    }
+    allCollections.value = collected;
   } finally {
     isLoadingCollections.value = false;
   }
