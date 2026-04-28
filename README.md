@@ -59,15 +59,57 @@ assistants is a first-class concern.
 
 ### Work alongside an AI assistant
 
-- **Native AI integration** for marking up TEI, validating documents,
-  cleaning bibliographies, drafting XSLT — all with a per-deployment
-  prompt library.
-- **Built-in MCP server**: expose Aracne2 as a Model Context Protocol
-  endpoint. An editor on Claude Desktop, Cursor or Claude Code can
-  ask *"summarise the tragedies in this corpus"* and get answers
-  grounded in real TEI documents. Tokens are scoped by *corpus*, so
-  heterogeneous domains hosted on the same instance don't bleed into
-  each other's analyses.
+AI is a first-class collaborator in the editorial workflow, not a
+side panel bolted on. Aracne2 plugs in along three axes:
+
+**In-editor assistance** — the TEI editor ships an AI side panel
+that knows the document context. Common turns:
+
+- *Mark up this paragraph as `<persName>` / `<placeName>` / `<orgName>`* —
+  the model drafts the markup, the editor reviews and accepts.
+- *Why does this fail validation?* — the panel reads the validator's
+  errors and explains them in prose, with a fix suggested inline.
+- *Draft an XSLT template for the `<msDesc>` block* — Designer-mode
+  turn that scaffolds stylesheets the editor refines.
+- The **prompt library** is editable per deployment. Each prompt is
+  scoped to a surface (TEI editor, bibliography, XSLT debugger, …)
+  and the matching toolbar button auto-cables itself based on the
+  scope — no per-prompt UI code.
+
+**Bibliography automation** — turn a pile of references into clean
+TEI:
+
+- **Bibliobuilder** ingests messy author-supplied references and
+  normalises them into `<biblStruct>` with the model's help.
+- **CrossRef DOI resolver**: paste a DOI, get back ready-to-use
+  TEI bibliographic markup.
+- **Zotero import**: pull a group library straight into the
+  collection's bibliography without round-trips through CSV.
+
+**External assistant integration via MCP** — expose Aracne2 as a
+Model Context Protocol endpoint. An editor working in Claude
+Desktop, Cursor or Claude Code can ask *"summarise the tragedies
+in this corpus"* or *"in which documents does the placeName 'Naples'
+occur?"* and get answers grounded in real TEI documents — not
+hallucinations. Tokens are scoped by **corpus**, so heterogeneous
+domains hosted on the same instance don't bleed into each other's
+analyses. See [MCP_SERVER.md](docs/reference/MCP_SERVER.md).
+
+**Provider choice** — bring your own model:
+
+- Cloud: **OpenAI**, **Anthropic Claude**, **Google Gemini** — paste
+  the API key in `Settings → AI`, encrypted at rest.
+- Local: **Ollama** profile bundled in the compose file — runs the
+  model on your own hardware, no key needed, traffic stays on
+  the host.
+
+**Optional retrieval grounding (RAG)** — for deployments that turn
+on the local-AI profile, an opt-in `pgvector` store + an Ollama
+embeddings model let the editor's prompts retrieve from the
+ingested **TEI P5 Guidelines** (or your own corpus). The platform
+ships an ingestion script and a per-prompt RAG toggle; the
+retrieval surface degrades silently to "no augmentation" if the
+infra isn't reachable.
 
 ## Who it's for
 
