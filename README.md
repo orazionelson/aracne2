@@ -488,6 +488,7 @@ Technical reference documents are in [`docs/reference/`](docs/reference/).
 | [BODY_TEMPLATES.md](docs/reference/BODY_TEMPLATES.md) | Body templates for document creation |
 | [PLUGINS.md](docs/reference/PLUGINS.md) | Plugin architecture — native and third-party plugins |
 | [AI_INTEGRATION.md](docs/reference/AI_INTEGRATION.md) | AI provider adapters, prompt library, streaming |
+| [MCP_SERVER.md](docs/reference/MCP_SERVER.md) | Built-in MCP server — protocol, corpora, token model, tool registry |
 | [LOD_INTEGRATION.md](docs/reference/LOD_INTEGRATION.md) | Linked Open Data — Wikidata entity linking, JSON-LD, RDF content negotiation |
 | [BRAND.md](docs/reference/BRAND.md) | Aracne icon set — sigla → path mapping and usage policy |
 | [WEBHOOKS.md](docs/reference/WEBHOOKS.md) | Webhook dispatcher — events, signing, retries |
