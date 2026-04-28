@@ -29,14 +29,14 @@ in idiosyncratic short-forms inherited from the manual edition.
 
 **MaRa** (*Marcatore dei Registri Angioini*) was a set of PHP
 scripts written to take that mass of typed text — produced by the
-project's editors over years in plain Word documents — and lift it
-into TEI XML. The scripts handled three jobs that nobody wanted to
+project's editors over years in plain txt documents — and lift it
+into a custom XML encoding. The scripts handled three jobs that nobody wanted to
 do by hand:
 
 - **Tag insertion**: regular-expression passes that recognised
   recurring patterns (dates in Roman numerals, persName/placeName
   in capitalised forms, bibliographic short-forms) and proposed
-  TEI markup for the editor to accept or correct.
+  markup for the editor to accept or correct.
 - **Bibliography harmonisation**: the editors used six different
   short-forms for the same source over the years; MaRa resolved
   them against a canonical bibliography file and rewrote them as
@@ -54,8 +54,7 @@ Papers in XML: the script MaRa v2.0"* —
 [Academia.edu](https://www.academia.edu/37523540/)) it had handled
 several thousand documents and was the de-facto editorial
 infrastructure for the project. But it was a **single-corpus, single
--server tool** with the publishing layer (HTML rendering, faceted
-search, public access) bolted on as an afterthought.
+-server tool** without a publishing layer.
 
 ### Aracne *(2016–2024)*
 
@@ -67,14 +66,12 @@ project-specific PHP. The bet was on the **eXist-db / XQuery
 ecosystem**, which around 2015–2016 looked like the natural home
 for an XML-native CMS: a single language (XQuery 3.1) for storage,
 transformation, templating, and routing; a community of digital
-humanists who already spoke it; a small but real catalogue of
-projects (TEI Publisher, EVT) showing the path.
+humanists who already spoke it.
 
 Aracne shipped a CodeMirror-based TEI editor with attribute
 autocomplete, a draft → review → publish workflow with role gating,
-a sitebuilder that produced static HTML editions, and a faceted
-search interface — all in XQuery on top of eXist-db. It worked, and
-between 2018 and 2022 it backed three small academic editions.
+a sitebuilder that produced static HTML editions, and a search interface — all in XQuery on top of eXist-db. It worked, and
+between 2018 and 2022 it backed several academic editions.
 
 It also taught us where the XQuery-everywhere bet broke down:
 
