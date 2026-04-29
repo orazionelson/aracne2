@@ -237,9 +237,14 @@ async def render_document_html(
 
     try:
         transform = _get_transform()
-        # lxml.etree.fromstring is safe here: the XML comes from our own
-        # eXist-db instance, not from untrusted user input.
-        xml_doc = etree.fromstring(xml_bytes)  # noqa: S320
+        # The TEI bytes ultimately come from an Editor, who writes them
+        # to eXist-db with their own role — eXist is not a trust
+        # boundary against XXE. Parse with a hardened parser that
+        # disables external entity resolution and network access; this
+        # mirrors the schemas.py pattern and closes CVE-2026-41066 on
+        # lxml 5.x default behaviour.
+        _safe_parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+        xml_doc = etree.fromstring(xml_bytes, parser=_safe_parser)
         result = transform(xml_doc)
         html = str(result)
         if extra_style:

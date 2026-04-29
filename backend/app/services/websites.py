@@ -1541,7 +1541,10 @@ def _inject_facsimile_gallery(doc_body: str, xml_bytes: bytes) -> str:
     malformed.
     """
     try:
-        root = etree.fromstring(xml_bytes)  # noqa: S320 — trusted eXist-db source
+        # eXist holds Editor-authored TEI; not a trust boundary against
+        # XXE. See public_view.py for the same hardening rationale.
+        _safe_parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+        root = etree.fromstring(xml_bytes, parser=_safe_parser)
     except etree.XMLSyntaxError:
         return doc_body
 
@@ -2328,7 +2331,10 @@ def _md_to_html(content_md: str) -> str:
 def _render_xml_to_html(xml_bytes: bytes) -> str:
     """Apply the generic TEI XSLT and return the <body> inner HTML."""
     transform = _get_transform()
-    xml_doc = etree.fromstring(xml_bytes)  # noqa: S320 — from our own eXist-db
+    # XXE-hardened parser; eXist holds Editor-authored TEI and is
+    # not a trust boundary on its own. See public_view.py.
+    _safe_parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)
+    xml_doc = etree.fromstring(xml_bytes, parser=_safe_parser)
     result = transform(xml_doc)
     result_str = str(result)
     body_match = re.search(r"<body[^>]*>(.*?)</body>", result_str, re.DOTALL | re.IGNORECASE)

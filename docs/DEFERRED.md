@@ -475,3 +475,24 @@ parola/riga da parte di un Editor o EditorInChief, oppure integrazione
 con pipeline HTR/OCR che produce coordinate di zona automaticamente.
 
 *Aggiunto: 2026-04-12*
+
+---
+
+## `pytest` 8 → 9 bump (CVE-2025-71176)
+
+**Severity:** LOW — local DoS on UNIX, dev-only (production never
+runs `pytest`).
+
+**Status:** deferred to a coordinated triple bump.
+
+**Why:** `pytest` 9 is a major release that broke plugin contracts
+relied on by `pytest-asyncio==0.24.0` and `pytest-cov==6.0.0`.
+Bumping `pytest` alone leaves the test suite unable to collect
+async tests. The right move is to wait until both plugins ship
+stable 9-compatible versions, then upgrade the three together.
+
+**Trigger to revisit:** quarterly dep audit, or a Dependabot PR
+landing automatically once `pytest-asyncio>=1.0.0` and
+`pytest-cov>=7.0.0` are out (per their roadmap announcements).
+
+*Aggiunto: 2026-04-29*
