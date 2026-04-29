@@ -409,19 +409,19 @@ Five planned platform improvements that close the technical-side
 gaps identified above. Each is a separate work item; once shipped,
 the operator's CTS application becomes substantially easier.
 
-These items are now **scheduled across three named sprints** in
+These items are now **scheduled across three named milestones** in
 [`Aracne_Roadmap.md`](Aracne_Roadmap.md):
 
-- **Sprint 1** delivers item 2 (GDPR self-service endpoints).
-- **Sprint 2** delivers item 1 (Fixity layer).
-- **Sprint 3** delivers items 3, 4, and 5 — but **as built-in
+- **Milestone 1** delivers item 2 (GDPR self-service endpoints).
+- **Milestone 2** delivers item 1 (Fixity layer).
+- **Milestone 3** delivers items 3, 4, and 5 — but **as built-in
   templates of the [`policy_pages`](FUTURE_IDEAS.md) plugin**,
   not as standalone Markdown templates. The plugin gives the
   operator a *live form* surface with platform pre-fill,
   versioning, IT/EN locales, public render, and PDF export —
   substantially more than three static Markdown files.
 
-After Sprint 3, the platform-side contribution to CTS is
+After Milestone 3, the platform-side contribution to CTS is
 substantially complete: every requirement either ✅ flips to
 "shipped" or has a **live form for the operator to declare
 against**. The remaining work is purely institutional declaration
@@ -447,13 +447,13 @@ anonymisation. Both are designed; only implementation remains.
 Surface: a new admin help section + the two endpoints + frontend
 buttons in `/profile`.
 
-### 3, 4, 5 — Folded into the `policy_pages` plugin (Sprint 3)
+### 3, 4, 5 — Folded into the `policy_pages` plugin (Milestone 3)
 
 The three items originally planned as standalone Markdown
 templates — Storage Policy (R9), Continuity / Succession Plan
 (R3), CTS self-assessment scaffold (cross-cutting) — are now
 **built-in templates of the `policy_pages` plugin** delivered in
-Sprint 3.
+Milestone 3.
 
 See [`FUTURE_IDEAS.md` §27](FUTURE_IDEAS.md) for the full design.
 Headline differences vs. the original Markdown approach:
@@ -486,8 +486,8 @@ response, citation guide, editorial board) — covering R1, R4, R5,
 R6, R8, R10, R14, R16. The full institutional-declaration surface
 sits in one place.
 
-**Total**: ~14.5 days of focused work in Sprint 3, on top of the
-~10 days for items 1+2 in Sprints 1+2. ~5 weeks of total CTS
+**Total**: ~14.5 days of focused work in Milestone 3, on top of the
+~10 days for items 1+2 in Milestones 1+2. ~5 weeks of total CTS
 platform work, with a far stronger operator-facing surface than
 the original 5-template plan.
 

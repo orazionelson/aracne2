@@ -2474,7 +2474,7 @@ institution's external policy process. The platform's job is to
 **transcribe** approved policies, not to host the policy
 deliberation.
 
-### `PolicyManager` capability role — instead of workflow
+### `PolicyManager` capability role — single holder, not workflow
 
 A new **capability role** (orthogonal to the existing hierarchical
 roles `User` / `Editor` / `Designer` / `EditorInChief` / `Admin`).
@@ -2482,20 +2482,43 @@ Admin can grant `PolicyManager` to any user from `User` upwards;
 the granted user gains read+write access to the
 `policy_pages` admin surface independent of their main role.
 
+> **Singleton constraint**: at any moment **at most one user** in
+> the deployment holds `PolicyManager`. Granting it to user B
+> while user A already has it auto-revokes A's role first
+> (recorded in the audit log as a transfer, not as two unrelated
+> events). Rationale: a single named accountability holder for
+> institutional policy content matches the way real organisations
+> assign that responsibility, and removes ambiguity if two
+> simultaneous holders disagree on a policy edit.
+
 Implementation:
-- New row in the `roles` table: `(name="PolicyManager",
-  description="Edits institutional policy pages")`.
-- The existing many-to-many `user_roles` already supports it —
-  `PolicyManager` is just an additional row alongside the user's
-  hierarchical role.
+
+- New row in the `roles` table:
+  `(name="PolicyManager", description="Edits institutional policy pages",
+   kind="capability", singleton=True)`. The `kind` and `singleton`
+  columns are new on the `roles` table; the existing five
+  hierarchical roles are migrated as `kind="hierarchical",
+  singleton=False` by default.
+- The existing many-to-many `user_roles` is reused. Singleton
+  enforcement happens at the service layer when the assignment
+  is granted: a transactional `transfer_singleton_role(role_name,
+  to_user_id)` revokes the role from any current holder and
+  grants it to the target in the same transaction; the audit log
+  captures both legs.
 - A new dependency `require_capability("PolicyManager")` for the
   `/admin/policies/*` endpoints, distinct from the hierarchical
   `require_role(min_role=...)` used elsewhere.
-- Admin role-management UI gains a checkbox-style capability
-  surface (separate from the radio-style hierarchical role).
+- Admin role-management UI changes for capability roles: instead
+  of a checkbox per user, the UI shows a single dropdown
+  *"Current Policy Manager: [user X]"* with a Change button that
+  opens a user-picker. Reassignment is one click; the previous
+  holder is shown a notification when they lose the role.
 
-Pattern is generic: future capability roles (`Translator`,
-`Annotator`, `BibliographyOnly`) follow the same shape.
+The pattern (capability role, optionally singleton) is generic:
+future capability roles can declare themselves singleton or
+multi-holder as appropriate. Examples that might be **multi-holder**:
+`Translator`, `Annotator`, `BibliographyReviewer`. `PolicyManager`
+is the first singleton.
 
 ### Multi-locale (IT / EN)
 
