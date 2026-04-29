@@ -2000,4 +2000,129 @@ change — slowapi already supports per-key limits.
 
 ---
 
-*Last updated: 2026-04-28*
+## 23. End-to-end HTR pipeline — large-corpus image-to-zone import 🟡 Medium
+
+The platform today exposes a thin HTTP surface for HTR-driven zone
+creation: `POST /api/v1/collections/{slug}/documents/{filename}/facsimile/{surface_id}/zones/import`
+([backend/app/routers/zones.py:91](../backend/app/routers/zones.py#L91))
+accepts a JSON list of zones with semantics identical to PUT — i.e.
+the same payload shape the manual editor saves. Anything beyond that
+(parsing standard HTR formats, ingesting thousands of images at
+once, letting an editor accept / correct / reject machine output)
+is on the roadmap, not in the current build.
+
+This entry sketches the full design so the next contributor (or
+future self) can pick it up without re-deriving the pieces.
+
+### Idea
+
+A "Documents → Import HTR output" surface in the collection detail
+view that walks an editor through:
+
+1. **Batch image upload** — drop *N* images on the page; backend
+   stores them under `media_dir/<slug>/<doc>/...` and produces
+   `<surface>` skeletons in the TEI document.
+2. **HTR format ingestion** — for each image (or for the whole
+   batch as a ZIP), accept ALTO XML or PAGE XML produced by an
+   external HTR engine. Parse it server-side into the platform's
+   internal zone shape.
+3. **Review queue UI** — show the candidate zones overlaid on the
+   image with their text and confidence score. Per-zone actions:
+   *accept* (zone lands in `<zone>`), *correct* (edit coords or
+   text inline), *reject* (drop). Bulk actions: accept-above-N%,
+   reject-below-N%.
+4. **Commit to TEI** — once the editor closes the queue, the
+   accepted zones write to the document's `<facsimile>` section
+   with `xml:id` slugs, and the OCR'd text becomes `<line>` /
+   `<lb>` elements with `facs="#zone-id"` cross-pointers.
+5. **Word-level alignment (optional)** — when ALTO carries
+   per-word coordinates, surface them as `<w facs="#word-id">`
+   in the transcription. The current README already advertises
+   word-level alignment as future work.
+
+### Open questions
+
+- **Where does the HTR engine actually run?** Three plausible
+  positions:
+  - *Outside Aracne2* — the editor produces ALTO / PAGE elsewhere
+    (Transkribus desktop, eScriptorium on a GPU cluster) and
+    uploads it. **Recommended starting point** — zero infra burden
+    on Aracne2, decouples release cadences, supports "I already
+    have a workflow" deployments.
+  - *Bundled non-native plugin* — a `htr_engine` plugin that wraps
+    a containerised Kraken or eScriptorium API. Lets a deployment
+    bring HTR in-house. Needs a GPU on the host, careful resource
+    isolation, and is a maintenance commitment.
+  - *External-service plugin* — a connector to a hosted Transkribus
+    REST API. Cleanest but binds to a single commercial vendor.
+- **Format priority**. ALTO is the W3C-ish lingua franca and the
+  default Transkribus / Kraken / Tesseract output; PAGE XML is
+  PRImA's competitor, used heavily by Transkribus power users.
+  Both are XML, both convertible. Implement ALTO first (smaller
+  schema, broader adoption); PAGE second.
+- **Confidence threshold defaults**. Most ALTO outputs include a
+  `WC` (word confidence) attribute as a [0,1] float. A sensible
+  default is "auto-accept ≥ 0.95, auto-reject < 0.50, queue the
+  rest" — but the cutoff varies by engine and corpus, so it must
+  be adjustable per import session.
+- **Image storage at scale**. A 5,000-image corpus at 5 MB
+  per page is ~25 GB. The current media folder approach
+  (filesystem under `media_dir`) handles this in principle but
+  needs a chunked / resumable upload to survive flaky connections
+  and an async background ingestion job (the synchronous
+  `await file.read()` pattern from
+  [Security review 2026-04-27 §2](Security_review_2026-04-27.md)
+  cannot be reused for batches this large).
+- **Surface vs document**. A ten-image batch per document is
+  trivial; a thousand-image batch *across documents* needs an
+  ingestion model that creates documents on the fly.
+  Recommendation: scope this feature to *one document at a time*
+  in v1; cross-document batch import is a v2 concern.
+- **Review queue persistence**. If the editor reviews 800 zones,
+  closes the laptop, and resumes tomorrow, the partial state must
+  survive. Sketch: a new `htr_import_session(id, document_id,
+  status, accepted_zones, pending_zones, rejected_zones,
+  created_at)` table — straightforward to add but needs a tasteful
+  UI.
+
+### Why deferred
+
+- The current binding endpoint is enough for the (rare) editor
+  who already runs Transkribus and can transform its output to the
+  platform's JSON shape. That covers the "I have a custom pipeline"
+  audience. The mass-corpus audience that the README implies is
+  larger isn't there yet — the current Aracne2 deployments work on
+  small editions where manual zone tracing is feasible.
+- ALTO and PAGE parsers are the easy 30%; the review-queue UI is
+  the 70%. Building it before a real corpus exercises it would
+  almost certainly produce the wrong UX. Wait for the first
+  project that actually has a thousand-image manuscript and design
+  the queue with their editors in the room.
+
+### Prerequisites
+
+- The `<zone>` / `<surface>` / `<facsimile>` model already lives
+  end-to-end ([ZONES_FACSIMILE.md](reference/ZONES_FACSIMILE.md)).
+- The `POST .../zones/import` route already exists and is the
+  natural promotion target — bump it from JSON-only to
+  `Content-Type: application/xml` for ALTO / PAGE.
+- The chunked-upload helper from
+  [Security review 2026-04-27 §2](Security_review_2026-04-27.md)
+  (`services/uploads.read_capped`) needs an asyncio-friendly
+  variant for streamed image batches.
+
+### Trigger for implementation
+
+- An editor or EditorInChief explicitly asks for thousands-of-images
+  HTR ingestion, **or**
+- The first deployment lands a manuscript corpus where manual zone
+  tracing would take more than a few weeks per editor.
+
+Until either trigger fires, the current "JSON binding endpoint +
+manual editor" coverage is the right level of investment.
+
+*Added: 2026-04-29*
+
+---
+
+*Last updated: 2026-04-29*

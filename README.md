@@ -318,7 +318,7 @@ full publishing platform as the project does.
 |---|---|
 | **Editorial** | Collection-based TEI XML document management with full workflow (draft → review → published) |
 | **Editor** | CodeMirror 5 TEI editor with XML autocomplete (CM5 schema), AI assistance, and inline validation |
-| **Facsimile** | Text-image alignment via TEI `<zone>` / `facs` — manual editor and HTR pipeline import |
+| **Facsimile** | Text-image alignment via TEI `<zone>` / `facs` — manual editor + a thin HTTP entry point reserved for HTR pipeline output (full pipeline support is on the roadmap, see [FUTURE_IDEAS](docs/FUTURE_IDEAS.md)) |
 | **Validation** | Per-document and collection-wide TEI validation against RNG / DTD / XSD schemas |
 | **Bibliography** | Bibliographic entry management with BibTeX/CSL-JSON import and a bibliography normalizer (AI) |
 | **Named entities** | Automatic entity extraction (persName, placeName, orgName, …), admin normalisation, VIAF/GeoNames linking |

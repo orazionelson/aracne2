@@ -182,10 +182,21 @@ async function importZones(slug, filename, surfaceId) // POST import
 
 ### HTR import workflow
 
-For automated pipelines (e.g. Transkribus, Kraken):
-1. Pipeline produces pixel-level zone coordinates per surface
-2. Client `POST /zones/import` with the zone list — semantics identical to PUT in v1
-3. Future: the import endpoint will accept raw ALTO XML directly (format negotiation via `Content-Type`)
+> **Status — partial.** Today only the HTTP entry point exists. The
+> end-to-end "thousand-page corpus → HTR engine → editor reviews
+> machine output" workflow described in
+> [FUTURE_IDEAS §23](../FUTURE_IDEAS.md) is the upgrade target.
+
+For automated pipelines (e.g. Transkribus, Kraken, eScriptorium):
+
+1. Pipeline produces pixel-level zone coordinates per surface.
+2. Client `POST /zones/import` with the zone list — semantics
+   identical to PUT in v1, accepts the same JSON shape as the
+   manual editor's save.
+3. **Not yet implemented**: ALTO / PAGE XML parsing on the import
+   endpoint, batch image upload, machine-output review queue,
+   confidence-score visualisation, word/line-level alignment.
+   See [FUTURE_IDEAS §23](../FUTURE_IDEAS.md) for the design.
 
 ---
 
