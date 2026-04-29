@@ -2369,4 +2369,244 @@ without introducing third-party tracking at all.
 
 ---
 
+## 27. Non-native plugin: `policy_pages` — institutional declarations as live forms 🔴 High
+
+A non-native plugin that turns the institutional declarations an
+operator must produce — mission, privacy / DPIA, storage policy,
+continuity plan, CTS self-assessment, citation guide, editorial
+board, etc. — into **live forms inside the platform**, with public
+rendering, versioning, multi-locale support, and platform-side
+auto-filled fields that re-read the running deployment's state.
+
+Subsumes the four template-style deliverables previously planned
+in [`CTS_COMPLIANCE_ROADMAP.md`](CTS_COMPLIANCE_ROADMAP.md) §3
+(Storage Policy template), §4 (Continuity Plan template), and §5
+(CTS self-assessment scaffold), plus the cross-cutting "where do
+institutional declarations actually live?" question. The fifth
+roadmap item — Fixity layer — is unrelated infrastructure and
+stays as its own deliverable.
+
+### Idea
+
+Each declaration is a **template** (a Python module declaring a
+list of `Field` objects); each filled-in instance is a
+`policy_page` row whose `content_jsonb` carries the values. The
+admin opens an empty template, fills the operator-supplied fields,
+publishes; the platform renders a public Markdown page at
+`/policies/<slug>` that the institution can link from anywhere
+(including the public homepage's footer via the
+[`public_navigation`](#) capability of §24).
+
+### Built-in template catalogue (initial 12)
+
+Each template is tagged with one or more categories so admins can
+filter by relevance:
+
+| Template | Categories | Platform-filled fields | Operator fields |
+|---|---|---|---|
+| `mission` | `core`, `cts:R1` | platform name, version | mission statement, scope, target community, durability commitment |
+| `privacy_dpia` | `core`, `cts:R4` | PII fields the platform handles, retention defaults, IP-hashing status | data controller, DPO contact, lawful basis, takedown SLA |
+| `storage_policy` | `cts:R9` | Postgres / eXist-db versions, Docker volumes, backup plugin status | off-site backup target, RPO / RTO, key custodian, restore-rehearsal cadence |
+| `continuity_plan` | `cts:R3` | active deposit plugins, OAI-PMH endpoint, current backup retention | designated successor institution(s), DOI redirection procedure, communication plan |
+| `cts_self_assessment` | `cts:meta` | per-requirement platform-contribution paragraphs (auto-pulled from CTS_COMPLIANCE_ROADMAP) | per-requirement institutional declarations |
+| `funding_staffing` | `core`, `cts:R5` | — | funding sources, staffing roles, succession arrangements |
+| `expert_directory` | `core`, `cts:R6` | — | named experts (multi-row form: name, role, contact, expertise area) |
+| `appraisal_policy` | `cts:R8` | currently-published collection count, schema catalogue | acceptance criteria, rejection criteria, deaccessioning procedure |
+| `preservation_plan` | `cts:R10` | TEI version in use, schema catalogue, deposit-target list | preservation horizon, format-migration plan, format-normalisation policy |
+| `incident_response` | `cts:R16` | security review file list, Dependabot status | incident contacts, escalation ladder, disclosure timeline |
+| `citation_guide` | `core` | DOI badge present yes/no, JSON-LD schema.org markup status | suggested citation format per collection, attribution expectations |
+| `editorial_board` | `core` | — | board membership (multi-row), advisory committee, governance |
+
+Operators that don't pursue CTS use the `core`-tagged subset and
+ignore the `cts:*` ones. CTS-pursuing operators activate every
+`cts:R*` template and get the entire institutional declaration
+body in one place.
+
+### Platform pre-fill — the brilliant part
+
+Every `Field` object can declare itself as `platform`-sourced:
+
+```python
+TEMPLATE = PolicyTemplate(
+    slug="storage_policy",
+    title_key="policy.storage.title",
+    categories=["cts:R9"],
+    fields=[
+        # Platform-filled (read-only on the operator's form;
+        # re-evaluated at render time).
+        Field("postgres_version",  source=lambda: platform.postgres_version()),
+        Field("existdb_version",   source=lambda: platform.existdb_version()),
+        Field("docker_volumes",    source=lambda: platform.docker_volume_list()),
+
+        # Operator-filled.
+        Field("offsite_target", kind="text", required=True,
+              hint_key="policy.storage.offsite_target_hint"),
+        Field("rpo_hours", kind="integer", required=True,
+              min=1, max=168),
+        Field("rto_hours", kind="integer", required=True,
+              min=1, max=720),
+        Field("key_custodian", kind="text", required=True),
+        Field("restore_rehearsal_cadence", kind="enum",
+              options=["monthly", "quarterly", "annually"]),
+    ],
+    public_template="storage_policy.md.j2",
+)
+```
+
+When the operator opens the form, platform-sourced fields are
+rendered greyed-out with their current value. When the deployment
+state changes (e.g., admin upgrades eXist-db), the public
+`/policies/storage-policy` re-reads the value at render time —
+**the policy auto-updates without anyone touching it**. A property
+that static Markdown templates cannot have.
+
+### Versioning + audit
+
+Every save creates a `policy_page_versions` row capturing the full
+`content_jsonb`, the actor user, the timestamp, and a content hash.
+The public page footer renders *"Version 3, published by X on
+2026-Q3, supersedes v2 of 2026-Q1"* — exactly the audit trail a
+CTS reviewer expects.
+
+No draft / review workflow: per the maintainer's call, policy
+content arrives at the admin's desk pre-approved by the
+institution's external policy process. The platform's job is to
+**transcribe** approved policies, not to host the policy
+deliberation.
+
+### `PolicyManager` capability role — instead of workflow
+
+A new **capability role** (orthogonal to the existing hierarchical
+roles `User` / `Editor` / `Designer` / `EditorInChief` / `Admin`).
+Admin can grant `PolicyManager` to any user from `User` upwards;
+the granted user gains read+write access to the
+`policy_pages` admin surface independent of their main role.
+
+Implementation:
+- New row in the `roles` table: `(name="PolicyManager",
+  description="Edits institutional policy pages")`.
+- The existing many-to-many `user_roles` already supports it —
+  `PolicyManager` is just an additional row alongside the user's
+  hierarchical role.
+- A new dependency `require_capability("PolicyManager")` for the
+  `/admin/policies/*` endpoints, distinct from the hierarchical
+  `require_role(min_role=...)` used elsewhere.
+- Admin role-management UI gains a checkbox-style capability
+  surface (separate from the radio-style hierarchical role).
+
+Pattern is generic: future capability roles (`Translator`,
+`Annotator`, `BibliographyOnly`) follow the same shape.
+
+### Multi-locale (IT / EN)
+
+Every operator field has an `it` and `en` value side by side. The
+public page is served at `/policies/<slug>?lang=it` (or based on
+the visitor's `Accept-Language`). The form editor shows tabs for
+each configured locale; missing translations fall back to the
+default locale with a banner ("Italian translation not available").
+
+The platform-filled fields are language-agnostic (versions,
+volume names) so they appear identical across locales.
+
+### PDF export
+
+Each published policy gets a `?format=pdf` variant:
+- markdown → HTML (already done by the public render)
+- HTML → PDF via `weasyprint` (Python, no headless browser
+  dependency)
+- Includes version metadata, signed-by footer, deployment
+  fingerprint (URL + date)
+
+CTS reviewers and institutional archivists frequently want PDFs
+for offline retention. ~1 day of work on top of the core plugin.
+
+### Public navigation integration
+
+The plugin declares the `public_navigation` capability of
+[FUTURE_IDEAS §24](#24-public_navigation-capability) and renders
+either:
+- a "Policies" footer link → `/policies` index, or
+- per-policy header / footer links if the admin opts in for
+  individual policies (e.g. "About" → `/policies/mission`).
+
+The toggle lives in the per-policy admin form, not platform-wide,
+so admins can publish 12 policies but link only 3 in the footer.
+
+### Surfaces
+
+```
+backend/app/plugins/policy_pages/
+├── plugin.py
+├── router.py                  # /admin/policies + /policies
+├── service.py                 # CRUD + versioning + render
+├── pdf.py                     # weasyprint integration
+├── templates/                 # built-in policy templates (Python)
+│   ├── _base.py               # PolicyTemplate / Field dataclasses
+│   ├── mission.py
+│   ├── privacy_dpia.py
+│   ├── storage_policy.py
+│   ├── continuity_plan.py
+│   ├── cts_self_assessment.py
+│   ├── funding_staffing.py
+│   ├── expert_directory.py
+│   ├── appraisal_policy.py
+│   ├── preservation_plan.py
+│   ├── incident_response.py
+│   ├── citation_guide.py
+│   └── editorial_board.py
+├── public_md/                 # Jinja2 markdown templates per policy
+└── tests/
+
+frontend/src/views/admin/PolicyPagesView.vue       # list + form editor
+frontend/src/views/public/PolicyPagePublic.vue     # renderer
+frontend/src/components/policy-pages/FieldRenderer.vue  # per-Field type
+```
+
+### Effort
+
+| Step | Effort |
+|---|---|
+| Plugin scaffold + Alembic + base model + versioning | 2g |
+| `PolicyTemplate` / `Field` declarative engine + 12 built-in templates | 4g |
+| Platform pre-fill mechanism (lazy re-evaluation at render) | 1g |
+| Admin form-editor UI (multi-locale tabs + per-field-type renderer) | 2g |
+| Public render + sitemap integration + JSON-LD | 1g |
+| `PolicyManager` capability role + admin role-mgmt UI update | 1.5g |
+| PDF export via weasyprint | 1g |
+| Tests + help doc | 2g |
+| **Totale** | **~14.5g** |
+
+### Why deferred
+
+- Sprint 1 and Sprint 2 ship without static template scaffolds for
+  CTS — the operator that wants to certify between sprints uses
+  external Word / PDF policies as today. The plugin lands in a
+  dedicated Sprint 3.
+- A real first-deployment will tell us whether the 12 built-in
+  templates are the right list (probably we'll add 1-2 and prune
+  1-2 based on actual operator feedback). Building the engine
+  before the first user is a known over-design risk.
+
+### Trigger for implementation
+
+- The first institution preparing a CTS application asks for the
+  policy surface inside Aracne, **or**
+- A maintainer cycle has the bandwidth post-Sprint 2 and decides
+  to invest in the institutional surface as a differentiator
+  before recruiting new deployments.
+
+### Why this is 🔴 High
+
+It promotes Aracne2 from "TEI editorial CMS" to "TEI editorial CMS
++ institutional-declaration platform" — the latter is a
+differentiator for repository-trust certifications (CTS, CoreTrustSeal,
+CLARIN, nestor) that exists in **no other TEI tool today**, as far
+as we know. Pairs naturally with the AI / MCP positioning to make
+Aracne2 the obvious choice for institutions building durable,
+auditable digital editions.
+
+*Added: 2026-04-29*
+
+---
+
 *Last updated: 2026-04-29*

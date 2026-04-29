@@ -406,22 +406,26 @@ with platform defaults).
 ## Platform roadmap
 
 Five planned platform improvements that close the technical-side
-gaps identified above, in order of value-to-effort. Each is a
-separate work item; once shipped, the operator's CTS application
-becomes substantially easier.
+gaps identified above. Each is a separate work item; once shipped,
+the operator's CTS application becomes substantially easier.
 
-These items are now **scheduled across the two named sprints** in
+These items are now **scheduled across three named sprints** in
 [`Aracne_Roadmap.md`](Aracne_Roadmap.md):
 
-- **Sprint 1** delivers items 2 (GDPR endpoints), 3 (Storage policy
-  template), 4 (Continuity plan template).
-- **Sprint 2** delivers items 1 (Fixity layer) and 5 (CTS
-  self-assessment scaffold).
+- **Sprint 1** delivers item 2 (GDPR self-service endpoints).
+- **Sprint 2** delivers item 1 (Fixity layer).
+- **Sprint 3** delivers items 3, 4, and 5 — but **as built-in
+  templates of the [`policy_pages`](FUTURE_IDEAS.md) plugin**,
+  not as standalone Markdown templates. The plugin gives the
+  operator a *live form* surface with platform pre-fill,
+  versioning, IT/EN locales, public render, and PDF export —
+  substantially more than three static Markdown files.
 
-After Sprint 2, the platform-side contribution to CTS is
-substantially complete; the remaining gap (R10 preservation plan)
-is purely an institutional declaration, which the self-assessment
-scaffold from item 5 helps the operator write.
+After Sprint 3, the platform-side contribution to CTS is
+substantially complete: every requirement either ✅ flips to
+"shipped" or has a **live form for the operator to declare
+against**. The remaining work is purely institutional declaration
+content, which the operator fills via the plugin's UI.
 
 ### 1. Fixity layer (R7) — ~1 week
 
@@ -443,31 +447,49 @@ anonymisation. Both are designed; only implementation remains.
 Surface: a new admin help section + the two endpoints + frontend
 buttons in `/profile`.
 
-### 3. Storage Policy template (R9) — ~1 day
+### 3, 4, 5 — Folded into the `policy_pages` plugin (Sprint 3)
 
-`docs/templates/STORAGE_POLICY.md` — a fillable template the
-operator copies and adapts. Sections: storage tiers, replication
-factor, RPO / RTO targets, off-site backup destination, key
-custodians, restore-rehearsal cadence.
+The three items originally planned as standalone Markdown
+templates — Storage Policy (R9), Continuity / Succession Plan
+(R3), CTS self-assessment scaffold (cross-cutting) — are now
+**built-in templates of the `policy_pages` plugin** delivered in
+Sprint 3.
 
-### 4. Continuity / Succession Plan template (R3) — ~1 day
+See [`FUTURE_IDEAS.md` §27](FUTURE_IDEAS.md) for the full design.
+Headline differences vs. the original Markdown approach:
 
-`docs/templates/CONTINUITY_PLAN.md` — fillable template. Sections:
-mandatory deposit targets at publish, designated successor
-institution(s), backup retention horizon, DOI redirection
-procedure if the platform shuts down.
+- **Live forms** the operator fills inside the platform admin,
+  not Markdown files copied and edited externally.
+- **Platform pre-fill**: Storage Policy auto-populates Postgres /
+  eXist-db versions, Docker volumes, deposit-plugin status from
+  the running deployment; Continuity Plan auto-populates active
+  deposit targets; the published page re-evaluates these at
+  render time, so policies stay accurate as the deployment
+  evolves.
+- **Versioning + audit trail** native — every save creates a
+  versioned row, the public page renders the version history
+  ("Version 3, published by Maria Bianchi on 2026-Q3, supersedes
+  v2 of 2026-Q1") that CTS reviewers expect.
+- **Public render** at `/policies/<slug>`, indexed in the sitemap,
+  with JSON-LD metadata.
+- **Multi-locale**: each operator field has IT and EN values; the
+  visitor's `Accept-Language` picks the right render.
+- **PDF export** for offline retention via weasyprint.
+- **`PolicyManager` capability role** lets Admin delegate policy
+  editing to a non-admin user without granting full Admin / EiC
+  privileges.
 
-### 5. CTS self-assessment scaffold — ~2 days
+The plugin also ships **9 additional templates** beyond the three
+original CTS items (mission, privacy / DPIA, funding / staffing,
+expert directory, appraisal policy, preservation plan, incident
+response, citation guide, editorial board) — covering R1, R4, R5,
+R6, R8, R10, R14, R16. The full institutional-declaration surface
+sits in one place.
 
-`docs/templates/CTS_SELF_ASSESSMENT.md` — a pre-filled CTS
-self-assessment per requirement, where the platform's contribution
-is already drafted and the operator fills in the
-institutional-side declarations. Reduces the operator's
-compliance writing time from weeks to days.
-
-**Total**: ~3 weeks of focused platform work to put Aracne2 in the
-strongest possible position for any institution wanting to
-certify a deployment.
+**Total**: ~14.5 days of focused work in Sprint 3, on top of the
+~10 days for items 1+2 in Sprints 1+2. ~5 weeks of total CTS
+platform work, with a far stronger operator-facing surface than
+the original 5-template plan.
 
 ---
 
