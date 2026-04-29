@@ -102,8 +102,10 @@ def sanitize_filename(name: str) -> str:
     """Return a safe, case-normalised filename; raise on empty / bad ext.
 
     Strips directory components, ASCII-folds, lowercases, collapses any
-    non-``[a-z0-9._-]`` run to a single dash. A final validation check
-    refuses empty basenames, leading dots, and unknown extensions.
+    non-``[a-z0-9._-]`` run to a single dash, and collapses runs of
+    consecutive dashes (so ``multi---dash.png`` lands as
+    ``multi-dash.png``). A final validation refuses empty basenames,
+    leading dots, and unknown extensions.
     """
     if not name:
         raise DomainValidationError(
@@ -111,6 +113,14 @@ def sanitize_filename(name: str) -> str:
         )
     # Strip any directory the client accidentally sent.
     bare = Path(name).name
+    # Reject leading-dot files *before* the strip step would silently
+    # eat the dot. ".hidden.png" is a hidden file on Unix; we don't
+    # want it to round-trip as "hidden.png" unannounced.
+    if bare.startswith("."):
+        raise DomainValidationError(
+            code="INVALID_FILENAME",
+            message="Filename cannot start with a dot",
+        )
     # NFKD-fold accented characters to their ASCII base then drop combining marks.
     normalised = (
         unicodedata.normalize("NFKD", bare)
@@ -118,7 +128,11 @@ def sanitize_filename(name: str) -> str:
         .decode("ascii")
     )
     lowered = normalised.lower().strip()
-    cleaned = _SAFE_CHARS.sub("-", lowered).strip("-.")
+    cleaned = _SAFE_CHARS.sub("-", lowered)
+    # Collapse runs of consecutive dashes left over from the substitution
+    # (e.g. "multi---dash" → "multi-dash"); then trim trailing/leading
+    # dash and dot residue.
+    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-.")
     if not cleaned:
         raise DomainValidationError(
             code="INVALID_FILENAME",
@@ -135,11 +149,6 @@ def sanitize_filename(name: str) -> str:
             code="INVALID_FILENAME",
             message=f"File extension '{suffix}' is not allowed. "
             f"Allowed: {', '.join(sorted(_ALLOWED_EXT))}",
-        )
-    if cleaned.startswith("."):
-        raise DomainValidationError(
-            code="INVALID_FILENAME",
-            message="Filename cannot start with a dot",
         )
     return cleaned
 
@@ -198,12 +207,21 @@ def _sanitize_svg(raw: bytes) -> bytes:
         ) from exc
 
     # ElementTree from defusedxml hands back a standard-library Element.
-    # Walk it and mutate in place.
+    # Walk it and mutate in place. The earlier implementation tried
+    # ``getattr(el, "__iter__", lambda: [])()`` to be defensive about
+    # non-Element inputs, but on a C-extension Element the ``__iter__``
+    # slot is *not* exposed as a regular attribute lookup — getattr
+    # silently fell into the empty-list default and the walker never
+    # descended into children. The script / onclick / javascript:href
+    # in deeper nodes survived intact. Use ``iter(el)`` (or just
+    # ``list(el)``, equivalent) which respects the C-level iteration
+    # protocol.
 
     def _strip(el: object) -> None:
+        children = list(el)  # type: ignore[call-overload]
         # Remove forbidden child elements first (so the tree shrinks).
         to_remove = []
-        for child in list(getattr(el, "__iter__", lambda: [])()):
+        for child in children:
             local = getattr(child, "tag", "")
             if isinstance(local, str) and "}" in local:
                 local = local.rsplit("}", 1)[1]
@@ -225,8 +243,8 @@ def _sanitize_svg(raw: bytes) -> bytes:
                     bad.append(k)
         for k in bad:
             attrib.pop(k, None)
-        # Recurse.
-        for child in list(getattr(el, "__iter__", lambda: [])()):
+        # Recurse — use the post-removal children list.
+        for child in list(el):  # type: ignore[call-overload]
             _strip(child)
 
     _strip(tree)

@@ -74,8 +74,10 @@ def test_grid_template_three_column_over_cap_is_scaled() -> None:
         "three",
         {"home_cols_three_left": "60", "home_cols_three_right": "60"},
     )
-    # 60+60=120, scale = 90/120 = 0.75 → 45 + 45 = 90, centre = 10
-    assert out == "45% 45% 10%"
+    # 60+60=120, scale = 90/120 = 0.75 → 45 + 45 = 90, centre = 10.
+    # Output order is left / centre / right (matches the CSS grid
+    # painted left-to-right), not left / right / centre.
+    assert out == "45% 10% 45%"
 
 
 def test_grid_template_single_and_unknown_empty() -> None:

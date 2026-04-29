@@ -61,7 +61,9 @@ def test_sanitize_filename_normalises(given: str, expected: str) -> None:
         "script.js",
         "no-extension",
         "x" * 200 + ".png",  # length cap
-        "é.png",  # ASCII fold removes "é" entirely, leaves bare ".png"
+        # NFKD+ASCII fold collapses Han / Cyrillic / Devanagari / etc.
+        # to nothing; the basename then becomes bare ".png" → rejected.
+        "中文.png",
     ],
 )
 def test_sanitize_filename_rejects(given: str) -> None:
