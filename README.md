@@ -662,6 +662,12 @@ For day-to-day operations (applying `.env` changes, rotating credentials,
 troubleshooting port/DNS/bootstrap issues, backup) see
 [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
+For institutions evaluating Aracne2 against repository-trust
+certifications, see
+[docs/CTS_COMPLIANCE_ROADMAP.md](docs/CTS_COMPLIANCE_ROADMAP.md) —
+a per-requirement walkthrough of CoreTrustSeal alignment, with
+explicit platform vs. institutional-declaration split.
+
 Technical reference documents are in [`docs/reference/`](docs/reference/).
 
 | Document | Topic |
