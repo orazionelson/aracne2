@@ -4,9 +4,18 @@ Items that are architecturally sound but deliberately postponed.
 Each entry explains **why** it is deferred and **what trigger** should
 prompt revisiting it.
 
+## Priority legend
+
+| Label | Meaning |
+|---|---|
+| 🔴 High | Blocks a known editorial workflow or carries a security obligation; a maintainer cycle should pick it up |
+| 🟡 Medium | Useful, but the trigger condition hasn't fired yet |
+| 🟢 Low | Speculative; revisit only when a concrete use case appears |
+| ✅ Shipped | Implemented since this entry was written; kept here as historical context |
+
 ---
 
-## 1. Async task queue (Celery / ARQ / Dramatiq)
+## 1. Async task queue (Celery / ARQ / Dramatiq) 🟡 Medium
 
 **Why deferred**
 The current stack has no message broker. Adding one (Redis + Celery worker)
@@ -31,21 +40,30 @@ a `background_tasks` table (id, status, result, created_at, completed_at).
 
 ---
 
-## 2. Plugin hot-reload (activate/deactivate without restart)
+## 2. ~~Plugin hot-reload (activate/deactivate without restart)~~ ✅ Shipped
 
-**Why deferred**
+Implemented in commit `6950645` ("plugins: hot-mount/unmount on
+activate-deactivate, no backend restart"). Plugin routers now mount
+and unmount at runtime via FastAPI's internal route list — the
+`activate` / `deactivate` endpoints append / pop the plugin's routes
+on the live ASGI app. No maintenance window required.
+
+Original deferral note kept below for historical context.
+
+**Why was deferred**
 FastAPI does not support removing mounted routers at runtime. Implementing
 hot-reload requires either: (a) a custom router that checks plugin status
 on every request, or (b) a subprocess/worker model. Both add significant
 complexity with no current use case — all plugins are currently native.
 
-**Trigger to implement**
-First non-native plugin that needs to be toggled in production without
-a maintenance window.
+**Trigger that fired**
+The non-native plugin family (Zenodo / IA / forge integrations / lookups /
+MCP) reached critical mass and toggling required a backend restart per
+operation — no longer acceptable.
 
 ---
 
-## 3. Plugin data table
+## 3. Plugin data table 🟢 Low
 
 **Why deferred**
 Non-native plugins with structured relational data need a place to store it
@@ -58,7 +76,7 @@ First non-native plugin that needs more than `system_settings` key-value pairs.
 
 ---
 
-## 4. Collection ACL — multi-editor support
+## 4. Collection ACL — multi-editor support 🟡 Medium
 
 **Why deferred**
 The current model uses a single `editor_id` on the `collections` table.
@@ -70,9 +88,21 @@ First explicit request for collaborative editing on a single collection.
 
 ---
 
-## 5. TEI schema validation
+## 5. ~~TEI schema validation~~ ✅ Shipped
 
-**Why deferred**
+Shipped in the validation phase: per-document and collection-wide
+TEI validation against RNG / DTD / XSD schemas, schema catalogue at
+[`docs/reference/TEI_SCHEMAS.md`](reference/TEI_SCHEMAS.md). The
+synchronous-blocking concern was addressed differently than the
+original deferral — the schema parser is cached at module level
+(see `services/schemas.py:_safe_xml_parser`) and validation runs
+in-line for individual saves, with a separate "full collection
+validation" job for batch use. Async task queue (item 1) is **not**
+a prerequisite for the current implementation.
+
+Original deferral note below for context.
+
+**Why was deferred**
 Validating an XML document against TEI P5 requires loading the RelaxNG/XSD
 schema (several MB), which is slow unless cached. Synchronous validation
 at save time would block the HTTP worker for potentially > 5 s on large
@@ -85,25 +115,26 @@ immediately with `validation_status = "pending"`, updated to `"valid"` or
 `"invalid"` when the task completes. The user receives a notification
 (via the existing notification system) on completion.
 
-**Trigger to implement**
-After the async task queue is in place and the document CRUD exists.
-
 ---
 
-## 6. XSLT template management (Designer role)
+## 6. ~~XSLT template management (Designer role)~~ ✅ Shipped
 
-**Why deferred**
+Shipped as the XSLT Templates module — Designer-only catalogue,
+CodeMirror 6 editor, AI-assisted draft, validation, per-website
+template selection. Reference doc:
+[`docs/reference/XSLT_TEMPLATES.md`](reference/XSLT_TEMPLATES.md).
+
+Original deferral note below for context.
+
+**Why was deferred**
 The Designer role is defined in ACL but has no dedicated endpoints.
 Managing XSLT templates requires: storage (filesystem or eXist-db),
 versioning, and a frontend editor. It is a self-contained feature that
 depends on the XML layer being in place first.
 
-**Trigger to implement**
-Phase 05+ — after document CRUD and collection management.
-
 ---
 
-## 7. Document versioning
+## 7. Document versioning 🔴 High
 
 **Why deferred**
 eXist-db has built-in versioning (versioning module), but enabling it
@@ -121,7 +152,7 @@ Phase 05+ — decide the approach when document CRUD is designed.
 
 ---
 
-## 8. Full-text search across collections
+## 8. Full-text search across collections 🔴 High
 
 **Why deferred**
 eXist-db has native XQuery full-text search (KWIC, Lucene index).
@@ -134,7 +165,7 @@ When the first "search documents by content" endpoint is requested.
 
 ---
 
-## 9. WebSocket / Server-Sent Events for real-time notifications
+## 9. WebSocket / Server-Sent Events for real-time notifications 🟢 Low
 
 **Why deferred**
 The current notification system is pull-based (frontend calls
@@ -149,26 +180,31 @@ task queue (item 1) is in place and can publish events to a Redis channel.
 
 ---
 
-## 10. Production hardening checklist
+## 10. ~~Production hardening checklist~~ ✅ Shipped
 
-Items that must be completed before any public-facing deployment but are
-out of scope during development phases:
+Replaced by the §7 "Hardening checklist" section of
+[`INSTALL_LINUX_SERVER.md`](INSTALL_LINUX_SERVER.md), which is the
+canonical pre-flip-to-public list (13 items including TLS / HSTS /
+CSP, port-binding scope, systemd unit, backups, log shipping,
+plugin-secrets-via-UI). Several individual items below are also
+addressed elsewhere:
+
+- HSTS / CSP — nginx.conf template, opt-in by uncomment
+- Rate limit tuning — slowapi default + per-route overrides; doc'd
+  in [`docs/reference/API_FORMAT.md`](reference/API_FORMAT.md)
+- `bcrypt_rounds` — env var `BCRYPT_ROUNDS` (default 12) tunable
+- Backup strategy — native backup plugin
+
+Items still genuinely deferred:
 
 | Item | Status | Notes |
 |------|--------|-------|
-| HTTPS enforcement | deferred | Uncomment HSTS header in nginx.conf |
-| Content-Security-Policy | deferred | Header template exists in nginx.conf |
-| Rate limit tuning | deferred | Current limits are defaults |
-| `bcrypt_rounds` review | deferred | Default 12; increase to 14 for production |
-| `ADMIN_PASSWORD` rotation policy | deferred | Document in ops runbook |
 | Postgres connection pooling | deferred | Consider PgBouncer under load |
-| eXist-db admin password rotation | deferred | Same var as backend — enforce secret manager |
-| Log shipping | deferred | structlog JSON → ELK / Loki in production |
-| Backup strategy | deferred | PostgreSQL dump + eXist-db backup API |
+| Log shipping (ELK / Loki / Grafana) | deferred | structlog JSON ready; pipeline is operator-side |
 
 ---
 
-## 11. Email / external notification channels
+## 11. Email / external notification channels 🔴 High
 
 **Why deferred**
 The `notification_dispatcher` plugin currently writes only in-app
@@ -183,7 +219,7 @@ password reset, publication approval, or account verification.
 
 ---
 
-## 12. Full-collection validation — performance optimisation
+## 12. Full-collection validation — performance optimisation 🟡 Medium
 
 **Current behaviour**
 `_run_validation_task` runs entirely inside the FastAPI process on the main asyncio
@@ -220,7 +256,7 @@ non-development environment.
 
 ---
 
-## 13. XSLT Designer — Phase D: AI sidebar nel CodeMirror
+## 13. XSLT Designer — Phase D: AI sidebar nel CodeMirror 🟡 Medium
 
 ### Contesto e stato attuale
 
@@ -389,7 +425,13 @@ sistema dei Preset Prompts è operativo e la configurazione AI è già in
 
 ---
 
-## 14. TEI `<zone>` — allineamento testo-immagine a livello di parola/riga
+## 14. TEI `<zone>` — allineamento testo-immagine a livello di parola/riga 🟡 Medium
+
+> **Note**: this entry is the *editorial-side* slice of the same
+> theme covered as **a full pipeline design** in
+> [`FUTURE_IDEAS.md §23`](FUTURE_IDEAS.md) (HTR pipeline import).
+> Both should land together once the trigger fires, since they
+> share the same `<zone>` model and review surface.
 
 ### Contesto
 
@@ -478,10 +520,13 @@ con pipeline HTR/OCR che produce coordinate di zona automaticamente.
 
 ---
 
-## `pyasn1` 0.4.x → 0.6.x bump (CVE-2026-30922)
+## 15. `pyasn1` 0.4.x → 0.6.x bump (CVE-2026-30922) 🔴 High
 
 **Severity:** MED — DoS via uncontrolled recursion when decoding
-deeply-nested ASN.1 structures.
+deeply-nested ASN.1 structures. Risk-accepted residually but the
+underlying upgrade path (migrate JWT layer to PyJWT) is owed and
+should be picked up as soon as the JWT helpers see any other
+maintenance work.
 
 **Status:** risk-accepted. Documented in
 [Security_review_2026-04-29.md §4](Security_review_2026-04-29.md).
@@ -509,7 +554,7 @@ runs.
 
 ---
 
-## `pytest` 8 → 9 bump (CVE-2025-71176)
+## 16. `pytest` 8 → 9 bump (CVE-2025-71176) 🔴 High
 
 **Severity:** LOW — local DoS on UNIX, dev-only (production never
 runs `pytest`).

@@ -1128,82 +1128,6 @@ need to solve in-platform.
 
 ---
 
-## 15. Non-native plugin: Matomo / Plausible analytics injector 🔵 To discuss
-
-Inject a third-party analytics script (Matomo self-hosted or Plausible cloud)
-on public pages so operators can answer "who is reading this edition?"
-without relying on Aracne2's first-party counters alone.
-
-**Motivation**
-
-Some institutions need detailed traffic analytics — geographic spread,
-referrer, time-on-page, funnel analysis — that the lightweight
-first-party counter proposed in §4 cannot provide. Matomo and Plausible
-are the two privacy-respecting options most commonly adopted in
-academic and cultural-heritage deployments.
-
-**Relation to §4 (Public reader statistics and analytics)**
-
-§4 is about *first-party* aggregate counters computed from the
-backend's access path. This entry is about *third-party* client-side
-tracking. They are complementary, not alternatives:
-
-- §4 is always on, privacy-by-default, and owned by Aracne2.
-- §15 would be opt-in at install time, configured per-deployment,
-  and the data would live on the operator's Matomo / Plausible
-  instance.
-
-**Scope (rough)**
-
-- Admin activates the plugin and chooses provider (Matomo / Plausible)
-  plus instance URL + site id.
-- Plugin renders a `<script>` injection point on:
-  - the public homepage and all public collection/document/bibliography
-    pages,
-  - each Websites module output (opt-in per-website, since a single
-    Aracne2 deployment may host heterogeneous sites with different
-    trackers).
-- Respects a cookie-consent banner state (opt-in default for EU
-  deployments).
-
-**Why this is parked**
-
-Three decisions must be made before writing code — each requires an
-operator to take a position:
-
-1. **GDPR stance** — consent banner required or opt-in tracking? The
-   answer drives UI (a visible banner + preference persistence) and
-   backend (consent state API).
-2. **Default provider recommendation** — self-hosted Matomo (full
-   control, heavier to operate) vs Plausible cloud (turn-key,
-   ~$9/month). A deployment guide should push one over the other,
-   not leave it fifty-fifty.
-3. **Injection granularity** — platform-wide single tracker vs
-   per-website trackers. If different Websites module outputs belong
-   to different institutions, each may need its own tracker.
-
-**Prerequisites**
-
-- Cookie consent subsystem (currently absent from the platform).
-- A clear product call on "track-by-default vs opt-in by default" —
-  strongly affects UX of every public page.
-
-**Trigger**
-
-Build this once:
-
-- An operator explicitly asks for one of the two providers, with
-  their preferred compliance posture documented;
-- A cookie-consent story exists in the platform (or is green-lit as
-  part of the same effort).
-
-Until then, §4 covers the basic "how many reads per document" need
-without introducing third-party tracking at all.
-
-*Added: 2026-04-23*
-
----
-
 ## 16. Non-native plugin: DataCite DOI minting 🔵 To discuss
 
 Mint persistent DOIs for published collections and built websites via
@@ -2125,7 +2049,7 @@ manual editor" coverage is the right level of investment.
 
 ---
 
-## 24. `public_navigation` capability — auto-cabled links on the public site 🟡 Medium
+## 24. `public_navigation` capability — auto-cabled links on the public site 🔴 High
 
 Mirror the existing auto-cabling pattern (`inline_authority`,
 `collection_deposit`, `website_deposit`) for the **public-facing
@@ -2231,7 +2155,7 @@ is the natural first; `public_maps`, `public_timeline`, or
 
 ---
 
-## 25. Natural-language search plugin 🟡 Medium
+## 25. Natural-language search plugin 🔴 High
 
 > **Depends on #24** (`public_navigation` capability) for the public
 > homepage link toggle. The plugin can ship without #24 — the
@@ -2366,6 +2290,82 @@ shipped yet, the plugin still works at direct URL `/search-nl`.
   a conference and asks for a polished surface.
 
 *Added: 2026-04-29*
+
+---
+
+## 26. Non-native plugin: Matomo / Plausible analytics injector 🔵 To discuss
+
+Inject a third-party analytics script (Matomo self-hosted or Plausible cloud)
+on public pages so operators can answer "who is reading this edition?"
+without relying on Aracne2's first-party counters alone.
+
+**Motivation**
+
+Some institutions need detailed traffic analytics — geographic spread,
+referrer, time-on-page, funnel analysis — that the lightweight
+first-party counter proposed in §4 cannot provide. Matomo and Plausible
+are the two privacy-respecting options most commonly adopted in
+academic and cultural-heritage deployments.
+
+**Relation to §4 (Public reader statistics and analytics)**
+
+§4 is about *first-party* aggregate counters computed from the
+backend's access path. This entry is about *third-party* client-side
+tracking. They are complementary, not alternatives:
+
+- §4 is always on, privacy-by-default, and owned by Aracne2.
+- §26 would be opt-in at install time, configured per-deployment,
+  and the data would live on the operator's Matomo / Plausible
+  instance.
+
+**Scope (rough)**
+
+- Admin activates the plugin and chooses provider (Matomo / Plausible)
+  plus instance URL + site id.
+- Plugin renders a `<script>` injection point on:
+  - the public homepage and all public collection/document/bibliography
+    pages,
+  - each Websites module output (opt-in per-website, since a single
+    Aracne2 deployment may host heterogeneous sites with different
+    trackers).
+- Respects a cookie-consent banner state (opt-in default for EU
+  deployments).
+
+**Why this is parked**
+
+Three decisions must be made before writing code — each requires an
+operator to take a position:
+
+1. **GDPR stance** — consent banner required or opt-in tracking? The
+   answer drives UI (a visible banner + preference persistence) and
+   backend (consent state API).
+2. **Default provider recommendation** — self-hosted Matomo (full
+   control, heavier to operate) vs Plausible cloud (turn-key,
+   ~$9/month). A deployment guide should push one over the other,
+   not leave it fifty-fifty.
+3. **Injection granularity** — platform-wide single tracker vs
+   per-website trackers. If different Websites module outputs belong
+   to different institutions, each may need its own tracker.
+
+**Prerequisites**
+
+- Cookie consent subsystem (currently absent from the platform).
+- A clear product call on "track-by-default vs opt-in by default" —
+  strongly affects UX of every public page.
+
+**Trigger**
+
+Build this once:
+
+- An operator explicitly asks for one of the two providers, with
+  their preferred compliance posture documented;
+- A cookie-consent story exists in the platform (or is green-lit as
+  part of the same effort).
+
+Until then, §4 covers the basic "how many reads per document" need
+without introducing third-party tracking at all.
+
+*Added: 2026-04-23 — renumbered from §15 to §26 on 2026-04-29 to fix a duplicate-numbering glitch.*
 
 ---
 
