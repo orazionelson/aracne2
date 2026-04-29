@@ -662,6 +662,13 @@ For day-to-day operations (applying `.env` changes, rotating credentials,
 troubleshooting port/DNS/bootstrap issues, backup) see
 [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
+For the planned next steps (which sprint contains what), see
+[docs/Aracne_Roadmap.md](docs/Aracne_Roadmap.md). The longer
+backlog of speculative ideas lives in
+[docs/FUTURE_IDEAS.md](docs/FUTURE_IDEAS.md); architectural
+decisions postponed inside features already in scope are tracked
+in [docs/DEFERRED.md](docs/DEFERRED.md).
+
 For institutions evaluating Aracne2 against repository-trust
 certifications, see
 [docs/CTS_COMPLIANCE_ROADMAP.md](docs/CTS_COMPLIANCE_ROADMAP.md) —
