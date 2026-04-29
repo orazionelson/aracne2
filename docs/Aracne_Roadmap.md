@@ -52,6 +52,35 @@ public-facing AI feature (NL search).
   can land its link via `public_navigation` without editing
   PublicHeader / PublicHomeSection / PublicFooter.
 
+### CTS compliance deliverables — Sprint 1
+
+Sprint 1 also closes the smaller, doc-heavy half of the platform
+roadmap in [`CTS_COMPLIANCE_ROADMAP.md`](CTS_COMPLIANCE_ROADMAP.md).
+At sprint close, three roadmap items move from "planned" to
+"shipped" and three CTS requirements update their status:
+
+| CTS roadmap item | CTS requirement | Status before sprint | Status after sprint |
+|---|---|---|---|
+| GDPR self-service endpoints (`GET /users/me/export`, `DELETE /users/me`) | R4 — Confidentiality / Ethics | 🟡 partial | ✅ platform side complete; institutional DPIA still owed |
+| `docs/templates/STORAGE_POLICY.md` | R9 — Documented storage procedures | 🟡 partial | ✅ template available; operator fills it per deployment |
+| `docs/templates/CONTINUITY_PLAN.md` | R3 — Continuity of access | ✅ strong (deposit + static export already shipped) | ✅ reinforced — scaffold for the operator's succession plan |
+
+Indirect contributions (sprint items that *strengthen* a CTS
+requirement without being its primary deliverable):
+
+- **Document versioning** (Sprint 1 core) → R7 — Data integrity
+  and authenticity. Versioned TEI history is a *form* of integrity
+  evidence ("show me the document as of date X"). It does not by
+  itself replace fixity (R7 → ✅ requires Sprint 2's fixity
+  scheduler) but moves R7 closer.
+- **Email / external notifications** → R12 — Workflows. Workflow
+  state changes now leave the platform; the audit trail of
+  notifications adds a verification surface a CTS reviewer can
+  inspect.
+
+**Sprint 1 close → CTS status table**: R3 ✅ reinforced, R4 ✅
+platform side, R9 ✅ template available; R7, R10, R16 unchanged.
+
 ---
 
 ## Sprint 2 — Programmatic surface + security debt
@@ -96,6 +125,39 @@ and clean up the two security-debt items deferred since the
   collection Y last week" from the UI alone, without `psql`.
 - A `pip-audit` run on `requirements.txt` returns zero high or
   medium vulnerabilities.
+
+### CTS compliance deliverables — Sprint 2
+
+Sprint 2 closes the heavier half of the CTS platform roadmap — the
+two items that demand real implementation work, not just a
+template:
+
+| CTS roadmap item | CTS requirement | Status before sprint | Status after sprint |
+|---|---|---|---|
+| Fixity layer — SHA-256 at deposit + scheduled re-check + drift report (`fixity_records` table, `apscheduler` job, `/admin/fixity` view) | R7 — Data integrity and authenticity | 🟡 partial | ✅ fully — the most visible CTS-reviewer gap closes |
+| `docs/templates/CTS_SELF_ASSESSMENT.md` (cross-cutting scaffold pre-filling the platform's contribution per requirement) | meta — discharges the operator's writing burden | — | ✅ scaffold available |
+
+Indirect contributions:
+
+- **Admin view for the global audit log** (Sprint 2 core, FUTURE_IDEAS §20)
+  → R7 + R16. The `audit_log` was always queryable via SQL; making
+  it inspectable from the admin UI is the *evidence presentation*
+  side of integrity / security that CTS reviewers expect.
+- **MCP Phase 3 `mcp_audit_log`** (FUTURE_IDEAS §22) → R7 + R16.
+  Per-call audit trail of programmatic access is exactly the
+  granularity a careful R7 review wants.
+- **PyJWT migration** (DEFERRED §15) → R16. Closes a residual
+  risk-accepted security finding.
+
+**Sprint 2 close → CTS status table**: R3 ✅, R4 ✅ platform side,
+**R7 ✅ fully**, R9 ✅ template, R16 ✅ reinforced.
+
+After Sprint 2: the platform-side contribution to CTS is
+**substantially complete**. R10 (preservation plan) remains 🟡
+because its missing piece is purely an institutional declaration
+the operator must write — no platform work would close it. The
+self-assessment scaffold delivered in this sprint is the right
+artefact to drive that institutional writing.
 
 ---
 

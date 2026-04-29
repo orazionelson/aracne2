@@ -410,6 +410,19 @@ gaps identified above, in order of value-to-effort. Each is a
 separate work item; once shipped, the operator's CTS application
 becomes substantially easier.
 
+These items are now **scheduled across the two named sprints** in
+[`Aracne_Roadmap.md`](Aracne_Roadmap.md):
+
+- **Sprint 1** delivers items 2 (GDPR endpoints), 3 (Storage policy
+  template), 4 (Continuity plan template).
+- **Sprint 2** delivers items 1 (Fixity layer) and 5 (CTS
+  self-assessment scaffold).
+
+After Sprint 2, the platform-side contribution to CTS is
+substantially complete; the remaining gap (R10 preservation plan)
+is purely an institutional declaration, which the self-assessment
+scaffold from item 5 helps the operator write.
+
 ### 1. Fixity layer (R7) — ~1 week
 
 A scheduler that computes and stores SHA-256 of every TEI file +
