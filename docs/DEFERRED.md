@@ -478,6 +478,37 @@ con pipeline HTR/OCR che produce coordinate di zona automaticamente.
 
 ---
 
+## `pyasn1` 0.4.x → 0.6.x bump (CVE-2026-30922)
+
+**Severity:** MED — DoS via uncontrolled recursion when decoding
+deeply-nested ASN.1 structures.
+
+**Status:** risk-accepted. Documented in
+[Security_review_2026-04-29.md §4](Security_review_2026-04-29.md).
+
+**Why not bumped now:** `python-jose 3.4.0` pins `pyasn1<0.5.0`,
+so a direct `pyasn1==0.6.3` line in `requirements.txt` produces
+`ResolutionImpossible` at `pip install`. Bumping past the pin
+needs either `python-jose` to release a new version that loosens
+the constraint, or the JWT layer to migrate to `PyJWT` (which
+talks to `cryptography` directly and doesn't depend on `pyasn1`).
+
+**Why the risk is acceptable today:** Aracne2's only ASN.1 input
+is its own JWTs (signed seconds earlier with the platform's
+`JWT_SECRET`). Attacker-supplied JWTs fail signature verification
+before the payload is ASN.1-decoded, so the recursion bomb never
+runs.
+
+**Trigger to revisit:**
+- `python-jose` releases a version that allows `pyasn1>=0.6.3`, or
+- the JWT helpers are migrated to `PyJWT` (independently a
+  sensible move — `python-jose` has been in low-maintenance mode
+  for years).
+
+*Aggiunto: 2026-04-29*
+
+---
+
 ## `pytest` 8 → 9 bump (CVE-2025-71176)
 
 **Severity:** LOW — local DoS on UNIX, dev-only (production never

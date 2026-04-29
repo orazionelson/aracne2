@@ -156,7 +156,7 @@ vector.
 
 ---
 
-### 4. `pyasn1` 0.4.8 — DoS via deeply-nested ASN.1 — **MED** ✅ Fixed `<this commit>`
+### 4. `pyasn1` 0.4.8 — DoS via deeply-nested ASN.1 — **MED** ⏸ Risk-accepted
 
 **File:** [backend/requirements.txt](backend/requirements.txt)
 
@@ -173,10 +173,26 @@ would let an attacker plant a malicious ASN.1 payload. So the
 realistic exploit requires the operator to wire in an external
 identity provider, which we don't ship today.
 
-That said, the fix is a one-line version pin. Pin defensively.
+**Why not bumped:** `python-jose 3.4.0` pins `pyasn1<0.5.0`, so
+adding `pyasn1==0.6.3` directly in `requirements.txt` triggered a
+`ResolutionImpossible` at `pip install`. Two paths to actually
+ship the fix: (a) wait for `python-jose` to relax its pin, (b)
+migrate the JWT layer from `python-jose` to `PyJWT` (which uses
+`cryptography` directly, no `pyasn1` dependency).
 
-**Fix:** add `pyasn1==0.6.3` directly in `requirements.txt` to
-override the transitive resolution.
+Path (b) is the right long-term answer — `python-jose` has been
+in low-maintenance mode for years — but it's a code change
+(JWT signing / verification helpers + tests) that doesn't fit
+the public-flip prep.
+
+**Decision:** accept the residual MED risk on the basis that:
+- the only ASN.1 input the platform decodes is its own JWTs;
+- attacker-controlled JWTs are rejected by signature verification
+  *before* the payload is decoded;
+- bumping requires a non-trivial library swap.
+
+Tracked in [DEFERRED.md](DEFERRED.md) with the trigger to revisit
+once the JWT-layer migration is on the work list.
 
 ---
 
@@ -224,7 +240,7 @@ Fixes 1–4 land on `development` in this commit. Fix 5 is deferred.
 | 1 | HIGH | lxml XXE on Editor-authored TEI rendering paths | ✅ Fixed (this commit) |
 | 2 | MED-HIGH | `cryptography` 46.0.6 buffer overflow | ✅ Fixed (this commit) |
 | 3 | MED | `python-multipart` 0.0.22 multipart DoS | ✅ Fixed (this commit) |
-| 4 | MED | `pyasn1` 0.4.8 ASN.1 DoS | ✅ Fixed (this commit) |
+| 4 | MED | `pyasn1` 0.4.8 ASN.1 DoS | ⏸ Risk-accepted — blocked by `python-jose 3.4` pin; revisit with PyJWT migration. Tracked in DEFERRED.md |
 | 5 | LOW | `pytest` 8.3.4 local DoS | ⏸ Deferred — track in DEFERRED.md, bump with `pytest-asyncio` / `pytest-cov` 9-compatible releases |
 
 Once this commit lands and the next test-directory pull confirms
