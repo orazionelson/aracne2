@@ -2125,4 +2125,248 @@ manual editor" coverage is the right level of investment.
 
 ---
 
+## 24. `public_navigation` capability — auto-cabled links on the public site 🟡 Medium
+
+Mirror the existing auto-cabling pattern (`inline_authority`,
+`collection_deposit`, `website_deposit`) for the **public-facing
+home + header + footer**. New capability `public_navigation` in
+`PluginMeta` lets a plugin advertise that it ships a public page,
+and the platform's public layout surfaces a link to it without any
+hand-coded plugin-specific logic.
+
+### Idea
+
+`PluginMeta.ui_descriptor`:
+
+```python
+"public_navigation": {
+    "component": "NlSearchPublicView",     # name in the SPA registry
+    "url": "/search-nl",                   # path the link points to
+    "label_it": "Cerca in linguaggio naturale",
+    "label_en": "Natural-language search",
+    "label_key": "nl_search.public_link_label",   # optional, wins over label_*
+    "icon": "sparkles",                    # optional heroicon name
+    "section": "header",                   # "header" | "home_quick_links" | "footer"
+    "priority": 100,                       # tab sort key, lower = leftmost
+}
+```
+
+### Frontend pieces
+
+* New `frontend/src/components/public-pages/registry.ts` mirroring
+  `LOOKUP_COMPONENTS` / `DEPOSIT_COMPONENTS` — maps the
+  ``component`` string to a lazy-imported Vue component.
+* `PublicLayout.vue` adds a route-level `<component :is>` that hosts
+  the active plugin's view, inheriting the public theme,
+  header / footer, and dark-mode handling automatically. The plugin
+  ships a thin Vue page; PublicLayout owns the chrome.
+* `PublicHeader.vue` / `PublicHomeSection.vue` / `PublicFooter.vue`
+  iterate `pluginStore.plugins` filtered by capability + the
+  matching `public_link_<plugin_name>_enabled` toggle in
+  `system_settings`, sorted by `priority`. Section slot decides
+  *where* the link lands.
+* Admin → `Pagine Pubbliche` panel auto-generates a per-plugin
+  toggle whenever a plugin advertising `public_navigation` is
+  active. Default off — activating the plugin doesn't auto-publish
+  its surface; the admin must consciously flip the toggle.
+
+### Backend
+
+* No new tables. Settings live in `system_settings`, keyed
+  `public_link_<plugin_name>_enabled` (boolean string).
+* Hot mount / unmount of the plugin makes the link appear /
+  disappear in real time — same plumbing as today's plugin
+  activate/deactivate route mounting.
+* The page itself is a public route declared by the plugin's
+  router (e.g. `GET /api/v1/<plugin>/...` for any data the SPA
+  view needs). The SPA's PublicLayout fetches what the view
+  declares.
+
+### Consumers we already have on the radar
+
+| Plugin | Path | What it does |
+|---|---|---|
+| `nl_search` (#25) | `/search-nl` | Natural-language search over the curated corpora — see the dedicated entry. |
+| `public_maps` | `/map` | Visualises every indexed `placeName` entity on a Leaflet map. Tile provider configurable per deployment (OSM default; MapTiler / Mapbox / IIIF Maps optional with API key in encrypted system_settings). Public visitors browse / filter geographic occurrences and click through to the document where each toponym surfaces. Ideal for diplomatic-papers archives where geography is a primary access path. |
+| `public_timeline` | `/timeline` | Horizontally-scrollable chronological view that surfaces dated events extracted from `<date>` elements + entities with date metadata. Supports zoom (century / decade / year) and click-through to the citing document. Useful for archives where the temporal axis is the primary navigation key — registers, chronicles, dated correspondence corpora. |
+| `public_usage` | `/usage` | Aggregate, privacy-preserving usage statistics: pageviews, top-N collections, top-N entities, time-series of public reads. Renders charts via Chart.js; no per-user data collected. Operators get a public "see how often the corpus is consulted" page that doubles as an institutional metric for grant reporting. |
+
+Each future plugin lands as a one-PR addition: declare the
+capability + ship a Vue component + add a line to the registry.
+Zero changes to PublicHeader / PublicHomeSection / PublicFooter.
+
+### Open questions
+
+- **Section slots fixed or extensible?** Three slots (header / home /
+  footer) cover today's needs. Adding a fourth later means a
+  one-line addition to the iteration logic; no refactor.
+- **Per-instance only.** The whole capability is platform-wide —
+  the SPA's PublicLayout has one navigation tree, not one per
+  website. Websites that need their own AI / map / timeline must
+  handle that inside the website renderer separately. Coherent
+  with the decision that platform-level features (NL search,
+  cross-corpus map, instance-wide timeline) live on the platform
+  URL, not inside an exportable static site.
+- **Layout slot for the link in `home_quick_links`.** The cover
+  text WYSIWYG is owned by the admin — quick-links would render
+  *below* it as a tile grid. Sketch the visual treatment when the
+  primitive lands.
+
+### Why deferred
+
+Building the primitive without a second consumer is over-
+engineering. The trigger to implement is the moment the **second**
+plugin that wants public-page navigation lands. `nl_search` (#25)
+is the natural first; `public_maps`, `public_timeline`, or
+`public_usage` will likely be the second.
+
+### Trigger for implementation
+
+- A second plugin from the consumer list above gets prioritised, or
+- An admin explicitly asks for the NL search link to appear in the
+  public home page (which forces the primitive to ship alongside
+  #25 instead of after).
+
+*Added: 2026-04-29*
+
+---
+
+## 25. Natural-language search plugin 🟡 Medium
+
+> **Depends on #24** (`public_navigation` capability) for the public
+> homepage link toggle. The plugin can ship without #24 — the
+> `/search-nl` page is reachable by direct URL — but the
+> "expose this surface to public visitors via the public home"
+> story only lights up once the primitive is in place.
+
+Non-native plugin `nl_search`. Public-facing chat-style search at
+`/search-nl` on the platform's own URL. **Not** part of websites
+(which can be exported as STATIC / HYBRID and served from nginx
+elsewhere — a NL search needs a live LLM, so it can't survive the
+export). **Not** embeddable in third-party sites. Lives in exactly
+one place: the Aracne deployment that hosts it.
+
+### Idea
+
+The visitor types a question (*"i documenti che parlano del padre
+di Carlo I"*); the plugin's backend orchestrator runs an LLM
+tool-use loop against the **MCP server's existing read tools**
+(imported as Python functions, no HTTP loopback), and returns a
+synthesised answer + citations to real TEI documents (slug +
+filename + excerpt).
+
+The MCP layer's security boundary (corpus-scoped + public+
+published) is reused as-is: the orchestrator constructs a
+synthetic `McpAuthContext` from the plugin's config (which corpus
+or set of corpora the public NL search exposes), and the same
+`server.dispatch()` enforces the same filters that today gate
+Claude Desktop tokens.
+
+### Architecture sketch
+
+```
+Visitor (browser)
+  │  POST /api/v1/nl-search/query
+  │  { "query": "documenti che parlano del padre di Carlo I" }
+  ▼
+Plugin router
+  │  rate-limit / auth gate / budget check / cache lookup
+  ▼
+Orchestrator (server-side)
+  │  initial messages = system_prompt + user_query
+  │  tools_manifest = subset of MCP tools (read-only):
+  │    - search_entities, find_entity_occurrences
+  │    - get_collection, list_documents
+  │    - get_document_source / tei_to_text (capped)
+  │  loop:
+  │    LLM tool_call → app.plugins.mcp_server.server.dispatch()
+  │      with McpAuthContext built from plugin config
+  │    tool_result fed back to LLM
+  │  emit final answer + citations
+  ▼
+SSE stream to browser
+  { "answer_chunk": "...", "citations": [...] }
+```
+
+### Abuse mitigations (the part that matters)
+
+The risks the maintainer explicitly flagged are:
+- **Cloud provider** — anonymous traffic burns the API budget that
+  was meant for the editorial team's AI panel.
+- **Local Ollama** — anonymous traffic saturates server CPU / GPU
+  and disables the editor's own AI sessions.
+
+Mitigations the plugin ships:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `nl_search_require_login` | **true** | Anonymous access disabled by default. Editors-only deployment is the safe posture. Operators who want public anonymous access opt-in. |
+| `nl_search_provider` | `ollama` | Per-plugin override of the platform's AI provider — separates the budget pool. |
+| `nl_search_api_key` | — | Per-plugin API key (Fernet-encrypted in `system_settings`). NL search consumes this, not the platform-wide `ai_*_api_key`. |
+| `nl_search_daily_budget_eur` | `2.00` | Hard cap; once exceeded, endpoint returns 503 with a "resumes tomorrow" banner. |
+| `nl_search_max_concurrent` | `2` | For Ollama: in-process semaphore. Request 3 either queues or 503s based on `nl_search_concurrency_overflow`. |
+| `nl_search_rate_per_ip` | `3/min, 30/day` | slowapi limits, anonymous-mode only. |
+| `nl_search_rate_per_session` | `10/hour` | Logged-in mode. |
+| `nl_search_captcha_enabled` | `false` | Optional hCaptcha gate before first query of session. |
+| `nl_search_query_timeout_s` | `30` | Per-query LLM timeout. |
+| `nl_search_cache_ttl_minutes` | `60` | Identical-query cache (key = hash(query, corpus, provider)). |
+
+The plugin is **off by default**; an admin must activate it via
+`/admin/plugins`, configure provider + budget, and (if going
+public) flip `require_login = false` consciously.
+
+### Citation enforcement
+
+The system prompt includes a hard rule:
+
+> Cite only documents you have explicitly retrieved via tool
+> calls in this conversation. Do not invent slugs or filenames.
+> Each citation must be a `{slug, filename, excerpt}` object the
+> tool result included verbatim.
+
+This is the difference between "AI search that hallucinates URLs"
+and "AI search that always grounds in the corpus". The plugin
+post-validates: every cited `{slug, filename}` must appear in the
+tool-call history; otherwise the citation is dropped.
+
+### Frontend
+
+A single Vue component `NlSearchPublicView.vue` registered in
+`PUBLIC_PAGE_COMPONENTS` (the registry introduced by #24). It
+hosts a textarea, an SSE-streamed response area with progressive
+markdown rendering, and a citations strip below. Inherits the
+public theme via PublicLayout — same chrome as the existing
+search page.
+
+If #24 ships, the plugin also declares `public_navigation` so the
+admin can surface the link in the public homepage. If #24 hasn't
+shipped yet, the plugin still works at direct URL `/search-nl`.
+
+### Why deferred
+
+- The MCP layer is barely a week old; we want a real editor
+  workflow on top of it before deciding whether NL search is a
+  shape that fits.
+- The first deployment to use Aracne2 publicly will tell us
+  whether anonymous public NL search is the right framing or
+  whether editors-only is enough — that decision affects which
+  abuse mitigations are mandatory vs optional.
+- Cost projections (`$0.005`-ish per query on Sonnet, ~$5/day at
+  1000 queries/day) need a real corpus to validate; on a small
+  edition the queries-per-day will be much lower and the budget
+  cap can be tighter.
+
+### Trigger for implementation
+
+- An editor or institution asks for natural-language search over
+  the published corpus, **or**
+- A deployment is sufficiently large that keyword search is no
+  longer enough as the primary public access path, **or**
+- An academic publisher wants to demo "AI-grounded TEI search" at
+  a conference and asks for a polished surface.
+
+*Added: 2026-04-29*
+
+---
+
 *Last updated: 2026-04-29*
