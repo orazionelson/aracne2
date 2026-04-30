@@ -2632,4 +2632,126 @@ auditable digital editions.
 
 ---
 
-*Last updated: 2026-04-29*
+## 28. Non-native plugin: LEAF Turning Engine — TEI ↔ Markdown, Transkribus → TEI 🟡 Medium
+
+A non-native plugin that wraps the **Turning Engine** REST
+microservice from the LEAF-VRE project (Linked Editing Academic
+Framework — [leaf-vre.org](https://www.leaf-vre.org/), source at
+[gitlab.com/calincs/cwrc/leaf](https://gitlab.com/calincs/cwrc/leaf/leaf-base-i8),
+AGPLv3) to gain three transformations Aracne2 doesn't have natively:
+
+- **TEI → Markdown** — for editors that want to publish a parallel
+  version on Hugo / Jekyll / GitHub Pages / academic Substack-style
+  surfaces. Today Aracne2 produces TEI → HTML via XSLT but no
+  Markdown export path.
+- **Transkribus → TEI** — directly relevant to the HTR pipeline
+  (§23). Transkribus exports PAGE / ALTO XML; the Turning Engine
+  has the conversion to TEI already implemented and battle-tested
+  on real corpora. Adopting it cuts the §23 work from "write a
+  PAGE/ALTO parser from scratch" to "POST the file at the Turning
+  Engine, get TEI back".
+- **TEI ↔ HTML** — already done in Aracne2 via XSLT, but the
+  Turning Engine's variant is a useful fallback for cases the
+  generic XSLT doesn't cover (or for editions that want a
+  Turning-Engine-canonical serialisation).
+
+### Architecture
+
+The Turning Engine is itself a FastAPI Python microservice with
+documented Swagger endpoints (`/v1/transform-file`,
+`/v1/transform-string`). Containerised, AGPLv3, deployable
+independently of the rest of LEAF (no Drupal / Islandora / Fedora
+required).
+
+The plugin in Aracne2 is a thin proxy:
+
+```
+backend/app/plugins/leaf_turning_engine/
+├── plugin.py
+├── router.py            # /api/v1/leaf-turning/{tei-to-md, transkribus-to-tei, ...}
+├── service.py           # httpx async calls to the configured endpoint
+├── schemas.py
+└── tests/
+
+frontend/src/components/plugins/LeafTurningEngineConfig.vue
+  # admin: base_url + health check button
+```
+
+Settings (Admin only):
+- `leaf_turning_base_url` — URL of the Turning Engine instance
+  (operator runs their own container, or points at a public one
+  if LEAF offers it).
+- `leaf_turning_request_timeout_s` — default 30s.
+- `leaf_turning_max_input_bytes` — default 10 MB. The Turning
+  Engine is itself rate-limited and resource-bounded, but
+  defending the proxy is cheap insurance.
+
+Editor surface:
+- Document detail → "Esporta come Markdown" button (calls
+  TEI → Markdown).
+- HTR import flow (when §23 ships) → "Importa da Transkribus"
+  delegates the PAGE/ALTO → TEI step to the Turning Engine.
+
+### Why Medium
+
+Direct value depends on:
+1. **TEI → Markdown**: useful but not blocking — a project that
+   wants Markdown export today can use external tools. Nice to
+   have natively.
+2. **Transkribus → TEI**: high value if §23 (HTR pipeline) lands
+   first; otherwise it's an isolated import path with no consumer.
+3. **TEI ↔ HTML**: low marginal value — Aracne2's XSLT path is
+   the primary route.
+
+The plugin earns its keep mainly as an **enabler for §23**. If
+the HTR pipeline never lands, this plugin's value is the
+TEI → Markdown export alone, which is real but doesn't justify
+~3-4 days on its own.
+
+### Strategic note — LEAF is a competitor, not a partner
+
+LEAF-VRE and Aracne2 occupy the **same conceptual space**: a
+TEI-aware editorial CMS for academic digital editions. They run
+on completely different stacks (LEAF on Drupal + Islandora +
+Fedora; Aracne on Python + FastAPI + Postgres + eXist-db) and
+target overlapping audiences. An institution evaluating digital-
+edition platforms picks one or the other.
+
+Wrapping the Turning Engine is a *tactical pick* of a
+genuinely useful LEAF component, not an endorsement of LEAF as a
+whole. The AGPLv3 license requires attribution and source
+availability for derivative works, but a plugin that only
+*calls* the Turning Engine via HTTP API is not a derivative
+work — it's a client. Standard separation. The plugin's
+help doc should still cite the LEAF project clearly, both as a
+courtesy and as a research-community good citizen move.
+
+### Effort
+
+| Step | Effort |
+|---|---|
+| Plugin scaffold + httpx client + auth (none, Turning Engine is unauthenticated by default) | 0.5g |
+| Three endpoint proxies + Pydantic request/response schemas | 1g |
+| Editor UI button (Esporta Markdown) | 0.5g |
+| Integration with §23 HTR flow (when §23 lands) | overlap with §23 |
+| Health check / fallback when endpoint is down | 0.5g |
+| Tests (httpx.MockTransport) + help doc | 1g |
+| **Totale (standalone)** | **~3.5g** |
+
+### Trigger
+
+- §23 (HTR pipeline) is promoted to a milestone — at that point
+  this plugin lands as part of §23's import path, **or**
+- An editor explicitly asks for TEI → Markdown export, **or**
+- LEAF publishes a hosted public Turning Engine endpoint (today
+  the README assumes self-hosting), making the plugin one-click
+  to use without operator infrastructure.
+
+Until any of these fires, this is a tactical idea worth keeping
+on the radar but not worth implementing speculatively.
+
+*Added: 2026-04-30*
+
+---
+
+*Last updated: 2026-04-30*
