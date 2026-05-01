@@ -1,0 +1,478 @@
+/* Aracne2 — GitHub Pages showcase
+   Minimal hand-written rules. Tailwind utilities (CDN) cover the rest. */
+
+:root {
+  /* Brand anchors */
+  --inchiostro: #131A2A;
+  --pergamena:  #ECE2C8;
+  --rubrica:    #A62639;
+  --rubrica-plus: #D44A5C;
+
+  /* Restful surfaces — warm but light, modern feel */
+  --surface:        #FAF7EE;   /* main page bg — softer than pergamena */
+  --surface-soft:   #F2ECDC;   /* alternate band */
+  --surface-card:   #FFFFFF;   /* elevated cards */
+  --surface-tint:   rgba(166, 38, 57, 0.05);  /* faint rubrica wash */
+
+  /* Slate ink scale — softer than pure inchiostro */
+  --ink:        #1F2937;       /* main text */
+  --ink-soft:   #4B5563;       /* secondary */
+  --ink-mute:   #9CA3AF;       /* hints */
+
+  /* Borders */
+  --border:      rgba(31, 41, 55, 0.10);
+  --border-soft: rgba(31, 41, 55, 0.06);
+}
+
+html { scroll-behavior: smooth; }
+
+/* Anchor offsets so the sticky nav doesn't cover section headings */
+section[id] { scroll-margin-top: 4.5rem; }
+
+/* Site nav — solid bg + soft shadow, contrasts with any underlying section */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(140%) blur(10px);
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 14px -8px rgba(31, 41, 55, 0.20);
+}
+.site-nav-link {
+  color: var(--ink-soft);
+  transition: color 150ms ease;
+}
+.site-nav-link:hover { color: var(--ink); }
+
+body {
+  font-family: 'Lora', Georgia, serif;
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, .display {
+  font-family: 'Fraunces', 'Lora', Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+/* Wordmark with italic 'a' — micro-detail from the brand book */
+.wordmark {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 500;
+}
+.wordmark .a-italic {
+  font-style: italic;
+}
+
+/* Hero gradient: kept as the single dark moment, but softened */
+.hero-bg {
+  background:
+    radial-gradient(ellipse at top, rgba(212, 74, 92, 0.07) 0%, transparent 55%),
+    linear-gradient(180deg, #1A2235 0%, #232C44 65%, #2A3450 100%);
+}
+
+/* Hero — TEI demo card on the right side */
+.hero-demo {
+  position: relative;
+  margin-top: 2rem;
+}
+@media (min-width: 768px) {
+  .hero-demo { margin-top: 0; }
+}
+
+.tei-card {
+  position: relative;
+  background: var(--pergamena);
+  color: var(--inchiostro);
+  border-radius: 0.75rem;
+  padding: 1.85rem 1.5rem 1.5rem;
+  box-shadow:
+    0 22px 50px -16px rgba(0, 0, 0, 0.55),
+    0 8px 18px -8px rgba(0, 0, 0, 0.35);
+  transform: rotate(-0.5deg);
+}
+
+.tei-card-tab {
+  position: absolute;
+  top: -0.7rem;
+  left: 1.4rem;
+  background: var(--inchiostro);
+  color: var(--pergamena);
+  padding: 0.18rem 0.7rem;
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  font-size: 0.7rem;
+  border-radius: 0.3rem;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(212, 74, 92, 0.4);
+}
+
+.tei-snippet {
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  white-space: pre;            /* keep the formatted layout intact */
+  overflow-x: auto;            /* if a line is too wide, scroll horizontally */
+  color: rgba(19, 26, 42, 0.78);
+  tab-size: 2;
+}
+.tei-snippet code { font-family: inherit; white-space: inherit; }
+.tei-snippet .t { color: var(--rubrica); font-weight: 600; }
+.tei-snippet .a { color: rgba(19, 26, 42, 0.55); }
+.tei-snippet .v { color: #6e4f1e; }
+.tei-snippet .hl {
+  background: rgba(166, 38, 57, 0.14);
+  border-radius: 3px;
+  padding: 0.05em 0.2em;
+  font-weight: 600;
+  color: var(--ink);
+}
+@media (min-width: 480px) { .tei-snippet { font-size: 0.82rem; } }
+@media (min-width: 768px) { .tei-snippet { font-size: 0.85rem; } }
+
+/* Authority chip — floats off the top-right of the card */
+.authority-chip {
+  position: absolute;
+  top: -0.85rem;
+  right: -0.5rem;
+  max-width: 12.5rem;
+  background: var(--inchiostro);
+  color: var(--pergamena);
+  border: 1px solid rgba(212, 74, 92, 0.55);
+  border-radius: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  font-family: 'Lora', Georgia, serif;
+  box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.55);
+  transform: rotate(2.5deg);
+  text-align: left;
+}
+.authority-chip .chip-label {
+  display: block;
+  font-family: 'Fraunces', serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--rubrica-plus);
+  text-transform: uppercase;
+}
+.authority-chip .chip-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--pergamena);
+  margin-top: 0.18rem;
+  line-height: 1.25;
+}
+.authority-chip .chip-id {
+  display: block;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  color: rgba(236, 226, 200, 0.6);
+  margin-top: 0.2rem;
+}
+@media (min-width: 768px) {
+  .authority-chip { top: -1rem; right: -1.5rem; transform: rotate(3deg); }
+}
+
+/* Parchment-tinted placeholder shown when a screenshot is missing.
+   The <img> stays visible; if it fails to load, the wrapper's
+   background becomes the visible layer. */
+.shot-placeholder {
+  position: relative;
+  background: var(--pergamena);
+  border: 1px dashed rgba(19, 26, 42, 0.25);
+}
+.shot-placeholder::before {
+  content: attr(data-label);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  color: rgba(19, 26, 42, 0.45);
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+.shot-placeholder img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.shot-placeholder img[alt]:not([src=""]):after {
+  /* if image fails the alt text shows; nothing to do here */
+}
+
+/* Architecture solution diagram (light surface) */
+.diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.diagram-tier {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.95rem 1.3rem;
+  box-shadow: 0 1px 2px rgba(31, 41, 55, 0.04);
+}
+.diagram-tier.core {
+  background: linear-gradient(180deg, #FFFFFF, var(--surface-tint));
+  border-color: rgba(166, 38, 57, 0.30);
+  box-shadow: 0 4px 14px -6px rgba(166, 38, 57, 0.18);
+}
+.tier-label {
+  font-family: 'Fraunces', 'Lora', serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  width: 8.5rem;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.tier-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex: 1;
+}
+.cell {
+  display: inline-block;
+  padding: 0.28rem 0.78rem;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+.diagram-arrow {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--ink-mute);
+  margin: 0.15rem 0;
+  letter-spacing: 0.4em;
+}
+.cap {
+  border-left: 2px solid rgba(166, 38, 57, 0.55);
+  padding-left: 0.9rem;
+}
+
+/* Bundled extensions catalog (light surface) */
+.ext-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.1rem;
+  max-width: 64rem;
+  margin: 0 auto;
+  align-items: stretch;
+}
+@media (min-width: 640px)  { .ext-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .ext-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* "Wide" group — Authorities — spans 2 cols on large screens (puzzle feel) */
+@media (min-width: 1024px) {
+  .ext-group.wide { grid-column: span 2; }
+}
+
+.ext-group {
+  position: relative;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid rgba(166, 38, 57, 0.55);
+  border-radius: 0.7rem;
+  padding: 1.1rem 1.25rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 2px rgba(31, 41, 55, 0.04);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.ext-group:hover {
+  border-color: rgba(166, 38, 57, 0.55);
+  box-shadow: 0 8px 24px -10px rgba(166, 38, 57, 0.18);
+  transform: translateY(-2px);
+}
+
+.ext-cat {
+  font-family: 'Fraunces', 'Lora', serif;
+  font-weight: 600;
+  font-size: 1.02rem;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px dashed var(--border);
+}
+.ext-count {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  background: var(--surface-tint);
+  color: var(--rubrica);
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ext-blurb {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin-bottom: 0.85rem;
+}
+.ext-blurb code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78em;
+  color: var(--rubrica);
+  background: var(--surface-tint);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+
+/* Authority pills */
+.ext-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+.ext-pill {
+  display: inline-block;
+  padding: 0.28rem 0.78rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.78rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Plugin entries (name + description on stacked rows) */
+.ext-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.ext-items li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid rgba(166, 38, 57, 0.28);
+}
+.ext-name {
+  font-family: 'Fraunces', 'Lora', serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.ext-desc {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.ext-desc code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+  color: var(--rubrica);
+  background: var(--surface-tint);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+.ext-foot {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--ink-mute);
+  margin-top: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border-soft);
+}
+
+@media (max-width: 640px) {
+  .diagram-tier {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.85rem 1rem;
+  }
+  .tier-label { width: auto; }
+}
+
+/* Hover on feature cards */
+.feature-card {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -12px rgba(19, 26, 42, 0.25);
+}
+
+/* CTA buttons in hero */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.btn-primary {
+  background: var(--rubrica);
+  color: var(--pergamena);
+}
+.btn-primary:hover { background: var(--rubrica-plus); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--pergamena);
+  border: 1px solid rgba(236, 226, 200, 0.4);
+}
+.btn-secondary:hover {
+  border-color: var(--pergamena);
+  background: rgba(236, 226, 200, 0.08);
+}
+
+/* Tech stack ribbon */
+.stack-pill {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(19, 26, 42, 0.06);
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.875rem;
+  color: var(--inchiostro);
+}
+
+/* Footer */
+footer a {
+  color: var(--rubrica);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+footer a:hover { color: var(--rubrica-plus); }

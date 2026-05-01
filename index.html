@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aracne2 — TEI corpus CMS for scholarly editions</title>
+  <meta name="description" content="Aracne2 is a modular, production-ready CMS for editing and publishing structured TEI corpora. Built for philologists, historians, archivists and scholarly editors." />
+
+  <link rel="icon" type="image/svg+xml" href="img/brand/favicon.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // Brand anchors (reserved for the hero + accents)
+            inchiostro: '#131A2A',
+            pergamena:  '#ECE2C8',
+            rubrica:    { DEFAULT: '#A62639', light: '#D44A5C' },
+            // Restful surfaces / ink — used everywhere else
+            surface:      '#FAF7EE',
+            'surface-soft': '#F2ECDC',
+            'surface-card': '#FFFFFF',
+            ink:          '#1F2937',
+            'ink-soft':   '#4B5563',
+            'ink-mute':   '#9CA3AF',
+          },
+          fontFamily: {
+            serif:   ['Lora', 'Georgia', 'serif'],
+            display: ['Fraunces', 'Lora', 'Georgia', 'serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-surface text-ink" id="top">
+
+  <!-- ============================================================== -->
+  <!-- STICKY NAV                                                      -->
+  <!-- ============================================================== -->
+  <nav class="site-nav">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-6">
+      <a href="#top" class="wordmark text-lg shrink-0">
+        Ar<span class="a-italic">a</span>cne<span class="text-rubrica">2</span>
+      </a>
+      <ul class="hidden md:flex items-center gap-8 font-serif text-sm">
+        <li><a href="#overview" class="site-nav-link">Overview</a></li>
+        <li><a href="#architecture" class="site-nav-link">Architecture</a></li>
+        <li><a href="#screenshots" class="site-nav-link">Screenshots</a></li>
+      </ul>
+      <a href="https://github.com/orazionelson/aracne2"
+         target="_blank" rel="noopener"
+         class="font-serif text-sm text-rubrica hover:text-rubrica-light transition-colors shrink-0">
+        GitHub &rarr;
+      </a>
+    </div>
+  </nav>
+
+  <!-- ============================================================== -->
+  <!-- HERO                                                            -->
+  <!-- ============================================================== -->
+  <header class="hero-bg text-pergamena">
+    <div class="max-w-6xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-12 gap-10 md:gap-12 items-center">
+
+      <!-- LEFT — brand + copy + CTAs -->
+      <div class="md:col-span-6 text-center md:text-left">
+        <!-- Marchio (inline SVG, parchment strokes + rubrica heart) -->
+        <svg class="mx-auto md:mx-0 w-20 md:w-24 h-auto mb-4"
+             viewBox="-100 -100 200 200" aria-label="Aracne2 mark">
+          <defs>
+            <g id="hero-leg">
+              <polyline points="76,-17.55 16,0 76,17.55" fill="none"
+                        stroke="#ECE2C8" stroke-width="2.4"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+          </defs>
+          <circle cx="0" cy="0" r="92" fill="none" stroke="#ECE2C8" stroke-width="1.3"/>
+          <use href="#hero-leg" transform="rotate(0)"/>
+          <use href="#hero-leg" transform="rotate(45)"/>
+          <use href="#hero-leg" transform="rotate(90)"/>
+          <use href="#hero-leg" transform="rotate(135)"/>
+          <use href="#hero-leg" transform="rotate(180)"/>
+          <use href="#hero-leg" transform="rotate(225)"/>
+          <use href="#hero-leg" transform="rotate(270)"/>
+          <use href="#hero-leg" transform="rotate(315)"/>
+          <circle cx="0" cy="0" r="6" fill="#D44A5C"/>
+        </svg>
+
+        <!-- Wordmark (typographic, italic 'a') -->
+        <p class="wordmark text-3xl md:text-4xl mb-5" aria-label="Aracne2">
+          Ar<span class="a-italic">a</span>cne<span class="text-rubrica-light">2</span>
+        </p>
+
+        <h1 class="font-display text-3xl md:text-4xl lg:text-5xl font-semibold leading-tight mb-5">
+          A modern home for <span class="italic">scholarly editions</span>
+        </h1>
+
+        <p class="font-serif text-base md:text-lg leading-relaxed opacity-90 mb-8">
+          A modular, production-ready CMS for editing and publishing structured
+          TEI corpora. Built for philologists, historians, archivists and
+          scholarly editors who want to take a corpus from raw text to a
+          published, citable digital edition &mdash; without also becoming
+          sysadmins.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+          <a class="btn btn-primary"
+             href="https://github.com/orazionelson/aracne2"
+             target="_blank" rel="noopener">
+            View on GitHub
+          </a>
+          <a class="btn btn-secondary" href="#overview">
+            See what it does
+          </a>
+        </div>
+
+        <p class="mt-7 text-sm opacity-60 font-serif italic">
+          Open source &middot; MIT licensed &middot; Self-hosted
+        </p>
+      </div>
+
+      <!-- RIGHT — TEI demo card with authority chip -->
+      <div class="md:col-span-6 hero-demo">
+        <div class="tei-card" role="img" aria-label="TEI snippet with a Wikidata authority lookup">
+          <div class="tei-card-tab">collection.tei.xml</div>
+<pre class="tei-snippet"><code>&lt;<span class="t">p</span>&gt;
+  &lt;<span class="t">persName</span> <span class="a">ref</span>=<span class="v">"…/wiki/Q203829"</span>&gt;<span class="hl">Karolus</span>&lt;/<span class="t">persName</span>&gt;
+  dei gratia Rex Sicilie Ducatus
+  Apulie et Principatus Capue,
+  alme Urbis Senator…
+&lt;/<span class="t">p</span>&gt;</code></pre>
+        </div>
+
+        <aside class="authority-chip" aria-hidden="true">
+          <span class="chip-label">Wikidata</span>
+          <span class="chip-name">Charles I of Anjou</span>
+          <span class="chip-id">Q203829</span>
+        </aside>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- WHAT IT IS                                                      -->
+  <!-- ============================================================== -->
+  <section id="overview" class="max-w-6xl mx-auto px-6 py-20">
+    <h2 class="font-display text-3xl md:text-4xl font-semibold mb-4 text-center">
+      What you can do with Aracne2
+    </h2>
+    <p class="font-serif text-center max-w-3xl mx-auto opacity-80 mb-16">
+      Three things the platform actually does &mdash; in plain verbs:
+      <em>edit a TEI corpus</em>, <em>publish it</em>, and
+      <em>connect it</em> to the rest of the scholarly web.
+    </p>
+
+    <!-- ─────────────  Panel 01 — TEI editor  ───────────── -->
+    <div class="mb-20">
+      <p class="font-display text-xs uppercase tracking-[0.2em] text-rubrica mb-2">
+        01 &middot; Edit
+      </p>
+      <h3 class="font-display text-2xl md:text-3xl font-semibold mb-4">
+        Author TEI with the schema in hand
+      </h3>
+      <p class="font-serif max-w-3xl leading-relaxed opacity-80 mb-10">
+        Load your TEI schema, attach it to the collection, then walk through
+        your documents tag by tag and attribute by attribute. The app only
+        proposes what the schema allows &mdash; you pick the markup that fits.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-x-12 gap-y-8">
+        <div>
+          <h4 class="font-display font-semibold mb-2">Tag interactively, with autocomplete</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Type <code class="font-mono text-xs">&lt;</code> to pick a valid
+            element, space to pick a valid attribute, <code class="font-mono text-xs">=</code>
+            to pick a valid value. The schema decides what's allowed; the
+            editor learns the schema by using it. Jump-to-matching-tag,
+            fold-all, format, and Ctrl+Space are always there.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Link entities to 12 authorities</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Resolve people against <strong>Wikidata</strong>,
+            <strong>ORCID</strong>, <strong>VIAF</strong>, <strong>GND</strong>,
+            <strong>CERL</strong>, <strong>Trismegistos</strong>; places against
+            <strong>GeoNames</strong> and <strong>Peripleo</strong>; institutions
+            against <strong>ROR</strong>; terms against <strong>Getty&nbsp;AAT</strong>;
+            bibliography against <strong>CrossRef</strong> and <strong>OpenAlex</strong>.
+            Each lookup writes a canonical URI as <code class="font-mono text-xs">@ref</code>
+            &mdash; no free text ever lands in the XML.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Annotate, illustrate, validate</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Insert numeric or alphabetic notes at the cursor. Attach
+            facsimile images and align them to text regions with the zone
+            editor. Validate against the collection's schema automatically
+            on every save &mdash; or open the validator panel to inspect
+            the report.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Get an AI co-editor on hand</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Ask the AI to suggest tagging for a passage, propose corrections,
+            or clean up bibliographic entries before the Bibliobuilder saves
+            them. It works grounded in the corpus's own schema and the
+            documents already in the collection &mdash; not generic guesses.
+            Every accepted suggestion is audit-logged.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="border-inchiostro/10 mb-20" />
+
+    <!-- ─────────────  Panel 02 — Publishing  ───────────── -->
+    <div class="mb-20">
+      <p class="font-display text-xs uppercase tracking-[0.2em] text-rubrica mb-2">
+        02 &middot; Publish
+      </p>
+      <h3 class="font-display text-2xl md:text-3xl font-semibold mb-4">
+        Turn the corpus into something the world can read
+      </h3>
+      <p class="font-serif max-w-3xl leading-relaxed opacity-80 mb-10">
+        Once a collection is published, Aracne2 gives you several public
+        surfaces to choose from &mdash; or to combine. Pick the ones that
+        fit the project, ignore the rest.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-x-12 gap-y-8">
+        <div>
+          <h4 class="font-display font-semibold mb-2">Get a project page out of the box</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Every project gets a public landing &mdash; collections index,
+            customisable hero, browse-by-author/place/date, configurable nav.
+            Plugins (deposits, search portals, custom pages) land their own
+            public links via the <code class="font-mono text-xs">public_navigation</code>
+            capability, no template editing.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Render TEI as readable, downloadable pages</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Each published document renders through XSLT, with one-click
+            download of the original TEI source and a print-to-PDF option.
+            Re-render externally if you want; the source is always available.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Spin a stand-alone website per edition</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Generate a separate site for a single edition with its own XSLT
+            theme, its own domain, its own templates &mdash; while the corpus
+            stays inside Aracne2. Each site ships its own
+            <code class="font-mono text-xs">sitemap.xml</code> and
+            <code class="font-mono text-xs">robots.txt</code>.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Build search portals across collections</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Pick the collections you want, click <em>Build</em>, and Aracne2
+            produces a static <code class="font-mono text-xs">index.html</code>
+            + compressed JSON index. Host it on the platform, on an external
+            site, or as an offline ZIP. Embed the search box anywhere with an
+            origin-whitelisted HTML snippet.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Generate the collection's bibliography</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            The <strong>Bibliobuilder</strong> &mdash; a tool of its own,
+            separate from the editor &mdash; walks every
+            <code class="font-mono text-xs">&lt;bibl&gt;</code> across the
+            collection's documents, deduplicates and normalises them, and
+            publishes a single <code class="font-mono text-xs">&lt;listBibl&gt;</code>
+            as the collection's public bibliography page. Every run is
+            versioned and rollback-able.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="border-inchiostro/10 mb-20" />
+
+    <!-- ─────────────  Panel 03 — Connections  ───────────── -->
+    <div>
+      <p class="font-display text-xs uppercase tracking-[0.2em] text-rubrica mb-2">
+        03 &middot; Connect
+      </p>
+      <h3 class="font-display text-2xl md:text-3xl font-semibold mb-4">
+        Plug the corpus into the scholarly web
+      </h3>
+      <p class="font-serif max-w-3xl leading-relaxed opacity-80 mb-10">
+        A TEI edition is more useful when it's reachable. Aracne2 hooks the
+        corpus into authorities, repositories, harvesters and AI assistants
+        through plugins &mdash; all replaceable, no lock-in.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-x-12 gap-y-8">
+        <div>
+          <h4 class="font-display font-semibold mb-2">A modular catalog of connectors</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Every external service Aracne2 talks to &mdash; authority lookups,
+            deposit targets, search portals, AI assistants &mdash; is a
+            self-contained plugin. Activate the ones you want from the admin
+            panel, leave the rest off. The catalog grows as new connectors
+            land; Aracne2 picks them up automatically, without changes to the
+            core.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Deposit a published collection, get a DOI back</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            On publish, deposit plugins bundle the TEI files + metadata
+            and submit them to <strong>Zenodo</strong> (citable DOI +
+            long-term archive), <strong>Dataverse</strong> (institutional
+            repositories), or preprint servers. They share a generic
+            <code class="font-mono text-xs">DepositMetadata</code> mapping;
+            the DOI flows back into the collection page as a citable badge.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Expose the corpus to harvesters</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Serve a native <strong>OAI-PMH</strong> endpoint with all six
+            verbs, <code class="font-mono text-xs">oai_dc</code> metadata
+            and resumption tokens. Ship sitemap and robots.txt, embed
+            schema.org / Dublin Core / RDF graphs in the public HTML, and
+            push every publish to the Internet Archive's Save-Page-Now.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Let AI assistants work on the corpus</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Issue per-corpus bearer tokens for the built-in
+            <strong>Model Context Protocol</strong> server. Claude, ChatGPT,
+            Cursor &mdash; any MCP-aware assistant &mdash; reads, searches
+            and (where authorised) edits the corpus through a typed surface,
+            with the same ACL and audit trail as a human editor.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="border-inchiostro/10 mb-20 mt-20" />
+
+    <!-- ─────────────  Panel 04 — AI on your terms  ───────────── -->
+    <div>
+      <p class="font-display text-xs uppercase tracking-[0.2em] text-rubrica mb-2">
+        04 &middot; Assist
+      </p>
+      <h3 class="font-display text-2xl md:text-3xl font-semibold mb-4">
+        Pick the AI you trust &mdash; or run your own
+      </h3>
+      <p class="font-serif max-w-3xl leading-relaxed opacity-80 mb-10">
+        AI is built in, but the choice is yours: pick a cloud provider when
+        convenience wins, or run a local model on your own hardware when
+        privacy or cost wins. Either way, every call is opt-in, shown as a
+        preview before anything is written, and logged.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-x-12 gap-y-8">
+        <div>
+          <h4 class="font-display font-semibold mb-2">Pick a provider, switch any time</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Three cloud providers wired in &mdash; <strong>OpenAI</strong>,
+            <strong>Anthropic</strong> (Claude), <strong>Google Gemini</strong>
+            &mdash; plus <strong>Ollama</strong> for local models on your own
+            hardware. Switch from one to the other from the admin panel; the
+            change is hot, no restart, no migration.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Build a personal RAG on your corpus</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Index your collection's own texts, schemas and bibliography into
+            a retrieval layer the assistant can quote from. Answers stay
+            grounded in your edition &mdash; not in whatever's on the open
+            web. An AI you can hand the keys to, because it's reading from
+            your own bookshelf.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Nine ready-made prompts, yours to fork</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Aracne2 ships nine built-in prompts across eight editorial tasks
+            &mdash; entity tagging, validation walk-throughs, bibliography
+            cleanup, XSLT debugging, document chat. Use them as-is, or copy
+            any of them as a starting point and bend it to your project's
+            voice. Custom prompts inherit the same scopes &mdash; they show
+            up in the right toolbar without touching the frontend.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Preview-first, audit-logged, fine-grained</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Every call is behind an explicit button. Every response is shown
+            as a preview before anything is written into the document. Every
+            request lands in <code class="font-mono text-xs">ai_request_logs</code>
+            with user, prompt slug, token count and duration. Individual AI
+            features can be toggled from the AI configuration panel &mdash;
+            keep the ones you trust, silence the rest.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ARCHITECTURE                                                    -->
+  <!-- ============================================================== -->
+  <section id="architecture" class="bg-surface-soft text-ink">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <h2 class="font-display text-3xl md:text-4xl font-semibold mb-4 text-center">
+        Built modular
+      </h2>
+      <p class="font-serif text-center max-w-3xl mx-auto text-ink-soft mb-14">
+        Every domain feature ships as a plugin. The core is small on purpose:
+        authentication, ACL, hooks, rendering. Everything else &mdash; bibliographies,
+        deposits, generated websites, OAI-PMH, MCP &mdash; plugs in around it.
+      </p>
+
+      <!-- ── Solution diagram ── -->
+      <div class="diagram max-w-4xl mx-auto">
+
+        <div class="diagram-tier">
+          <div class="tier-label">Public</div>
+          <div class="tier-cells">
+            <span class="cell">Project page</span>
+            <span class="cell">Reader view</span>
+            <span class="cell">Stand-alone website</span>
+            <span class="cell">Search portal</span>
+            <span class="cell">Bibliography page</span>
+          </div>
+        </div>
+
+        <div class="diagram-arrow">&#9662;</div>
+
+        <div class="diagram-tier">
+          <div class="tier-label">Editorial UI <span class="opacity-60 text-[0.65rem] block normal-case tracking-normal font-serif">Vue 3 SPA</span></div>
+          <div class="tier-cells">
+            <span class="cell">TEI editor</span>
+            <span class="cell">Bibliobuilder</span>
+            <span class="cell">Admin</span>
+          </div>
+        </div>
+
+        <div class="diagram-arrow">&#9662; <span class="text-[0.7rem] tracking-widest opacity-60">REST + JWT</span></div>
+
+        <div class="diagram-tier core">
+          <div class="tier-label">Core <span class="opacity-70 text-[0.65rem] block normal-case tracking-normal font-serif">FastAPI, async</span></div>
+          <div class="tier-cells">
+            <span class="cell">Hooks registry</span>
+            <span class="cell">Plugin loader</span>
+            <span class="cell">ACL / JWT</span>
+            <span class="cell">Audit log</span>
+          </div>
+        </div>
+
+        <div class="diagram-arrow">&#9662;</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="diagram-tier">
+            <div class="tier-label">PostgreSQL</div>
+            <p class="font-serif text-xs opacity-75 leading-relaxed">
+              users &middot; ACL &middot; sessions &middot; plugin metadata
+              &middot; audit log
+            </p>
+          </div>
+          <div class="diagram-tier">
+            <div class="tier-label">eXist-db</div>
+            <p class="font-serif text-xs opacity-75 leading-relaxed">
+              TEI corpus, queried through XQuery files on disk
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Bundled extensions ── -->
+      <div class="mt-16 pt-10 border-t border-ink/10">
+        <h3 class="font-display text-2xl font-semibold text-center mb-2">
+          Bundled extensions
+        </h3>
+        <p class="font-serif text-sm text-center max-w-3xl mx-auto opacity-75 mb-10">
+          Twenty-plus opt-in plugins ship with Aracne2. Activate the ones you
+          need from <code class="font-mono text-xs">/admin/plugins</code>; leave
+          the rest off.
+        </p>
+
+        <div class="ext-grid">
+
+          <div class="ext-group wide">
+            <h4 class="ext-cat">Authority lookups <span class="ext-count">11</span></h4>
+            <p class="ext-blurb">
+              Resolve people, places, institutions, terms and bibliography
+              against external registries; canonical URIs are written into
+              the TEI as <code>@ref</code>.
+            </p>
+            <div class="ext-pills">
+              <span class="ext-pill">Wikidata</span>
+              <span class="ext-pill">ORCID</span>
+              <span class="ext-pill">VIAF</span>
+              <span class="ext-pill">GND</span>
+              <span class="ext-pill">CERL</span>
+              <span class="ext-pill">Trismegistos</span>
+              <span class="ext-pill">GeoNames</span>
+              <span class="ext-pill">Peripleo</span>
+              <span class="ext-pill">ROR</span>
+              <span class="ext-pill">Getty&nbsp;AAT</span>
+              <span class="ext-pill">OpenAlex</span>
+            </div>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">Bibliography <span class="ext-count">2</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">CrossRef Lookup</span>
+                <span class="ext-desc">paste a DOI &rarr; clean <code>&lt;biblStruct&gt;</code></span>
+              </li>
+              <li>
+                <span class="ext-name">Zotero Import</span>
+                <span class="ext-desc">sync a Zotero group into the collection's bibliography</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">Deposit &amp; archive <span class="ext-count">3</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">Zenodo</span>
+                <span class="ext-desc">citable DOI + long-term archive on publish</span>
+              </li>
+              <li>
+                <span class="ext-name">Dataverse</span>
+                <span class="ext-desc">institutional repositories</span>
+              </li>
+              <li>
+                <span class="ext-name">Internet Archive</span>
+                <span class="ext-desc">Save-Page-Now snapshot on every publish</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">Git mirrors <span class="ext-count">3</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">GitHub</span>
+                <span class="ext-desc">push a collection as a backup repo</span>
+              </li>
+              <li>
+                <span class="ext-name">GitLab</span>
+                <span class="ext-desc">same, on a GitLab instance</span>
+              </li>
+              <li>
+                <span class="ext-name">Codeberg</span>
+                <span class="ext-desc">or any Forgejo / Gitea host</span>
+              </li>
+            </ul>
+            <p class="ext-foot">
+              One commit per push; eXist-db remains source of truth.
+            </p>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">Reading <span class="ext-count">1</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">EVT 2 viewer</span>
+                <span class="ext-desc">embed the EVT 2 TEI reader per collection; a "Read in EVT" button lands on public pages.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">AI assistants <span class="ext-count">1</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">MCP Server</span>
+                <span class="ext-desc">per-corpus bearer tokens for Claude, ChatGPT, Cursor, or any MCP-aware client.</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Standards-first ribbon ── -->
+      <div class="mt-14 pt-10 border-t border-ink/10">
+        <p class="font-display text-xs uppercase tracking-widest text-rubrica mb-3 text-center">Standards-first</p>
+        <p class="font-serif text-center max-w-3xl mx-auto text-ink-soft">
+          TEI &middot; OAI-PMH &middot; schema.org &middot; Dublin Core &middot;
+          RDF <span class="opacity-70">(Turtle / RDF/XML / JSON-LD)</span>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- WHAT YOU CAN DO (screenshot grid)                               -->
+  <!-- ============================================================== -->
+  <section id="screenshots" class="max-w-6xl mx-auto px-6 py-20">
+    <h2 class="font-display text-3xl md:text-4xl font-semibold mb-12 text-center">
+      What it looks like
+    </h2>
+
+    <div class="grid md:grid-cols-2 gap-10">
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="TEI editor preview">
+          <img src="img/screenshots/01-tei-editor.png" alt="TEI editor with split view and XPath inspector" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">TEI editor</h3>
+          <p class="font-serif text-sm opacity-75">Split view, XPath inspector, schema-aware autocomplete.</p>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="AI co-editor preview">
+          <img src="img/screenshots/02-ai-panel.png" alt="Aracne AI co-editing panel" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">AI co-editor</h3>
+          <p class="font-serif text-sm opacity-75">Context-aware suggestions grounded in your TEI schema and bibliography.</p>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="Reader view preview">
+          <img src="img/screenshots/03-public-collection.png" alt="Public collection page (reader view)" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">Public collection</h3>
+          <p class="font-serif text-sm opacity-75">A reader-friendly rendering of the published TEI &mdash; cite, deep-link, share.</p>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="MCP dashboard preview">
+          <img src="img/screenshots/04-corpora-mcp.png" alt="Corpora dashboard with MCP token issuance" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">Corpora &amp; MCP</h3>
+          <p class="font-serif text-sm opacity-75">Issue per-corpus bearer tokens; let your assistant work on the corpus.</p>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="Deposit tabs preview">
+          <img src="img/screenshots/05-deposit-tabs.png" alt="Deposit tabs for Zenodo, Dataverse and preprint servers" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">One-click deposits</h3>
+          <p class="font-serif text-sm opacity-75">Zenodo, Dataverse, preprint &mdash; pluggable, with citable DOIs back into the UI.</p>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-card bg-white rounded-lg overflow-hidden shadow-sm">
+        <div class="shot-placeholder aspect-video" data-label="Generated website preview">
+          <img src="img/screenshots/06-website-render.png" alt="Generated website with custom XSLT theme" loading="lazy" onerror="this.style.display='none'" />
+        </div>
+        <figcaption class="p-5">
+          <h3 class="font-display text-lg font-semibold mb-1">Generated websites</h3>
+          <p class="font-serif text-sm opacity-75">Spin a stand-alone site for a single edition with its own theme and domain.</p>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- TECH STACK                                                      -->
+  <!-- ============================================================== -->
+  <section class="bg-surface-soft border-t border-b border-ink/10">
+    <div class="max-w-5xl mx-auto px-6 py-12 text-center">
+      <p class="font-serif italic text-sm text-ink-soft mb-4">Built with</p>
+      <div class="flex flex-wrap justify-center gap-3">
+        <span class="stack-pill">FastAPI</span>
+        <span class="stack-pill">Vue 3</span>
+        <span class="stack-pill">PostgreSQL</span>
+        <span class="stack-pill">eXist-db</span>
+        <span class="stack-pill">Tailwind CSS</span>
+        <span class="stack-pill">Docker</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- FOOTER                                                          -->
+  <!-- ============================================================== -->
+  <footer class="bg-surface-soft text-ink border-t border-ink/10">
+    <div class="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-10">
+      <div>
+        <p class="wordmark text-2xl mb-2">
+          Ar<span class="a-italic">a</span>cne<span class="text-rubrica">2</span>
+        </p>
+        <p class="font-serif text-sm text-ink-soft">
+          A scholarly-editions CMS by Alfredo Cosco.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display text-sm uppercase tracking-wider text-ink-soft mb-3">Author</h4>
+        <ul class="font-serif space-y-2">
+          <li><a href="https://github.com/orazionelson" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="mailto:alfredo.cosco@gmail.com">alfredo.cosco@gmail.com</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="border-t border-ink/10">
+      <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <p class="font-serif text-xs text-ink-soft">
+          &copy; 2026 Alfredo Cosco &middot; Released under the MIT License
+        </p>
+        <p class="font-serif text-xs text-ink-soft">
+          <a href="https://github.com/orazionelson/aracne2" target="_blank" rel="noopener">github.com/orazionelson/aracne2</a>
+        </p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
