@@ -101,6 +101,7 @@
     "search_engines": "Search Engines",
     "backup": "Backup",
     "audit_log": "Audit log",
+    "fixity": "Fixity",
     "help": "Help",
     "collapse_sidebar": "Collapse",
     "expand_sidebar": "Expand",
@@ -827,6 +828,25 @@
     "config_help_btn": "Help",
     "config_help_title": "Main TEI tags for named entities",
     "config_help_body": "**People & Organisations**\n`persName` — Names of real or fictional persons.\n`orgName` — Names of institutions, groups or societies.\n`name` — Generic proper name (use with {'@'}type=\"person\", \"place\", etc.).\n\n**Objects & Materials**\n`objectName` — Proper names of objects (e.g. \"Achilles' spear\").\n`object` — Description or mention of a physical object.\n`material` — Substances or materials (gold, silk, wood).\n\n**Measures & Quantities**\n`measure` — Any kind of measure (weight, length, currency). Use {'@'}unit and {'@'}quantity.\n`num` — Numbers written as digits or words (use {'@'}value for normalisation).\n`dim` — Generic non-standard dimensions.\n`height` / `width` / `depth` — Specific dimensions (often inside `dimensions`).\n\n**Currency**\n`measure` with {'@'}type=\"currency\" — Standard way to mark sums of money.\n`unit` — Can be used inside `measure` to specify the currency.\n\n**Places**\n`placeName` — Names of cities, states, rivers or geographic locations.\n`geogName` — Names of geographic features (e.g. \"Mont Blanc\")."
+  },
+  "fixity": {
+    "title": "Fixity",
+    "subtitle": "Per-document SHA-256 record. Drift between the recorded hash and the latest re-check surfaces a CTS R7 integrity signal — record-only, never auto-quarantines a public render.",
+    "recheck_now": "Recheck now",
+    "rechecking": "Rechecking…",
+    "status_ok": "OK",
+    "status_drifted": "Drifted",
+    "status_missing": "Missing",
+    "status_error": "Error",
+    "drift_banner": "{n} document(s) need attention.",
+    "no_rows": "No fixity rows yet — they appear once a collection has been published.",
+    "col_status": "Status",
+    "col_document": "Document",
+    "col_expected": "Expected",
+    "col_observed": "Observed",
+    "col_version": "Version",
+    "col_last_checked": "Last checked",
+    "pagination_label": "Pagination"
   },
   "audit_log": {
     "title": "Audit log",

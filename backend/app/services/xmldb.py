@@ -240,8 +240,17 @@ async def _snapshot_collection_documents(
     Imports are deferred to keep ``services.document_versions`` from being
     pulled in at every xmldb import (it imports SystemSetting, the gzip
     library, etc.).
+
+    Side effect: when *origin* is ``publication`` we also upsert the
+    matching ``fixity_records`` row so the M2 fixity layer (CTS R7)
+    has an expected SHA-256 to re-check on schedule. Even on the
+    dedup path (content unchanged → create_version returns None) we
+    refresh the fixity row from the latest publication-origin
+    version, so a new fixity-feature deploy backfills rows for
+    already-published documents on the next publish.
     """
-    from app.services.document_versions import create_version
+    from app.services.document_versions import create_version, get_last_publication
+    from app.services.fixity import record_publication
 
     filenames = sorted(await existdb.list_collection(collection.slug))
     written = 0
@@ -267,6 +276,23 @@ async def _snapshot_collection_documents(
         )
         if row is not None:
             written += 1
+        if origin is VersionOrigin.publication:
+            # Resolve the publication row to record fixity against.
+            # ``row`` is ``None`` on the dedup path (content unchanged);
+            # in that case the previous publication row is still the
+            # canonical one, so look it up.
+            target = row if row is not None else await get_last_publication(
+                db, collection_id=collection.id, filename=filename
+            )
+            if target is not None:
+                await record_publication(
+                    db,
+                    collection=collection,
+                    filename=filename,
+                    expected_sha256=target.content_sha256,
+                    version_number=target.version_number,
+                    size_bytes=target.size_bytes,
+                )
     logger.info(
         "collection_snapshot_recorded",
         slug=collection.slug,

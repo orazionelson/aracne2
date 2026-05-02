@@ -14,6 +14,7 @@ import {
   PuzzlePieceIcon,
   BoltIcon,
   ArchiveBoxArrowDownIcon,
+  ShieldCheckIcon,
   BellIcon,
   Cog6ToothIcon,
   UserCircleIcon,
@@ -152,6 +153,12 @@ const SECTIONS: NavSection[] = [
         labelKey: "nav.audit_log",
         to: { name: "admin-audit-log" },
         icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "nav.fixity",
+        to: { name: "admin-fixity" },
+        icon: ShieldCheckIcon,
         visible: () => auth.hasMinRole("Admin"),
       },
       {

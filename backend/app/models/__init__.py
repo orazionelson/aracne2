@@ -4,6 +4,7 @@ from app.models.collection import Collection
 from app.models.collection_bibliography import CollectionBibliography
 from app.models.corpus import Corpus, McpToken
 from app.models.document_version import DocumentVersion, VersionOrigin
+from app.models.fixity_record import FixityRecord, FixityStatus
 from app.models.nl_search_budget import NlSearchBudgetDay
 from app.models.nl_search_cache import NlSearchCache
 from app.models.password_reset_token import PasswordResetToken
@@ -32,6 +33,8 @@ __all__ = [
     "CollectionPermission",
     "Corpus",
     "DocumentVersion",
+    "FixityRecord",
+    "FixityStatus",
     "McpToken",
     "NlSearchBudgetDay",
     "NlSearchCache",

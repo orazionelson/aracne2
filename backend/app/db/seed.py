@@ -75,6 +75,14 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("nl_search_cache_ttl_minutes", "60", "int"),
     ("nl_search_max_input_chars", "500", "int"),
     ("nl_search_max_tool_rounds", "6", "int"),
+    # Fixity layer (CTS R7). The cadence setting drives how often
+    # the apscheduler ``fixity_recheck`` job re-hashes every
+    # publication-origin row and compares against the recorded
+    # ``expected_sha256``. ``daily`` and ``weekly`` are the supported
+    # values; the scheduler reads it at boot and at every job tick.
+    # Drift is record-only — the platform never auto-quarantines
+    # public renders on a hash mismatch (Q7 decision in M2 brainstorm).
+    ("fixity_recheck_cadence", "weekly", "string"),
     ("zip_max_size_mb", "50", "int"),
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),

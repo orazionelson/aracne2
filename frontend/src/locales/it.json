@@ -101,6 +101,7 @@
     "search_engines": "Motori di ricerca",
     "backup": "Backup",
     "audit_log": "Audit log",
+    "fixity": "Fissità",
     "help": "Guida",
     "collapse_sidebar": "Riduci",
     "expand_sidebar": "Espandi",
@@ -824,6 +825,25 @@
     "config_help_btn": "Aiuto",
     "config_help_title": "Principali tag TEI per le entità nominate",
     "config_help_body": "**Persone e Organizzazioni**\n`persName` — Nomi di persone reali o fittizie.\n`orgName` — Nomi di istituzioni, gruppi o società.\n`name` — Tag generico per nomi propri (usabile con {'@'}type=\"person\", \"place\", ecc.).\n\n**Oggetti e Materiali**\n`objectName` — Nomi propri di oggetti (es. \"la lancia di Achille\").\n`object` — Descrizione o menzione di un oggetto fisico.\n`material` — Sostanze e materiali (oro, seta, legno).\n\n**Misure e Quantità**\n`measure` — Qualsiasi tipo di misura (peso, lunghezza, valuta). Usa {'@'}unit e {'@'}quantity.\n`num` — Numeri in cifre o in lettere (usa {'@'}value per la normalizzazione).\n`dim` — Dimensioni generiche non standard.\n`height` / `width` / `depth` — Dimensioni specifiche (spesso dentro `dimensions`).\n\n**Monete e Valuta**\n`measure` con {'@'}type=\"currency\" — Il modo standard per marcare somme di denaro.\n`unit` — Può essere usato dentro `measure` per definire la specifica moneta.\n\n**Luoghi**\n`placeName` — Nomi di città, stati, fiumi o località geografiche.\n`geogName` — Nomi di formazioni geografiche (es. \"Monte Bianco\")."
+  },
+  "fixity": {
+    "title": "Fissità",
+    "subtitle": "Hash SHA-256 per documento. Una divergenza tra l'hash registrato e l'ultimo ricalcolo è un segnale di integrità CTS R7 — solo registrazione, non mette mai automaticamente in quarantena la pagina pubblica.",
+    "recheck_now": "Ricontrolla ora",
+    "rechecking": "Ricontrollo in corso…",
+    "status_ok": "OK",
+    "status_drifted": "Divergente",
+    "status_missing": "Assente",
+    "status_error": "Errore",
+    "drift_banner": "{n} documento/i richiedono attenzione.",
+    "no_rows": "Nessuna riga di fissità — compaiono dopo la prima pubblicazione di una collezione.",
+    "col_status": "Stato",
+    "col_document": "Documento",
+    "col_expected": "Atteso",
+    "col_observed": "Osservato",
+    "col_version": "Versione",
+    "col_last_checked": "Ultimo controllo",
+    "pagination_label": "Paginazione"
   },
   "audit_log": {
     "title": "Audit log",

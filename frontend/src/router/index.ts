@@ -212,6 +212,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
     },
     {
+      path: "/admin/fixity",
+      name: "admin-fixity",
+      component: () => import("@/views/admin/FixityView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
       path: "/admin/entities",
       name: "admin-entities",
       component: () => import("@/views/admin/NamedEntitiesView.vue"),
