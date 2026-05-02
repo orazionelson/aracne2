@@ -579,7 +579,13 @@ con pipeline HTR/OCR che produce coordinate di zona automaticamente.
 
 ---
 
-## 15. `pyasn1` 0.4.x → 0.6.x bump (CVE-2026-30922) 🔴 High
+## 15. ~~`pyasn1` 0.4.x → 0.6.x bump (CVE-2026-30922)~~ ✅ Shipped
+
+> Shipped 2026-05-03 as Milestone 2 item 2 of 3. The JWT layer
+> migrated from ``python-jose`` to ``PyJWT``; ``pyasn1`` is no
+> longer a transitive dep, so the recursion-bomb exposure is
+> closed at the package-not-installed level. Original notes
+> retained below for trail.
 
 **Severity:** MED — DoS via uncontrolled recursion when decoding
 deeply-nested ASN.1 structures. Risk-accepted residually but the
@@ -613,7 +619,13 @@ runs.
 
 ---
 
-## 16. `pytest` 8 → 9 bump (CVE-2025-71176) 🔴 High
+## 16. ~~`pytest` 8 → 9 bump (CVE-2025-71176)~~ ✅ Shipped
+
+> Shipped 2026-05-03 as Milestone 2 item 3 of 3 once
+> ``pytest-asyncio>=1.0`` and ``pytest-cov>=7.0`` landed on PyPI.
+> Triple bump was config-clean. Original notes retained below.
+
+🔴 High (historical priority)
 
 **Severity:** LOW — local DoS on UNIX, dev-only (production never
 runs `pytest`).

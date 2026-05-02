@@ -149,11 +149,12 @@ fixity layer that closes the most visible CTS-reviewer gap, and
 clean up the two security-debt items deferred since the
 2026-04-29 review.
 
-| Ref | Item | One-liner |
-|---|---|---|
-| FUTURE_IDEAS §20 | Admin view for the global audit log | UI surface for `audit_log` — filter by actor / action / resource, paginated table, export to CSV. Closes one of the most common "who did what" questions an admin gets |
-| DEFERRED §15 | `pyasn1` 0.4.x → 0.6.x bump | Migrate JWT layer from `python-jose` to `PyJWT` (which doesn't depend on `pyasn1`); closes CVE-2026-30922 currently risk-accepted |
-| DEFERRED §16 | `pytest` 8 → 9 bump | Coordinated triple bump with `pytest-asyncio` and `pytest-cov` once both ship 9-compatible versions; closes CVE-2025-71176 |
+| Ref | Item | One-liner | Status |
+|---|---|---|---|
+| FUTURE_IDEAS §20 | Admin view for the global audit log | UI surface for `audit_log` — filter by actor / action / resource, paginated table, export to CSV. Closes one of the most common "who did what" questions an admin gets | ✅ Shipped |
+| DEFERRED §15 | `pyasn1` 0.4.x → 0.6.x bump | Migrate JWT layer from `python-jose` to `PyJWT` (which doesn't depend on `pyasn1`); closes CVE-2026-30922 currently risk-accepted | ✅ Shipped |
+| DEFERRED §16 | `pytest` 8 → 9 bump | Coordinated triple bump with `pytest-asyncio` and `pytest-cov` once both ship 9-compatible versions; closes CVE-2025-71176 | ✅ Shipped |
+| CTS R7 | Fixity layer | SHA-256 at deposit + scheduled re-check + drift report (`fixity_records` table, `apscheduler` job, `/admin/fixity` view). Closes the heaviest CTS R7 gap | ✅ Shipped |
 
 > **Note**: MCP Phase 2 (FUTURE_IDEAS §21) and MCP Phase 3
 > (FUTURE_IDEAS §22) were originally planned here but moved to
@@ -165,15 +166,36 @@ clean up the two security-debt items deferred since the
 
 ### Order of work inside the milestone
 
-1. **DEFERRED §15 (PyJWT migration)** — closes a security-debt
-   item; surfacing breaking changes early gives time to absorb
-   them.
-2. **DEFERRED §16 (pytest 9 bump)** — only land when
-   `pytest-asyncio` and `pytest-cov` 9-compatible versions are
-   out; if not, defer to Milestone 3. Trivial flip when the
-   prerequisites are in place.
-3. **FUTURE_IDEAS §20 (Audit log admin view)** — independent of
-   the security-debt items; can land in parallel.
+1. ✅ **DEFERRED §15 (PyJWT migration)** — Shipped 2026-05-03.
+   ``app/services/auth.py`` swapped ``from jose import …`` for
+   ``import jwt``; ``except JWTError`` for ``except jwt.PyJWTError``.
+   ``python-jose`` and its transitive ``pyasn1`` dependency are no
+   longer in the image, closing CVE-2026-30922.
+2. ✅ **FUTURE_IDEAS §20 (Audit log admin view)** — Shipped
+   2026-05-03. New ``/admin/audit-log`` UI with structured filters
+   (actor / action / target_type / from / to) **and** a free-text
+   ``q`` box that ILIKEs across actor_username / action /
+   target_label; paginated table sorted newest-first; click-row
+   side panel with pretty-printed JSONB payload; CSV export with
+   the same filters. Curated action vocabulary in
+   ``services.audit_log.KNOWN_ACTIONS``. Migration 0078 adds three
+   composite indexes for the predictable filter shapes.
+3. ✅ **CTS R7 fixity layer** — Shipped 2026-05-03. New
+   ``fixity_records`` table (one row per (collection, filename));
+   ``services.fixity.record_publication`` upserts at every publish
+   snapshot; ``apscheduler`` ``fixity_recheck`` job with
+   configurable cadence (daily | weekly Sun 03:00 UTC, default
+   weekly) walks every row and transitions on drift; first
+   ok→drifted transition stamps ``drifted_at`` and emits a
+   ``fixity.drift_detected`` audit_log row. ``/admin/fixity`` view
+   with 4 status cards, drift-first table, and a synchronous
+   "Recheck now" button. Drift is record-only — public renders are
+   never auto-quarantined.
+4. ✅ **DEFERRED §16 (pytest 9 bump)** — Shipped 2026-05-03 once
+   ``pytest-asyncio>=1.0`` and ``pytest-cov>=7.0`` were both on
+   PyPI. The two ``[tool.pytest.ini_options]`` keys this project
+   sets are pytest-asyncio 1.x-compatible without changes; closes
+   CVE-2025-71176.
 
 ### Milestone 2 acceptance criteria
 

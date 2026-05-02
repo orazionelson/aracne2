@@ -1607,7 +1607,13 @@ a credential a green ✅ badge does not replicate.
 
 ---
 
-## 20. Admin view for the global audit log 🟡 Medium
+## 20. ~~Admin view for the global audit log~~ ✅ Shipped
+
+> Shipped 2026-05-03 as Milestone 2 item 1 of 3. See
+> [Aracne_Roadmap.md](Aracne_Roadmap.md) for the implementation
+> summary; the original design notes below are kept for reference.
+
+🟡 Medium (historical priority)
 
 The `audit_log` PostgreSQL table is already populated by the platform —
 auth events (login / refresh / password change), XML DB writes
