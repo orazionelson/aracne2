@@ -59,6 +59,22 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("email_from_address", "", "string"),
     ("email_from_name", "Aracne2", "string"),
     ("email_subject_prefix", "[Aracne2]", "string"),
+    # Natural-language search plugin (FUTURE_IDEAS §25). Off-path: the
+    # plugin is non-native and starts inactive — these defaults are
+    # only consulted once an Admin flips ``nl_search`` active in
+    # /admin/plugins. ``nl_search_require_login=true`` is the safe
+    # posture: anonymous public access is deliberately opt-in.
+    ("nl_search_require_login", "true", "bool"),
+    ("nl_search_provider", "ollama", "string"),
+    ("nl_search_api_key", "", "string"),
+    ("nl_search_model", "llama3.1", "string"),
+    ("nl_search_corpus_id", "", "string"),
+    ("nl_search_daily_budget_eur", "2.00", "string"),
+    ("nl_search_max_concurrent", "2", "int"),
+    ("nl_search_query_timeout_s", "30", "int"),
+    ("nl_search_cache_ttl_minutes", "60", "int"),
+    ("nl_search_max_input_chars", "500", "int"),
+    ("nl_search_max_tool_rounds", "6", "int"),
     ("zip_max_size_mb", "50", "int"),
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),
