@@ -15,6 +15,12 @@ fingerprint in ``Collection.last_published_tree_hash`` so subsequent
 
 Failures on a single collection are logged and the loop continues with the
 next collection — running the script again will retry the failed ones.
+
+The PostgreSQL writes use ``sa.text(...)`` rather than ORM updates so the
+script does not need every related model imported just to satisfy the
+SQLAlchemy metadata's foreign-key resolution at flush time (Collection has
+FKs to body_templates / tei_schemas / licenses that would otherwise need
+explicit imports here).
 """
 
 from __future__ import annotations
@@ -23,23 +29,19 @@ import argparse
 import asyncio
 import hashlib
 import sys
+import uuid
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import text
 
 from app.db.existdb import existdb_client
 from app.db.postgres import AsyncSessionLocal
-from app.models.collection import Collection, CollectionStatus
 
 logger = structlog.get_logger()
 
 
 async def _compute_tree_hash(slug: str) -> str:
-    """Same fingerprint algorithm used by services.xmldb._compute_collection_tree_hash.
-
-    Replicated locally to keep the script free of cross-imports from a
-    business-logic module that pulls heavy SQLAlchemy / FastAPI machinery.
-    """
+    """Same fingerprint algorithm used by services.xmldb._compute_collection_tree_hash."""
     filenames = sorted(await existdb_client.list_collection(slug))
     parts: list[bytes] = []
     for fn in filenames:
@@ -49,22 +51,35 @@ async def _compute_tree_hash(slug: str) -> str:
     return hashlib.sha256(b"".join(parts)).hexdigest()
 
 
-async def _migrate_one(col: Collection) -> bool:
-    """Mirror one published collection into the snapshot path. Return True on success."""
+async def _migrate_one(
+    db: object, col_id: uuid.UUID, slug: str
+) -> bool:
+    """Mirror one published collection into the snapshot path.
+
+    On success, persists the freshly computed tree hash via a raw UPDATE so
+    the ORM's metadata graph (foreign keys, related mappers) is not consulted.
+    Returns True on success, False on any logged failure.
+    """
     try:
-        await existdb_client.copy_collection_to_published(col.slug)
-        tree_hash = await _compute_tree_hash(col.slug)
-        col.last_published_tree_hash = tree_hash
+        await existdb_client.copy_collection_to_published(slug)
+        tree_hash = await _compute_tree_hash(slug)
+        await db.execute(  # type: ignore[attr-defined]
+            text(
+                "UPDATE collections SET last_published_tree_hash = :h "
+                "WHERE id = :id"
+            ),
+            {"h": tree_hash, "id": col_id},
+        )
         logger.info(
             "published_split_migrated",
-            slug=col.slug,
+            slug=slug,
             tree_hash=tree_hash[:12],
         )
         return True
     except Exception as exc:  # noqa: BLE001 — diagnostic loop, do not abort
         logger.error(
             "published_split_migration_failed",
-            slug=col.slug,
+            slug=slug,
             error=str(exc),
         )
         return False
@@ -74,21 +89,25 @@ async def _run(dry_run: bool) -> int:
     await existdb_client.connect()
     try:
         async with AsyncSessionLocal() as db:
-            result = await db.scalars(
-                select(Collection).where(Collection.status == CollectionStatus.published)
-            )
-            collections = list(result)
-            logger.info("published_split_start", total=len(collections), dry_run=dry_run)
+            rows = (
+                await db.execute(
+                    text(
+                        "SELECT id, slug FROM collections "
+                        "WHERE status = 'published' ORDER BY slug"
+                    )
+                )
+            ).all()
+            logger.info("published_split_start", total=len(rows), dry_run=dry_run)
 
             if dry_run:
-                for col in collections:
-                    logger.info("published_split_would_migrate", slug=col.slug)
+                for row in rows:
+                    logger.info("published_split_would_migrate", slug=row.slug)
                 return 0
 
             ok = 0
             failed = 0
-            for col in collections:
-                if await _migrate_one(col):
+            for row in rows:
+                if await _migrate_one(db, row.id, row.slug):
                     ok += 1
                 else:
                     failed += 1
