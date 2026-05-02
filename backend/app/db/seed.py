@@ -46,6 +46,19 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     # hit, the API returns 409 MANUAL_VERSIONS_LIMIT_REACHED — the editor is
     # expected to delete older manual entries before saving a new one.
     ("document_manual_versions_max", "50", "int"),
+    # Email channel — Postfix-mediated SMTP. Default is "false" so a fresh
+    # install never spams a relay accidentally. The operator must flip
+    # ``email_enabled`` to ``true`` (and set a valid ``email_from_address``)
+    # via the Admin Settings UI before workflow / password-reset emails
+    # actually leave the platform. SMTP credentials live in the Postfix
+    # container env, NOT here — the app talks plain SMTP to the local
+    # Postfix on the docker network and Postfix relays outward.
+    ("email_enabled", "false", "bool"),
+    ("email_smtp_host", "postfix", "string"),
+    ("email_smtp_port", "25", "int"),
+    ("email_from_address", "", "string"),
+    ("email_from_name", "Aracne2", "string"),
+    ("email_subject_prefix", "[Aracne2]", "string"),
     ("zip_max_size_mb", "50", "int"),
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),

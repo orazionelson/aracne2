@@ -1,0 +1,1 @@
+Ciao {{ name }} — email di stub usata dai test dell'infrastruttura.

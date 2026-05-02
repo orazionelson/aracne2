@@ -70,6 +70,34 @@ services:
     networks:
       - aracne2
 
+  # ── Postfix MTA (optional — activate with: docker compose --profile email up) ──
+  # The backend talks plain SMTP to ``postfix:25`` (no auth, no TLS) on the
+  # aracne2 network. Postfix handles the queue, retry and DKIM signing, then
+  # relays outward via ``RELAYHOST`` — typically the operator's own SMTP relay
+  # (Mailgun, SES SMTP, an internal smarthost, …). Credentials live in env
+  # vars consumed only by this container; the Aracne2 backend never sees them.
+  #
+  # Backend behaviour without this container is benign: when
+  # ``system_settings.email_enabled`` is ``false`` (the default), the email
+  # service short-circuits before opening any SMTP connection, so the rest
+  # of the platform boots and runs even when the email profile is off.
+  #
+  # In dev you can swap ``boky/postfix`` for ``axllent/mailpit`` to capture
+  # outgoing mail in a web UI without setting up a relay; the backend
+  # config (``email_smtp_host=postfix``, port 25) stays the same — just
+  # rename the service or add an alias.
+  postfix:
+    image: boky/postfix:latest
+    profiles:
+      - email
+    environment:
+      ALLOWED_SENDER_DOMAINS: ${SMTP_ALLOWED_SENDER_DOMAINS:-}
+      RELAYHOST: ${SMTP_RELAY_HOST:-}
+      RELAYHOST_USERNAME: ${SMTP_RELAY_USER:-}
+      RELAYHOST_PASSWORD: ${SMTP_RELAY_PASSWORD:-}
+    networks:
+      - aracne2
+
   # ── EVT viewer (optional — activate with: docker compose --profile evt up) ──
   evt:
     build:

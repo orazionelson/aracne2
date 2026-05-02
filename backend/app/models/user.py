@@ -27,6 +27,12 @@ class User(Base):
     preferred_lang: Mapped[str] = mapped_column(String(5), nullable=False, default="it")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Workflow-email opt-out. Default ``True`` so freshly migrated rows
+    # keep receiving submitted/rejected/published notifications.
+    # Transactional emails (password reset) bypass this toggle.
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="TRUE"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
