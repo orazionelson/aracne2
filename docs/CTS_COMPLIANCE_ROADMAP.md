@@ -49,7 +49,7 @@ The roadmap is structured around this split.
 | R4  | Confidentiality / Ethics       | Organizational     | GDPR primitives (PII fields, retention, IP hashing); export/delete endpoints planned | 🟡 Partial — endpoints to ship |
 | R5  | Organizational infrastructure  | Organizational     | None — neutral                                          | Institutional declaration owed |
 | R6  | Expert guidance                | Organizational     | None — neutral                                          | Institutional declaration owed |
-| R7  | Data integrity and authenticity| Digital Object Mgmt| TEI validation + audit log + role gating + signed JWT + **`document_versions` history with SHA-256 fingerprints (Alembic 0072)**; **fixity layer scheduler still missing** | 🟡 Partial — fixity scheduler planned |
+| R7  | Data integrity and authenticity| Digital Object Mgmt| TEI validation + audit log + role gating + signed JWT + **`document_versions` history with SHA-256 fingerprints (Alembic 0072)** + **fixity layer with scheduled re-check + drift report (`fixity_records`, Alembic 0079)** + **Admin audit-log UI (`/admin/audit-log`)** | ✅ Strong |
 | R8  | Appraisal                      | Digital Object Mgmt| None — neutral                                          | Institutional declaration owed |
 | R9  | Documented storage procedures  | Digital Object Mgmt| Storage architecture in OPERATIONS.md; per-deployment storage policy template missing | 🟡 Partial — template planned |
 | R10 | Preservation plan              | Digital Object Mgmt| Format-as-preservation (TEI) + multi-deposit; migration plan template missing | 🟡 Partial — template planned |
@@ -60,7 +60,7 @@ The roadmap is structured around this split.
 | R15 | Technical infrastructure       | Technology         | TEI / REST / OAI-PMH / JSON-LD / Docker; open source; monitoring | ✅ Strong |
 | R16 | Security                       | Technology         | 6 security reviews + defusedxml + HSTS/CSP + bcrypt + Fernet + ACL + Dependabot + **bcrypt-hashed Personal Access Tokens for headless clients (revocable, role-scoped)** + **password reset flow with single-use SHA-256-hashed tokens, 24h TTL, all-sessions-revoke on confirm** | ✅ Strong |
 
-**Counts**: 7 ✅ strong, 4 🟡 partial (with planned platform work), 5 ❌ purely
+**Counts**: 8 ✅ strong, 3 🟡 partial (with planned platform work), 5 ❌ purely
 institutional. The 5 institutional-only items are inherent to CTS;
 no platform can discharge them.
 
@@ -196,14 +196,15 @@ composition, the procedure for consulting experts on edge cases.
 
 ---
 
-### R7 — Data integrity and authenticity 🟡 Partial
+### R7 — Data integrity and authenticity ✅ Fully
 
 **Platform provides**:
 - TEI validation against RNG / DTD / XSD per schema, both live in
   the editor and as collection-wide reports.
 - Audit log of every workflow transition and every mutation that
   affects collection state, signed implicitly by the actor's role
-  context.
+  context. **Admin-facing UI** at ``/admin/audit-log`` (M2 §20)
+  with structured + free-text filters and CSV export.
 - Role gating: only Editor+ can write, only EditorInChief+ can
   publish, only Admin can change platform settings.
 - Bcrypt password hashing + JWT signed with HMAC-SHA256 + Fernet
@@ -221,12 +222,19 @@ composition, the procedure for consulting experts on edge cases.
   ``document_versions`` row carries the ``audit_log.id`` that
   originated it, so a CTS reviewer can navigate "this row was
   written when EiC X clicked Approve at time T" in O(1).
+- **Fixity layer** (M2 CTS R7 deliverable, Alembic 0079
+  ``fixity_records``): one row per (collection, filename) records
+  the SHA-256 of the latest publication-origin version at deposit
+  time; an ``apscheduler`` ``fixity_recheck`` job (configurable
+  cadence, default weekly Sun 03:00 UTC) re-hashes every row and
+  transitions ``ok → drifted | missing | error`` on mismatch. First
+  drift transition stamps ``drifted_at`` and emits an
+  ``fixity.drift_detected`` audit_log row. Drift surfaces in
+  ``/admin/fixity`` with an Admin "Recheck now" button. Drift is
+  record-only; the platform never auto-quarantines a public render
+  on a hash mismatch.
 
 **Platform gaps (planned)**:
-- **Fixity layer scheduler**: the SHA-256 fingerprints are *stored*
-  on every version row, but the scheduled re-check + drift report
-  is the Milestone 2 deliverable. *This is the remaining most
-  visible gap to a CTS reviewer for R7.*
 - **Provenance graph** (PROV-O / PREMIS): the audit log captures
   *who did what when*, but not in a Linked Data Provenance
   serialisation that downstream consumers can ingest.
@@ -570,6 +578,8 @@ roadmap section.
 |---|---|
 | 2026-04-29 | Initial roadmap drafted post-MCP / post-public-flip work. |
 | 2026-05-02 | Milestone 1 — three of five items shipped. Document versioning + email channels + CLI/PAT all landed; GDPR self-service endpoints (the only direct CTS deliverable in M1) still pending. R7 partial bullet "Version history of TEI" closes; R12 reinforced with email; R3 reinforced with `aracne-cli export --as-of`; R16 reinforced with PATs and password-reset flow. Test suite count refreshed (~543 → ~726 backend + ~24 CLI). |
+| 2026-05-03 | Milestone 1 — items 4 / 5 of 5 shipped (`public_navigation` capability + `nl_search` plugin). Public layout iterators surface plugin links via three slots (header / home_quick_links / footer). Closes M1. |
+| 2026-05-03 | Milestone 2 — all four items shipped. PyJWT migration (drop `python-jose`+`pyasn1`, closes CVE-2026-30922); admin `/admin/audit-log` view with structured + free-text filters and CSV export (FUTURE_IDEAS §20); **fixity layer with `fixity_records` table + `apscheduler` re-check job + `/admin/fixity` view** — closes the heaviest CTS R7 reviewer gap, **R7 transitions 🟡 → ✅ Strong**; pytest 9 triple bump (CVE-2025-71176). |
 
 *Maintained by the platform maintainer; institutional declarations
 are out of scope of this file but referenced where they belong.*

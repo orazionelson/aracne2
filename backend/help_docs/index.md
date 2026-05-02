@@ -15,8 +15,9 @@ to jump directly to a topic.
   websites per collection, standalone search portals, OAI-PMH
   exposure, deposit on external repositories, outbound webhooks,
   email notifications, and per-plugin public links.
-- **Reference** — identity providers, the extensions catalog, and
-  the `aracne` command-line tool for bulk import / export.
+- **Reference** — identity providers, the extensions catalog,
+  the `aracne` command-line tool for bulk import / export, the
+  audit log, and the fixity dashboard.
 
 ## Tips
 
@@ -50,3 +51,5 @@ to jump directly to a topic.
 - [Plugin links on the public site](/help/page?path=04-publishing/07-plugin-links)
 - [Extensions catalog](/help/page?path=05-reference/02-extensions-catalog)
 - [Command-line tool](/help/page?path=05-reference/03-cli)
+- [Audit log](/help/page?path=05-reference/04-audit-log)
+- [Fixity](/help/page?path=05-reference/05-fixity)
