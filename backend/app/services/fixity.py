@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import desc, func, select
+from sqlalchemy import case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
@@ -312,7 +312,10 @@ async def list_records(
     total = int(await db.scalar(count_stmt) or 0)
 
     # Sort: status priority (drift first), then most-recent check first.
-    status_priority = func.case(
+    # ``case`` is the top-level SQLAlchemy construct, NOT a member of
+    # ``func`` (``func.case`` builds a fictitious DB function and explodes
+    # at runtime with ``unexpected keyword argument 'else_'``).
+    status_priority = case(
         (FixityRecord.status == FixityStatus.drifted, 0),
         (FixityRecord.status == FixityStatus.missing, 1),
         (FixityRecord.status == FixityStatus.error, 2),

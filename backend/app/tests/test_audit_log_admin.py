@@ -46,7 +46,15 @@ def _auth(token: str) -> dict[str, str]:
 
 
 async def _seed_rows(db: AsyncSession) -> None:
-    base = datetime.now(UTC) - timedelta(minutes=10)
+    """Seed five audit rows with ``occurred_at`` deliberately *in the future*.
+
+    The ``client`` fixture's login flow writes its own ``auth.login_success``
+    audit row at the moment the test sends credentials; if our seeds are
+    in the past relative to that row, the login row tops the sort order
+    and breaks every "newest first" assertion below. Stamping the seeds
+    a minute ahead keeps them at the head regardless of test ordering.
+    """
+    base = datetime.now(UTC) + timedelta(minutes=1)
     rows = [
         ("collection.created",   "anna_audit",  "collection", "abc-1", "Manzoni"),
         ("collection.published", "anna_audit",  "collection", "abc-1", "Manzoni"),
@@ -62,7 +70,7 @@ async def _seed_rows(db: AsyncSession) -> None:
                 target_type=ttype,
                 target_id=tid,
                 target_label=label,
-                occurred_at=base + timedelta(minutes=i),
+                occurred_at=base + timedelta(seconds=i),
             )
         )
     await db.flush()
