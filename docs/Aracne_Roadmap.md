@@ -25,8 +25,8 @@ public-facing AI feature (NL search).
 | DEFERRED §7 | Document versioning | Versioned history of TEI documents — rollback, diff, "this is the version of this date" recoverable in-app | ✅ Shipped |
 | DEFERRED §11 | Email / external notification channels | SMTP integration + templates so password resets, publication approvals, and account verification can leave the platform | ✅ Shipped |
 | FUTURE_IDEAS §1 | CLI import/export tool | Standalone command-line tool to ingest / export collections in batch — outside the SPA, scriptable in CI / cron / migration contexts | ✅ Shipped |
-| FUTURE_IDEAS §24 | `public_navigation` capability | Auto-cabling primitive: plugins declare a public-page link; admin toggles surface them in header / home / footer (mirrors `inline_authority` / `collection_deposit` / `website_deposit`) | ⏳ Pending |
-| FUTURE_IDEAS §25 | Natural-language search plugin | Public-facing chat-style search at `/search-nl`, MCP-tool-grounded, abuse-mitigated (budget cap, auth gate, per-IP limit). **Depends on §24** for the public-pages link toggle | ⏳ Pending |
+| FUTURE_IDEAS §24 | `public_navigation` capability | Auto-cabling primitive: plugins declare a public-page link; admin toggles surface them in header / home / footer (mirrors `inline_authority` / `collection_deposit` / `website_deposit`) | ✅ Shipped |
+| FUTURE_IDEAS §25 | Natural-language search plugin | Public-facing chat-style search at `/search-nl`, MCP-tool-grounded, abuse-mitigated (budget cap, auth gate, per-IP limit). **Depends on §24** for the public-pages link toggle | ✅ Shipped |
 
 ### Order of work inside the milestone
 
@@ -54,11 +54,30 @@ public-facing AI feature (NL search).
    (Profile "API tokens" card with copy-once issue modal), CLI-C
    (the ``aracne`` typer app in ``cli/`` with ``login`` /
    ``whoami`` / ``import`` / ``export``).
-4. ⏳ **FUTURE_IDEAS §24 (`public_navigation` primitive)** — small
-   footprint (~2.5 days). Lands before §25 because the toggle is a
-   §25 prerequisite.
-5. ⏳ **FUTURE_IDEAS §25 (NL search plugin)** — last, because it
-   consumes §24 and is the largest item (~5 days).
+4. ✅ **FUTURE_IDEAS §24 (`public_navigation` primitive)** — small
+   footprint (~2.5 days). Landed before §25 because the toggle is a
+   §25 prerequisite. Shipped: ``PluginMeta`` extended with a
+   ``public_navigation`` capability shape; ``UiConfigResponse``
+   gained a ``public_nav`` field; per-plugin
+   ``public_link_<name>_enabled`` toggles auto-created on activate;
+   three-slot iteration (header / home_quick_links / footer) and
+   admin toggle UI in the existing Public Pages panel.
+5. ✅ **FUTURE_IDEAS §25 (NL search plugin)** — last, because it
+   consumes §24. Shipped across Phases NLS-A through NLS-E:
+   plugin scaffolding + two Alembic migrations
+   (``nl_search_cache``, ``nl_search_budget_day``); ``ToolUseProvider``
+   ABC plus Ollama (default) and Anthropic adapters; orchestrator
+   running the LLM tool-use loop against the MCP read subset
+   (``search_entities``, ``find_entity_occurrences``,
+   ``get_collection``, ``list_documents``, ``get_document_source``,
+   ``tei_to_text``) with citation enforcement that drops any
+   ``(slug, filename)`` pair the LLM did not actually see in tool
+   results; SSE endpoint at ``POST /api/v1/nl-search/query`` with
+   auth / budget / concurrency gates and identical-query cache;
+   ``NlSearchPublicView.vue`` consuming the SSE stream with status
+   hints, validated citation strip, and EN/IT i18n; the plugin
+   advertises ``public_navigation`` so §24's iterators light up the
+   link once the admin toggles it on.
 
 ### Milestone 1 acceptance criteria
 

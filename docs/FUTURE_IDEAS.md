@@ -2076,7 +2076,13 @@ manual editor" coverage is the right level of investment.
 
 ---
 
-## 24. `public_navigation` capability — auto-cabled links on the public site 🔴 High
+## 24. ~~`public_navigation` capability — auto-cabled links on the public site~~ ✅ Shipped
+
+> Shipped 2026-05-02 as Milestone 1 item 4 of 5. See
+> [Aracne_Roadmap.md](Aracne_Roadmap.md) for the implementation
+> summary; the original design notes below are kept for reference.
+
+🔴 High (historical priority)
 
 Mirror the existing auto-cabling pattern (`inline_authority`,
 `collection_deposit`, `website_deposit`) for the **public-facing
@@ -2182,7 +2188,13 @@ is the natural first; `public_maps`, `public_timeline`, or
 
 ---
 
-## 25. Natural-language search plugin 🔴 High
+## 25. ~~Natural-language search plugin~~ ✅ Shipped
+
+> Shipped 2026-05-03 as Milestone 1 item 5 of 5. See
+> [Aracne_Roadmap.md](Aracne_Roadmap.md) for the phase-by-phase
+> summary; the original design notes below are kept for reference.
+
+🔴 High (historical priority)
 
 > **Depends on #24** (`public_navigation` capability) for the public
 > homepage link toggle. The plugin can ship without #24 — the
