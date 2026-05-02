@@ -9,12 +9,12 @@ to jump directly to a topic.
 - **Basics** — what Aracne2 is, who does what, how to log in.
 - **Editing** — collections, documents, the TEI editor, the editorial
   workflow from draft to published, and document version history.
-- **Advanced** — facsimile images, bibliography, named entities, and AI
-  assistance.
+- **Advanced** — facsimile images, bibliography, named entities, AI
+  assistance, and natural-language search.
 - **Publishing** — the platform's default public pages, dedicated
   websites per collection, standalone search portals, OAI-PMH
   exposure, deposit on external repositories, outbound webhooks,
-  and email notifications.
+  email notifications, and per-plugin public links.
 - **Reference** — identity providers, the extensions catalog, and
   the `aracne` command-line tool for bulk import / export.
 
@@ -40,11 +40,13 @@ to jump directly to a topic.
 - [AI assistance](/help/page?path=03-advanced/04-ai-assistance)
 - [External reference lookups](/help/page?path=03-advanced/05-external-reference-lookups)
 - [AI prompts catalogue](/help/page?path=03-advanced/06-ai-prompts)
+- [Natural-language search](/help/page?path=03-advanced/08-nl-search)
 - [Public Pages — your default public face](/help/page?path=04-publishing/00-public-pages)
 - [Publishing a website](/help/page?path=04-publishing/01-websites)
 - [OAI-PMH](/help/page?path=04-publishing/03-oai-pmh)
 - [Depositing on external repositories](/help/page?path=04-publishing/04-external-repositories)
 - [Webhooks — push-notify external systems](/help/page?path=04-publishing/05-webhooks)
 - [Email notifications](/help/page?path=04-publishing/06-email-notifications)
+- [Plugin links on the public site](/help/page?path=04-publishing/07-plugin-links)
 - [Extensions catalog](/help/page?path=05-reference/02-extensions-catalog)
 - [Command-line tool](/help/page?path=05-reference/03-cli)
