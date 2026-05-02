@@ -149,6 +149,12 @@ const SECTIONS: NavSection[] = [
         visible: () => auth.hasMinRole("Admin"),
       },
       {
+        labelKey: "nav.audit_log",
+        to: { name: "admin-audit-log" },
+        icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
         labelKey: "nav.settings",
         to: { name: "admin-settings" },
         icon: Cog6ToothIcon,
