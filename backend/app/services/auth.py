@@ -2,8 +2,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+import jwt
 import structlog
-from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,7 +73,7 @@ def decode_raw_token(token: str) -> dict[str, object]:
             dict[str, object],
             jwt.decode(token, settings.jwt_secret, algorithms=["HS256"]),
         )
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise AuthenticationError(
             code="INVALID_TOKEN", message="Token is invalid or expired"
         ) from exc
@@ -108,7 +108,7 @@ def decode_token(token: str, expected_type: str) -> dict[str, object]:
             dict[str, object],
             jwt.decode(token, settings.jwt_secret, algorithms=["HS256"]),
         )
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise AuthenticationError(
             code="INVALID_TOKEN", message="Token is invalid or expired"
         ) from exc
