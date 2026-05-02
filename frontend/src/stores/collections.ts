@@ -82,6 +82,14 @@ export interface Collection {
   has_public_bibliography?: boolean;
   // Number of named entity occurrences indexed for this collection (public listings only).
   entity_count?: number;
+  /**
+   * True when the working tree fingerprint differs from the last
+   * published one — set only on the detail endpoint, ``null``/absent on
+   * list responses (where computing it would crawl every document of
+   * every collection on every page load). Drives the editor's
+   * "Unpublished changes" badge.
+   */
+  has_unpublished_changes?: boolean | null;
 }
 
 export interface DocumentInfo {

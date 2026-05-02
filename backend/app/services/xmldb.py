@@ -277,6 +277,36 @@ async def _snapshot_collection_documents(
     return written
 
 
+async def compute_has_unpublished_changes(
+    existdb: ExistDBClient, collection: Collection
+) -> bool:
+    """True when the working tree fingerprint differs from the last
+    published one — i.e. an editor has touched documents since the last
+    successful publish (or the collection was never published).
+
+    Used by the editor UI to surface a "Unpublished changes" badge so
+    Editor+ users can tell at a glance whether a re-publish would be a
+    no-op or would propagate real changes. Compares SHA-256 fingerprints
+    only; never reads or transforms document bodies beyond the
+    short-lived hash computation.
+    """
+    if collection.last_published_tree_hash is None:
+        # Never published. From the editor's perspective the working tree
+        # is still "unpublished work" if anything has been uploaded.
+        # Returning True is the safe default — the badge nudges the user
+        # to actually publish.
+        try:
+            filenames = await existdb.list_collection(collection.slug)
+        except Exception:  # noqa: BLE001 — never let the badge crash the detail call
+            return False
+        return bool(filenames)
+    try:
+        current = await _compute_collection_tree_hash(existdb, collection.slug)
+    except Exception:  # noqa: BLE001
+        return False
+    return current != collection.last_published_tree_hash
+
+
 async def _invalidate_linked_website_caches(
     db: AsyncSession, collection: Collection
 ) -> None:

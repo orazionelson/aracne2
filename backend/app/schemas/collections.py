@@ -144,6 +144,12 @@ class CollectionResponse(BaseModel):
     # Number of named entity occurrences indexed for this collection.
     # Populated on public collection listings; 0 means not yet indexed.
     entity_count: int = 0
+    # True when the working tree fingerprint differs from the last
+    # published one. Populated only on the detail endpoint
+    # (``GET /collections/{id}``); on list responses it stays None to
+    # avoid an O(N×M) eXist-db crawl. Drives the editor's "Unpublished
+    # changes" badge.
+    has_unpublished_changes: bool | None = None
 
     model_config = {"from_attributes": True}
 

@@ -758,6 +758,20 @@ function statusClass(s: string): string {
             <span v-if="store.current.is_public" class="text-xs text-gray-400 dark:text-gray-500">
               {{ t("collections.public_badge") }}
             </span>
+            <!-- Phase E badge: working tree fingerprint differs from the
+                 last published one. Shown only when the backend
+                 explicitly returns true (None means the detail call did
+                 not compute it, e.g. eXist-db transient error). -->
+            <span
+              v-if="store.current.has_unpublished_changes === true"
+              class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800"
+              :title="t('collections.unpublished_changes_hint')"
+            >
+              <svg class="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+              </svg>
+              {{ t("collections.unpublished_changes_badge") }}
+            </span>
             <!-- Zenodo deposit badge (EiC+ only, shown when a deposit record exists) -->
             <a
               v-if="zenodoStatus && zenodoStatus.status === 'published' && zenodoStatus.record_url"

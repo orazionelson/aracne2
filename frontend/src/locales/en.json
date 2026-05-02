@@ -328,6 +328,8 @@
     "description": "Description",
     "is_public": "Public",
     "public_badge": "public",
+    "unpublished_changes_badge": "Unpublished changes",
+    "unpublished_changes_hint": "The working tree differs from the last published snapshot. Re-publish to propagate the changes to the public site.",
     "evt_enabled_label": "Enable EVT viewer",
     "evt_enabled_hint": "(single-document collections only)",
     "status": "Status",

@@ -23,7 +23,7 @@ from app.db.postgres import get_async_session
 from app.models.collection_bibliography import CollectionBibliography
 from app.core.constants import ROLE_LEVEL
 from app.middleware.acl import get_current_user, require_role
-from app.models.collection import CollectionStatus
+from app.models.collection import Collection, CollectionStatus
 from app.models.user import User
 from app.schemas.collections import (
     AssignAction,
@@ -65,6 +65,7 @@ from app.services.collection_validation import (
 )
 from app.services.xmldb import (
     assign_collection,
+    compute_has_unpublished_changes,
     create_collection,
     delete_collection,
     delete_document,
@@ -260,9 +261,24 @@ async def collection_detail(
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
 ) -> DataResponse[CollectionResponse]:
+    """Detail endpoint enriched with the ``has_unpublished_changes`` flag.
+
+    The flag is computed by hashing the working tree and comparing with
+    ``Collection.last_published_tree_hash``. List endpoints deliberately
+    skip the computation to avoid an O(N×M) eXist-db crawl; the editor
+    only pays the cost when they actually open the collection."""
     role: str = request.state.role
     data = await get_collection(db, collection_id, current_user, role)
+    col = await db.get(Collection, data.id)
+    if col is not None:
+        try:
+            data.has_unpublished_changes = await compute_has_unpublished_changes(
+                existdb, col
+            )
+        except Exception:  # noqa: BLE001 — never let the badge break the detail
+            data.has_unpublished_changes = None
     return DataResponse(data=data)
 
 

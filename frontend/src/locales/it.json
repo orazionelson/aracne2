@@ -328,6 +328,8 @@
     "description": "Descrizione",
     "is_public": "Pubblica",
     "public_badge": "pubblica",
+    "unpublished_changes_badge": "Modifiche non pubblicate",
+    "unpublished_changes_hint": "Lo stato di lavoro differisce dall'ultima istantanea pubblicata. Ripubblica per propagare le modifiche al sito pubblico.",
     "evt_enabled_label": "Abilita visualizzatore EVT",
     "evt_enabled_hint": "(solo collezioni mono-documento)",
     "status": "Stato",
