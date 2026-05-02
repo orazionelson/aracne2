@@ -13,6 +13,9 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+*.egg-info/
+build/
+dist/
 
 # Node
 frontend/node_modules/

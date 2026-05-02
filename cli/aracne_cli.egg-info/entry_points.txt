@@ -1,2 +1,0 @@
-[console_scripts]
-aracne = aracne_cli.cli:app

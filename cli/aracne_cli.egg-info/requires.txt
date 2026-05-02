@@ -1,8 +1,0 @@
-typer<1.0,>=0.12
-httpx<1.0,>=0.28
-rich<14,>=13
-
-[dev]
-pytest<10,>=8
-pytest-asyncio<1.0,>=0.24
-respx<1.0,>=0.22
