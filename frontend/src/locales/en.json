@@ -1819,5 +1819,83 @@
     "token_snippet_label": "Claude Desktop config",
     "token_snippet_hint": "Paste this block into claude_desktop_config.json on the editor's laptop, then restart Claude Desktop.",
     "token_copy_snippet": "Copy snippet"
+  },
+  "version": {
+    "history": {
+      "title": "Version history",
+      "open": "Show version history",
+      "close": "Close",
+      "empty": "No versions saved yet for this document.",
+      "loading": "Loading versions…",
+      "filter_label": "Filter",
+      "filter_all": "All origins",
+      "filter_publication_only": "Publications only",
+      "column_version": "Version",
+      "column_origin": "Origin",
+      "column_message": "Message",
+      "column_author": "Author",
+      "column_when": "When",
+      "column_actions": "Actions",
+      "no_message": "—"
+    },
+    "origin": {
+      "creation": "Creation",
+      "manual": "Manual save",
+      "submission": "Submitted for review",
+      "rejection": "Revisions requested",
+      "publication": "Published",
+      "rollback": "Rolled back"
+    },
+    "actions": {
+      "view": "View",
+      "compare_with_current": "Compare with current",
+      "rollback": "Restore this version",
+      "delete": "Delete",
+      "save_version": "Save version"
+    },
+    "manual": {
+      "title": "Save version",
+      "intro": "Capture the current document state as a labelled checkpoint you can come back to later.",
+      "message_label": "Message",
+      "message_placeholder": "What changed in this checkpoint?",
+      "message_required": "A message is required so the history reads clearly.",
+      "submit": "Save",
+      "cancel": "Cancel",
+      "saved": "Version saved.",
+      "limit_reached_title": "Manual versions limit reached",
+      "limit_reached_body": "You have reached the limit of {limit} manual versions on this document. Delete older manual checkpoints before saving a new one.",
+      "limit_help": "Auto-saved versions (workflow events, rollbacks) are not affected by this limit."
+    },
+    "rollback": {
+      "title": "Restore version {n}",
+      "intro": "The current document state will be replaced with the content of version {n}. This is recorded as a new 'rolled back' entry — nothing in the history is removed.",
+      "note_label": "Note (optional)",
+      "note_placeholder": "Why are you restoring this version?",
+      "submit": "Restore",
+      "cancel": "Cancel",
+      "success": "Document restored to version {n}.",
+      "no_changes": "Version {n} is identical to the current state — nothing to restore."
+    },
+    "delete": {
+      "confirm_title": "Delete version {n}?",
+      "confirm_body": "Manual checkpoints can be deleted to free space against the cap. This action cannot be undone.",
+      "auto_not_deletable": "Auto-saved versions are part of the editorial record and cannot be deleted.",
+      "submit": "Delete",
+      "cancel": "Keep"
+    },
+    "diff": {
+      "title": "Comparing version {a} with version {b}",
+      "loading": "Computing diff…",
+      "no_changes": "No textual differences between the two versions.",
+      "close": "Close"
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "load_failed": "Could not load version history.",
+      "save_failed": "Could not save the version.",
+      "rollback_failed": "Could not restore that version.",
+      "delete_failed": "Could not delete that version.",
+      "not_author": "Only the original author or an Admin can delete this manual checkpoint."
+    }
   }
 }

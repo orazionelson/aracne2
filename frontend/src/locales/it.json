@@ -1816,5 +1816,83 @@
     "token_snippet_label": "Configurazione Claude Desktop",
     "token_snippet_hint": "Incolla questo blocco in claude_desktop_config.json sul laptop dell'editor, poi riavvia Claude Desktop.",
     "token_copy_snippet": "Copia snippet"
+  },
+  "version": {
+    "history": {
+      "title": "Cronologia versioni",
+      "open": "Mostra cronologia",
+      "close": "Chiudi",
+      "empty": "Nessuna versione ancora salvata per questo documento.",
+      "loading": "Caricamento versioni…",
+      "filter_label": "Filtro",
+      "filter_all": "Tutte le origini",
+      "filter_publication_only": "Solo pubblicazioni",
+      "column_version": "Versione",
+      "column_origin": "Origine",
+      "column_message": "Messaggio",
+      "column_author": "Autore",
+      "column_when": "Quando",
+      "column_actions": "Azioni",
+      "no_message": "—"
+    },
+    "origin": {
+      "creation": "Creazione",
+      "manual": "Salvataggio manuale",
+      "submission": "Inviata in validazione",
+      "rejection": "Richiesta di revisione",
+      "publication": "Pubblicata",
+      "rollback": "Ripristino"
+    },
+    "actions": {
+      "view": "Visualizza",
+      "compare_with_current": "Confronta con la versione corrente",
+      "rollback": "Ripristina questa versione",
+      "delete": "Elimina",
+      "save_version": "Salva versione"
+    },
+    "manual": {
+      "title": "Salva versione",
+      "intro": "Cattura lo stato attuale del documento come checkpoint etichettato, a cui potrai tornare in seguito.",
+      "message_label": "Messaggio",
+      "message_placeholder": "Cosa è cambiato in questo checkpoint?",
+      "message_required": "Inserisci un messaggio per rendere leggibile la cronologia.",
+      "submit": "Salva",
+      "cancel": "Annulla",
+      "saved": "Versione salvata.",
+      "limit_reached_title": "Limite versioni manuali raggiunto",
+      "limit_reached_body": "Hai raggiunto il limite di {limit} versioni manuali su questo documento. Elimina i checkpoint manuali più vecchi prima di salvarne uno nuovo.",
+      "limit_help": "Le versioni auto-salvate (eventi del flusso, ripristini) non rientrano in questo limite."
+    },
+    "rollback": {
+      "title": "Ripristina versione {n}",
+      "intro": "Lo stato attuale del documento verrà sostituito con il contenuto della versione {n}. L'operazione viene registrata come nuova voce 'Ripristino' — nessun elemento della cronologia viene rimosso.",
+      "note_label": "Nota (opzionale)",
+      "note_placeholder": "Perché stai ripristinando questa versione?",
+      "submit": "Ripristina",
+      "cancel": "Annulla",
+      "success": "Documento ripristinato alla versione {n}.",
+      "no_changes": "La versione {n} è identica allo stato attuale — niente da ripristinare."
+    },
+    "delete": {
+      "confirm_title": "Eliminare la versione {n}?",
+      "confirm_body": "I checkpoint manuali possono essere eliminati per liberare spazio rispetto al limite. L'operazione non è reversibile.",
+      "auto_not_deletable": "Le versioni auto-salvate fanno parte del registro editoriale e non possono essere eliminate.",
+      "submit": "Elimina",
+      "cancel": "Mantieni"
+    },
+    "diff": {
+      "title": "Confronto tra versione {a} e versione {b}",
+      "loading": "Calcolo del diff…",
+      "no_changes": "Nessuna differenza testuale tra le due versioni.",
+      "close": "Chiudi"
+    },
+    "errors": {
+      "generic": "Qualcosa è andato storto. Riprova.",
+      "load_failed": "Impossibile caricare la cronologia.",
+      "save_failed": "Impossibile salvare la versione.",
+      "rollback_failed": "Impossibile ripristinare la versione.",
+      "delete_failed": "Impossibile eliminare la versione.",
+      "not_author": "Solo l'autore originale o un Admin possono eliminare questo checkpoint manuale."
+    }
   }
 }
