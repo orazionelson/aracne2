@@ -23,7 +23,29 @@
     "password": "Password",
     "show_password": "Mostra",
     "hide_password": "Nascondi",
-    "invalid_credentials": "Credenziali non valide. Riprova."
+    "invalid_credentials": "Credenziali non valide. Riprova.",
+    "forgot_password_link": "Hai dimenticato la password?",
+    "forgot": {
+      "title": "Reimposta la tua password",
+      "intro": "Inserisci il tuo nome utente o la tua email. Se troviamo un account corrispondente, ti invieremo un link per reimpostare la password.",
+      "field_label": "Nome utente o email",
+      "field_placeholder": "tu@esempio.org",
+      "submit": "Invia link di reset",
+      "confirmation": "Se esiste un account per il valore inserito, riceverai presto un'email con il link di reset. Il link è valido per 24 ore.",
+      "back_to_login": "Torna al login"
+    },
+    "reset": {
+      "title": "Scegli una nuova password",
+      "intro": "Imposta una nuova password — deve avere almeno 8 caratteri.",
+      "new_password_label": "Nuova password",
+      "confirm_label": "Conferma nuova password",
+      "submit": "Aggiorna password",
+      "password_too_short": "La password deve avere almeno 8 caratteri.",
+      "passwords_mismatch": "Le due password non coincidono.",
+      "invalid_or_expired": "Il link di reset non è valido o è scaduto.",
+      "request_a_new_one": "Richiedine uno nuovo.",
+      "success_banner": "Password aggiornata. Accedi con la nuova."
+    }
   },
   "home": {
     "title": "Aracne2",

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Ciao {{ recipient_display_name }},</p>
+  <p>
+    Qualcuno — speriamo tu — ha richiesto la reimpostazione della password
+    del tuo account Aracne2. Clicca sul link qui sotto per scegliere una
+    nuova password:
+  </p>
+  <p>
+    <a
+      href="{{ reset_url }}"
+      style="display: inline-block; padding: 0.6em 1.2em; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 4px;"
+    >Reimposta password</a>
+  </p>
+  <p>Oppure copia questo URL nel tuo browser:</p>
+  <p style="word-break: break-all; color: #555; font-family: monospace;">{{ reset_url }}</p>
+  <p>Il link è valido per {{ expiry_hours }} ore e può essere usato una sola volta.</p>
+  <p>
+    Se non hai richiesto la reimpostazione, puoi ignorare questa email — la
+    tua password rimane invariata. Se continui a ricevere queste email,
+    contatta l'amministratore della piattaforma.
+  </p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    Questa è un'email transazionale: viene inviata indipendentemente dalla
+    tua preferenza "Notifiche email".
+  </p>
+</body>
+</html>

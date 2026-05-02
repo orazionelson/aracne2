@@ -26,6 +26,11 @@ const isLoading = ref(false);
 const isDark = computed(() => ui.theme === "dark");
 const currentYear = new Date().getFullYear();
 
+/** ``?reset=ok`` lands on this page right after a successful password
+ *  reset confirmation. We surface a one-shot success banner so the user
+ *  sees a clear "your password has been changed" cue before they log in. */
+const resetSuccess = computed(() => route.query.reset === "ok");
+
 // Validates that the redirect target is a safe internal path (prevents open redirect)
 function isSafeRedirect(url: string): boolean {
   return url.startsWith("/") && !url.startsWith("//") && !url.includes(":");
@@ -96,6 +101,12 @@ async function handleLogin(): Promise<void> {
           <p v-if="errorMessage" class="mb-4 text-sm text-red-600 dark:text-red-400">
             {{ errorMessage }}
           </p>
+          <p
+            v-if="resetSuccess"
+            class="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+          >
+            {{ t("auth.reset.success_banner") }}
+          </p>
           <button
             type="submit"
             :disabled="isLoading"
@@ -103,6 +114,14 @@ async function handleLogin(): Promise<void> {
           >
             {{ isLoading ? t("auth.sign_in_loading") : t("auth.sign_in") }}
           </button>
+          <p class="mt-3 text-center text-sm">
+            <router-link
+              :to="{ name: 'forgot-password' }"
+              class="text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              {{ t("auth.forgot_password_link") }}
+            </router-link>
+          </p>
         </form>
       </div>
     </main>

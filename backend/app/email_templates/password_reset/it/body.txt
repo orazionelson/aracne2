@@ -1,0 +1,18 @@
+Ciao {{ recipient_display_name }},
+
+Qualcuno — speriamo tu — ha richiesto la reimpostazione della password
+del tuo account Aracne2. Apri l'URL qui sotto per scegliere una nuova
+password:
+
+{{ reset_url }}
+
+Il link è valido per {{ expiry_hours }} ore e può essere usato una sola
+volta.
+
+Se non hai richiesto la reimpostazione, puoi ignorare questa email — la
+tua password rimane invariata. Se continui a ricevere queste email,
+contatta l'amministratore della piattaforma.
+
+—
+Questa è un'email transazionale: viene inviata indipendentemente dalla
+tua preferenza "Notifiche email".

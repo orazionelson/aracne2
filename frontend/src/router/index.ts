@@ -70,6 +70,19 @@ const router = createRouter({
       component: () => import("@/views/auth/LoginView.vue"),
       meta: { layout: "auth" },
     },
+    // ── Password reset (public, no auth required) ─────────────────────────
+    {
+      path: "/forgot-password",
+      name: "forgot-password",
+      component: () => import("@/views/auth/RequestPasswordResetView.vue"),
+      meta: { layout: "auth" },
+    },
+    {
+      path: "/reset-password/:token",
+      name: "reset-password",
+      component: () => import("@/views/auth/ConfirmPasswordResetView.vue"),
+      meta: { layout: "auth" },
+    },
     // ── Authenticated (admin layout with sidebar) ─────────────────────────
     {
       path: "/dashboard",

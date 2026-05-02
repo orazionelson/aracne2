@@ -20,6 +20,34 @@ class PasswordChangeRequest(BaseModel):
         return v
 
 
+class PasswordResetRequest(BaseModel):
+    """Body for ``POST /auth/password/reset/request``.
+
+    Accepts either an email address or a username. The endpoint always
+    returns 204 — the user does not learn whether the account exists.
+    """
+
+    email_or_username: str = Field(min_length=1, max_length=255)
+
+
+class PasswordResetConfirm(BaseModel):
+    """Body for ``POST /auth/password/reset/confirm``.
+
+    Reuses the same minimum-length rule as ``PasswordChangeRequest``
+    so the password policy stays single-source.
+    """
+
+    token: str = Field(min_length=1, max_length=128)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105

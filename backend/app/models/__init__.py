@@ -4,6 +4,7 @@ from app.models.collection import Collection
 from app.models.collection_bibliography import CollectionBibliography
 from app.models.corpus import Corpus, McpToken
 from app.models.document_version import DocumentVersion, VersionOrigin
+from app.models.password_reset_token import PasswordResetToken
 from app.models.tei_schema import TeiSchema
 from app.models.collection_permission import CollectionPermission
 from app.models.plugin_data import PluginData
@@ -29,6 +30,7 @@ __all__ = [
     "Corpus",
     "DocumentVersion",
     "McpToken",
+    "PasswordResetToken",
     "PluginData",
     "TeiSchema",
     "VersionOrigin",

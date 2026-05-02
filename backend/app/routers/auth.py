@@ -25,6 +25,8 @@ from app.schemas.auth import (
     ImpersonationResponse,
     LoginRequest,
     PasswordChangeRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     TokenResponse,
     UserMeResponse,
     UserMeUpdate,
@@ -39,6 +41,10 @@ from app.services.auth import (
     get_active_role,
     refresh_session,
     revoke_session,
+)
+from app.services.password_reset import (
+    confirm_reset as _confirm_reset,
+    request_reset as _request_reset,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -271,6 +277,47 @@ async def password_change(
         raise AuthorizationError()
     await change_password(db, current_user, body.current_password, body.new_password)
     return DataResponse(data={"message": "Password changed successfully"})
+
+
+@router.post("/password/reset/request", status_code=204)
+@limiter.limit(STRICT_LIMIT)
+async def password_reset_request(
+    request: Request,
+    body: PasswordResetRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Public entry point for password recovery.
+
+    Always returns 204 — even if the account does not exist — so the
+    caller cannot tell which usernames / emails are valid via timing
+    or response shape. The actual email is fired only when a matching
+    active user exists, see ``services.password_reset.request_reset``.
+
+    Rate-limited at ``STRICT_LIMIT`` (10/min) per source IP.
+    """
+    await _request_reset(db, body.email_or_username)
+    return Response(status_code=204)
+
+
+@router.post("/password/reset/confirm", status_code=204)
+@limiter.limit(STRICT_LIMIT)
+async def password_reset_confirm(
+    request: Request,
+    body: PasswordResetConfirm,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Apply a new password using a token issued by ``/password/reset/request``.
+
+    On success returns 204 (the user is meant to log in afterwards
+    with the new password). On any failure raises a single
+    ``AuthenticationError(code=INVALID_RESET_TOKEN, status=401)`` —
+    the client cannot tell whether the token was missing, expired or
+    already used.
+
+    Rate-limited at ``STRICT_LIMIT`` (10/min) per source IP.
+    """
+    await _confirm_reset(db, body.token, body.new_password)
+    return Response(status_code=204)
 
 
 @router.post("/impersonate/{user_id}")

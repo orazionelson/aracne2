@@ -23,7 +23,29 @@
     "password": "Password",
     "show_password": "Show",
     "hide_password": "Hide",
-    "invalid_credentials": "Invalid credentials. Please try again."
+    "invalid_credentials": "Invalid credentials. Please try again.",
+    "forgot_password_link": "Forgot your password?",
+    "forgot": {
+      "title": "Reset your password",
+      "intro": "Enter your username or email address. If we have an account on file, we'll send you a reset link.",
+      "field_label": "Username or email",
+      "field_placeholder": "you@example.org",
+      "submit": "Send reset link",
+      "confirmation": "If an account exists for the value you entered, you will receive a reset email shortly. The link is valid for 24 hours.",
+      "back_to_login": "Back to login"
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "intro": "Pick a new password — it must be at least 8 characters long.",
+      "new_password_label": "New password",
+      "confirm_label": "Confirm new password",
+      "submit": "Update password",
+      "password_too_short": "Password must be at least 8 characters.",
+      "passwords_mismatch": "The two passwords don't match.",
+      "invalid_or_expired": "The reset link is invalid or has expired.",
+      "request_a_new_one": "Request a new one.",
+      "success_banner": "Your password has been updated. Sign in with the new one."
+    }
   },
   "home": {
     "title": "Aracne2",
