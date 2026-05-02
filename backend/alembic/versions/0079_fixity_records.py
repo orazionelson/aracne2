@@ -27,6 +27,7 @@ Create Date: 2026-05-03
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "0079"
@@ -76,7 +77,15 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            sa.Enum("ok", "drifted", "missing", "error", name="fixity_status", create_type=False),
+            # Use the PostgreSQL-dialect ENUM with ``create_type=False`` so
+            # SQLAlchemy does not re-emit ``CREATE TYPE`` after the DO-block
+            # above has already created it. ``sa.Enum(..., create_type=False)``
+            # inside ``op.create_table`` ignores the flag and triggers
+            # ``DuplicateObjectError`` on re-runs (CLAUDE.md §Alembic).
+            postgresql.ENUM(
+                "ok", "drifted", "missing", "error",
+                name="fixity_status", create_type=False,
+            ),
             nullable=False,
             server_default=sa.text("'ok'"),
         ),
