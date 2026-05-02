@@ -794,7 +794,12 @@ async def submit_collection(
         actor=actor,
         audit_log_row=audit_row,
     )
-    await hook_registry.emit(HookEvent.ON_COLLECTION_SUBMITTED, collection=col)
+    await hook_registry.emit(
+        HookEvent.ON_COLLECTION_SUBMITTED,
+        collection=col,
+        actor=actor,
+        note=body.note,
+    )
     logger.info("collection_submitted", slug=col.slug, editor=actor.username)
     return CollectionResponse.model_validate(col)
 
@@ -838,6 +843,12 @@ async def reject_collection(
         origin=VersionOrigin.rejection,
         actor=actor,
         audit_log_row=audit_row,
+    )
+    await hook_registry.emit(
+        HookEvent.ON_COLLECTION_REJECTED,
+        collection=col,
+        actor=actor,
+        note=body.note,
     )
     logger.info("collection_rejected", slug=col.slug, actor=actor.username)
     return CollectionResponse.model_validate(col)
@@ -903,7 +914,12 @@ async def publish_collection(
         audit_log_row=audit_row,
     )
     if content_changed:
-        await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
+        await hook_registry.emit(
+            HookEvent.ON_COLLECTION_PUBLISHED,
+            collection=col,
+            actor=actor,
+            note=body.note,
+        )
     logger.info(
         "collection_published",
         slug=col.slug,
@@ -970,7 +986,12 @@ async def direct_publish_collection(
         audit_log_row=audit_row,
     )
     if content_changed:
-        await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
+        await hook_registry.emit(
+            HookEvent.ON_COLLECTION_PUBLISHED,
+            collection=col,
+            actor=actor,
+            note=body.note,
+        )
     logger.info(
         "collection_direct_published",
         slug=col.slug,

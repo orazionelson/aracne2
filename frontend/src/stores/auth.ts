@@ -30,6 +30,10 @@ interface UserMe {
   /** Short freeform bio shown on the Profile page. Tiny Markdown
    * subset (``**bold**``, ``*italic*``, ``__underline__``). */
   bio: string | null;
+  /** Workflow-email opt-out. Defaults to ``true`` server-side; the
+   * Profile toggle flips it via PATCH /auth/me. Transactional emails
+   * (password reset) ignore this flag. */
+  email_notifications_enabled: boolean;
   created_at: string;
   last_login_at: string | null;
 }
@@ -110,6 +114,7 @@ export const useAuthStore = defineStore("auth", () => {
     preferred_lang?: string;
     orcid?: string | null;
     bio?: string | null;
+    email_notifications_enabled?: boolean;
   }): Promise<void> {
     const res = await api.patch<UserMe>("/auth/me", patch);
     user.value = res.data.data;

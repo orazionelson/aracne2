@@ -27,6 +27,7 @@ class HookEvent:
 
     # Collection lifecycle events
     ON_COLLECTION_SUBMITTED = "collection.submitted"
+    ON_COLLECTION_REJECTED = "collection.rejected"
     ON_COLLECTION_PUBLISHED = "collection.published"
     ON_COLLECTION_UNPUBLISHED = "collection.unpublished"
 

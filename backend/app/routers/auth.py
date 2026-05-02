@@ -115,6 +115,7 @@ async def login(
                 orcid=user.orcid,
                 avatar_url=user.avatar_url,
                 bio=user.bio,
+                email_notifications_enabled=user.email_notifications_enabled,
                 created_at=user.created_at.isoformat(),
                 last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
             ).model_dump(),
@@ -195,6 +196,8 @@ async def update_me(
         current_user.orcid = body.orcid or None
     if "bio" in body.model_fields_set:
         current_user.bio = body.bio or None
+    if body.email_notifications_enabled is not None:
+        current_user.email_notifications_enabled = body.email_notifications_enabled
     await db.flush()
     role = request.state.role
     return DataResponse(
@@ -208,6 +211,7 @@ async def update_me(
             orcid=current_user.orcid,
             avatar_url=current_user.avatar_url,
             bio=current_user.bio,
+            email_notifications_enabled=current_user.email_notifications_enabled,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -239,6 +243,7 @@ async def me(
             orcid=current_user.orcid,
             avatar_url=current_user.avatar_url,
             bio=current_user.bio,
+            email_notifications_enabled=current_user.email_notifications_enabled,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -332,6 +337,7 @@ async def impersonate(
                 orcid=target.orcid,
                 avatar_url=target.avatar_url,
                 bio=target.bio,
+                email_notifications_enabled=target.email_notifications_enabled,
                 created_at=target.created_at.isoformat(),
                 last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
             ),

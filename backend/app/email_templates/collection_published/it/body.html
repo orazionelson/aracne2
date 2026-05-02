@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="it">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Ciao {{ recipient_display_name }},</p>
+  <p>
+    <strong>{{ actor_name }}</strong> ha pubblicato la collezione
+    <a href="{{ collection_url }}">{{ collection_title }}</a>.
+  </p>
+  {% if note %}
+  <p><em>Nota:</em></p>
+  <blockquote style="border-left: 3px solid #ccc; padding-left: 1em; color: #555;">
+    {{ note }}
+  </blockquote>
+  {% endif %}
+  <p>La collezione è ora visibile al pubblico; il flusso editoriale di
+  questa revisione è chiuso.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    Per disattivare le notifiche email del flusso editoriale, deseleziona
+    "Notifiche email" dal tuo profilo.
+  </p>
+</body>
+</html>

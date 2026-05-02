@@ -51,6 +51,24 @@ async function saveOrcid(): Promise<void> {
   }
 }
 
+// ── Email notifications toggle ────────────────────────────────────────────
+const emailNotifSaving = ref(false);
+const emailNotifError = ref<string | null>(null);
+
+async function toggleEmailNotifications(next: boolean): Promise<void> {
+  emailNotifError.value = null;
+  emailNotifSaving.value = true;
+  try {
+    await auth.updateMe({ email_notifications_enabled: next });
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    emailNotifError.value = msg ?? t("common.error");
+  } finally {
+    emailNotifSaving.value = false;
+  }
+}
+
 // ── Avatar upload + delete ────────────────────────────────────────────────
 const avatarError = ref<string | null>(null);
 const isUploadingAvatar = ref(false);
@@ -355,6 +373,33 @@ const renderedBioPreview = computed(() => renderBio(bioDraft.value));
         <div class="flex justify-between">
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.preferred_lang") }}</span>
           <span>{{ auth.user.preferred_lang }}</span>
+        </div>
+
+        <!-- Email notifications toggle (workflow emails only — password
+             reset bypasses this flag). Inline checkbox, no edit state:
+             changes are persisted as soon as the user toggles. -->
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.email_notifications") }}</span>
+            <label class="inline-flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                :checked="auth.user.email_notifications_enabled"
+                :disabled="emailNotifSaving"
+                @change="toggleEmailNotifications(($event.target as HTMLInputElement).checked)"
+                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span class="text-sm text-gray-700 dark:text-gray-300">
+                {{ auth.user.email_notifications_enabled ? t("profile.email_notifications_on") : t("profile.email_notifications_off") }}
+              </span>
+            </label>
+          </div>
+          <p v-if="emailNotifError" class="mt-1 text-xs text-red-600 dark:text-red-400">
+            {{ emailNotifError }}
+          </p>
+          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("profile.email_notifications_hint") }}
+          </p>
         </div>
 
         <!-- ORCID — inline editable field. Empty submit clears it. -->
