@@ -134,21 +134,49 @@ depends on the XML layer being in place first.
 
 ---
 
-## 7. Document versioning 🔴 High
+## 7. ~~Document versioning~~ ✅ Shipped
 
-**Why deferred**
+Shipped across Milestone 1 (Phases A1, A2, B, C, D, E). The
+PostgreSQL-snapshot approach won the architectural call: a new
+``document_versions`` table (Alembic 0072) stores gzipped XML blobs
+keyed by ``(collection_id, document_filename, version_number)`` with
+SHA-256 fingerprints, ``origin`` enum (creation / manual / submission
+/ rejection / publication / rollback), and a back-pointer to the
+audit_log row that originated each snapshot. eXist-db's built-in
+versioning was rejected — opaque, per-collection config, hard to
+expose via REST.
+
+The shipped feature also introduces a **working/published split** in
+eXist-db (``/db/aracne2/collections/{slug}`` editable forever,
+``/db/aracne2/published/{slug}`` immutable snapshot served to the
+public) so an editor can keep modifying a published collection
+without taking the public site offline. The "Collection is published
+— unpublish before editing" lock is gone.
+
+REST surface:
+- ``GET/POST/DELETE /collections/{id}/documents/{filename}/versions[...]``
+- ``GET .../versions/{n}/diff?against=M`` (line-based unified diff)
+- ``GET /public/collections/{slug}/documents/{filename}?version=N``
+  (publication-only, with ``X-Robots-Tag: noindex`` and a canonical
+  ``<link>``)
+
+Frontend: a sidebar ``VersionHistoryPanel.vue`` on the document
+editor with origin badges, "Save version" modal, rollback flow, and
+unified-diff viewer. ProfileView gains an "Unpublished changes"
+badge on collection detail when the working tree fingerprint
+diverges from ``last_published_tree_hash``.
+
+Original deferral note kept below for historical context.
+
+**Why was deferred**
 eXist-db has built-in versioning (versioning module), but enabling it
 requires per-collection configuration. Whether to use eXist-db versioning
 or a manual snapshot table in PostgreSQL is an open architectural decision.
 
-**Open question**
-- eXist-db versioning: automatic, no extra code, but opaque and hard to
-  expose via API.
-- PostgreSQL snapshot table: full control, queryable diff history, but
-  requires storing XML blobs or diffs.
-
-**Trigger to implement**
-Phase 05+ — decide the approach when document CRUD is designed.
+**Trigger that fired**
+Milestone 1 of the roadmap explicitly placed it first because every
+later feature (CLI export ``--as-of``, NL search citations, M2 fixity)
+assumes a versioned document store.
 
 ---
 
@@ -204,16 +232,47 @@ Items still genuinely deferred:
 
 ---
 
-## 11. Email / external notification channels 🔴 High
+## 11. ~~Email / external notification channels~~ ✅ Shipped
 
-**Why deferred**
+Shipped in Milestone 1 (Phases EM-A, EM-B, EM-C). Architecture is
+**Postfix-mediated**: the backend talks plain SMTP to a local
+Postfix container on the docker network (no auth, no TLS), and
+Postfix handles queue / retry / DKIM / relay to the operator's
+smarthost. No SMTP secrets in the DB.
+
+Components:
+- ``services/email.py`` — ``aiosmtplib`` send + Jinja2 template
+  loader (``app/email_templates/{event}/{lang}/``) with ``en`` / ``it``
+  fallback to the platform default language.
+- New native plugin ``email_dispatcher`` registers three workflow
+  hook handlers: ``ON_COLLECTION_SUBMITTED``,
+  ``ON_COLLECTION_REJECTED`` (new event constant), ``ON_COLLECTION_PUBLISHED``.
+  Each is fire-and-forget via ``asyncio.create_task``, opens its own
+  ``AsyncSessionLocal``, never propagates back to the workflow op.
+- Per-user ``users.email_notifications_enabled`` toggle (Alembic
+  0073, default TRUE) gates *workflow* emails. Transactional emails
+  (password reset) bypass it.
+- **Password reset flow**, the platform was missing entirely:
+  ``password_reset_tokens`` table (Alembic 0074, SHA-256 hashed
+  plaintext, 24h TTL, single-use); ``POST /auth/password/reset/request``
+  always returns 204 (no enumeration); ``POST /auth/password/reset/confirm``
+  applies the new password and revokes every active session of the user;
+  frontend public views at ``/forgot-password`` and ``/reset-password/:token``.
+- 6 email templates × EN+IT: ``collection_submitted``,
+  ``collection_rejected``, ``collection_published``, ``password_reset``.
+
+Original deferral note kept below for historical context.
+
+**Why was deferred**
 The `notification_dispatcher` plugin currently writes only in-app
 notifications. Email delivery requires an SMTP integration (or SES/Postmark)
 and an email template system (HTML + plaintext). No email use case exists yet.
 
-**Trigger to implement**
-First user-facing flow that requires out-of-band notification:
-password reset, publication approval, or account verification.
+**Trigger that fired**
+The platform now has full editorial workflows (submit / reject /
+publish) and account-recovery is needed in production — the only
+password-change path was authenticated, so a forgotten password
+required Admin intervention.
 
 ---
 

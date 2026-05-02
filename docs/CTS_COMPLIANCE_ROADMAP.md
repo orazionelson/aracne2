@@ -45,20 +45,20 @@ The roadmap is structured around this split.
 |---|---|---|---|---|
 | R1  | Mission/Scope                  | Organizational     | None — neutral                                          | Institutional declaration owed |
 | R2  | Licenses                       | Organizational     | License catalogue + per-collection assignment + LOD/OAI-PMH exposure | ✅ Strong |
-| R3  | Continuity of access           | Organizational     | Multi-target deposit (Zenodo / IA / Codeberg / GH / GL / Dataverse) + static export + native backup | ✅ Strong |
+| R3  | Continuity of access           | Organizational     | Multi-target deposit (Zenodo / IA / Codeberg / GH / GL / Dataverse) + static export + native backup + headless `aracne-cli export --as-of <date>` | ✅ Strong |
 | R4  | Confidentiality / Ethics       | Organizational     | GDPR primitives (PII fields, retention, IP hashing); export/delete endpoints planned | 🟡 Partial — endpoints to ship |
 | R5  | Organizational infrastructure  | Organizational     | None — neutral                                          | Institutional declaration owed |
 | R6  | Expert guidance                | Organizational     | None — neutral                                          | Institutional declaration owed |
-| R7  | Data integrity and authenticity| Digital Object Mgmt| TEI validation + audit log + role gating + signed JWT; **fixity layer missing** | 🟡 Partial — fixity scheduler planned |
+| R7  | Data integrity and authenticity| Digital Object Mgmt| TEI validation + audit log + role gating + signed JWT + **`document_versions` history with SHA-256 fingerprints (Alembic 0072)**; **fixity layer scheduler still missing** | 🟡 Partial — fixity scheduler planned |
 | R8  | Appraisal                      | Digital Object Mgmt| None — neutral                                          | Institutional declaration owed |
 | R9  | Documented storage procedures  | Digital Object Mgmt| Storage architecture in OPERATIONS.md; per-deployment storage policy template missing | 🟡 Partial — template planned |
 | R10 | Preservation plan              | Digital Object Mgmt| Format-as-preservation (TEI) + multi-deposit; migration plan template missing | 🟡 Partial — template planned |
 | R11 | Data quality                   | Digital Object Mgmt| Schema validation + workflow review + entity normalisation + bibliography normaliser | ✅ Strong |
-| R12 | Workflows                      | Digital Object Mgmt| Workflow states + audit log + deposit hooks + notifications | ✅ Strong |
+| R12 | Workflows                      | Digital Object Mgmt| Workflow states + audit log + deposit hooks + in-app notifications + **email dispatcher (Postfix-mediated SMTP) for submitted/rejected/published events** | ✅ Strong |
 | R13 | Discovery and identification   | Digital Object Mgmt| OAI-PMH + sitemap + JSON-LD + DOI via Zenodo + 12 authority lookups | ✅ Strong |
 | R14 | Reuse                          | Digital Object Mgmt| License exposure + raw TEI + JSON-LD + DOI + embed widget + MCP server | ✅ Strong |
 | R15 | Technical infrastructure       | Technology         | TEI / REST / OAI-PMH / JSON-LD / Docker; open source; monitoring | ✅ Strong |
-| R16 | Security                       | Technology         | 5 security reviews + defusedxml + HSTS/CSP + bcrypt + Fernet + ACL + Dependabot | ✅ Strong |
+| R16 | Security                       | Technology         | 6 security reviews + defusedxml + HSTS/CSP + bcrypt + Fernet + ACL + Dependabot + **bcrypt-hashed Personal Access Tokens for headless clients (revocable, role-scoped)** + **password reset flow with single-use SHA-256-hashed tokens, 24h TTL, all-sessions-revoke on confirm** | ✅ Strong |
 
 **Counts**: 7 ✅ strong, 4 🟡 partial (with planned platform work), 5 ❌ purely
 institutional. The 5 institutional-only items are inherent to CTS;
@@ -116,6 +116,13 @@ out to have been mis-assigned.
   configuration (S3, NFS, rsync).
 - **OAI-PMH harvest endpoint**: external aggregators (CLARIN,
   national research-infra harvesters) can re-ingest the corpus.
+- **Headless CLI export** (``aracne-cli export``): an editor armed
+  with a Personal Access Token can pull the corpus to disk as a
+  ZIP archive (manifest + per-doc files) from any terminal,
+  outside the SPA. ``--as-of YYYY-MM-DD`` resolves each document
+  to its ``publication``-origin row at or before the date so a
+  successor institution can snapshot the corpus exactly as it
+  appeared on a specific day, without server-side cooperation.
 
 **Institution must declare**: a **succession plan** identifying:
 - which deposit targets are mandatory at publish time;
@@ -203,15 +210,23 @@ composition, the procedure for consulting experts on edge cases.
   encryption for sensitive settings.
 - defusedxml on every XML parse path (XXE prevention; closed
   CVE-2026-41066 in Security review 2026-04-29).
+- **Native version history of TEI** (Alembic 0072 ``document_versions``):
+  every workflow event (submission, rejection, publication,
+  rollback) and every editor "Save version" action snapshots the
+  document body, gzip-compressed, with a SHA-256 fingerprint of the
+  uncompressed XML. The history is queryable via REST + a
+  per-collection working/published storage split in eXist-db means
+  editor edits never leak to the public until a re-publish.
+- **Audit-log → version-row back-pointer**: every
+  ``document_versions`` row carries the ``audit_log.id`` that
+  originated it, so a CTS reviewer can navigate "this row was
+  written when EiC X clicked Approve at time T" in O(1).
 
 **Platform gaps (planned)**:
-- **Fixity layer**: no SHA-256 / SHA-512 is computed and stored at
-  the moment of TEI deposit; no scheduled job re-checks file
-  integrity; no drift report. *This is the single most visible gap
-  to a CTS reviewer for R7.*
-- **Version history of TEI**: today is last-write-wins. Git-based
-  deposit (Codeberg / GitHub / GitLab) provides version history
-  indirectly; native in-platform versioning is missing.
+- **Fixity layer scheduler**: the SHA-256 fingerprints are *stored*
+  on every version row, but the scheduled re-check + drift report
+  is the Milestone 2 deliverable. *This is the remaining most
+  visible gap to a CTS reviewer for R7.*
 - **Provenance graph** (PROV-O / PREMIS): the audit log captures
   *who did what when*, but not in a Linked Data Provenance
   serialisation that downstream consumers can ingest.
@@ -306,9 +321,16 @@ over time.
 - Workflow states explicit in the data model.
 - Audit log of all transitions.
 - Hook system (`ON_COLLECTION_PUBLISHED`, `ON_COLLECTION_SUBMITTED`,
-  `ON_DOCUMENT_UPLOADED`, `ON_USER_LOGIN`, …) wiring downstream
-  actions like deposit, notification, webhook dispatch.
-- Notification dispatcher for editor / EiC / admin.
+  `ON_COLLECTION_REJECTED`, `ON_DOCUMENT_UPLOADED`, `ON_USER_LOGIN`,
+  …) wiring downstream actions like deposit, notification, email
+  dispatch, webhook dispatch.
+- In-app notification dispatcher for editor / EiC / admin.
+- **Email dispatcher** (Postfix-mediated SMTP via local container)
+  for the three workflow events that leave the platform: submitted
+  → all active EiCs; rejected/revisions-requested → assigned editor;
+  published → assigned editor. Templates in ``en`` + ``it``,
+  per-user opt-out via ``users.email_notifications_enabled``,
+  fire-and-forget so an SMTP failure never blocks the workflow op.
 
 **Institution must declare**: the implemented workflow (who can
 move a collection from review to published; how long a draft
@@ -368,7 +390,8 @@ citation format per collection, attribution expectations.
   ([quickstart.md](../quickstart.md)) and Linux server in test/dev
   + production
   ([INSTALL_LINUX_SERVER.md](INSTALL_LINUX_SERVER.md)).
-- Test suite (~543 tests, of which 18 security-focused).
+- Test suite (~726 backend tests, of which ~25 security-focused, plus
+  ~24 tests for the standalone `aracne-cli` package in `cli/`).
 - Monitoring: `/api/v1/metrics` Prometheus endpoint + structlog
   JSON logs in production.
 
@@ -389,9 +412,25 @@ process, disaster-recovery rehearsal cadence.
 - Bcrypt password hashing with configurable rounds.
 - JWT with httpOnly + SameSite=Strict refresh cookie; access
   token in Pinia memory only.
-- Rate limiting via slowapi (STRICT 10/min on auth, GLOBAL 200/min
-  default, per-route overrides).
-- Fernet encryption for sensitive settings (API keys, PATs, tokens).
+- **Personal Access Tokens** (Alembic 0075) for headless clients:
+  bcrypt-hashed plaintext (``aracne2_pat_`` prefix +
+  ``secrets.token_urlsafe(32)``), prefix-detected in
+  ``app/middleware/acl.py`` ahead of the JWT decode path,
+  inherits the issuer's currently-active role, soft-revoke via
+  ``revoked_at``. Self-service issue/revoke from the user's own
+  Profile page.
+- **Password reset flow** with single-use SHA-256-hashed tokens
+  (Alembic 0074), 24h TTL, ``used_at`` enforces single use; the
+  confirm endpoint revokes every active session of the user before
+  applying the new password (mirrors ``change_password``).
+  ``/auth/password/reset/request`` always returns 204 (no
+  account enumeration); ``/auth/password/reset/confirm`` collapses
+  every failure mode to ``INVALID_RESET_TOKEN``.
+- Rate limiting via slowapi (STRICT 10/min on auth + reset
+  endpoints, GLOBAL 200/min default, per-route overrides).
+- Fernet encryption for sensitive settings (API keys, deposit
+  tokens). PATs are bcrypt-hashed (one-way) so even if the DB
+  leaks an attacker cannot reconstruct the plaintext.
 - Role-based ACL explicit on every endpoint via
   `Depends(require_role(...))`.
 - HTTPS guidance in [`INSTALL_LINUX_SERVER.md`](INSTALL_LINUX_SERVER.md).
@@ -530,6 +569,7 @@ roadmap section.
 | Date | Change |
 |---|---|
 | 2026-04-29 | Initial roadmap drafted post-MCP / post-public-flip work. |
+| 2026-05-02 | Milestone 1 — three of five items shipped. Document versioning + email channels + CLI/PAT all landed; GDPR self-service endpoints (the only direct CTS deliverable in M1) still pending. R7 partial bullet "Version history of TEI" closes; R12 reinforced with email; R3 reinforced with `aracne-cli export --as-of`; R16 reinforced with PATs and password-reset flow. Test suite count refreshed (~543 → ~726 backend + ~24 CLI). |
 
 *Maintained by the platform maintainer; institutional declarations
 are out of scope of this file but referenced where they belong.*

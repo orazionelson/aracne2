@@ -20,29 +20,44 @@ adding the surfaces that a real editorial team needs from day one
 (versioning, email notifications, batch CLI), plus the first
 public-facing AI feature (NL search).
 
-| Ref | Item | One-liner |
-|---|---|---|
-| FUTURE_IDEAS §1 | CLI import/export tool | Standalone command-line tool to ingest / export collections in batch — outside the SPA, scriptable in CI / cron / migration contexts |
-| FUTURE_IDEAS §24 | `public_navigation` capability | Auto-cabling primitive: plugins declare a public-page link; admin toggles surface them in header / home / footer (mirrors `inline_authority` / `collection_deposit` / `website_deposit`) |
-| FUTURE_IDEAS §25 | Natural-language search plugin | Public-facing chat-style search at `/search-nl`, MCP-tool-grounded, abuse-mitigated (budget cap, auth gate, per-IP limit). **Depends on §24** for the public-pages link toggle |
-| DEFERRED §7 | Document versioning | Versioned history of TEI documents — rollback, diff, "this is the version of this date" recoverable in-app |
-| DEFERRED §11 | Email / external notification channels | SMTP integration + templates so password resets, publication approvals, and account verification can leave the platform |
+| Ref | Item | One-liner | Status |
+|---|---|---|---|
+| DEFERRED §7 | Document versioning | Versioned history of TEI documents — rollback, diff, "this is the version of this date" recoverable in-app | ✅ Shipped |
+| DEFERRED §11 | Email / external notification channels | SMTP integration + templates so password resets, publication approvals, and account verification can leave the platform | ✅ Shipped |
+| FUTURE_IDEAS §1 | CLI import/export tool | Standalone command-line tool to ingest / export collections in batch — outside the SPA, scriptable in CI / cron / migration contexts | ✅ Shipped |
+| FUTURE_IDEAS §24 | `public_navigation` capability | Auto-cabling primitive: plugins declare a public-page link; admin toggles surface them in header / home / footer (mirrors `inline_authority` / `collection_deposit` / `website_deposit`) | ⏳ Pending |
+| FUTURE_IDEAS §25 | Natural-language search plugin | Public-facing chat-style search at `/search-nl`, MCP-tool-grounded, abuse-mitigated (budget cap, auth gate, per-IP limit). **Depends on §24** for the public-pages link toggle | ⏳ Pending |
 
 ### Order of work inside the milestone
 
-1. **DEFERRED §7 (Document versioning)** — touches the core data
+1. ✅ **DEFERRED §7 (Document versioning)** — touches the core data
    model; landing first lets every later feature assume a versioned
-   document store.
-2. **DEFERRED §11 (Email channels)** — independent of versioning;
+   document store. Shipped across Phases A1, A2, B, C, D, E
+   (working/published split, ``document_versions`` table with
+   workflow auto-versioning + dedup, REST + public ``?version=N``
+   permalink, editor history sidebar + diff viewer + rollback,
+   "Unpublished changes" badge).
+2. ✅ **DEFERRED §11 (Email channels)** — independent of versioning;
    can land in parallel with the versioning work after the model
-   change settles.
-3. **FUTURE_IDEAS §1 (CLI tool)** — depends on stable import /
+   change settles. Shipped across Phases EM-A, EM-B, EM-C
+   (Postfix-mediated SMTP via local container, three workflow hook
+   handlers, ``ON_COLLECTION_REJECTED`` event constant, per-user
+   ``email_notifications_enabled`` toggle, password reset
+   end-to-end with ``password_reset_tokens`` table + frontend
+   ``/forgot-password`` and ``/reset-password/:token`` views).
+3. ✅ **FUTURE_IDEAS §1 (CLI tool)** — depends on stable import /
    export surface; benefits from versioning being in place
-   (so `aracne export --as-of 2026-03-01` is meaningful).
-4. **FUTURE_IDEAS §24 (`public_navigation` primitive)** — small
+   (so `aracne export --as-of 2026-03-01` is meaningful). Shipped
+   across Phases CLI-A (Personal Access Tokens via new
+   ``personal_access_tokens`` table; ``acl.py`` learns to dispatch
+   ``aracne2_pat_`` bearers ahead of the JWT decode), CLI-B
+   (Profile "API tokens" card with copy-once issue modal), CLI-C
+   (the ``aracne`` typer app in ``cli/`` with ``login`` /
+   ``whoami`` / ``import`` / ``export``).
+4. ⏳ **FUTURE_IDEAS §24 (`public_navigation` primitive)** — small
    footprint (~2.5 days). Lands before §25 because the toggle is a
    §25 prerequisite.
-5. **FUTURE_IDEAS §25 (NL search plugin)** — last, because it
+5. ⏳ **FUTURE_IDEAS §25 (NL search plugin)** — last, because it
    consumes §24 and is the largest item (~5 days).
 
 ### Milestone 1 acceptance criteria
@@ -59,32 +74,52 @@ public-facing AI feature (NL search).
 
 ### CTS compliance deliverables — Milestone 1
 
-Milestone 1 closes one CTS roadmap item directly and contributes
-indirectly to others. The two template-style items originally
-planned here (Storage Policy + Continuity Plan templates) are
-**folded into the `policy_pages` plugin in Milestone 3** — see
+Milestone 1 was originally planned to close one CTS roadmap item
+directly (GDPR self-service endpoints) and contribute indirectly to
+others. **Status as of the three-of-five items shipped**: the
+indirect contributions have landed; the GDPR endpoints have *not*
+been shipped yet — they remain a pending Milestone 1 deliverable
+even though §1 / §7 / §11 are done. The two template-style items
+originally planned here (Storage Policy + Continuity Plan templates)
+are **folded into the `policy_pages` plugin in Milestone 3** — see
 [FUTURE_IDEAS §27](FUTURE_IDEAS.md). They are no longer Milestone 1
 deliverables.
 
-| CTS roadmap item | CTS requirement | Status before milestone | Status after milestone |
+| CTS roadmap item | CTS requirement | Status before milestone | Status now |
 |---|---|---|---|
-| GDPR self-service endpoints (`GET /users/me/export`, `DELETE /users/me`) | R4 — Confidentiality / Ethics | 🟡 partial | ✅ platform side complete; institutional DPIA still owed |
+| GDPR self-service endpoints (`GET /users/me/export`, `DELETE /users/me`) | R4 — Confidentiality / Ethics | 🟡 partial | 🟡 partial — *still pending in M1, not yet shipped* |
 
-Indirect contributions:
+Indirect contributions **landed**:
 
-- **Document versioning** (Milestone 1 core) → R7 — Data integrity
-  and authenticity. Versioned TEI history is *evidence* of
-  integrity ("show me the document as of date X"); it does not
-  replace fixity (R7 → ✅ requires Milestone 2's fixity scheduler)
-  but moves R7 closer.
-- **Email / external notifications** → R12 — Workflows. Workflow
-  state changes now leave the platform; the audit trail of
+- **Document versioning** (DEFERRED §7) → R7 — Data integrity and
+  authenticity. Shipped. Versioned TEI history is *evidence* of
+  integrity ("show me the document as of date X") and the
+  ``document_versions(content_sha256)`` column is already the seed
+  Milestone 2's fixity scheduler will read. R7 partial bullet
+  "Version history of TEI" closes; "fixity layer" gap remains.
+- **Email / external notifications** (DEFERRED §11) → R12 —
+  Workflows. Shipped. Workflow state changes (submit / reject /
+  publish) now leave the platform via Postfix; the audit trail of
   notifications adds a verification surface a CTS reviewer can
-  inspect.
+  inspect. R12 stays ✅ Strong, reinforced.
+- **CLI import/export tool** (FUTURE_IDEAS §1) → R3 — Continuity of
+  access. Shipped. Adds a headless escape hatch ("editor with a
+  PAT can pull the corpus to disk and re-import on a fresh
+  instance") that complements the existing six deposit backends and
+  static export. The ``--as-of <date>`` mode lets a successor
+  institution snapshot the corpus at a specific moment in time. R3
+  stays ✅ Strong, reinforced.
+- **Personal Access Tokens** (CLI auth substrate) → R16 — Security.
+  Shipped. Bcrypt-hashed long-lived bearers, prefix-detected and
+  dispatched in ``app/middleware/acl.py``, scoped to the issuer's
+  current role; soft-revoke via ``revoked_at``. Adds an auditable
+  alternative to JWT for headless clients without weakening
+  session security. R16 stays ✅ Strong, reinforced.
 
-**Milestone 1 close → CTS status table**: R4 ✅ platform side
-complete; R3, R7, R9, R10, R16 unchanged (R3 / R9 / R10
-declarations are deferred to Milestone 3 via `policy_pages`).
+**Current CTS status table** (after the 3-of-5 M1 items shipped):
+R12 ✅ reinforced; R7 still 🟡 (fixity in M2); R4 still 🟡 (GDPR
+endpoints owed); R3 ✅ reinforced; R16 ✅ reinforced. R9 / R10
+declarations remain deferred to Milestone 3 via `policy_pages`.
 
 ---
 
@@ -305,3 +340,6 @@ This file is updated when:
 | 2026-04-29 | Initial roadmap — two named sprints + backlog. |
 | 2026-04-29 | Added Sprint 3 (`policy_pages` plugin, FUTURE_IDEAS §27). Sprints 1 / 2 lose their template-style CTS deliverables — folded into the plugin's built-in templates. |
 | 2026-04-29 | Renamed "sprint" → "milestone" (the latter doesn't carry the Scrum-fixed-timebox connotation, fitting Aracne's open-ended cadence). Moved FUTURE_IDEAS §21 (MCP Phase 2 write tools) and §22 (MCP Phase 3 identity) from Milestone 2 to the backlog — both depend on real MCP usage signals from Milestone 1's NL search before they can be designed without guesswork. |
+| 2026-05-02 | **DEFERRED §7 (Document versioning) ✅ Shipped** across Phases A1, A2, B, C, D, E. Working/published split in eXist-db; new `document_versions` table (Alembic 0072) with workflow auto-versioning and SHA-256 dedup; REST + public `?version=N` permalink; editor history sidebar + diff viewer + rollback; "Unpublished changes" badge. CTS R7 partial bullet "Version history of TEI" closes. |
+| 2026-05-02 | **DEFERRED §11 (Email channels) ✅ Shipped** across Phases EM-A, EM-B, EM-C. Postfix-mediated SMTP via local container; new `email_dispatcher` native plugin with three workflow handlers; `ON_COLLECTION_REJECTED` event added; per-user `email_notifications_enabled` toggle; password reset flow end-to-end (`password_reset_tokens` table, frontend `/forgot-password` and `/reset-password/:token` views). CTS R12 reinforced. |
+| 2026-05-02 | **FUTURE_IDEAS §1 (CLI tool) ✅ Shipped** across Phases CLI-A, CLI-B, CLI-C. New `personal_access_tokens` table (Alembic 0075) with bearer dispatch ahead of the JWT path in `acl.py`; ProfileView "API tokens" card with copy-once issue modal; `cli/aracne-cli` typer package (`login` / `whoami` / `import` / `export`) with `--as-of` resolution against `document_versions`. CTS R3 and R16 reinforced. |

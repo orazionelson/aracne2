@@ -19,37 +19,64 @@ prerequisite that would need to be in place first.
 
 ---
 
-## 1. CLI import/export tool 🔴 High
+## 1. ~~CLI import/export tool~~ ✅ Shipped
 
-A standalone command-line tool (`aracne-cli`) for bulk operations outside the web UI.
+Shipped in Milestone 1 (Phases CLI-A, CLI-B, CLI-C). The tool lives in
+[`cli/`](../cli/) of the monorepo, installable via `pip install -e cli/`
+from a fresh checkout (no PyPI publish — invite-only audience).
 
-**Motivation**
+**Auth subsystem (Phase CLI-A)**: new `personal_access_tokens` table
+(Alembic 0075) — long-lived bearer tokens an Editor+ issues from
+their own Profile to authenticate the CLI. Plaintext format
+``aracne2_pat_`` + 32 url-safe random bytes; bcrypt-digest stored
+in DB; the auth middleware in ``app/middleware/acl.py`` detects the
+prefix and dispatches to ``resolve_pat`` *before* the JWT decode
+path, so existing ``require_role`` guards keep working unchanged.
+PAT inherits the issuer's currently-active role (no per-token
+scoping in v1). Endpoints under ``/users/me/tokens`` (GET/POST/DELETE,
+Editor+).
+
+**Frontend (Phase CLI-B)**: a self-service "API tokens" card on
+``ProfileView`` with an issue modal that flips to a "copy this once"
+panel after creation, mirroring the MCP-token UX from the
+admin/CorporaView surface.
+
+**CLI tool (Phase CLI-C)**: a typer + httpx + rich app with four
+commands and ``--profile NAME`` for multi-deployment users.
+
+```
+aracne login --host https://aracne.example.org   # paste PAT, GET /auth/me to verify
+aracne whoami
+aracne import --collection my-corpus --dir ./tei-files/ \
+              --on-conflict skip|overwrite|fail   # default: skip
+aracne export --collection my-corpus --output corpus.zip
+aracne export --collection my-corpus --as-of 2026-04-01 --output q1.zip
+```
+
+The ``--as-of`` flag walks ``document_versions`` per filename,
+picks the highest ``publication``-origin row whose
+``created_at <= as-of``, and downloads that version's content —
+this is what the Milestone 1 acceptance criterion ("recover the
+previous content history") is satisfied by.
+
+Out of scope for v1 (deferred to a future milestone if needed):
+``aracne validate`` (offline schema check), ``aracne delete``
+(destructive ops stay UI-only), full-history serialization,
+PyPI publication, per-token scopes.
+
+Original idea note kept below for historical context.
+
+**Original motivation**
 Large editorial projects often start with an existing corpus of TEI files on a
 filesystem or in a zip archive. Manually uploading hundreds of documents through
 the web UI is impractical. Similarly, full collection exports for archiving or
 migration need to work headlessly.
 
-**Scope**
-```
-aracne-cli import --collection my-corpus --dir ./tei_files/ --host https://cms.example.com
-aracne-cli export --collection my-corpus --format zip --output ./export.zip
-aracne-cli validate --dir ./tei_files/ --schema tei_all
-```
-
-**Implementation options**
-- Python CLI using `click` or `typer`, distributed as a PyPI package.
-- Thin wrapper around the existing REST API (no direct DB access).
-  Authentication via a long-lived API token (new token type, separate from JWT sessions).
-- Can be developed independently of the CMS release cycle once the API is stable.
-
-**Open questions**
-- Long-lived API tokens require a new token type in the `sessions` table
-  (or a dedicated `api_tokens` table) with explicit scopes.
-- Conflict resolution on import: skip, overwrite, or rename duplicates?
-
-**Prerequisites**
-- Document CRUD API (Phase 05+)
-- API token authentication (new feature, not currently planned)
+**Original open questions** (resolved during implementation)
+- API token table: shipped as new ``personal_access_tokens`` parallel to
+  ``mcp_tokens``, per-user (not per-corpus).
+- Conflict resolution on import: ``--on-conflict {skip,overwrite,fail}``;
+  default ``skip`` for tolerance on re-imports of the same corpus.
 
 ---
 
