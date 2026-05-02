@@ -48,7 +48,14 @@ from app.schemas.collection_bibliography import (
     CollectionBibliographySave,
     CollectionBibliographySetPublic,
 )
+from app.models.document_version import VersionOrigin
 from app.schemas.collection_validation import CollectionValidationRunResponse
+from app.schemas.document_versions import (
+    DiffResponse,
+    DocumentVersionResponse,
+    ManualSaveRequest,
+    RollbackRequest,
+)
 from app.schemas.tei_schemas import ValidationResult
 from app.services.collection_validation import (
     cancel_validation_run,
@@ -61,18 +68,25 @@ from app.services.xmldb import (
     create_collection,
     delete_collection,
     delete_document,
+    delete_document_version,
+    diff_document_versions,
     direct_publish_collection,
     download_document,
     get_collection,
     get_document_metadata,
+    get_document_version,
+    get_document_version_content,
     grant_permission,
     list_collections,
+    list_document_versions,
     list_documents,
     list_permissions,
     list_workflow_history,
+    manual_save_document_version,
     publish_collection,
     reject_collection,
     revoke_permission,
+    rollback_document_to_version,
     search_in_collection,
     search_public_collections,
     submit_collection,
@@ -537,6 +551,188 @@ async def collection_search(
         db, existdb, collection_id, q, current_user, role, max_results
     )
     return DataResponse(data=hits)
+
+
+# ── Document versioning (Phase C) ─────────────────────────────────────────────
+
+@router.get("/{collection_id}/documents/{filename}/versions")
+async def document_versions_list(
+    collection_id: str,
+    filename: str,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    origin: Annotated[VersionOrigin | None, Query()] = None,
+) -> DataResponse[list[DocumentVersionResponse]]:
+    """List the version history of a document, newest first.
+
+    The ``?origin=`` filter is index-friendly and powers both the editor
+    history toggle ("publication only") and the public permalink lookup
+    surface."""
+    role: str = request.state.role
+    rows = await list_document_versions(
+        db, collection_id, filename, current_user, role, origin=origin
+    )
+    return DataResponse(
+        data=[DocumentVersionResponse.model_validate(r) for r in rows]
+    )
+
+
+@router.get(
+    "/{collection_id}/documents/{filename}/versions/{version_number}"
+)
+async def document_version_get(
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[DocumentVersionResponse]:
+    """Return the metadata of a single stored version (no XML body)."""
+    role: str = request.state.role
+    row = await get_document_version(
+        db, collection_id, filename, version_number, current_user, role
+    )
+    return DataResponse(data=DocumentVersionResponse.model_validate(row))
+
+
+@router.get(
+    "/{collection_id}/documents/{filename}/versions/{version_number}/content"
+)
+async def document_version_content(
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Return the raw XML body of a stored version (decompressed)."""
+    role: str = request.state.role
+    body = await get_document_version_content(
+        db, collection_id, filename, version_number, current_user, role
+    )
+    return Response(content=body, media_type="application/xml")
+
+
+@router.post(
+    "/{collection_id}/documents/{filename}/versions", status_code=201
+)
+async def document_version_manual_save(
+    collection_id: str,
+    filename: str,
+    body: ManualSaveRequest,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[DocumentVersionResponse]:
+    """Editor+ "Save version" — captures the working tree HEAD as a manual
+    snapshot with a free-text message. Subject to the per-document soft cap
+    (``system_settings.document_manual_versions_max``)."""
+    role: str = request.state.role
+    row = await manual_save_document_version(
+        db,
+        existdb,
+        collection_id,
+        filename,
+        body.message,
+        current_user,
+        role,
+    )
+    return DataResponse(data=DocumentVersionResponse.model_validate(row))
+
+
+@router.post(
+    "/{collection_id}/documents/{filename}/versions/{version_number}/rollback",
+    status_code=201,
+)
+async def document_version_rollback(
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    body: RollbackRequest,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
+) -> DataResponse[DocumentVersionResponse]:
+    """Constructive rollback — Editor+ rewrites the working tree HEAD with
+    the body of version ``{version_number}`` and appends a new
+    ``origin=rollback`` row carrying the same content."""
+    role: str = request.state.role
+    row = await rollback_document_to_version(
+        db,
+        existdb,
+        collection_id,
+        filename,
+        version_number,
+        current_user,
+        role,
+        note=body.note,
+    )
+    return DataResponse(data=DocumentVersionResponse.model_validate(row))
+
+
+@router.delete(
+    "/{collection_id}/documents/{filename}/versions/{version_number}",
+    status_code=204,
+)
+async def document_version_delete(
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Delete a manual version row.
+
+    Allowed only on ``origin=manual`` rows; auto rows return 422
+    ``VERSION_NOT_DELETABLE`` because the editorial integrity record is
+    append-only. Authorisation: the original author of the manual save or
+    an Admin (so an Admin can clean up after a former editor without
+    forcing the original user back in)."""
+    role: str = request.state.role
+    await delete_document_version(
+        db, collection_id, filename, version_number, current_user, role
+    )
+    return Response(status_code=204)
+
+
+@router.get(
+    "/{collection_id}/documents/{filename}/versions/{version_number}/diff"
+)
+async def document_version_diff(
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    request: Request,
+    current_user: Annotated[User, _auth],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    against: Annotated[int, Query()] = ...,
+) -> DataResponse[DiffResponse]:
+    """Unified diff between version ``{version_number}`` and ``?against=M``.
+
+    Both versions must exist in the same (collection, filename). Returns an
+    empty ``diff`` field when the two bodies are byte-equal — the rollback
+    UI uses that to show "no changes to apply"."""
+    role: str = request.state.role
+    diff = await diff_document_versions(
+        db,
+        collection_id,
+        filename,
+        from_version=against,
+        to_version=version_number,
+        actor=current_user,
+        role=role,
+    )
+    return DataResponse(
+        data=DiffResponse(
+            from_version=against, to_version=version_number, diff=diff
+        )
+    )
 
 
 @router.get("/{collection_id}/documents/{filename}/metadata")

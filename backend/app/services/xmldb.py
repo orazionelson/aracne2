@@ -1736,3 +1736,236 @@ async def update_surface_zones(
     )
 
     return SurfaceZonesResponse(surface_id=surface_id, zones=zone_outs)
+
+
+# ── Document versioning HTTP wrappers ──────────────────────────────────────────
+#
+# Phase C exposes the ``document_versions`` table through the REST API. The
+# wrappers below are the ACL-aware surface the router talks to: they resolve
+# the collection by id-or-slug, run ``_assert_read_access`` /
+# ``_assert_write_access``, and delegate to the pure-data helpers in
+# ``services.document_versions``. Keeping the auth shim here means
+# ``services.document_versions`` stays free of ACL concerns and can be reused
+# from CLI scripts (``aracne export --as-of …``) without dragging the role
+# helpers along.
+
+
+async def list_document_versions(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    actor: User,
+    role: str,
+    *,
+    origin: VersionOrigin | None = None,
+):
+    """List the version history of a document, newest first."""
+    from app.services.document_versions import list_versions
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await list_versions(
+        db, collection_id=col.id, filename=filename, origin=origin
+    )
+
+
+async def get_document_version(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+):
+    """Return a single version's metadata (no XML body)."""
+    from app.services.document_versions import get_version
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await get_version(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+
+
+async def get_document_version_content(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+) -> bytes:
+    """Return the *uncompressed* XML body of a stored version."""
+    from app.services.document_versions import get_version_content
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await get_version_content(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+
+
+async def manual_save_document_version(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    message: str,
+    actor: User,
+    role: str,
+):
+    """Editor+ "Save version" — captures the current working tree HEAD."""
+    from app.services.document_versions import acquire_doc_lock, manual_save
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+    await acquire_doc_lock(db, col.id, filename)
+
+    # Read the working tree HEAD; refuse to save when the doc does not exist.
+    try:
+        body = await existdb.get_document(col.slug, filename)
+    except NotFoundError:
+        raise NotFoundError(
+            f"Document '{filename}' not found in collection '{col.slug}'"
+        )
+    audit_row = _audit(
+        db,
+        "document.version_saved",
+        actor,
+        col,
+        {"filename": filename, "message": message},
+    )
+    await db.flush()
+    return await manual_save(
+        db,
+        collection=col,
+        filename=filename,
+        xml_bytes=body,
+        actor=actor,
+        audit_log_row=audit_row,
+        message=message,
+    )
+
+
+async def rollback_document_to_version(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    target_version_number: int,
+    actor: User,
+    role: str,
+    note: str | None = None,
+):
+    """Editor+ rollback — copies vN into the working tree, appends a row.
+
+    Constructive: the previous HEAD remains in history (as whatever
+    auto/manual rows captured it); the new ``origin=rollback`` row carries
+    the same content as the target.
+    """
+    from app.services.document_versions import acquire_doc_lock, rollback_to
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+    await acquire_doc_lock(db, col.id, filename)
+    audit_row = _audit(
+        db,
+        "document.rolled_back",
+        actor,
+        col,
+        {
+            "filename": filename,
+            "target_version_number": target_version_number,
+            "note": note,
+        },
+    )
+    await db.flush()
+    return await rollback_to(
+        db,
+        existdb,
+        collection=col,
+        filename=filename,
+        target_version_number=target_version_number,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+
+
+async def delete_document_version(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+) -> None:
+    """Delete a manual version. Author of the row or Admin only.
+
+    Auto rows are immutable — the service-layer ``delete_manual_version``
+    raises ``DomainValidationError(422)`` on any non-manual origin so the
+    editorial integrity record is preserved. The router translates that to
+    422 ``VERSION_NOT_DELETABLE``; the soft-cap UX surfaces it as the
+    "manual versions only" copy on the deletion list.
+    """
+    from app.services.document_versions import (
+        delete_manual_version,
+        get_version,
+    )
+
+    col = await _get_or_404(db, collection_id)
+    _validate_filename(filename)
+    row = await get_version(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+    is_admin = _level(role) >= _level("Admin")
+    is_author = row.created_by_id == actor.id
+    if not (is_admin or is_author):
+        raise AuthorizationError(
+            "Only the author of the manual save or an Admin can delete it"
+        )
+    _audit(
+        db,
+        "document.version_deleted",
+        actor,
+        col,
+        {"filename": filename, "version_number": version_number},
+    )
+    await delete_manual_version(db, row=row)
+
+
+async def diff_document_versions(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    from_version: int,
+    to_version: int,
+    actor: User,
+    role: str,
+) -> str:
+    """Unified diff between two stored versions (Editor+ read access)."""
+    from app.services.document_versions import compute_version_diff
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await compute_version_diff(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        from_version=from_version,
+        to_version=to_version,
+    )

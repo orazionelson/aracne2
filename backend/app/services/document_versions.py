@@ -360,6 +360,86 @@ async def manual_save(
     return row
 
 
+async def compute_version_diff(
+    db: AsyncSession,
+    *,
+    collection_id: uuid.UUID,
+    filename: str,
+    from_version: int,
+    to_version: int,
+) -> str:
+    """Return a unified text diff between two stored versions.
+
+    Both sides are decompressed, decoded as UTF-8 (with ``errors='replace'``
+    so non-UTF-8 bytes never crash the renderer), and fed to
+    ``difflib.unified_diff``. The returned string is empty when the two
+    versions have identical bodies — the rollback UI can detect that and
+    show a "no changes" hint.
+    """
+    import difflib
+
+    from_bytes = await get_version_content(
+        db,
+        collection_id=collection_id,
+        filename=filename,
+        version_number=from_version,
+    )
+    to_bytes = await get_version_content(
+        db,
+        collection_id=collection_id,
+        filename=filename,
+        version_number=to_version,
+    )
+    from_lines = from_bytes.decode("utf-8", errors="replace").splitlines(
+        keepends=True
+    )
+    to_lines = to_bytes.decode("utf-8", errors="replace").splitlines(
+        keepends=True
+    )
+    return "".join(
+        difflib.unified_diff(
+            from_lines,
+            to_lines,
+            fromfile=f"{filename}@v{from_version}",
+            tofile=f"{filename}@v{to_version}",
+            n=3,
+        )
+    )
+
+
+async def delete_manual_version(
+    db: AsyncSession,
+    *,
+    row: DocumentVersion,
+) -> None:
+    """Delete a *manual* version row.
+
+    Auto rows (creation / submission / rejection / publication / rollback)
+    are append-only — they belong to the editorial integrity record and
+    cannot be removed. ``manual`` rows are explicit editor checkpoints and
+    may be cleaned up to recover headroom against the soft cap.
+
+    The row is removed via ``db.delete``; the caller decides when to
+    commit. Raises ``DomainValidationError`` (422) if the row is not a
+    ``manual`` origin.
+    """
+    from app.core.exceptions import DomainValidationError
+
+    if row.origin is not VersionOrigin.manual:
+        raise DomainValidationError(
+            "VERSION_NOT_DELETABLE",
+            "Only manual versions can be deleted; auto versions are append-only.",
+        )
+    await db.delete(row)
+    await db.flush()
+    logger.info(
+        "document_version_deleted",
+        collection_id=str(row.collection_id),
+        filename=row.document_filename,
+        version_number=row.version_number,
+    )
+
+
 async def rollback_to(
     db: AsyncSession,
     existdb: ExistDBClient,
