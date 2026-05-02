@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import {
+  usePersonalAccessTokensStore,
+  type PersonalAccessTokenCreated,
+} from "@/stores/personalAccessTokens";
 import UserAvatar from "@/components/ui/UserAvatar.vue";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const auth = useAuthStore();
+const patStore = usePersonalAccessTokensStore();
 
 function formatDate(iso: string | null): string {
   if (!iso) return t("profile.never");
@@ -68,6 +73,92 @@ async function toggleEmailNotifications(next: boolean): Promise<void> {
     emailNotifSaving.value = false;
   }
 }
+
+// ── Personal Access Tokens (CLI-B) ────────────────────────────────────────
+//
+// Editor+ self-service: list / issue / revoke long-lived bearer tokens
+// that authenticate the standalone ``aracne-cli`` against the REST API.
+// Hidden for level-1 Users — the backend already gates POST with 403,
+// but we hide the card to keep the surface tidy.
+const showApiTokens = computed(() => auth.hasMinRole("Editor"));
+
+const showIssueModal = ref(false);
+const issueLabel = ref("");
+const issueError = ref<string | null>(null);
+const issuedToken = ref<PersonalAccessTokenCreated | null>(null);
+const copyFeedback = ref<string | null>(null);
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return t("profile.api_tokens.never_used");
+  try {
+    return new Date(iso).toLocaleString(locale.value, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function openIssueModal(): void {
+  issueLabel.value = "";
+  issueError.value = null;
+  issuedToken.value = null;
+  copyFeedback.value = null;
+  showIssueModal.value = true;
+}
+
+function closeIssueModal(): void {
+  showIssueModal.value = false;
+  issueLabel.value = "";
+  issuedToken.value = null;
+  copyFeedback.value = null;
+}
+
+async function submitIssue(): Promise<void> {
+  const label = issueLabel.value.trim();
+  if (!label) {
+    issueError.value = t("profile.api_tokens.label_required");
+    return;
+  }
+  issueError.value = null;
+  const created = await patStore.issue(label);
+  if (created === null) {
+    issueError.value = patStore.error ?? t("common.error");
+    return;
+  }
+  issuedToken.value = created;
+}
+
+async function copyTokenToClipboard(): Promise<void> {
+  if (!issuedToken.value) return;
+  try {
+    await navigator.clipboard.writeText(issuedToken.value.token);
+    copyFeedback.value = t("profile.api_tokens.copied");
+    setTimeout(() => {
+      copyFeedback.value = null;
+    }, 2500);
+  } catch {
+    copyFeedback.value = t("profile.api_tokens.copy_failed");
+  }
+}
+
+async function revokeToken(tokenId: string, label: string): Promise<void> {
+  if (
+    !window.confirm(
+      t("profile.api_tokens.revoke_confirm", { label }),
+    )
+  ) {
+    return;
+  }
+  await patStore.revoke(tokenId);
+}
+
+onMounted(async () => {
+  if (showApiTokens.value) {
+    await patStore.loadList();
+  }
+});
 
 // ── Avatar upload + delete ────────────────────────────────────────────────
 const avatarError = ref<string | null>(null);
@@ -469,6 +560,175 @@ const renderedBioPreview = computed(() => renderBio(bioDraft.value));
           <span>{{ formatDate(auth.user.created_at) }}</span>
         </div>
       </div>
+
+      <!-- API Tokens card (Phase CLI-B) — Editor+ only -->
+      <div
+        v-if="showApiTokens"
+        class="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t("profile.api_tokens.title") }}
+          </p>
+          <button
+            class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+            @click="openIssueModal"
+          >
+            {{ t("profile.api_tokens.issue_button") }}
+          </button>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("profile.api_tokens.intro") }}
+        </p>
+
+        <p
+          v-if="patStore.error && !showIssueModal"
+          class="mb-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
+        >
+          {{ patStore.error }}
+        </p>
+
+        <p
+          v-if="!patStore.isLoading && patStore.tokens.length === 0"
+          class="text-sm text-gray-500 dark:text-gray-400"
+        >
+          {{ t("profile.api_tokens.empty") }}
+        </p>
+
+        <table v-else class="w-full text-left text-sm">
+          <thead class="text-xs uppercase text-gray-500 dark:text-gray-400">
+            <tr>
+              <th class="pb-2">{{ t("profile.api_tokens.column_label") }}</th>
+              <th class="pb-2">{{ t("profile.api_tokens.column_created") }}</th>
+              <th class="pb-2">{{ t("profile.api_tokens.column_last_used") }}</th>
+              <th class="pb-2 text-right">{{ t("profile.api_tokens.column_actions") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in patStore.tokens"
+              :key="row.id"
+              class="border-t border-gray-100 dark:border-gray-700"
+            >
+              <td class="py-2 font-medium text-gray-900 dark:text-gray-100">
+                {{ row.label }}
+              </td>
+              <td class="py-2 text-gray-700 dark:text-gray-300">
+                {{ fmtDate(row.created_at) }}
+              </td>
+              <td class="py-2 text-gray-700 dark:text-gray-300">
+                {{ fmtDate(row.last_used_at) }}
+              </td>
+              <td class="py-2 text-right">
+                <button
+                  class="text-xs text-red-700 hover:underline dark:text-red-400"
+                  @click="revokeToken(row.id, row.label)"
+                >
+                  {{ t("profile.api_tokens.revoke_button") }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
+
+    <!-- Issue modal — captures the label, then flips to "copy this once" -->
+    <Teleport to="body">
+      <div
+        v-if="showIssueModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeIssueModal"
+      >
+        <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
+          <!-- Step 1: ask for the label -->
+          <template v-if="!issuedToken">
+            <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.api_tokens.issue_modal_title") }}
+            </h2>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              {{ t("profile.api_tokens.issue_modal_intro") }}
+            </p>
+            <label
+              for="pat-label"
+              class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              {{ t("profile.api_tokens.label_field") }}
+            </label>
+            <input
+              id="pat-label"
+              v-model="issueLabel"
+              type="text"
+              maxlength="128"
+              :placeholder="t('profile.api_tokens.label_placeholder')"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              @keydown.enter="submitIssue"
+            />
+            <p
+              v-if="issueError"
+              class="mt-2 text-sm text-red-700 dark:text-red-400"
+            >
+              {{ issueError }}
+            </p>
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                @click="closeIssueModal"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                :disabled="!issueLabel.trim()"
+                @click="submitIssue"
+              >
+                {{ t("profile.api_tokens.issue_submit") }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Step 2: copy this once -->
+          <template v-else>
+            <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.api_tokens.created_title") }}
+            </h2>
+            <p
+              class="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+            >
+              {{ t("profile.api_tokens.copy_once_warning") }}
+            </p>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("profile.api_tokens.token_field") }}
+            </label>
+            <input
+              :value="issuedToken.token"
+              readonly
+              class="w-full rounded border border-gray-300 px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              @focus="($event.target as HTMLInputElement).select()"
+            />
+            <p
+              v-if="copyFeedback"
+              class="mt-2 text-xs text-emerald-700 dark:text-emerald-400"
+            >
+              {{ copyFeedback }}
+            </p>
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                @click="copyTokenToClipboard"
+              >
+                {{ t("profile.api_tokens.copy_button") }}
+              </button>
+              <button
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                @click="closeIssueModal"
+              >
+                {{ t("profile.api_tokens.done_button") }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
