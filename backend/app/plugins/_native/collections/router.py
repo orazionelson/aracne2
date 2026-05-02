@@ -299,9 +299,12 @@ async def collection_submit(
     request: Request,
     current_user: Annotated[User, _auth],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
 ) -> DataResponse[CollectionResponse]:
     role: str = request.state.role
-    data = await submit_collection(db, collection_id, body, current_user, role)
+    data = await submit_collection(
+        db, existdb, collection_id, body, current_user, role
+    )
     return DataResponse(data=data)
 
 
@@ -312,9 +315,12 @@ async def collection_reject(
     request: Request,
     current_user: Annotated[User, _eic],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
 ) -> DataResponse[CollectionResponse]:
     role: str = request.state.role
-    data = await reject_collection(db, collection_id, body, current_user, role)
+    data = await reject_collection(
+        db, existdb, collection_id, body, current_user, role
+    )
     return DataResponse(data=data)
 
 
