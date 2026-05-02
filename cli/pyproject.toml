@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aracne-cli"
+version = "0.1.0"
+description = "Command-line tool for bulk import/export against an Aracne2 deployment"
+authors = [{ name = "Aracne2 Team" }]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup :: XML",
+]
+dependencies = [
+    "typer>=0.12,<1.0",
+    "httpx>=0.28,<1.0",
+    "rich>=13,<14",
+    # tomli is part of the stdlib as ``tomllib`` from 3.11; we use the
+    # stdlib import so no runtime dependency is needed for the read
+    # path. Writing TOML is hand-rolled (the config has 2 keys).
+]
+
+[project.scripts]
+aracne = "aracne_cli.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "pytest-asyncio>=0.24,<1.0",
+    "respx>=0.22,<1.0",
+]
+
+[project.urls]
+"Aracne2 monorepo" = "https://github.com/orazionelson/aracne2"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aracne_cli*"]
+exclude = ["tests*"]
