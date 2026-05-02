@@ -15,6 +15,9 @@ from app.middleware.acl import get_current_user, require_role
 from app.models.user import User
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.schemas.users import (
+    PersonalAccessTokenIssueRequest,
+    PersonalAccessTokenIssueResponse,
+    PersonalAccessTokenView,
     RoleAssignRequest,
     UserCreate,
     UserExport,
@@ -22,6 +25,11 @@ from app.schemas.users import (
     UserUpdate,
 )
 from app.services.uploads import read_capped
+from app.services.personal_access_tokens import (
+    issue_pat,
+    list_pats,
+    revoke_pat,
+)
 from app.services.users import (
     assign_role,
     create_user,
@@ -124,6 +132,70 @@ async def delete_my_avatar(
 ) -> None:
     """Remove the calling user's avatar — falls back to the monogram."""
     await delete_avatar(db, current_user)
+
+
+# ── Personal Access Tokens (Phase CLI-A) ──────────────────────────────────
+
+
+@router.get("/me/tokens")
+async def list_my_tokens(
+    current_user: Annotated[
+        User, Depends(require_role(min_role="Editor"))
+    ],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[list[PersonalAccessTokenView]]:
+    """List the calling user's non-revoked personal access tokens.
+
+    Plaintext is never included — that exists only in the response of
+    the issue endpoint, exactly once. Editor+ only because Users
+    (level 1) shouldn't have a CLI surface in v1.
+    """
+    rows = await list_pats(db, current_user)
+    return DataResponse(
+        data=[PersonalAccessTokenView.model_validate(r) for r in rows]
+    )
+
+
+@router.post("/me/tokens", status_code=201)
+async def issue_my_token(
+    body: PersonalAccessTokenIssueRequest,
+    current_user: Annotated[
+        User, Depends(require_role(min_role="Editor"))
+    ],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> DataResponse[PersonalAccessTokenIssueResponse]:
+    """Mint a new PAT.
+
+    The plaintext ``token`` field is shown in this response and never
+    again — the frontend must surface it as "copy this once" UX.
+    """
+    row, plaintext = await issue_pat(db, user=current_user, label=body.label)
+    return DataResponse(
+        data=PersonalAccessTokenIssueResponse(
+            id=row.id,
+            label=row.label,
+            token=plaintext,
+            created_at=row.created_at,
+        )
+    )
+
+
+@router.delete("/me/tokens/{token_id}", status_code=204)
+async def revoke_my_token(
+    token_id: uuid.UUID,
+    current_user: Annotated[
+        User, Depends(require_role(min_role="Editor"))
+    ],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Revoke a PAT belonging to the calling user. Idempotent.
+
+    Returns 204 on success and 404 when the row does not belong to
+    *current_user* (or does not exist) — an editor cannot revoke
+    another user's tokens by guessing IDs.
+    """
+    await revoke_pat(db, user=current_user, token_id=token_id)
+    return Response(status_code=204)
 
 
 @router.get("/{username}/avatar", include_in_schema=False)

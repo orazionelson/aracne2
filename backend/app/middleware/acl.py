@@ -13,7 +13,8 @@ from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.db.postgres import get_async_session
 from app.models.session import Session
 from app.models.user import User
-from app.services.auth import decode_raw_token, decode_token
+from app.services.auth import decode_raw_token, decode_token, get_active_role
+from app.services.personal_access_tokens import PAT_PREFIX, resolve_pat
 
 logger = structlog.get_logger()
 
@@ -33,6 +34,21 @@ async def _get_current_user(
         raise AuthenticationError(
             code="MISSING_TOKEN", message="Authorization header required"
         )
+
+    # Personal Access Token path: a self-identifying prefix lets us
+    # dispatch without paying for a JWT decode on every request. The
+    # PAT inherits the issuer's currently-active role, so existing
+    # ``require_role`` guards keep working unchanged.
+    if credentials.credentials.startswith(PAT_PREFIX):
+        pat_user = await resolve_pat(db, credentials.credentials)
+        if pat_user is None or pat_user.deleted_at:
+            raise AuthenticationError(
+                code="INVALID_PAT",
+                message="Invalid or revoked API token",
+            )
+        request.state.user = pat_user
+        request.state.role = await get_active_role(db, pat_user.id)
+        return pat_user
 
     # Peek at the token type before dispatching to the appropriate path.
     raw = decode_raw_token(credentials.credentials)
@@ -101,6 +117,15 @@ async def get_optional_user(
         return None
 
     try:
+        # PAT path first — same dispatch logic as ``_get_current_user``.
+        if token_str.startswith(PAT_PREFIX):
+            pat_user = await resolve_pat(db, token_str)
+            if pat_user is None or pat_user.deleted_at:
+                return None
+            request.state.user = pat_user
+            request.state.role = await get_active_role(db, pat_user.id)
+            return pat_user
+
         raw = decode_raw_token(token_str)
         if raw.get("type") == "impersonation":
             user_id = uuid.UUID(str(raw["sub"]))

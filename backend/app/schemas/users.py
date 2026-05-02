@@ -139,3 +139,48 @@ class UserExport(BaseModel):
     last_login_at: str | None
     active_roles: list[str]
     active_sessions_count: int  # count only — no ip/ua details
+
+
+# ── Personal Access Tokens ────────────────────────────────────────────────
+
+
+class PersonalAccessTokenIssueRequest(BaseModel):
+    """Body for ``POST /users/me/tokens``.
+
+    The label is human metadata only — shown in the issued-tokens list
+    so the editor can tell "my-laptop" from "ci-pipeline" later.
+    """
+
+    label: str = Field(min_length=1, max_length=128)
+
+
+class PersonalAccessTokenView(BaseModel):
+    """Read-only projection of a PAT for the listing endpoint.
+
+    Plaintext is **not** present here — it lived only in the response
+    of the issue endpoint and is gone from the backend forever.
+    """
+
+    id: uuid.UUID
+    label: str
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class PersonalAccessTokenIssueResponse(BaseModel):
+    """Response of ``POST /users/me/tokens``.
+
+    The plaintext ``token`` is shown only this once; close the modal /
+    response and it's lost. The frontend issuance UI mirrors the
+    "copy this once" UX from the MCP token management screen.
+    """
+
+    id: uuid.UUID
+    label: str
+    token: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
