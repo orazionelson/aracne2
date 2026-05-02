@@ -241,6 +241,18 @@ def mock_existdb() -> AsyncMock:
     mock.put_document = AsyncMock(return_value=None)
     mock.delete_document = AsyncMock(return_value=None)
     mock.xquery = AsyncMock(return_value=b"<results/>")
+    # Working/published split (Phase A1 of document versioning).
+    # ``col_path`` and ``published_path`` are deterministic — make the mock
+    # return the same string the real client would so tests can assert on them.
+    mock.col_path = lambda slug: f"/db/aracne2/collections/{slug}"
+    mock.published_path = lambda slug: f"/db/aracne2/published/{slug}"
+    mock.copy_collection_to_published = AsyncMock(return_value=None)
+    mock.remove_published = AsyncMock(return_value=None)
+    # Phase A2: public surfaces read from the published snapshot. Mirror the
+    # default working-tree fixtures so existing tests that hit public renderers
+    # continue to find a single document by default.
+    mock.list_published = AsyncMock(return_value=["doc1.xml"])
+    mock.get_published_document = AsyncMock(return_value=b"<doc/>")
     return mock
 
 

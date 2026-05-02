@@ -325,9 +325,10 @@ async def collection_publish(
     request: Request,
     current_user: Annotated[User, _eic],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
 ) -> DataResponse[CollectionResponse]:
     role: str = request.state.role
-    data = await publish_collection(db, collection_id, body, current_user, role)
+    data = await publish_collection(db, existdb, collection_id, body, current_user, role)
     return DataResponse(data=data)
 
 
@@ -338,6 +339,7 @@ async def collection_direct_publish(
     request: Request,
     current_user: Annotated[User, _eic],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    existdb: Annotated[ExistDBClient, Depends(get_existdb)],
 ) -> DataResponse[CollectionResponse]:
     """Publish a collection directly from any status (EditorInChief+).
 
@@ -345,7 +347,9 @@ async def collection_direct_publish(
     Useful for batch imports, manual curation, or emergency publishing.
     """
     role: str = request.state.role
-    data = await direct_publish_collection(db, collection_id, body, current_user, role)
+    data = await direct_publish_collection(
+        db, existdb, collection_id, body, current_user, role
+    )
     return DataResponse(data=data)
 
 

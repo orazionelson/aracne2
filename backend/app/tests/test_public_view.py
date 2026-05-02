@@ -143,8 +143,8 @@ async def test_get_public_document_returns_200(
   <text><body><div><p>Hello world</p></div></body></text>
 </TEI>"""
     with patch("app.services.public_view.existdb_client") as mock_db:
-        mock_db.get_document = AsyncMock(return_value=minimal_tei)
-        mock_db.col_path = lambda slug: f"/db/aracne2/collections/{slug}"
+        mock_db.get_published_document = AsyncMock(return_value=minimal_tei)
+        mock_db.published_path = lambda slug: f"/db/aracne2/published/{slug}"
         res = await client.get(
             f"/api/v1/public/collections/{public_collection.slug}/documents/test.xml"
         )
@@ -160,7 +160,7 @@ async def test_get_public_document_not_found_returns_404(
     from app.core.exceptions import NotFoundError
 
     with patch("app.services.public_view.existdb_client") as mock_db:
-        mock_db.get_document = AsyncMock(
+        mock_db.get_published_document = AsyncMock(
             side_effect=NotFoundError("Document not found.")
         )
         res = await client.get(
@@ -190,10 +190,10 @@ async def _get_public_document(
   <text><body><div><p>Hello</p></div></body></text>
 </TEI>"""
     with patch("app.services.public_view.existdb_client") as mock_db:
-        mock_db.get_document = AsyncMock(return_value=minimal_tei)
+        mock_db.get_published_document = AsyncMock(return_value=minimal_tei)
         mock_db.xquery = AsyncMock(return_value=b"<docs/>")
-        mock_db.list_collection = AsyncMock(return_value=[filename])
-        mock_db.col_path = lambda slug: f"/db/aracne2/collections/{slug}"
+        mock_db.list_published = AsyncMock(return_value=[filename])
+        mock_db.published_path = lambda slug: f"/db/aracne2/published/{slug}"
         return await client.get(
             f"/api/v1/public/collections/{slug}/documents/{filename}",
             headers=headers,

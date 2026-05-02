@@ -125,16 +125,19 @@ async def get_public_collection(db: AsyncSession, slug: str) -> Collection:
 
 
 async def _list_documents_with_titles(slug: str) -> list[PublicDocumentInfo]:
-    """Fetch filenames, titles and authors from eXist-db via XQuery.
+    """Fetch filenames, titles and authors from the published snapshot.
 
+    Public surfaces (this view, the website router, the sitemap) read from
+    ``existdb.published_path(slug)`` so editors can keep modifying the
+    working tree without leaking partial states to anonymous visitors.
     Falls back to filename-only list (without title/author) if the XQuery
     fails or returns malformed XML.
     """
-    col_path = existdb_client.col_path(slug)
+    published_path = existdb_client.published_path(slug)
     try:
         raw = await existdb_client.xquery(
             "collections/list_with_titles.xq",
-            variables={"collection_path": col_path},
+            variables={"collection_path": published_path},
         )
         root = ET.fromstring(raw)
         docs: list[PublicDocumentInfo] = []
@@ -149,9 +152,9 @@ async def _list_documents_with_titles(slug: str) -> list[PublicDocumentInfo]:
         return docs
     except Exception as exc:
         logger.warning("public_view_list_titles_failed", slug=slug, error=str(exc))
-        # Graceful fallback: plain filename list
+        # Graceful fallback: plain filename list from the same snapshot.
         try:
-            filenames = await existdb_client.list_collection(slug)
+            filenames = await existdb_client.list_published(slug)
             filenames.sort(key=_natural_sort_key)
             return [PublicDocumentInfo(filename=f, title=None, author=None) for f in filenames]
         except Exception:
@@ -228,7 +231,7 @@ async def render_document_html(
     await get_public_collection(db, slug)
 
     try:
-        xml_bytes = await existdb_client.get_document(slug, filename)
+        xml_bytes = await existdb_client.get_published_document(slug, filename)
     except Exception as exc:
         raise NotFoundError(f"Document '{filename}' not found.") from exc
 

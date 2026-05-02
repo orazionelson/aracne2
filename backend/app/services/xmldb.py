@@ -13,6 +13,7 @@ ACL is enforced here, not in the router layer, so that any caller
 """
 
 import asyncio
+import hashlib
 import io
 import os
 import re
@@ -144,14 +145,13 @@ async def _assert_read_access(
 def _assert_write_access(collection: Collection, actor: User, role: str) -> None:
     """Raise if actor cannot modify documents in this collection.
 
-    Published collections are frozen for everyone — the collection must be
-    unpublished (returned to 'assigned' or 'review') before any document
-    change is allowed.
+    Edits go to the working tree at ``existdb_client.col_path(slug)``; the
+    public surface reads from a separate snapshot written only at publish
+    time, so editing a published collection no longer changes what
+    visitors see. The previous "unpublish before editing" lock was removed
+    in Phase A2 of document versioning — visibility decoupling now lives
+    in the storage layer.
     """
-    if collection.status == CollectionStatus.published:
-        raise AuthorizationError(
-            "Collection is published — unpublish it before modifying documents"
-        )
     if _level(role) >= _level("EditorInChief"):
         return
     if collection.editor_id != actor.id:
@@ -160,7 +160,10 @@ def _assert_write_access(collection: Collection, actor: User, role: str) -> None
         raise AuthorizationError(
             "Collection is locked while under review — wait for EiC feedback"
         )
-    if collection.status not in (CollectionStatus.assigned,):
+    if collection.status not in (
+        CollectionStatus.assigned,
+        CollectionStatus.published,
+    ):
         raise AuthorizationError("Collection is not in an editable state")
 
 
@@ -206,6 +209,48 @@ def _audit(
             payload=payload,
         )
     )
+
+
+async def _invalidate_linked_website_caches(
+    db: AsyncSession, collection: Collection
+) -> None:
+    """Clear the in-memory page/XSLT caches of every website linked to *collection*.
+
+    Phase A2: a successful publish refreshes the eXist-db snapshot at
+    ``published_path``. Without invalidating the website cache, pages cached
+    before the publish would keep serving stale HTML (and stale linked-document
+    bodies) for the cache TTL. Imports are deferred to avoid a circular
+    import between ``services.xmldb`` and ``services.websites``.
+    """
+    from app.models.website import Website
+    from app.services.websites import invalidate_cache
+
+    rows = await db.scalars(
+        select(Website).where(Website.collection_id == collection.id)
+    )
+    for w in rows:
+        invalidate_cache(w.slug)
+
+
+async def _compute_collection_tree_hash(
+    existdb: ExistDBClient, slug: str
+) -> str:
+    """SHA-256 fingerprint of a collection's working tree.
+
+    Concatenates ``(filename, sha256(content))`` pairs in sorted order so the
+    fingerprint is invariant under listing order and stable across runs.
+    Used by the publish path to short-circuit re-publishes on unchanged
+    content — same fingerprint as ``Collection.last_published_tree_hash``
+    means the snapshot is up to date and downstream listeners
+    (Zenodo, Internet Archive, Dataverse, webhooks) can be skipped.
+    """
+    filenames = sorted(await existdb.list_collection(slug))
+    parts: list[bytes] = []
+    for fn in filenames:
+        content = await existdb.get_document(slug, fn)
+        digest = hashlib.sha256(content).hexdigest()
+        parts.append(f"{fn}\0{digest}\n".encode())
+    return hashlib.sha256(b"".join(parts)).hexdigest()
 
 
 def _notify(
@@ -677,12 +722,22 @@ async def reject_collection(
 
 async def publish_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
 ) -> CollectionResponse:
-    """Validazione → Pubblica."""
+    """Validazione → Pubblica.
+
+    Copies the working tree to the published snapshot path
+    (``existdb.published_path``) so the public surface keeps reading from a
+    stable snapshot rather than the live editor view. When the working tree
+    fingerprint matches ``last_published_tree_hash``, the copy and the
+    ``ON_COLLECTION_PUBLISHED`` hook are short-circuited so deposit listeners
+    (Zenodo / Internet Archive / Dataverse / webhooks) do not duplicate
+    side effects on a content-unchanged re-publish.
+    """
     _assert_eic(role)
     col = await _get_or_404(db, collection_id)
 
@@ -692,6 +747,14 @@ async def publish_collection(
     col.status = CollectionStatus.published
     col.published_at = _now()
 
+    new_tree_hash = await _compute_collection_tree_hash(existdb, col.slug)
+    content_changed = new_tree_hash != col.last_published_tree_hash
+
+    if content_changed:
+        await existdb.copy_collection_to_published(col.slug)
+        col.last_published_tree_hash = new_tree_hash
+        await _invalidate_linked_website_caches(db, col)
+
     if col.editor_id:
         _notify(
             db,
@@ -700,15 +763,28 @@ async def publish_collection(
             f"{_actor_label(actor)} ha pubblicato: {col.title}",
             body.note,
         )
-    _audit(db, "collection.published", actor, col, {"note": body.note})
+    _audit(
+        db,
+        "collection.published",
+        actor,
+        col,
+        {"note": body.note, "content_changed": content_changed},
+    )
     await db.flush()
-    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
-    logger.info("collection_published", slug=col.slug, actor=actor.username)
+    if content_changed:
+        await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
+    logger.info(
+        "collection_published",
+        slug=col.slug,
+        actor=actor.username,
+        content_changed=content_changed,
+    )
     return CollectionResponse.model_validate(col)
 
 
 async def direct_publish_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: WorkflowAction,
     actor: User,
@@ -716,8 +792,10 @@ async def direct_publish_collection(
 ) -> CollectionResponse:
     """Publish a collection directly from any status, bypassing the normal workflow.
 
-    Restricted to EditorInChief and Admin. Emits ON_COLLECTION_PUBLISHED and
-    notifies the assigned editor (if any), exactly as the regular publish path does.
+    Restricted to EditorInChief and Admin. Refreshes the published snapshot
+    and emits ON_COLLECTION_PUBLISHED only when the working tree fingerprint
+    differs from ``last_published_tree_hash`` — same idempotency guard as
+    :func:`publish_collection`.
     """
     _assert_eic(role)
     col = await _get_or_404(db, collection_id)
@@ -728,6 +806,14 @@ async def direct_publish_collection(
     col.status = CollectionStatus.published
     col.published_at = _now()
 
+    new_tree_hash = await _compute_collection_tree_hash(existdb, col.slug)
+    content_changed = new_tree_hash != col.last_published_tree_hash
+
+    if content_changed:
+        await existdb.copy_collection_to_published(col.slug)
+        col.last_published_tree_hash = new_tree_hash
+        await _invalidate_linked_website_caches(db, col)
+
     if col.editor_id:
         _notify(
             db,
@@ -736,10 +822,22 @@ async def direct_publish_collection(
             f"{_actor_label(actor)} has directly published: {col.title}",
             body.note,
         )
-    _audit(db, "collection.direct_published", actor, col, {"note": body.note})
+    _audit(
+        db,
+        "collection.direct_published",
+        actor,
+        col,
+        {"note": body.note, "content_changed": content_changed},
+    )
     await db.flush()
-    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
-    logger.info("collection_direct_published", slug=col.slug, actor=actor.username)
+    if content_changed:
+        await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
+    logger.info(
+        "collection_direct_published",
+        slug=col.slug,
+        actor=actor.username,
+        content_changed=content_changed,
+    )
     return CollectionResponse.model_validate(col)
 
 

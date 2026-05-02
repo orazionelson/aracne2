@@ -182,11 +182,17 @@ async def _record_collection(
 async def _load_collection_files(
     existdb: ExistDBClient, slug: str,
 ) -> list[tuple[str, bytes]]:
-    names = await existdb.list_collection(slug)
+    """Return ``(filename, xml_bytes)`` pairs for the published snapshot.
+
+    Reads from ``list_published`` / ``get_published_document`` so the
+    Dataverse dataset always mirrors the collection's public state, even
+    if editors have queued post-publish changes on the working tree.
+    """
+    names = await existdb.list_published(slug)
     files: list[tuple[str, bytes]] = []
     for name in names:
         try:
-            content = await existdb.get_document(slug, name)
+            content = await existdb.get_published_document(slug, name)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "dataverse_file_fetch_failed",

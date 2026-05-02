@@ -206,8 +206,9 @@ async def test_sitemap_core_includes_public_published_collections(
     public_collection: Collection,
     mock_existdb: AsyncMock,
 ) -> None:
-    # Two documents in eXist-db for this collection.
-    mock_existdb.list_collection = AsyncMock(
+    # Two documents in the published snapshot for this collection (Phase A2:
+    # the sitemap reads from the snapshot, not the working tree).
+    mock_existdb.list_published = AsyncMock(
         return_value=["inferno.xml", "purgatorio.xml"]
     )
     res = await client_with_existdb.get("/api/v1/sitemap-core.xml")
@@ -257,7 +258,7 @@ async def test_sitemap_core_survives_existdb_failure(
 ) -> None:
     """A hiccup from eXist-db must not 500 the sitemap — the collection
     URL is still emitted, only its document entries are skipped."""
-    mock_existdb.list_collection = AsyncMock(side_effect=RuntimeError("boom"))
+    mock_existdb.list_published = AsyncMock(side_effect=RuntimeError("boom"))
     res = await client_with_existdb.get("/api/v1/sitemap-core.xml")
     assert res.status_code == 200
     root = ET.fromstring(res.text)

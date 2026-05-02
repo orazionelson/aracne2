@@ -97,12 +97,18 @@ async def _build_orcid_map(db: AsyncSession) -> dict[str, str]:
 async def _load_files(
     existdb: ExistDBClient, slug: str
 ) -> list[tuple[str, bytes]]:
-    """Return the list of ``(filename, xml_bytes)`` for all docs in *slug*."""
-    names = await existdb.list_collection(slug)
+    """Return the list of ``(filename, xml_bytes)`` for all docs in *slug*.
+
+    Reads from the published snapshot (``list_published`` /
+    ``get_published_document``) so the Zenodo record always reflects the
+    public state of the collection at publish time, never the editor's
+    in-progress working tree.
+    """
+    names = await existdb.list_published(slug)
     files: list[tuple[str, bytes]] = []
     for name in names:
         try:
-            content = await existdb.get_document(slug, name)
+            content = await existdb.get_published_document(slug, name)
         except Exception as exc:  # noqa: BLE001 — one missing doc shouldn't nuke deposit
             logger.warning("zenodo_file_fetch_failed", filename=name, error=str(exc))
             continue

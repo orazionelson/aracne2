@@ -67,6 +67,14 @@ class Collection(Base):
         DateTime(timezone=True), default=None
     )
 
+    # Fingerprint of the working tree captured at the last successful publish.
+    # Lets ``publish_collection`` short-circuit re-publishes on unchanged
+    # content so deposit hooks (Zenodo / Internet Archive / Dataverse /
+    # webhooks) do not duplicate side effects.
+    last_published_tree_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, default=None
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
