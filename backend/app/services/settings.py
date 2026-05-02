@@ -7,9 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as app_settings
 from app.core.encryption import SENSITIVE_KEYS, decrypt_value, encrypt_value, mask_value
 from app.core.exceptions import DomainValidationError, NotFoundError
+from app.models.plugin import Plugin, PluginStatus
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.schemas.settings import HomepageCssUploadResponse, LogoUploadResponse, SettingResponse, SettingUpdate, UiConfigResponse
+from app.schemas.settings import (
+    HomepageCssUploadResponse,
+    LogoUploadResponse,
+    PublicNavEntry,
+    SettingResponse,
+    SettingUpdate,
+    UiConfigResponse,
+)
 
 # Allowed MIME types / extensions for logo upload.
 _LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
@@ -115,6 +123,7 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
     # side at render time.
     se_enabled = values.get("public_search_engine_enabled", "false") == "true"
     se_slug = values.get("public_search_engine_slug", "").strip()
+    public_nav = await _build_public_nav(db)
     return UiConfigResponse(
         platform_name=values.get("platform_name", "Aracne2"),
         platform_logo_url=values.get(
@@ -135,7 +144,79 @@ async def get_public_config(db: AsyncSession) -> UiConfigResponse:
             "public_pages_doc_frame_enabled", "true"
         ) == "true",
         home_intro_html=values.get("home_intro_html", ""),
+        public_nav=public_nav,
     )
+
+
+_PUBLIC_NAV_VALID_SECTIONS = ("header", "home_quick_links", "footer")
+
+
+def public_link_setting_key(plugin_name: str) -> str:
+    """Conventional system_settings key gating a plugin's public link.
+
+    Toggle is ``"true"`` / ``"false"``; default ``"false"`` so an
+    activated plugin never auto-publishes its public surface.
+    """
+    return f"public_link_{plugin_name}_enabled"
+
+
+async def _build_public_nav(db: AsyncSession) -> list[PublicNavEntry]:
+    """Assemble the ``public_nav`` array from active plugins' descriptors.
+
+    A plugin contributes one entry when:
+    - its row in ``plugins`` is ``active``,
+    - its ``ui_descriptor`` carries a ``public_navigation`` block,
+    - the matching ``public_link_<name>_enabled`` setting is ``"true"``.
+
+    Entries with an unknown ``section`` value are dropped. The list is
+    sorted by ``priority`` ascending, ties broken by ``plugin_name``.
+    """
+    plugin_rows = list(
+        await db.scalars(
+            select(Plugin).where(Plugin.status == PluginStatus.active)
+        )
+    )
+    candidates: list[tuple[str, dict[str, object]]] = []
+    for p in plugin_rows:
+        desc = p.ui_descriptor or {}
+        block = desc.get("public_navigation") if isinstance(desc, dict) else None
+        if isinstance(block, dict):
+            candidates.append((p.name, block))
+    if not candidates:
+        return []
+
+    toggle_keys = [public_link_setting_key(name) for name, _ in candidates]
+    toggle_rows = await db.scalars(
+        select(SystemSetting).where(SystemSetting.key.in_(toggle_keys))
+    )
+    toggles = {r.key: r.value for r in toggle_rows}
+
+    out: list[PublicNavEntry] = []
+    for name, block in candidates:
+        if toggles.get(public_link_setting_key(name)) != "true":
+            continue
+        section = block.get("section")
+        if section not in _PUBLIC_NAV_VALID_SECTIONS:
+            continue
+        component = block.get("component")
+        url = block.get("url")
+        if not isinstance(component, str) or not isinstance(url, str):
+            continue
+        out.append(
+            PublicNavEntry(
+                plugin_name=name,
+                section=section,  # type: ignore[arg-type]
+                url=url,
+                component=component,
+                label_key=block.get("label_key") if isinstance(block.get("label_key"), str) else None,
+                label_en=block.get("label_en") if isinstance(block.get("label_en"), str) else None,
+                label_it=block.get("label_it") if isinstance(block.get("label_it"), str) else None,
+                icon=block.get("icon") if isinstance(block.get("icon"), str) else None,
+                priority=int(block.get("priority", 100)) if isinstance(block.get("priority", 100), int) else 100,
+            )
+        )
+    out.sort(key=lambda e: (e.priority, e.plugin_name))
+    return out
 
 
 async def _is_plugin_active(db: AsyncSession, plugin_id: str) -> bool:

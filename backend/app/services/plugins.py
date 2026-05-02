@@ -5,7 +5,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models.plugin import Plugin, PluginStatus
+from app.models.system_setting import SystemSetting
 from app.schemas.plugins import PluginResponse
+
+
+def _public_link_setting_key(plugin_name: str) -> str:
+    """Mirror of ``services.settings.public_link_setting_key``.
+
+    Duplicated here to avoid the circular import services.settings →
+    services.plugins; the format is part of the platform contract and
+    rarely changes.
+    """
+    return f"public_link_{plugin_name}_enabled"
+
+
+async def _ensure_public_link_toggle(db: AsyncSession, plugin: Plugin) -> None:
+    """Idempotently create the per-plugin public-link toggle row.
+
+    Only relevant when the plugin advertises the ``public_navigation``
+    capability. Default value is ``"false"`` so activating a plugin
+    never auto-publishes its public link — the Admin must consciously
+    flip the toggle from the Public Pages panel.
+    """
+    desc = plugin.ui_descriptor or {}
+    if not isinstance(desc, dict) or "public_navigation" not in desc:
+        return
+    key = _public_link_setting_key(plugin.name)
+    existing = await db.get(SystemSetting, key)
+    if existing is not None:
+        return
+    db.add(
+        SystemSetting(
+            key=key,
+            value="false",
+            type="bool",
+            description=(
+                f"Show {plugin.display_name or plugin.name} in the public "
+                f"navigation. Default off — flip on to surface the link."
+            ),
+        )
+    )
 
 
 async def list_plugins(db: AsyncSession) -> list[PluginResponse]:
@@ -32,6 +71,7 @@ async def activate_plugin(db: AsyncSession, name: str) -> PluginResponse:
         raise ConflictError(f"Plugin '{name}' is already active")
     plugin.status = PluginStatus.active
     plugin.updated_at = datetime.now(UTC)
+    await _ensure_public_link_toggle(db, plugin)
     await db.flush()
     return PluginResponse.model_validate(plugin)
 

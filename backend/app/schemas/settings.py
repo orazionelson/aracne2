@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -11,6 +12,31 @@ class SettingResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+PublicNavSection = Literal["header", "home_quick_links", "footer"]
+
+
+class PublicNavEntry(BaseModel):
+    """One link surfaced on the public site by an active plugin.
+
+    Plugins advertise these via the ``public_navigation`` capability
+    in ``PluginMeta.ui_descriptor``; the platform exposes them on
+    ``UiConfigResponse.public_nav`` only when the matching
+    ``public_link_<plugin_name>_enabled`` system_setting is ``"true"``.
+    The frontend layout components iterate the array filtered by
+    ``section`` and sort by ``priority`` ascending.
+    """
+
+    plugin_name: str
+    section: PublicNavSection
+    url: str
+    component: str
+    label_key: str | None = None
+    label_en: str | None = None
+    label_it: str | None = None
+    icon: str | None = None
+    priority: int = 100
 
 
 class UiConfigResponse(BaseModel):
@@ -36,6 +62,10 @@ class UiConfigResponse(BaseModel):
     # Free-form intro HTML rendered above the collection list on the
     # public homepage. Empty when no intro has been authored yet.
     home_intro_html: str
+    # Plugin-declared public links, surfaced by ``public_navigation``-
+    # capable active plugins whose admin toggle is on. Empty when no
+    # plugin advertises the capability or none of them is enabled.
+    public_nav: list[PublicNavEntry] = []
 
 
 class LogoUploadResponse(BaseModel):

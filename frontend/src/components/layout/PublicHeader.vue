@@ -4,12 +4,17 @@ import { ArrowRightOnRectangleIcon } from "@heroicons/vue/24/outline";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { useAuthStore } from "@/stores/auth";
 import { useNavbarColors } from "@/composables/useNavbarColors";
+import { usePublicNav, usePublicNavLabel } from "@/composables/usePublicNav";
 
 const { t } = useI18n();
 const uiConfig = useUiConfigStore();
 const auth = useAuthStore();
 // Text colour auto-picked (WCAG) against the admin-configured background.
 const { bg, text } = useNavbarColors();
+// Plugin-declared header links — surfaced when the plugin is active and
+// its admin toggle (``public_link_<name>_enabled``) is on.
+const headerLinks = usePublicNav("header");
+const labelFor = usePublicNavLabel();
 </script>
 
 <template>
@@ -31,6 +36,15 @@ const { bg, text } = useNavbarColors();
     </router-link>
 
     <div class="ml-auto flex items-center gap-2 text-sm">
+      <!-- Plugin-declared header links (public_navigation, section=header) -->
+      <router-link
+        v-for="entry in headerLinks"
+        :key="entry.plugin_name"
+        :to="entry.url"
+        class="rounded px-3 py-1.5 opacity-80 transition-colors hover:bg-black/10 hover:opacity-100"
+      >
+        {{ labelFor(entry) }}
+      </router-link>
       <router-link
         v-if="uiConfig.config.public_search_engine_enabled && uiConfig.config.public_search_engine_slug"
         to="/search"

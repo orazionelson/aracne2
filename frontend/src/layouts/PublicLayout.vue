@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
 import PublicHeader from "@/components/layout/PublicHeader.vue";
-import AppFooter from "@/components/layout/AppFooter.vue";
+import PublicFooter from "@/components/layout/PublicFooter.vue";
 </script>
 
 <template>
@@ -10,6 +10,6 @@ import AppFooter from "@/components/layout/AppFooter.vue";
     <main class="flex-1 bg-gray-50">
       <RouterView />
     </main>
-    <AppFooter />
+    <PublicFooter />
   </div>
 </template>

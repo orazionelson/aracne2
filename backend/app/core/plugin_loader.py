@@ -107,11 +107,33 @@ class PluginLoader:
 
     async def sync_registry(self, db: AsyncSession) -> None:
         """Upsert a Plugin row in PostgreSQL for every discovered plugin."""
+        from app.models.system_setting import SystemSetting
+
         for plugin_id, cls in self._discovered.items():
             meta = cls.meta
             prefix = "_native." if meta.native else ""
             entry_point = f"app.plugins.{prefix}{plugin_id}.plugin"
             now = datetime.now(UTC)
+
+            # Idempotent toggle row for plugins that advertise the
+            # public_navigation capability — covers natives (always
+            # active, never go through activate_plugin) as well as
+            # the boot of a deployment whose plugin landed pre-toggle.
+            desc = meta.ui_descriptor or {}
+            if isinstance(desc, dict) and "public_navigation" in desc:
+                toggle_key = f"public_link_{plugin_id}_enabled"
+                existing_toggle = await db.get(SystemSetting, toggle_key)
+                if existing_toggle is None:
+                    db.add(
+                        SystemSetting(
+                            key=toggle_key,
+                            value="false",
+                            type="bool",
+                            description=(
+                                f"Show {meta.name} in the public navigation."
+                            ),
+                        )
+                    )
 
             existing = await db.scalar(
                 select(Plugin).where(Plugin.name == plugin_id)
