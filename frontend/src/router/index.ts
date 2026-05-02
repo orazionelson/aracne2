@@ -56,6 +56,13 @@ const router = createRouter({
       component: () => import("@/views/PublicSearchView.vue"),
       meta: { layout: "public" },
     },
+    // ── Public natural-language search (FUTURE_IDEAS §25) ─────────────────
+    {
+      path: "/search-nl",
+      name: "public-nl-search",
+      component: () => import("@/views/public/NlSearchPublicView.vue"),
+      meta: { layout: "public" },
+    },
     // ── EVT public viewer ──────────────────────────────────────────────────
     {
       path: "/collections/:slug/read",

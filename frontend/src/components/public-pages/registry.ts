@@ -20,9 +20,11 @@
  * the convention).
  */
 import type { Component } from "vue";
-// import { defineAsyncComponent } from "vue";
+import { defineAsyncComponent } from "vue";
 
 export const PUBLIC_PAGE_COMPONENTS: Record<string, Component> = {
-  // Future plugins land one line each. Example:
-  // NlSearchPublicView: defineAsyncComponent(() => import("@/components/public-pages/NlSearchPublicView.vue")),
+  // §25 — public natural-language search
+  NlSearchPublicView: defineAsyncComponent(
+    () => import("@/views/public/NlSearchPublicView.vue"),
+  ),
 };

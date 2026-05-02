@@ -724,6 +724,27 @@
     "engine_label": "Engine",
     "engine_select_placeholder": "Choose a search engine…"
   },
+  "nl_search": {
+    "title": "Ask the corpus",
+    "subtitle": "Type a question in natural language. Answers are grounded in the published corpus and include citations.",
+    "placeholder": "What would you like to know about the corpus?",
+    "ask": "Ask",
+    "searching": "Searching…",
+    "your_question": "Your question",
+    "citations_title": "Citations",
+    "empty_hint": "Try a question — the assistant will search the corpus and answer with citations.",
+    "status_thinking": "Thinking…",
+    "status_tool_call": "Querying tool: {name}…",
+    "public_link_label": "Natural-language search",
+    "error_generic": "Something went wrong. Please try again.",
+    "error_budget_exceeded": "The daily budget has been used up. Please try again tomorrow.",
+    "error_over_capacity": "The assistant is busy. Please try again in a moment.",
+    "error_provider": "The AI provider could not be reached. The deployment may be misconfigured.",
+    "error_no_corpus": "An administrator has not selected a corpus for natural-language search yet.",
+    "error_login_required": "Sign in to use natural-language search on this site.",
+    "error_too_long": "Your question is too long. Please shorten it.",
+    "error_rate_limited": "Too many questions in a short time. Please wait a moment and try again."
+  },
   "public_browse": {
     "filter_placeholder": "Filter documents…",
     "sort_by": "Sort by:",

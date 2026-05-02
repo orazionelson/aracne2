@@ -721,6 +721,27 @@
     "engine_label": "Motore",
     "engine_select_placeholder": "Scegli un motore di ricerca…"
   },
+  "nl_search": {
+    "title": "Interroga il corpus",
+    "subtitle": "Scrivi una domanda in linguaggio naturale. Le risposte sono basate sul corpus pubblicato e includono citazioni.",
+    "placeholder": "Cosa vuoi sapere sul corpus?",
+    "ask": "Chiedi",
+    "searching": "Ricerca in corso…",
+    "your_question": "La tua domanda",
+    "citations_title": "Citazioni",
+    "empty_hint": "Prova a fare una domanda — l'assistente cercherà nel corpus e risponderà con citazioni.",
+    "status_thinking": "Sto ragionando…",
+    "status_tool_call": "Richiamo strumento: {name}…",
+    "public_link_label": "Cerca in linguaggio naturale",
+    "error_generic": "Qualcosa è andato storto. Riprova.",
+    "error_budget_exceeded": "Il budget giornaliero è esaurito. Riprova domani.",
+    "error_over_capacity": "L'assistente è occupato. Riprova fra qualche istante.",
+    "error_provider": "Il provider AI non è raggiungibile. La configurazione potrebbe essere errata.",
+    "error_no_corpus": "Un amministratore non ha ancora selezionato un corpus per la ricerca in linguaggio naturale.",
+    "error_login_required": "Accedi per usare la ricerca in linguaggio naturale su questo sito.",
+    "error_too_long": "La domanda è troppo lunga. Riduci il testo.",
+    "error_rate_limited": "Troppe richieste in poco tempo. Aspetta un momento e riprova."
+  },
   "public_browse": {
     "filter_placeholder": "Filtra documenti…",
     "sort_by": "Ordina per:",
