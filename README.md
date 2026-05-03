@@ -172,8 +172,7 @@ The third iteration draws three lines from the previous two:
 
 ## What Aracne2 is, in one paragraph
 
-A web CMS with a separate frontend/backend architecture, inspired
-by WordPress in its modularity: an agnostic core (authentication,
+A web CMS with a separate frontend/backend architecture, based on modularity: an agnostic core (authentication,
 ACL, routing, hooks/plugins, rendering) on top of which domain
 modules are added one at a time. Two distinct data layers
 (PostgreSQL for platform state, eXist-db for TEI XML), a Vue 3
@@ -182,30 +181,8 @@ plugin system that hot-mounts third-party integrations without
 restarting the backend or touching the SPA. AI assistance is a
 peer tool inside the editor — not a chat widget — including
 local-only RAG over the TEI P5 Guidelines for institutions that
-cannot ship their corpus to a cloud LLM.
-
-The platform reached **production-ready status across three
-milestones**:
-
-- **M1 — Operationalisation.** Document version history with
-  working/published split, transactional email, password reset,
-  natural-language search, the `aracne` CLI for bulk import/export,
-  per-user Personal Access Tokens, plugin auto-cabling for public
-  navigation. See [§§ 3, 13, 16, 21](#3-collections-documents-and-the-workingpublished-split).
-- **M2 — Audit visibility & security debt.** Admin-facing audit log
-  view, scheduled fixity layer with drift dashboard, full security
-  review pipeline (PyJWT migration, dependency audit). See
-  [§§ 17, 18](#17-audit-log).
-- **M3 — Institutional surface.** `policy_pages` plugin (twelve
-  CTS-aligned templates), capability roles via singleton
-  `PolicyManager`, public `/policies` index, CoreTrustSeal posture
-  documented end-to-end. See
-  [§ 19](#19-policy-pages-capability-roles-and-cts-posture).
-
-Day-to-day operations and deferred design decisions live in
-[`docs/TO_DO.md`](docs/TO_DO.md); the per-CTS-requirement
-self-assessment lives in
-[`docs/reference/CTS_COMPLIANCE.md`](docs/reference/CTS_COMPLIANCE.md).
+cannot shipb modularity: an agnostic core (authentication,
+ACL, routing, ho their corpus to a cloud LLM.
 
 ---
 
@@ -250,7 +227,7 @@ CoreTrustSeal / nestor / ISO 16363 review
               ┌───────────┴────────────┐
               │                        │
 ┌─────────────▼──────────┐  ┌──────────▼─────────────────────────┐
-│  PostgreSQL 15          │  │  eXist-db 6.x                      │
+│  PostgreSQL 17          │  │  eXist-db 6.x                      │
 │  Layer 1 — platform     │  │  Layer 2 — document data           │
 │  users · roles          │  │  TEI XML collections               │
 │  sessions · settings    │  │  queried via XQuery 3.1            │
@@ -299,7 +276,7 @@ CoreTrustSeal / nestor / ISO 16363 review
 
 ## Synoptic feature overview
 
-What follows is a long, deliberately exhaustive carrellata. Each
+What follows is a long, deliberately exhaustive overview. Each
 subsection points at the matching reference document; the
 [`docs/reference/`](docs/reference/) tree carries the operational
 detail.
@@ -874,7 +851,7 @@ References:
 |-------|-----------|
 | Backend runtime | Python 3.12 · FastAPI · SQLAlchemy 2 async · Alembic · Pydantic v2 |
 | Auth | **PyJWT** (migrated from python-jose 2026-05-03) · **bcrypt directly** (no passlib) · httpOnly refresh cookie |
-| Databases | PostgreSQL 15 · eXist-db 6.x · pgvector (optional, RAG) |
+| Databases | PostgreSQL 17 · eXist-db 6.x · pgvector (optional, RAG) |
 | XML | defusedxml (XXE prevention) · XQuery 3.1 · lxml |
 | Email | bundled Postfix container — no SMTP secrets in DB |
 | Scheduling | APScheduler (fixity sweep, audit-log retention prune) |

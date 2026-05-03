@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -117,7 +117,7 @@ services:
   # the main platform DB. Backend reaches it at pgvector:5432 on the aracne2
   # network. Host port 5433 exposed for local debugging (psql, dump, …).
   pgvector:
-    image: pgvector/pgvector:pg15
+    image: pgvector/pgvector:pg17
     profiles:
       - ai-local
     environment:
