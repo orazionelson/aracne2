@@ -27,4 +27,10 @@ export const PUBLIC_PAGE_COMPONENTS: Record<string, Component> = {
   NlSearchPublicView: defineAsyncComponent(
     () => import("@/views/public/NlSearchPublicView.vue"),
   ),
+  // §27 — public policies index (the per-policy view at
+  // /policies/<slug> is wired through the router directly; this
+  // registry entry is for the §24 footer iterator only).
+  PolicyPagesIndexView: defineAsyncComponent(
+    () => import("@/views/public/PolicyPagesIndexView.vue"),
+  ),
 };

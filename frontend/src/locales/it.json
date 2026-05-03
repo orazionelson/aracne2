@@ -2049,7 +2049,11 @@
     "remove_row": "Rimuovi riga",
     "versions": "Cronologia versioni",
     "no_versions": "Nessuna versione — Salva per crearne una prima.",
-    "public_link_label": "Politiche"
+    "public_link_label": "Politiche",
+    "public_index_title": "Politiche istituzionali",
+    "public_index_subtitle": "Dichiarazioni istituzionali vive che governano questo corpus.",
+    "public_index_empty": "Non sono ancora state pubblicate politiche.",
+    "print_button": "Stampa"
   },
   "policy": {
     "platform": {

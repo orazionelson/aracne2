@@ -2052,7 +2052,11 @@
     "remove_row": "Remove row",
     "versions": "Version history",
     "no_versions": "No versions yet — Save to create the first one.",
-    "public_link_label": "Policies"
+    "public_link_label": "Policies",
+    "public_index_title": "Institutional policies",
+    "public_index_subtitle": "Live institutional declarations governing this corpus.",
+    "public_index_empty": "No policies have been published yet.",
+    "print_button": "Print"
   },
   "policy": {
     "platform": {

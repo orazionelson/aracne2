@@ -63,6 +63,19 @@ const router = createRouter({
       component: () => import("@/views/public/NlSearchPublicView.vue"),
       meta: { layout: "public" },
     },
+    // ── Public policy pages (FUTURE_IDEAS §27) ─────────────────────────────
+    {
+      path: "/policies",
+      name: "public-policies-index",
+      component: () => import("@/views/public/PolicyPagesIndexView.vue"),
+      meta: { layout: "public" },
+    },
+    {
+      path: "/policies/:url_slug",
+      name: "public-policy",
+      component: () => import("@/views/public/PolicyPagePublicView.vue"),
+      meta: { layout: "public" },
+    },
     // ── EVT public viewer ──────────────────────────────────────────────────
     {
       path: "/collections/:slug/read",
