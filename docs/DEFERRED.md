@@ -315,7 +315,21 @@ non-development environment.
 
 ---
 
-## 13. XSLT Designer — Phase D: AI sidebar nel CodeMirror 🟡 Medium
+## 13. ~~XSLT Designer — Phase D: AI sidebar nel CodeMirror~~ ✅ Shipped
+
+> Già implementato: il pannello AI è in
+> [`frontend/src/views/admin/WebsiteEditView.vue`](../frontend/src/views/admin/WebsiteEditView.vue)
+> (apertura via `openXsltAiPanel`, due tab Debug + Discuss
+> auto-cablati su `aiStore.prompts` filtrato per `scope`
+> `xslt.debug` / `xslt.discuss`); i prompt sono seedati in
+> [`backend/app/db/seed.py`](../backend/app/db/seed.py) sotto
+> gli slug ``xslt_debug`` + ``xslt_discuss`` (variabili
+> ``error_msg`` + ``xslt_source``); lo stream SSE riusa
+> ``aiStore.startStream`` esistente. Niente da fare; si
+> riapre solo se serve un terzo tab (es. Apply patch) o un
+> formato di output strutturato per CodeMirror.
+
+🟡 Medium (priorità storica)
 
 ### Contesto e stato attuale
 
