@@ -2799,4 +2799,153 @@ on the radar but not worth implementing speculatively.
 
 ---
 
-*Last updated: 2026-04-30*
+## 29. Server-side PDF renderer — opt-in sidecar service 🟡 Medium
+
+A new optional Docker container (compose profile `pdf`) that
+wraps `weasyprint` (or equivalent CSS-paged-media engine) behind
+a tiny FastAPI surface. The backend posts HTML or Markdown to it,
+gets back a PDF byte stream. The image grows by ~80 MB only on
+deployments that opt in; default deployments keep using the
+browser's built-in **Print → Save as PDF** path that every
+PDF-producing surface already supports today.
+
+### Why a sidecar (and not a Python dep)
+
+Aracne2's plugin activation toggle does NOT install dependencies
+at runtime — every plugin's deps are baked into the image at
+build time. Adding `weasyprint` to `requirements.txt` ships ~3 MB
+of Python wheel **plus the system libs the wheel needs at
+import time** (`cairo`, `pango`, `gdk-pixbuf`, `fontconfig` —
+~80 MB of `apt` packages) into every backend image regardless
+of whether the operator ever asks for a server-rendered PDF.
+
+A sidecar (separate container with its own image) lets the
+operator decide at compose time:
+
+```yaml
+services:
+  pdf:
+    profiles: ["pdf"]
+    image: aracne2-pdf:latest
+    # ...
+```
+
+Deployments that omit `--profile pdf` never start the container
+and never download its image. Same pattern already in use for
+the Postfix container (`profiles: ["email"]`, M1 §11).
+
+### Why it's platform-wide and not policy-specific
+
+Browser print-to-PDF works for **every** read-only public surface
+Aracne2 already exposes:
+
+- public document view (TEI document)
+- public bibliography
+- public entities pages
+- public policy pages (M3 §27)
+- audit-log CSV view (already ships CSV — PDF would be a luxury)
+- collection deposit packets (Zenodo / IA / Codeberg / GH / GL /
+  Dataverse) currently attach the publication's HTML or raw
+  TEI; a server-rendered PDF would be an additional payload
+  the deposit pipeline can offer
+
+The sidecar is the **single substitute** for browser-print on any
+of these surfaces — operators that want byte-for-byte deterministic
+PDFs across browsers, embedded version-footer that the user
+cannot strip by re-printing, and automation hooks (deposit
+pipelines, nightly archive runs) flip the profile and gain it
+everywhere at once.
+
+### One deliberate exception: fully-static websites
+
+The Websites module (`/sites/<slug>` + the static-export path)
+ships HTML / CSS / JS to a directory the operator serves with
+nginx without any Aracne2 backend at runtime. There is no
+backend HTTP call available; the only path is the visitor's
+browser print dialog. **Static websites stay on browser-print
+only**, regardless of whether the sidecar is enabled — a
+served-static export by definition cannot reach a sidecar API.
+
+### Surfaces
+
+```
+sidecars/pdf/
+├── Dockerfile               # weasyprint + system libs
+├── pyproject.toml           # fastapi, weasyprint, jinja2
+├── pdf_renderer/
+│   ├── __init__.py
+│   ├── main.py              # POST /render, GET /healthz
+│   └── render.py            # html|md → PDF
+└── tests/
+
+backend/app/services/pdf_renderer.py
+                              # thin httpx client; reads the sidecar
+                              # URL from PDF_RENDERER_URL env or returns
+                              # ``None`` if disabled (caller falls back to
+                              # browser-print path)
+
+docker-compose.yml            # `pdf` profile + service definition
+.env.example                  # PDF_RENDERER_URL=http://pdf:8090
+```
+
+### Backend integration
+
+Each PDF-producing feature exposes **two parallel UX paths**:
+
+1. **Print-this-page button** — always present, uses the browser's
+   `window.print()` plus a `@media print` stylesheet that hides
+   admin chrome and bakes in a server-rendered version footer
+   (no sidecar needed).
+2. **Server-rendered PDF link** — present only when the
+   `pdf_renderer` service is reachable. Visible as a small "PDF
+   ufficiale" / "Official PDF" link next to the print button. The
+   backend route hands the rendered HTML to
+   `pdf_renderer.render()`, returns the PDF bytes with proper
+   `Content-Disposition` and the deployment fingerprint stamped
+   into the PDF /Producer metadata field.
+
+A `GET /api/v1/system/pdf-renderer-status` endpoint lets the
+SPA know whether to render the second path or hide it.
+
+### Why not part of M3
+
+The browser-print path covers "voglio il PDF della Storage Policy
+del 15 settembre" perfectly fine for a single-deployment editor.
+The sidecar's value materialises only when an operator hits one
+of three triggers:
+
+- a CTS reviewer asks for byte-for-byte deterministic PDFs;
+- the deposit pipeline (Zenodo / IA) wants a server-rendered PDF
+  attached automatically;
+- a multi-policy / multi-document export job wants to script PDF
+  generation without a human at the browser.
+
+Until at least one of those triggers fires we ship browser-print
+everywhere — same code path everywhere, zero new infra.
+
+### Effort
+
+| Step | Effort |
+|---|---|
+| Sidecar Dockerfile + FastAPI service + healthcheck | 0.5g |
+| `services.pdf_renderer` httpx client + status endpoint | 0.5g |
+| Wire each existing PDF-producing surface to the dual UX path | 1g |
+| `@media print` stylesheets + version footer per surface | 0.5g |
+| Tests (sidecar unit + backend integration with MockTransport) | 0.5g |
+| Docs + help-doc page on the toggle | 0.25g |
+| **Totale** | **~3.25g** |
+
+### Trigger for implementation
+
+- A first deployment asks for deterministic PDFs of policy pages
+  (CTS reviewer requirement), or
+- The deposit pipeline (Zenodo / IA / Codeberg) gains a step that
+  wants a PDF attached server-side, or
+- An institution explicitly asks for "official PDF" semantics on
+  any public page.
+
+*Added: 2026-05-03*
+
+---
+
+*Last updated: 2026-05-03*
