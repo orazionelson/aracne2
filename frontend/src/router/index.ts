@@ -240,6 +240,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Editor", layout: "admin" },
     },
     {
+      path: "/admin/gdpr",
+      name: "admin-gdpr",
+      component: () => import("@/views/admin/GdprView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
       path: "/admin/entities",
       name: "admin-entities",
       component: () => import("@/views/admin/NamedEntitiesView.vue"),

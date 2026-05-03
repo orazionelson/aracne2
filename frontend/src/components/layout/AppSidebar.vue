@@ -168,6 +168,12 @@ const SECTIONS: NavSection[] = [
         visible: () => auth.hasMinRole("Editor"),
       },
       {
+        labelKey: "nav.gdpr",
+        to: { name: "admin-gdpr" },
+        icon: UserCircleIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
         labelKey: "nav.settings",
         to: { name: "admin-settings" },
         icon: Cog6ToothIcon,

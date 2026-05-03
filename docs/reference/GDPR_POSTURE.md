@@ -317,18 +317,28 @@ Tests:
 
 ## What is on the backlog (not blocking R4)
 
-- **Email notification to Admins** when a new GDPR request lands.
-  The plumbing is the existing `email_dispatcher`; a hook event
-  `ON_GDPR_REQUEST_SUBMITTED` would wire it. Skipped in v1
-  because the open-queue Admin view is the canonical surface.
-- **Admin UI page** at `/admin/gdpr` mirroring the audit-log
-  view's filter / detail layout. Until it ships, an Admin uses
-  the JSON endpoints + the audit log directly.
-- **Frontend "Request anonymisation" button** on the user's
-  Profile view. Today the endpoint exists; the button is missing.
-  Adding it is mostly UX writing — the explanation text about
-  what the request does and the institutional process needs to
-  be carefully written.
+The three follow-ups originally listed here all shipped on
+2026-05-03 alongside the docs:
 
-These are all small follow-ups; none of them changes the legal
-posture.
+- ✅ **Email notification to Admins** — wired through the
+  ``ON_GDPR_REQUEST_SUBMITTED`` hook event; the
+  ``email_dispatcher`` plugin's ``on_gdpr_request_submitted``
+  listener fires a fire-and-forget task per active Admin with the
+  ``gdpr_request_submitted`` template (EN/IT subject + html + text
+  variants under ``app/email_templates/``).
+- ✅ **Admin UI page** at ``/admin/gdpr`` — card-per-request queue
+  with a review-notes textarea, Approve+Anonymise and Reject
+  buttons. The reject path requires notes (UX guard); the
+  approve path warns when notes are empty.
+- ✅ **Frontend affordances on the Profile view** — a Privacy card
+  with two buttons: **Export my data** (downloads the art. 15
+  JSON dump as a file) and **Request anonymisation** (typed-
+  confirm modal that explains the mediated flow + records the
+  optional reason).
+
+A still-deferred item: a structured **takedown form** for third
+parties whose name appears in published TEI bodies. Today this is
+handled out-of-band (email to the Admin); a structured form +
+ticket trail would extend the GDPR coverage to people who don't
+have an Aracne2 account. Tracked but not yet planned into a
+milestone.

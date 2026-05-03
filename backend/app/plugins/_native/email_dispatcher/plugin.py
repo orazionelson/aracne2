@@ -20,12 +20,14 @@ from app.plugins._native.email_dispatcher.service import (
     on_collection_published,
     on_collection_rejected,
     on_collection_submitted,
+    on_gdpr_request_submitted,
 )
 
 
 hook_registry.register(HookEvent.ON_COLLECTION_SUBMITTED, on_collection_submitted)
 hook_registry.register(HookEvent.ON_COLLECTION_REJECTED, on_collection_rejected)
 hook_registry.register(HookEvent.ON_COLLECTION_PUBLISHED, on_collection_published)
+hook_registry.register(HookEvent.ON_GDPR_REQUEST_SUBMITTED, on_gdpr_request_submitted)
 
 
 class Plugin(PluginBase):

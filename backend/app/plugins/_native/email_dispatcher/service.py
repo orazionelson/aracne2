@@ -246,3 +246,103 @@ async def on_collection_published(**kwargs: object) -> None:
         actor_display=_actor_label(actor),
         note=cast(str | None, kwargs.get("note")),
     )
+
+
+# ── GDPR request notification ─────────────────────────────────────────────────
+
+
+async def _fetch_active_admins(db: AsyncSession) -> list[User]:
+    """Return every active Admin with email notifications enabled.
+
+    The `email_notifications_enabled` toggle is what users use to opt
+    out of *workflow* emails; we honour it for GDPR notifications too
+    so an Admin who disabled the workflow stream stays consistent.
+    Operators that want a separate GDPR-only pager wire it themselves.
+    """
+    stmt = (
+        select(User)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            Role.name == RoleName.Admin,
+            UserRole.revoked_at.is_(None),
+            User.is_active.is_(True),
+            User.email_notifications_enabled.is_(True),
+        )
+        .distinct()
+    )
+    return list(await db.scalars(stmt))
+
+
+async def _dispatch_gdpr_request(
+    *,
+    requester_id,
+    requester_username: str,
+    reason: str | None,
+) -> None:
+    """Send the GDPR-request email to every active Admin.
+
+    Background task; opens its own AsyncSessionLocal so the
+    triggering request's transaction can commit independently.
+    Errors are caught and logged — the queue row in
+    ``gdpr_requests`` is the canonical accountability surface.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            default_lang = await _resolve_default_lang(db)
+            base_url = await _resolve_public_base_url(db)
+            admin_queue_url = (
+                f"{base_url.rstrip('/')}/admin/gdpr"
+                if base_url
+                else "/admin/gdpr"
+            )
+            base_ctx: dict[str, object] = {
+                "requester_username": requester_username,
+                "reason": (reason or "").strip(),
+                "admin_queue_url": admin_queue_url,
+            }
+            recipients = await _fetch_active_admins(db)
+            if not recipients:
+                logger.info(
+                    "email_dispatch_no_recipients",
+                    template_event="gdpr_request_submitted",
+                    requester=requester_username,
+                )
+                return
+            for recipient in recipients:
+                await _send_one(
+                    db,
+                    recipient,
+                    "gdpr_request_submitted",
+                    base_ctx,
+                    default_lang,
+                )
+        except Exception as exc:  # noqa: BLE001 — fire-and-forget contract
+            logger.error(
+                "email_dispatch_failed",
+                template_event="gdpr_request_submitted",
+                error=str(exc),
+            )
+
+
+async def on_gdpr_request_submitted(**kwargs: object) -> None:
+    """Hook handler for ``HookEvent.ON_GDPR_REQUEST_SUBMITTED``.
+
+    The GDPR service emits this with ``request`` (GdprRequest row)
+    and ``user`` (User who submitted). We schedule the email
+    dispatch as a background task so the originating request
+    returns 202 immediately.
+    """
+    user = cast(User | None, kwargs.get("user"))
+    request_obj = kwargs.get("request")
+    if user is None or request_obj is None:
+        return
+    reason: str | None = getattr(request_obj, "reason", None)
+    asyncio.create_task(
+        _dispatch_gdpr_request(
+            requester_id=user.id,
+            requester_username=user.username,
+            reason=reason,
+        ),
+        name="email-gdpr_request_submitted",
+    )

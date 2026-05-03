@@ -7,6 +7,7 @@ import {
   type PersonalAccessTokenCreated,
 } from "@/stores/personalAccessTokens";
 import UserAvatar from "@/components/ui/UserAvatar.vue";
+import { apiClient } from "@/services/api";
 
 const { t, locale } = useI18n();
 const auth = useAuthStore();
@@ -286,6 +287,78 @@ function renderBio(raw: string | null | undefined): string {
 
 const renderedBio = computed(() => renderBio(auth.user?.bio));
 const renderedBioPreview = computed(() => renderBio(bioDraft.value));
+
+// ── Privacy / GDPR ────────────────────────────────────────────────────────
+const isExporting = ref(false);
+const exportError = ref<string | null>(null);
+
+async function handleExportData(): Promise<void> {
+  isExporting.value = true;
+  exportError.value = null;
+  try {
+    const data = await apiClient.get<Record<string, unknown>>(
+      "/users/me/export",
+    );
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `aracne2-personal-data-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err: unknown) {
+    exportError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isExporting.value = false;
+  }
+}
+
+const showAnonymiseDialog = ref(false);
+const anonymiseReason = ref("");
+const anonymiseConfirm = ref("");
+const isSubmittingAnonymise = ref(false);
+const anonymiseError = ref<string | null>(null);
+const anonymiseDone = ref(false);
+
+const ANONYMISE_CONFIRM_PHRASE = "ANONYMISE";
+
+const canSubmitAnonymise = computed(
+  () => anonymiseConfirm.value.trim() === ANONYMISE_CONFIRM_PHRASE,
+);
+
+function openAnonymiseDialog(): void {
+  anonymiseReason.value = "";
+  anonymiseConfirm.value = "";
+  anonymiseError.value = null;
+  anonymiseDone.value = false;
+  showAnonymiseDialog.value = true;
+}
+
+function closeAnonymiseDialog(): void {
+  if (isSubmittingAnonymise.value) return;
+  showAnonymiseDialog.value = false;
+}
+
+async function handleSubmitAnonymise(): Promise<void> {
+  if (!canSubmitAnonymise.value) return;
+  isSubmittingAnonymise.value = true;
+  anonymiseError.value = null;
+  try {
+    await apiClient.post("/users/me/anonymise-request", {
+      reason: anonymiseReason.value.trim() || null,
+    });
+    anonymiseDone.value = true;
+  } catch (err: unknown) {
+    anonymiseError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSubmittingAnonymise.value = false;
+  }
+}
 </script>
 
 <template>
@@ -631,7 +704,127 @@ const renderedBioPreview = computed(() => renderBio(bioDraft.value));
           </tbody>
         </table>
       </div>
+
+      <!-- Privacy / GDPR card ─────────────────────────────────────────── -->
+      <div class="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div class="mb-2 flex items-center justify-between">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t("profile.privacy.title") }}
+          </p>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("profile.privacy.intro") }}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            :disabled="isExporting"
+            class="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+            @click="handleExportData"
+          >
+            {{ isExporting ? t("profile.privacy.exporting") : t("profile.privacy.export_button") }}
+          </button>
+          <button
+            type="button"
+            class="rounded border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-900/30"
+            @click="openAnonymiseDialog"
+          >
+            {{ t("profile.privacy.anonymise_button") }}
+          </button>
+        </div>
+
+        <p v-if="exportError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+          {{ exportError }}
+        </p>
+      </div>
     </div>
+
+    <!-- Anonymise-request dialog ───────────────────────────────────────── -->
+    <Teleport to="body">
+      <div
+        v-if="showAnonymiseDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeAnonymiseDialog"
+      >
+        <div class="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+          <template v-if="!anonymiseDone">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.privacy.anonymise_modal_title") }}
+            </h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_modal_intro") }}
+            </p>
+            <ul class="mt-2 list-disc pl-5 text-xs text-gray-600 dark:text-gray-400">
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_mediated") }}</li>
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_record_survives") }}</li>
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_no_login") }}</li>
+            </ul>
+
+            <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_reason_label") }}
+            </label>
+            <textarea
+              v-model="anonymiseReason"
+              rows="3"
+              :placeholder="t('profile.privacy.anonymise_reason_placeholder')"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+
+            <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_confirm_label") }}
+            </label>
+            <input
+              v-model="anonymiseConfirm"
+              type="text"
+              :placeholder="ANONYMISE_CONFIRM_PHRASE"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+
+            <p v-if="anonymiseError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+              {{ anonymiseError }}
+            </p>
+
+            <div class="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                :disabled="isSubmittingAnonymise"
+                @click="closeAnonymiseDialog"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                type="button"
+                class="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                :disabled="!canSubmitAnonymise || isSubmittingAnonymise"
+                @click="handleSubmitAnonymise"
+              >
+                {{ t("profile.privacy.anonymise_submit") }}
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <h3 class="text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+              {{ t("profile.privacy.anonymise_done_title") }}
+            </h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_done_body") }}
+            </p>
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                @click="closeAnonymiseDialog"
+              >
+                {{ t("common.close") }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Issue modal — captures the label, then flips to "copy this once" -->
     <Teleport to="body">

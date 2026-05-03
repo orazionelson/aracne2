@@ -1,0 +1,22 @@
+Ciao {{ recipient_display_name }},
+
+{{ requester_username }} ha inviato una richiesta di anonimizzazione
+GDPR su questo deployment di Aracne2.
+
+{% if reason %}Motivazione fornita:
+> {{ reason }}
+
+{% endif %}La richiesta è in stato "submitted". L'account non è stato
+modificato; resterà invariato finché un Admin non esegue l'azione
+di anonimizzazione.
+
+Per esaminare la coda: {{ admin_queue_url }}
+
+Quando agisci, registra la base istituzionale / legale nelle note
+di revisione — l'audit log conserva quelle note come motivazione
+dell'operazione.
+
+—
+Stai ricevendo questa email perché sei Admin su questo deployment di
+Aracne2. La postura GDPR completa è documentata in
+docs/reference/GDPR_POSTURE.md nel repository.

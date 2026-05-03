@@ -341,6 +341,19 @@ async def submit_anonymise_request(
         username=user.username,
         request_id=str(row.id),
     )
+
+    # Notify Admins via the hook bus — the email_dispatcher plugin
+    # listens for ON_GDPR_REQUEST_SUBMITTED and sends a heads-up to
+    # every active Admin. Hook-bus errors are caught upstream by the
+    # registry's emit, so a misconfigured email channel never blocks
+    # the request from landing in the queue.
+    from app.core.hooks import HookEvent, hook_registry
+
+    await hook_registry.emit(
+        HookEvent.ON_GDPR_REQUEST_SUBMITTED,
+        request=row,
+        user=user,
+    )
     return row
 
 

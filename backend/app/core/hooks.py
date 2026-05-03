@@ -35,6 +35,11 @@ class HookEvent:
     ON_DOCUMENT_UPLOADED = "document.uploaded"
     ON_DOCUMENT_DELETED = "document.deleted"
 
+    # GDPR request lifecycle (M3 follow-up: editor-appropriate posture).
+    # Emitted when a user submits an anonymisation request; the
+    # email_dispatcher plugin listens to send Admins a heads-up.
+    ON_GDPR_REQUEST_SUBMITTED = "gdpr.request_submitted"
+
 
 HookHandler = Callable[..., Awaitable[None]]
 
