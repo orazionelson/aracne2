@@ -22,6 +22,7 @@ import {
   XCircleIcon,
 } from "@heroicons/vue/24/outline";
 import FieldRenderer from "@/components/policy-pages/FieldRenderer.vue";
+import { apiClient } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { usePolicyPagesStore } from "@/stores/policyPages";
 
@@ -87,6 +88,80 @@ async function handlePublishVersion(versionNumber: number): Promise<void> {
   if (!confirm(t("policy_pages.publish_version_confirm", { n: versionNumber }))) return;
   await store.publish(activeSlug.value, versionNumber);
 }
+
+// ── PolicyManager assignment (Admin only) ────────────────────────────────────
+
+interface UserOption {
+  id: string;
+  username: string;
+  display_name: string | null;
+}
+
+const showManagerPicker = ref(false);
+const managerCandidates = ref<UserOption[]>([]);
+const managerCandidatesLoading = ref(false);
+const managerSearch = ref("");
+const managerBusy = ref(false);
+const managerError = ref<string | null>(null);
+
+const filteredCandidates = computed(() => {
+  const q = managerSearch.value.trim().toLowerCase();
+  if (!q) return managerCandidates.value;
+  return managerCandidates.value.filter(
+    (u) =>
+      u.username.toLowerCase().includes(q) ||
+      (u.display_name ?? "").toLowerCase().includes(q),
+  );
+});
+
+async function openManagerPicker(): Promise<void> {
+  showManagerPicker.value = true;
+  managerError.value = null;
+  managerSearch.value = "";
+  if (managerCandidates.value.length === 0) {
+    managerCandidatesLoading.value = true;
+    try {
+      const res = await apiClient.getPaginated<UserOption>("/users", {
+        params: { per_page: 100 },
+      });
+      managerCandidates.value = res.data;
+    } catch (err: unknown) {
+      managerError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+      managerCandidatesLoading.value = false;
+    }
+  }
+}
+
+function closeManagerPicker(): void {
+  showManagerPicker.value = false;
+}
+
+async function handleAssignManager(userId: string): Promise<void> {
+  managerBusy.value = true;
+  managerError.value = null;
+  try {
+    await store.transferPolicyManager(userId);
+    showManagerPicker.value = false;
+  } catch (err: unknown) {
+    managerError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    managerBusy.value = false;
+  }
+}
+
+async function handleRevokeManager(): Promise<void> {
+  if (!confirm(t("policy_pages.manager_revoke_confirm"))) return;
+  managerBusy.value = true;
+  managerError.value = null;
+  try {
+    await store.revokePolicyManager();
+  } catch (err: unknown) {
+    managerError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    managerBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -98,8 +173,8 @@ async function handlePublishVersion(versionNumber: number): Promise<void> {
 
     <!-- PolicyManager card -->
     <section class="mb-4 rounded-xl border border-indigo-200 bg-white p-4 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div>
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
           <p class="text-sm font-semibold text-gray-800">
             {{ t("policy_pages.manager_card_title") }}
           </p>
@@ -107,17 +182,108 @@ async function handlePublishVersion(versionNumber: number): Promise<void> {
             {{ t("policy_pages.manager_card_hint") }}
           </p>
         </div>
-        <div class="text-sm">
-          <template v-if="store.policyManager?.holder_username">
-            <span class="font-medium text-gray-800">{{ store.policyManager.holder_username }}</span>
-            <span v-if="store.policyManager.holder_display_name" class="text-gray-500">
-              ({{ store.policyManager.holder_display_name }})
-            </span>
-          </template>
-          <span v-else class="italic text-gray-400">{{ t("policy_pages.no_manager") }}</span>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="text-right">
+            <template v-if="store.policyManager?.holder_username">
+              <span class="font-medium text-gray-800">{{ store.policyManager.holder_username }}</span>
+              <span v-if="store.policyManager.holder_display_name" class="text-gray-500">
+                ({{ store.policyManager.holder_display_name }})
+              </span>
+            </template>
+            <span v-else class="italic text-gray-400">{{ t("policy_pages.no_manager") }}</span>
+          </div>
+          <div v-if="isAdmin" class="flex items-center gap-2">
+            <button
+              type="button"
+              :disabled="managerBusy"
+              class="inline-flex items-center rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+              @click="openManagerPicker"
+            >
+              {{ store.policyManager?.holder_user_id
+                ? t("policy_pages.manager_change_button")
+                : t("policy_pages.manager_assign_button") }}
+            </button>
+            <button
+              v-if="store.policyManager?.holder_user_id"
+              type="button"
+              :disabled="managerBusy"
+              class="inline-flex items-center rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+              @click="handleRevokeManager"
+            >
+              {{ t("policy_pages.manager_revoke_button") }}
+            </button>
+          </div>
         </div>
       </div>
+      <p v-if="managerError" class="mt-2 text-xs text-rose-600">{{ managerError }}</p>
     </section>
+
+    <!-- PolicyManager picker modal -->
+    <div
+      v-if="showManagerPicker"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeManagerPicker"
+    >
+      <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-base font-semibold text-gray-900">
+            {{ t("policy_pages.manager_picker_title") }}
+          </h2>
+          <button
+            type="button"
+            class="text-gray-400 hover:text-gray-600"
+            :aria-label="t('common.close')"
+            @click="closeManagerPicker"
+          >
+            <XCircleIcon class="h-5 w-5" />
+          </button>
+        </div>
+        <p class="mb-3 text-xs text-gray-500">
+          {{ t("policy_pages.manager_picker_hint") }}
+        </p>
+        <input
+          v-model="managerSearch"
+          type="text"
+          :placeholder="t('policy_pages.manager_picker_search_placeholder')"
+          class="mb-3 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+        />
+        <div class="max-h-72 overflow-y-auto rounded border border-gray-100">
+          <p v-if="managerCandidatesLoading" class="p-3 text-xs text-gray-500">
+            {{ t("common.loading") }}
+          </p>
+          <ul v-else-if="filteredCandidates.length" class="divide-y divide-gray-100">
+            <li
+              v-for="u in filteredCandidates"
+              :key="u.id"
+              class="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-gray-800">{{ u.username }}</p>
+                <p v-if="u.display_name" class="truncate text-xs text-gray-500">
+                  {{ u.display_name }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :disabled="managerBusy || u.id === store.policyManager?.holder_user_id"
+                class="ml-2 rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                @click="handleAssignManager(u.id)"
+              >
+                {{ u.id === store.policyManager?.holder_user_id
+                  ? t("policy_pages.manager_picker_current")
+                  : t("policy_pages.manager_picker_select") }}
+              </button>
+            </li>
+          </ul>
+          <p v-else class="p-3 text-xs text-gray-500">
+            {{ t("policy_pages.manager_picker_empty") }}
+          </p>
+        </div>
+        <p v-if="managerError" class="mt-3 text-xs text-rose-600">{{ managerError }}</p>
+      </div>
+    </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
       <!-- ── Left rail ────────────────────────────────────────────────── -->
