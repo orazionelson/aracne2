@@ -72,6 +72,22 @@ _md_env = Environment(
     keep_trailing_newline=True,
 )
 
+# bleach allow-lists for the public policy render (Security_review_2026-05-03.md
+# §1). Mirrors the help plugin's posture; a malicious / compromised
+# PolicyManager cannot inject ``javascript:`` URLs because the protocol
+# allow-list is explicit.
+_PUBLIC_RENDER_ALLOWED_TAGS: set[str] = {
+    "a", "abbr", "blockquote", "br", "code", "em", "h1", "h2", "h3",
+    "h4", "h5", "h6", "hr", "li", "ol", "p", "pre", "span", "strong",
+    "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul",
+    "del", "s",
+}
+_PUBLIC_RENDER_ALLOWED_ATTRS: dict[str, list[str]] = {
+    "*": ["class", "id"],
+    "a": ["href", "title", "rel"],
+}
+_PUBLIC_RENDER_ALLOWED_PROTOCOLS: list[str] = ["http", "https", "mailto"]
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -343,13 +359,25 @@ async def public_render(
     md_template = _md_env.get_template(template.public_template)
     md_body = md_template.render(**context)
 
-    # Markdown → HTML via the existing markdown-it pipeline used by
-    # the help plugin. We import lazily so the help plugin's bleach
-    # whitelist does not have to load when policy_pages is the only
-    # caller of this code path.
+    # Markdown → HTML, then bleach-sanitised. ``html: false`` blocks
+    # raw HTML, but markdown-it's default link validator does NOT
+    # filter dangerous URL schemes (``javascript:``, ``data:``).
+    # A malicious or compromised PolicyManager could otherwise
+    # embed such a link in a localised field and ship it to public
+    # visitors who'd click. The bleach pass enforces an explicit
+    # http / https / mailto protocol allow-list and a tag/attr
+    # whitelist that mirrors the help plugin's posture.
+    import bleach
     from markdown_it import MarkdownIt
 
-    html = MarkdownIt("commonmark", {"html": False}).render(md_body)
+    html = MarkdownIt("commonmark", {"html": False, "linkify": True}).render(md_body)
+    html = bleach.clean(
+        html,
+        tags=_PUBLIC_RENDER_ALLOWED_TAGS,
+        attributes=_PUBLIC_RENDER_ALLOWED_ATTRS,
+        protocols=_PUBLIC_RENDER_ALLOWED_PROTOCOLS,
+        strip=True,
+    )
 
     return DataResponse(
         data=PolicyRenderResponse(
