@@ -56,7 +56,7 @@ machine-actionable digital edition without making the editor learn
 to be an XML programmer?** Each iteration answered it differently,
 and the constraints we hit each time shaped what came next.
 
-### MaRa *(2008–2014)*
+### MaRa *(2008–2016)*
 
 The starting point was the **Angevine Chancery Papers**, the
 administrative output of the Angevin kings of Sicily and Naples
@@ -98,7 +98,7 @@ several thousand documents and was the de-facto editorial
 infrastructure for the project. But it was a **single-corpus,
 single-server tool** without a publishing layer.
 
-### Aracne *(2016–2024)*
+### Aracne *(2016–2026)*
 
 The lesson from MaRa was clear: the editorial flow was generalisable,
 the publication flow wasn't. **Aracne** was the first attempt to
@@ -118,11 +118,6 @@ between 2018 and 2022 it backed several academic editions.
 
 It also taught us where the XQuery-everywhere bet broke down:
 
-- **Hiring and onboarding.** A new contributor on the team needed
-  six months of XQuery before they could land a non-trivial change.
-  Python and JavaScript developers we could hire from a much wider
-  pool refused to invest in a niche language with shrinking
-  industry use.
 - **Library ecosystem.** Anything beyond the TEI core — image
   cropping, OAuth, OAI-PMH, CrossRef, Zenodo, modern auth — meant
   either reimplementing primitives in XQuery or shelling out to
