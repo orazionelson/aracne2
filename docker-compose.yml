@@ -99,9 +99,13 @@ services:
       - aracne2
 
   # ── EVT viewer (optional — activate with: docker compose --profile evt up) ──
+  # Sidecar nginx container that serves the EVT 2 SPA. The Python side of
+  # the plugin lives in backend/app/plugins/evt/; the build context below
+  # points at the matching container/ subdirectory so everything EVT-related
+  # is colocated under the plugin.
   evt:
     build:
-      context: ./evt
+      context: ./backend/app/plugins/evt/container
     profiles:
       - evt
     ports:
