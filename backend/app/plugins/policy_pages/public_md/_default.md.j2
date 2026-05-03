@@ -1,0 +1,50 @@
+{# Default public Markdown template — used by every built-in policy.
+   Render context:
+     - title: localised title string (resolved from template.title_key)
+     - sections: list of {label, kind, value, options, rows} dicts ready
+       to splice into Markdown; the service layer pre-resolves locale
+       and platform-source callables before handing the list in.
+     - version: {number, saved_at, saved_by}
+     - locale: "it" | "en"
+#}
+# {{ title }}
+
+{% for s in sections %}
+## {{ s.label }}
+
+{% if s.kind == "rows" %}
+{% if s.rows %}
+| {% for sub in s.row_labels %}{{ sub }} | {% endfor %}
+| {% for sub in s.row_labels %}---|{% endfor %}
+{% for row in s.rows %}
+| {% for cell in row %}{{ cell or "—" }} | {% endfor %}
+{% endfor %}
+{% else %}
+*(none on file)*
+{% endif %}
+{% elif s.kind == "enum" %}
+**{{ s.value or "—" }}**
+{% elif s.kind == "integer" %}
+**{{ s.value if s.value is not none else "—" }}**
+{% elif s.kind == "platform" %}
+{# Platform-resolved value — render lists / dicts as bullets, scalars as <em> #}
+{% if s.value is mapping %}
+{% for k, v in s.value.items() %}
+- **{{ k }}** — {{ v }}
+{% endfor %}
+{% elif s.value is iterable and s.value is not string %}
+{% for item in s.value %}
+- {{ item if item is string else (item.name ~ " (" ~ (item.version or "—") ~ ")" if item.name is defined else item) }}
+{% endfor %}
+{% else %}
+*{{ s.value if s.value is not none else "—" }}*
+{% endif %}
+{% else %}
+{{ s.value or "—" }}
+{% endif %}
+
+{% endfor %}
+
+---
+
+*Version {{ version.number }} — published {{ version.saved_at }}{% if version.saved_by %} by {{ version.saved_by }}{% endif %}.*
