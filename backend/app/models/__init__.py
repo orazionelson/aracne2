@@ -9,6 +9,7 @@ from app.models.nl_search_budget import NlSearchBudgetDay
 from app.models.nl_search_cache import NlSearchCache
 from app.models.password_reset_token import PasswordResetToken
 from app.models.personal_access_token import PersonalAccessToken
+from app.models.policy_page import PolicyPage, PolicyPageVersion
 from app.models.tei_schema import TeiSchema
 from app.models.collection_permission import CollectionPermission
 from app.models.plugin_data import PluginData
@@ -41,6 +42,8 @@ __all__ = [
     "PasswordResetToken",
     "PersonalAccessToken",
     "PluginData",
+    "PolicyPage",
+    "PolicyPageVersion",
     "TeiSchema",
     "VersionOrigin",
 ]
