@@ -21,7 +21,7 @@ help page at **Help → Publishing → Plugin links on the public site**,
 source [`backend/help_docs/04-publishing/07-plugin-links.md`](../../backend/help_docs/04-publishing/07-plugin-links.md).
 
 For the original brainstorm see
-[FUTURE_IDEAS §24](../FUTURE_IDEAS.md).
+[TO_DO.md](../TO_DO.md).
 
 ---
 
@@ -230,7 +230,7 @@ plus those two registry entries — no edit to `PublicHeader` /
 
 ## Future plugins on the radar
 
-The brainstorm in [FUTURE_IDEAS §24](../FUTURE_IDEAS.md) lists three
+The brainstorm in [TO_DO.md](../TO_DO.md) lists three
 candidate consumers beyond `nl_search` (the first to ship): a
 `public_maps` plugin, a `public_timeline` plugin, and a
 `public_usage` analytics page. Each lands as a one-PR addition with

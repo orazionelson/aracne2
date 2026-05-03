@@ -10,22 +10,25 @@ filesystem; it is **not** served by the running application.
 
 - `reference/` — per-subsystem reference docs (plugins, database
   schema, HTTP API shapes, TEI schemas, websites module, deposit
-  integrations, etc.). Every non-trivial subsystem has one.
+  integrations, operations runbook, install guide, CTS posture,
+  GDPR posture, etc.). Every non-trivial subsystem has one.
 - `phases/` — historical implementation phases kept as a record.
   Not living docs; don't modify unless a phase is genuinely being
   re-done.
-- `OPERATIONS.md` — runbook for admins / SRE: rotating credentials,
-  reading logs, backup, troubleshooting port / DNS / bootstrap.
-- `FUTURE_IDEAS.md` — speculative roadmap. Ideas that may or may not
-  ship; when one ships, the entry is marked as such with a pointer
-  to the canonical spec.
-- `DEFERRED.md` — architectural decisions deferred for features that
-  **are** in scope (different from `FUTURE_IDEAS.md`).
+- `TO_DO.md` — the live operational backlog: priority-ordered
+  list of items waiting to ship. Replaces the older
+  `FUTURE_IDEAS.md` + `DEFERRED.md` split — the distinction
+  stopped being load-bearing once every Milestone-1 / -2 / -3
+  deliverable shipped. Long design discussions for the items
+  here are preserved in git history of the original two files.
 - `USER_MANUAL.md` — long-form editor / admin handbook, authored
   here for developer-side review. Its runtime counterpart is the
   in-app Help at `/help` (sourced from `backend/help_docs/`).
 - `Security_review_YYYY-MM-DD.md` — one-shot security audit
   reports kept for trail.
+- `archived/` — historical roadmap and design notes, not in git
+  (`.gitignore`); kept on the maintainer's filesystem for personal
+  reference.
 
 ## Two doc trees — why and how to keep them aligned
 

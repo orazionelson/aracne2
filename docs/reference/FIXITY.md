@@ -15,7 +15,7 @@ For the user-facing how-to (where the page lives, what the
 [`backend/help_docs/05-reference/05-fixity.md`](../../backend/help_docs/05-reference/05-fixity.md).
 
 For the original CTS-roadmap discussion see
-[CTS_COMPLIANCE_ROADMAP.md §R7](../CTS_COMPLIANCE_ROADMAP.md).
+[CTS_COMPLIANCE.md](CTS_COMPLIANCE.md).
 
 ---
 

@@ -28,7 +28,7 @@ PAT card on the Profile view) see
 For the original design discussion (why a directory in the
 monorepo, why PAT instead of reusing MCP tokens, why
 `--on-conflict=skip` as default) see
-[FUTURE_IDEAS.md §1](../FUTURE_IDEAS.md).
+[TO_DO.md](../TO_DO.md).
 
 ---
 

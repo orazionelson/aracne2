@@ -498,7 +498,7 @@ Procedure:
 5. Re-ingest: `python -m app.scripts.ingest_tei_p5 --source … --purge`.
 
 This hard-reset is the price of the current simple schema. A future
-iteration (see `docs/FUTURE_IDEAS.md`) would support multi-dimension
+iteration (see `docs/TO_DO.md`) would support multi-dimension
 tables keyed by model.
 
 ---

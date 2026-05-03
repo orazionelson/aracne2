@@ -22,7 +22,7 @@ in-app help at **Help → Advanced → Natural-language search**, source
 [`backend/help_docs/03-advanced/08-nl-search.md`](../../backend/help_docs/03-advanced/08-nl-search.md).
 
 For the original brainstorm see
-[FUTURE_IDEAS §25](../FUTURE_IDEAS.md). For the auto-cabling
+[TO_DO.md](../TO_DO.md). For the auto-cabling
 primitive that surfaces the link see
 [PUBLIC_NAVIGATION.md](PUBLIC_NAVIGATION.md).
 

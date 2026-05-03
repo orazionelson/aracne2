@@ -30,7 +30,16 @@
 20. [OAI-PMH — making your data harvestable](#20-oai-pmh--making-your-data-harvestable)
 21. [Webhooks — connecting to external tools](#21-webhooks--connecting-to-external-tools)
 22. [External repositories — depositing collections and websites](#22-external-repositories--depositing-collections-and-websites)
-23. [Admin reference](#23-admin-reference)
+23. [Document version history](#23-document-version-history)
+24. [Email notifications and password reset](#24-email-notifications-and-password-reset)
+25. [Personal API tokens and the `aracne` CLI](#25-personal-api-tokens-and-the-aracne-cli)
+26. [Natural-language search](#26-natural-language-search)
+27. [Plugin links on the public site](#27-plugin-links-on-the-public-site)
+28. [Audit log dashboard](#28-audit-log-dashboard)
+29. [Fixity dashboard](#29-fixity-dashboard)
+30. [Policy pages and the PolicyManager role](#30-policy-pages-and-the-policymanager-role)
+31. [Your data — privacy and GDPR rights](#31-your-data--privacy-and-gdpr-rights)
+32. [Admin reference](#32-admin-reference)
 
 ---
 
@@ -147,7 +156,7 @@ breaks, the public pages simply show your name without a link.
 #### ORCID lookup in the TEI editor
 
 Independent of the profile field above: when the **ORCID lookup plugin** is
-activated by an Admin (see §22 Plugins), the TEI editor gains an "ORCID"
+activated by an Admin (see §32 Plugins), the TEI editor gains an "ORCID"
 button in its toolbar that searches the public ORCID registry by name and
 writes the resulting `@ref="https://orcid.org/…"` onto the enclosing
 `<persName>`. That flow is described in §6 (The TEI editor → External
@@ -1110,7 +1119,488 @@ and the per-plugin reference docs under `docs/reference/`.
 
 ---
 
-## 23. Admin reference
+## 23. Document version history
+
+Every TEI document has an **append-only timeline** of versions: every
+workflow event (creation, submission, revisions requested, publication)
+plus every explicit "Save version" or "Roll back" leaves a row that an
+editor can browse, compare, and restore.
+
+### Where the panel lives
+
+In the TEI editor, click **History** (right-side toolbar). The panel
+lists every version of the current document, newest first, with:
+
+- Version number (`v1`, `v2`, …)
+- Origin tag — `creation`, `manual`, `submission`, `revision`,
+  `publication`, `rollback`
+- Actor display name + timestamp
+- A short message (set when an editor saves manually)
+- A SHA-256 short hash for fixity (see §29)
+
+### What you can do
+
+| Action | Notes |
+|---|---|
+| **Open a version** | Loads that version's content into a read-only viewer next to the live editor |
+| **Compare** | Side-by-side diff between two versions |
+| **Save version** (Editor+) | Captures the current working tree with a message; useful before risky edits |
+| **Roll back to vN** (Editor+) | Replaces the working tree with vN's content; recorded as a new `rollback`-origin row |
+
+Rollback never erases history — the previous content is still
+visible as the row right before the rollback row.
+
+### The working / published split
+
+Editors keep editing freely on a published collection without taking
+the public website offline. The public sees the **last
+publication-origin version** for each document; the working tree
+lives in parallel until the next publish bumps it.
+
+A `?version=N` URL on a public document page resolves only to a
+publication-origin row, so manual saves and rollbacks never leak to
+anonymous visitors.
+
+### Reference
+
+[`docs/reference/DOCUMENT_VERSIONING.md`](reference/DOCUMENT_VERSIONING.md)
+covers the data model, dedup strategy, and per-origin behaviour
+matrix.
+
+---
+
+## 24. Email notifications and password reset
+
+Aracne2 can send transactional email for the workflow events that
+already produce in-app notifications (§17), plus a self-service
+password-reset flow.
+
+### What gets emailed
+
+| Event | Recipient |
+|---|---|
+| Collection submitted for review | Every active EditorInChief / Admin (except the actor) |
+| Collection sent back for revisions | The assigned Editor, with the reviewer's note |
+| Collection published | The assigned Editor |
+| Password reset requested | The requesting user |
+
+In-app notifications still fire regardless — email is an
+*additional* channel.
+
+### Per-user opt-out
+
+Profile → **Email notifications** toggle. Default `on`. When
+`off`, you still see in-app notifications but no email is sent.
+The toggle does *not* suppress password-reset email — that flow
+is anonymous (you triggered it from the login page) and is the
+only way back into your account if you've forgotten the password.
+
+### Forgot password
+
+The login page shows a **Forgot password?** link. It opens
+`/forgot-password`, asks for your email, and (regardless of
+whether the email matches an account, to avoid leaking
+membership) shows a "we've sent you a link if your address
+exists" confirmation. Clicking the link in the email lands on
+`/reset-password/:token`, where you set a new password. Tokens
+are single-use and expire after one hour.
+
+### Admin-side prerequisites
+
+Email is **off by default** at the platform level. An Admin must:
+
+1. Enable `email_enabled` in System settings (§32).
+2. Set `email_from_address` (default `noreply@<your-domain>`).
+3. Make sure the bundled Postfix container is running and the
+   smarthost is reachable. The platform never stores SMTP
+   credentials in the database — Postfix owns the queue.
+
+If `email_enabled=false`, the user-facing toggle and the password
+reset flow remain visible but no message goes out (a queue line
+is logged for the operator).
+
+### Reference
+
+[`docs/reference/EMAIL_CHANNELS.md`](reference/EMAIL_CHANNELS.md)
+documents templates, retry/backoff, DKIM, and the operator's
+runbook.
+
+---
+
+## 25. Personal API tokens and the `aracne` CLI
+
+Aracne2 ships a headless command-line tool — `aracne` — that runs
+on your laptop and talks to the platform over HTTPS using a
+**Personal Access Token (PAT)** you issue from your own profile.
+
+### Issuing a token
+
+Profile → **API Tokens** card. Click **Issue token**, give it a
+label (e.g. `my-laptop`), and the platform shows the plaintext
+*once*. Copy it immediately into a safe place — it is bcrypt-hashed
+in the database and cannot be recovered later.
+
+The card also lists every token you've ever issued with `last
+used` and a per-row **Revoke** button. A revoked token stops
+authenticating on the next request.
+
+PATs inherit the role of the issuing user at request time, so
+revoking the user's role or deactivating the user immediately
+disarms every PAT they hold without an explicit revoke step.
+
+### What the CLI does today
+
+| Command | Purpose |
+|---|---|
+| `aracne login` | Capture a PAT and verify it against the host |
+| `aracne whoami` | Print the user the saved PAT resolves to |
+| `aracne import --collection SLUG --dir PATH` | Bulk-upload `*.xml` files into a collection |
+| `aracne export --collection SLUG --output FILE.zip` | Download the collection's working tree as a ZIP |
+| `aracne export --collection SLUG --as-of YYYY-MM-DD --output FILE.zip` | Same, but resolves each document to its publication-origin state at that date |
+
+`import` defaults to `--on-conflict=skip`, so re-running an
+import never overwrites work; pass `--on-conflict=overwrite` or
+`--on-conflict=fail` to change that.
+
+The `--as-of` flag pairs with the document version history (§23):
+the CLI walks each document's `publication`-origin rows and picks
+the latest at or before the given date.
+
+### Installing
+
+Not on PyPI. The audience is invite-only.
+
+```bash
+git clone https://github.com/orazionelson/aracne2.git
+cd aracne2/cli
+pip install -e .
+aracne --help
+```
+
+### Reference
+
+[`docs/reference/CLI.md`](reference/CLI.md) covers the config-file
+layout (`~/.aracne/config.toml`), profile switching, and the
+deferred commands (`validate`, `delete`).
+
+---
+
+## 26. Natural-language search
+
+When the **NL search** plugin is active, your deployment exposes a
+chat-style search box at `/search-nl`. Visitors type a question in
+natural language; the platform runs an LLM tool-use loop against
+its own read-only MCP tools and streams back an answer with
+**citations to real TEI documents** (passage URL + filename).
+
+### Visitor experience
+
+- Public route, no login required.
+- Streaming answer (the page fills in as the model writes).
+- Every claim ends with a citation; clicking it opens the source
+  document at the right passage.
+- An on-page disclaimer explains the answer is generated and
+  should be checked against the citations.
+
+### Admin setup
+
+Off by default. To turn it on:
+
+1. Activate the plugin from `/admin/plugins`.
+2. Configure provider, model, corpus to search, and the optional
+   API key from **Settings → NL search**.
+3. Decide whether to surface the home-page tile from
+   **Public Pages → Pagine → Plugin links** (see §27). The
+   `/search-nl` route works regardless of that toggle — the
+   toggle only controls the visible link.
+
+### Why citations are mandatory
+
+The orchestrator refuses to emit an answer that doesn't cite at
+least one document. This is by design — without citations, the
+output would be indistinguishable from an open-domain LLM and
+would damage the platform's scientific posture.
+
+### Reference
+
+[`docs/reference/NL_SEARCH.md`](reference/NL_SEARCH.md) covers the
+tool-use loop, rate limits, prompt-injection mitigations, and the
+admin Settings surface.
+
+---
+
+## 27. Plugin links on the public site
+
+Some plugins ship a public-facing page (e.g. NL search §26, the
+policy pages §30). Aracne2's public layout — header, home tiles,
+footer — automatically iterates the active plugins and surfaces a
+link to that page **only when the matching admin toggle is on**.
+
+### Where the toggles live
+
+**Public Pages → Pagine → Plugin links** (Admin or PolicyManager).
+Each public-navigation-capable plugin shows one row with:
+
+- Plugin name + label preview (per locale)
+- Section the link will appear in: `header`, home `quick links`,
+  or `footer`
+- A toggle (default `off`)
+
+Activating a plugin never auto-publishes its public surface — the
+Admin must consciously flip the toggle. This guards against
+"installed-but-not-yet-configured" surprises on the public site.
+
+### Reference
+
+[`docs/reference/PUBLIC_NAVIGATION.md`](reference/PUBLIC_NAVIGATION.md)
+documents the per-plugin descriptor format, locale fallbacks, and
+the `system_settings` row format.
+
+---
+
+## 28. Audit log dashboard
+
+Every intentional, user-attributable action is recorded in the
+`audit_log` table: auth events, document edits, plugin activations,
+settings changes, role grants, GDPR requests, and so on.
+
+### Where the page lives
+
+**Admin → Audit log** (Admin only). The page shows a paginated,
+filterable table with:
+
+| Column | What it shows |
+|---|---|
+| When | Timestamp, locale-formatted |
+| Action | e.g. `collection.published`, `user.role_assigned`, `policy_pages.published` |
+| Actor | Display name (anonymised entries show a placeholder) |
+| Target | Slug / filename / username — never bare UUIDs |
+| Details | JSON payload, expandable |
+
+### Filters
+
+- Free-text search across action / actor / target label
+- Action prefix (`collection.*`, `user.*`, `auth.*`, …)
+- Actor (any user)
+- Date range
+
+### Export
+
+Click **Export CSV** to download the current filtered view. The
+export honours the platform's privacy posture: IP addresses are
+already SHA-256-hashed in production, and anonymised users show
+their placeholder identity.
+
+### Retention
+
+Configurable per platform (default 90 days) via the
+`audit_log_retention_days` system setting. A nightly job prunes
+rows older than that window.
+
+### Reference
+
+[`docs/reference/AUDIT_LOG.md`](reference/AUDIT_LOG.md) covers the
+schema, the indexed-column choices, and the per-action payload
+shape.
+
+---
+
+## 29. Fixity dashboard
+
+Fixity is the routine integrity check that confirms what's stored
+on disk still matches what was written. Aracne2 hashes every
+document version with SHA-256 at write time; the fixity layer
+re-hashes the **latest publication-origin version per document**
+on a schedule and surfaces drift.
+
+### Where the page lives
+
+**Admin → Fixity** (Admin only). The dashboard shows:
+
+- Last full sweep: timestamp + duration
+- Per-collection summary: total docs checked, drift count, last
+  drift timestamp
+- A drift list with the failing filename, the expected vs. the
+  observed hash, and the version row affected
+
+### What "drift" means
+
+A drift row means the bytes on disk no longer match the SHA-256
+recorded when that version was published. Causes are operational:
+storage corruption, an out-of-band edit on the filesystem, a
+restore from an older backup. The platform never expects drift
+under normal operation.
+
+### Recheck on demand
+
+The **Recheck now** button runs the sweep immediately rather than
+waiting for the next scheduled tick. Useful right after a backup
+restore or a storage-volume swap.
+
+### What gets re-checked
+
+Only the latest publication-origin version of each document. Older
+versions and `manual`-origin rows are not re-hashed on the
+schedule (their integrity check happens on read). This keeps the
+sweep cheap and meaningful: it covers exactly what the public
+site serves.
+
+### Reference
+
+[`docs/reference/FIXITY.md`](reference/FIXITY.md) covers the
+scheduler config, the on-write hash strategy, and the drift-row
+schema.
+
+---
+
+## 30. Policy pages and the PolicyManager role
+
+Trustworthy-repository assessments (CoreTrustSeal, nestor seal, ISO
+16363) ask a deployment to publish institutional declarations:
+mission statement, privacy / DPIA, storage policy, continuity plan,
+preservation plan, appraisal policy, citation guide, editorial
+board, expert directory, and more.
+
+The **policy_pages** plugin turns these into live forms inside
+Aracne2 with public rendering, multi-locale support (IT / EN), and
+append-only versioning.
+
+### What you get out of the box
+
+Twelve template-driven pages, each with a form, a public URL, and
+a version history:
+
+| Slug | Page |
+|---|---|
+| `mission` | Mission statement |
+| `privacy_dpia` | Privacy / DPIA notice |
+| `storage_policy` | Storage policy |
+| `continuity_plan` | Continuity plan |
+| `preservation_plan` | Preservation plan |
+| `appraisal_policy` | Appraisal policy |
+| `incident_response` | Incident response plan |
+| `citation_guide` | Citation guide |
+| `editorial_board` | Editorial board |
+| `funding_staffing` | Funding & staffing |
+| `expert_directory` | Expert directory |
+| `cts_self_assessment` | CTS self-assessment |
+
+Every template ships with field-level guidance and an "as filled
+by the reference deployment" example, so a new operator can stand
+up the page set in an afternoon.
+
+### Where the controls live
+
+**Admin → Policies** (Admin or PolicyManager). For each template
+you see:
+
+- The current published version (or "draft" if no version
+  published yet)
+- A form to edit, with per-locale text fields
+- **Save draft**, **Publish**, **History** buttons
+
+### The PolicyManager capability
+
+Editing policy content is **delegated** through a capability role
+that is *orthogonal* to the five hierarchical roles — granting it
+does not change the holder's main role; it only unlocks the
+Policies admin surface.
+
+The role is **singleton**: at most one user holds it at a time. An
+Admin can transfer it from the current holder to another user in
+one operation; the audit log records it as a single
+`role.transferred` row. Granting it to a new user automatically
+revokes it from the previous holder.
+
+Why singleton: a single named accountability holder for
+institutional policy content matches how organisations actually
+assign that responsibility.
+
+### Public exposure
+
+Each published policy page lives at `/policies/<slug>` (the index
+page at `/policies` lists all of them). The link to that index can
+be surfaced via the §27 footer-iterator toggle.
+
+### Reference
+
+- [`docs/reference/POLICY_PAGES.md`](reference/POLICY_PAGES.md) — schema, template format, public URL slug rules
+- [`docs/reference/CAPABILITY_ROLES.md`](reference/CAPABILITY_ROLES.md) — singleton semantics, `require_capability` middleware, audit-log shape
+- [`docs/reference/CTS_COMPLIANCE.md`](reference/CTS_COMPLIANCE.md) — which CTS requirement each template addresses
+
+---
+
+## 31. Your data — privacy and GDPR rights
+
+Aracne2 hosts published scientific work. Once an EditorInChief
+approves a TEI document at a public URL, that contribution becomes
+part of an institutional record-of-work — citable, indexable, and
+referenced downstream. The platform's GDPR posture reflects that:
+contributors retain every personal-data right under articles 15,
+16, 18, and 20, but **erasure is mediated** rather than
+self-service.
+
+### What you can do from your profile
+
+Profile → **Privacy** card.
+
+| Right | What the button does |
+|---|---|
+| **Export my data** (art. 15 / 20) | Downloads a JSON dump of every personal-metadata row across the platform: profile, role grants, sessions, audit_log rows where you're actor or target, notifications, PAT metadata, GDPR-request history. Document bodies are *not* included — they are editorial content, not personal data. |
+| **Edit my profile** (art. 16) | The profile form itself: bio, ORCID, email, language, avatar |
+| **Pause email notifications** (art. 18, partial) | The §24 toggle |
+| **Request anonymisation** (art. 17) | Opens a confirmation dialog; on submit, files a request for review. See below. |
+
+The export endpoint excludes by design: `password_hash`, the
+SHA-256-hashed IP address (privacy-cost without investigative
+value), bcrypt digests of any kind, document bodies.
+
+### Why account deletion isn't self-service
+
+A self-service "delete my account → unpublish all my
+contributions" flow would either:
+
+- silently break foreign keys to `audit_log`,
+  `document_versions`, `policy_page_versions` (auditability
+  lost), or
+- leave the editorial record intact while wiping the personal
+  metadata — which is what we ship, but it is an
+  *anonymisation*, not a *delete*, and it should be reviewed
+  before it happens.
+
+GDPR art. 17.3.d permits this: erasure does not apply when
+processing is necessary "for archiving purposes in the public
+interest, scientific or historical research purposes". Edited
+scientific corpora fall squarely inside that exception, the same
+foundation every serious scientific publisher uses.
+
+### The anonymisation request flow
+
+You file a request from the Privacy card; the request lands in
+**Admin → GDPR queue** for review. After institutional sign-off,
+an Admin executes the anonymisation, which:
+
+- replaces your user fields with a placeholder identity,
+- rewrites `audit_log.actor_username` to the placeholder,
+- revokes every active session and PAT,
+- deactivates the account,
+- emits a `user.anonymised` audit row.
+
+Your editorial contributions remain in the record, but no longer
+carry your name — only the placeholder. The flow is mediated, not
+denied: the platform commits to processing the request through
+its review queue, and the audit log captures the outcome.
+
+### Reference
+
+[`docs/reference/GDPR_POSTURE.md`](reference/GDPR_POSTURE.md)
+covers the legal foundation, the per-table anonymisation script,
+the Admin queue surface, and the rationale for what's in and
+out of the export.
+
+---
+
+## 32. Admin reference
 
 This section is a quick reference for Admins. Most of these features are found
 under **Settings** in the navigation.
@@ -1146,6 +1636,10 @@ can create accounts when public registration is disabled (the default).
 | **ZIP max files** | Maximum number of files in a single ZIP batch |
 | **Audit log retention** | How many days to keep audit records (default: 90 days) |
 | **Session retention** | How many days to keep expired session records (default: 30 days) |
+| **Email enabled** | Master switch for the transactional email channel (§24) |
+| **Email from address** | The `From:` header used by every outgoing message |
+| **Fixity sweep schedule** | Cron expression for the routine integrity check (§29) |
+| **Public link toggles** | One per public-navigation-capable plugin (§27) |
 
 ### Plugins
 
@@ -1154,19 +1648,43 @@ Aracne2 has a plugin system. Some features are built-in and always active
 EVT viewer, AI). Others can be installed as optional add-ons and activated or
 deactivated by the Admin without restarting the system.
 
+A plugin can declare one or more **capabilities** that the platform's
+generic surfaces auto-cable to: `inline_authority` (TEI editor toolbar
+buttons), `collection_deposit` and `website_deposit` (per-plugin section
+on the collection / website edit pages), and `public_navigation` (§27).
+Activating a plugin never auto-publishes its public surface — see §27.
+
 ### Named entity tag configuration
 
 By default the entity indexer extracts `persName`, `placeName`, and `orgName`.
 The Admin (or EditorInChief) can change this list to include any TEI element
 name. After changing, re-index existing collections to apply the change.
 
+### Admin-only surfaces shipped post-M0
+
+| Page | Purpose |
+|---|---|
+| `/admin/audit-log` | Browse/filter/export the audit log (§28) |
+| `/admin/fixity` | Per-collection fixity dashboard + recheck (§29) |
+| `/admin/policies` | Edit / publish institutional declarations (§30) |
+| `/admin/gdpr` | Review queue for anonymisation requests (§31) |
+| Profile → API Tokens | Self-service PAT management (§25) |
+| Profile → Privacy | Personal-data export and anonymisation request (§31) |
+
 ### Audit log
 
 Every significant action (user creation, collection state changes, document
-operations, settings changes) is recorded in the audit log. The log is retained
-for a configurable number of days. It is visible to Admins only and is never
-exposed in API responses.
+operations, settings changes, role grants, GDPR requests) is recorded in the
+audit log. The log is retained for a configurable number of days. It is visible
+to Admins only at `/admin/audit-log` and is never exposed in API responses.
+
+### Capability roles
+
+Beyond the five hierarchical roles, the platform supports
+**capability roles** — granted explicitly per user, orthogonal to the
+hierarchy. The first one is `PolicyManager` (§30). See
+[`docs/reference/CAPABILITY_ROLES.md`](reference/CAPABILITY_ROLES.md).
 
 ---
 
-*Last updated: 2026-04-16*
+*Last updated: 2026-05-02*

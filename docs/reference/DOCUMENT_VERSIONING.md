@@ -26,7 +26,7 @@ For the user-facing how-to see the in-app help page at
 
 For the original design discussion (working/published split,
 SHA-256 dedup, manual-vs-auto origin matrix) see
-[DEFERRED.md §7](../DEFERRED.md).
+[TO_DO.md](../TO_DO.md).
 
 ---
 

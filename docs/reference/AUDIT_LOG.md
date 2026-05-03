@@ -14,7 +14,7 @@ how to export) see the in-app help at
 **Help → Reference → Audit log**, source
 [`backend/help_docs/05-reference/04-audit-log.md`](../../backend/help_docs/05-reference/04-audit-log.md).
 
-For the original spec see [FUTURE_IDEAS.md §20](../FUTURE_IDEAS.md).
+For the original spec see [TO_DO.md](../TO_DO.md).
 
 ---
 

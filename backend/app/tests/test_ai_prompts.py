@@ -8,7 +8,7 @@ These tests do NOT call any real LLM provider. They verify:
   the template body and the declared context_vars).
 
 Full end-to-end evaluation against a real provider is deferred — see
-docs/FUTURE_IDEAS.md.
+docs/TO_DO.md.
 """
 
 from __future__ import annotations

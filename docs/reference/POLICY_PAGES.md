@@ -16,7 +16,7 @@ form, how to publish) see the in-app help at
 **Help → Reference → Policy pages**, source
 [`backend/help_docs/05-reference/06-policy-pages.md`](../../backend/help_docs/05-reference/06-policy-pages.md).
 
-For the original spec see [FUTURE_IDEAS §27](../FUTURE_IDEAS.md).
+For the original spec see [TO_DO.md](../TO_DO.md).
 
 For the §24 footer-iterator that surfaces the public link see
 [PUBLIC_NAVIGATION.md](PUBLIC_NAVIGATION.md).
@@ -333,7 +333,7 @@ button that uses `window.print()` plus a small `@media print`
 stylesheet that hides app chrome so the printed PDF carries only
 the policy body and the version footer baked in by the Markdown
 template. Server-rendered byte-deterministic PDFs are tracked as
-[FUTURE_IDEAS §29](../FUTURE_IDEAS.md) — an opt-in sidecar
+[TO_DO.md](../TO_DO.md) — an opt-in sidecar
 container so the ~80 MB of native libs only ship for deployments
 that explicitly enable it.
 
@@ -350,7 +350,7 @@ that explicitly enable it.
 
 ## Open follow-ups
 
-- **Server-side deterministic PDF** — see [FUTURE_IDEAS §29](../FUTURE_IDEAS.md).
+- **Server-side deterministic PDF** — see [TO_DO.md](../TO_DO.md).
 - **Sitemap + JSON-LD inclusion**: when the platform ships a
   shared sitemap aggregator the policies index can plug in there;
   for v1 the SPA renders enough HTML for a crawler.

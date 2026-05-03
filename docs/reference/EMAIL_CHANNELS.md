@@ -32,7 +32,7 @@ For the operator-side rotation / queue-flush runbook see
 [OPERATIONS.md](../OPERATIONS.md).
 
 For the original design discussion (why Postfix, why no in-DB SMTP
-secrets) see [DEFERRED.md §11](../DEFERRED.md).
+secrets) see [TO_DO.md](../TO_DO.md).
 
 ---
 
