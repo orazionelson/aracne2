@@ -80,7 +80,7 @@ appears automatically on any collection that is published and public.
 
 ## EVT container internals
 
-### Dockerfile (`evt/Dockerfile`)
+### Dockerfile (`backend/app/plugins/evt/container/Dockerfile`)
 
 Two-stage build:
 
@@ -95,7 +95,7 @@ resolve correctly from `/evt/{slug}/` instead of from the site root.
 
 EVT uses hash-based routing, so removing `<base href>` does not break in-app navigation.
 
-### nginx configuration (`evt/nginx.conf`)
+### nginx configuration (`backend/app/plugins/evt/container/nginx.conf`)
 
 ```nginx
 # EVT config.json — generated dynamically by the Aracne2 backend
