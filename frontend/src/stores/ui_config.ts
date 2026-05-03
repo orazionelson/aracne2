@@ -2,6 +2,29 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { apiClient } from "@/services/api";
 
+/**
+ * One link surfaced on the public site by an active plugin advertising
+ * the ``public_navigation`` capability. Returned by the platform's
+ * public-config endpoint only when the per-plugin admin toggle
+ * (``public_link_<plugin_name>_enabled`` system_setting) is ``"true"``.
+ *
+ * The label resolves with this preference order:
+ *   ``label_key`` → vue-i18n lookup wins when defined and resolvable
+ *   ``label_<lang>`` → plain string for the active locale
+ *   ``label_en`` → fallback when neither of the above is available
+ */
+export interface PublicNavEntry {
+  plugin_name: string;
+  section: "header" | "home_quick_links" | "footer";
+  url: string;
+  component: string;
+  label_key: string | null;
+  label_en: string | null;
+  label_it: string | null;
+  icon: string | null;
+  priority: number;
+}
+
 export interface UiConfig {
   platform_name: string;
   platform_logo_url: string;
@@ -17,6 +40,7 @@ export interface UiConfig {
   public_search_engine_slug: string;
   public_pages_doc_frame_enabled: boolean;
   home_intro_html: string;
+  public_nav: PublicNavEntry[];
 }
 
 const DEFAULTS: UiConfig = {
@@ -34,6 +58,7 @@ const DEFAULTS: UiConfig = {
   public_search_engine_slug: "",
   public_pages_doc_frame_enabled: true,
   home_intro_html: "",
+  public_nav: [],
 };
 
 export const useUiConfigStore = defineStore("uiConfig", () => {

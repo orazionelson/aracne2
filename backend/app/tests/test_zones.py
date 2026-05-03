@@ -299,13 +299,19 @@ async def test_get_zones_returns_404_when_document_missing(
 
 
 @pytest.mark.asyncio
-async def test_put_zones_requires_write_access(
+async def test_put_zones_on_published_collection_succeeds_for_editor(
     client_with_existdb: AsyncClient,
     seeded_user: User,
     published_collection: Collection,
     mock_existdb: AsyncMock,
 ) -> None:
-    """PUT zones on a published collection is rejected with 403."""
+    """A2 contract: the assigned editor can keep editing a published collection.
+
+    The pre-A2 lock that returned 403 on any write to a ``published`` collection
+    has been removed — visibility decoupling lives in the storage layer
+    (working tree vs. ``_published`` snapshot), so editor edits no longer
+    affect what the public sees until the next ``publish_collection``.
+    """
     mock_existdb.get_document.return_value = _TEI_WITH_SURFACE
     token = await _login(client_with_existdb, TEST_USER_USERNAME, TEST_USER_PASSWORD)
 
@@ -315,7 +321,7 @@ async def test_put_zones_requires_write_access(
         headers=_auth(token),
     )
 
-    assert res.status_code == 403
+    assert res.status_code == 200, res.text
 
 
 @pytest.mark.asyncio

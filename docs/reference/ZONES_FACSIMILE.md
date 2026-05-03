@@ -185,7 +185,7 @@ async function importZones(slug, filename, surfaceId) // POST import
 > **Status — partial.** Today only the HTTP entry point exists. The
 > end-to-end "thousand-page corpus → HTR engine → editor reviews
 > machine output" workflow described in
-> [FUTURE_IDEAS §23](../FUTURE_IDEAS.md) is the upgrade target.
+> [TO_DO.md](../TO_DO.md) is the upgrade target.
 
 For automated pipelines (e.g. Transkribus, Kraken, eScriptorium):
 
@@ -196,7 +196,7 @@ For automated pipelines (e.g. Transkribus, Kraken, eScriptorium):
 3. **Not yet implemented**: ALTO / PAGE XML parsing on the import
    endpoint, batch image upload, machine-output review queue,
    confidence-score visualisation, word/line-level alignment.
-   See [FUTURE_IDEAS §23](../FUTURE_IDEAS.md) for the design.
+   See [TO_DO.md](../TO_DO.md) for the design.
 
 ---
 

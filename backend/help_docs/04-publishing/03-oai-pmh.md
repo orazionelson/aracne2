@@ -269,7 +269,7 @@ accepting the aggregator's terms, and waiting for the next crawl
 ## Roadmap
 
 - **Richer metadata formats** (`mods`, `tei`) — tracked in
-  `docs/FUTURE_IDEAS.md`. When they ship, harvesters that request
+  `docs/TO_DO.md`. When they ship, harvesters that request
   those prefixes will get them alongside the mandatory `oai_dc`.
 - **Set hierarchies** — currently each collection is one flat
   set; a future enhancement can expose nested sets mapping to a

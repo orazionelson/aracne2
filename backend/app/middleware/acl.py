@@ -13,7 +13,8 @@ from app.core.exceptions import AuthenticationError, AuthorizationError
 from app.db.postgres import get_async_session
 from app.models.session import Session
 from app.models.user import User
-from app.services.auth import decode_raw_token, decode_token
+from app.services.auth import decode_raw_token, decode_token, get_active_role
+from app.services.personal_access_tokens import PAT_PREFIX, resolve_pat
 
 logger = structlog.get_logger()
 
@@ -33,6 +34,21 @@ async def _get_current_user(
         raise AuthenticationError(
             code="MISSING_TOKEN", message="Authorization header required"
         )
+
+    # Personal Access Token path: a self-identifying prefix lets us
+    # dispatch without paying for a JWT decode on every request. The
+    # PAT inherits the issuer's currently-active role, so existing
+    # ``require_role`` guards keep working unchanged.
+    if credentials.credentials.startswith(PAT_PREFIX):
+        pat_user = await resolve_pat(db, credentials.credentials)
+        if pat_user is None or pat_user.deleted_at:
+            raise AuthenticationError(
+                code="INVALID_PAT",
+                message="Invalid or revoked API token",
+            )
+        request.state.user = pat_user
+        request.state.role = await get_active_role(db, pat_user.id)
+        return pat_user
 
     # Peek at the token type before dispatching to the appropriate path.
     raw = decode_raw_token(credentials.credentials)
@@ -101,6 +117,15 @@ async def get_optional_user(
         return None
 
     try:
+        # PAT path first — same dispatch logic as ``_get_current_user``.
+        if token_str.startswith(PAT_PREFIX):
+            pat_user = await resolve_pat(db, token_str)
+            if pat_user is None or pat_user.deleted_at:
+                return None
+            request.state.user = pat_user
+            request.state.role = await get_active_role(db, pat_user.id)
+            return pat_user
+
         raw = decode_raw_token(token_str)
         if raw.get("type") == "impersonation":
             user_id = uuid.UUID(str(raw["sub"]))
@@ -161,6 +186,46 @@ def require_role(
         if exact_role is not None and role != exact_role:
             raise AuthorizationError()
 
+        return user
+
+    return dependency
+
+
+def require_capability(
+    capability: str,
+) -> Callable[..., Coroutine[Any, Any, User]]:
+    """Returns a FastAPI dependency that gates on a capability role.
+
+    Capability roles (e.g. ``PolicyManager``) are orthogonal to the
+    hierarchical ROLE_LEVEL ladder: granted explicitly per user via
+    ``services.roles.transfer_singleton_role``. This dependency
+    checks for an active assignment of *capability* on
+    ``request.state.user``; Admin always passes regardless of
+    explicit assignment (Admin can do anything).
+
+    Usage::
+
+        @router.put("/policies/{slug}/save")
+        async def save(
+            current_user: Annotated[User, Depends(require_capability("PolicyManager"))],
+            ...
+        ): ...
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.postgres import get_async_session
+
+    async def dependency(
+        user: Annotated[User, Depends(_get_current_user)],
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_async_session)],
+    ) -> User:
+        # Lazy import to break the import-cycle services.roles → models →
+        # nothing-of-acl-but-still-stresses-import-order.
+        from app.services.roles import user_has_capability
+
+        if not await user_has_capability(db, user=user, capability=capability):
+            raise AuthorizationError()
         return user
 
     return dependency

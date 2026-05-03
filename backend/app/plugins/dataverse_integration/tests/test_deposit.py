@@ -88,9 +88,14 @@ async def seeded_collection(db_session: AsyncSession) -> Collection:
 
 def _fake_existdb(files: list[tuple[str, bytes]]) -> ExistDBClient:
     mock = AsyncMock(spec=ExistDBClient)
-    mock.list_collection = AsyncMock(return_value=[f for f, _ in files])
     body_map = dict(files)
+    mock.list_collection = AsyncMock(return_value=[f for f, _ in files])
     mock.get_document = AsyncMock(side_effect=lambda slug, name: body_map[name])
+    # Phase A2: deposit plugins read from the published snapshot.
+    mock.list_published = AsyncMock(return_value=[f for f, _ in files])
+    mock.get_published_document = AsyncMock(
+        side_effect=lambda slug, name: body_map[name]
+    )
     return mock
 
 

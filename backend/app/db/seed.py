@@ -22,12 +22,22 @@ _BUNDLED_SCHEMAS_DIR: Path = Path(__file__).parent.parent / "tei_schemas"
 
 logger = structlog.get_logger()
 
-ROLES: list[tuple[str, str]] = [
-    ("Admin", "Full platform access"),
-    ("EditorInChief", "Manages collections and publication workflow"),
-    ("Designer", "Manages XSLT templates and CSS themes"),
-    ("Editor", "Creates and edits documents"),
-    ("User", "Read-only access to published content"),
+# (name, description, kind, singleton)
+ROLES: list[tuple[str, str, str, bool]] = [
+    ("Admin", "Full platform access", "hierarchical", False),
+    ("EditorInChief", "Manages collections and publication workflow", "hierarchical", False),
+    ("Designer", "Manages XSLT templates and CSS themes", "hierarchical", False),
+    ("Editor", "Creates and edits documents", "hierarchical", False),
+    ("User", "Read-only access to published content", "hierarchical", False),
+    # Capability roles — orthogonal to the hierarchy. Granted by Admin
+    # to any user from User upwards; the granted user gains the
+    # capability without their hierarchical role changing at all.
+    (
+        "PolicyManager",
+        "Edits institutional policy pages (singleton capability role)",
+        "capability",
+        True,
+    ),
 ]
 
 DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
@@ -41,6 +51,48 @@ DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
     ("search_results_per_page", "10", "int"),
     ("audit_log_retention_days", "90", "int"),
     ("expired_sessions_retention_days", "30", "int"),
+    # Soft cap on per-document manual ("Save version") entries. Auto versions
+    # (workflow events, rollback, creation) are unlimited. When the cap is
+    # hit, the API returns 409 MANUAL_VERSIONS_LIMIT_REACHED — the editor is
+    # expected to delete older manual entries before saving a new one.
+    ("document_manual_versions_max", "50", "int"),
+    # Email channel — Postfix-mediated SMTP. Default is "false" so a fresh
+    # install never spams a relay accidentally. The operator must flip
+    # ``email_enabled`` to ``true`` (and set a valid ``email_from_address``)
+    # via the Admin Settings UI before workflow / password-reset emails
+    # actually leave the platform. SMTP credentials live in the Postfix
+    # container env, NOT here — the app talks plain SMTP to the local
+    # Postfix on the docker network and Postfix relays outward.
+    ("email_enabled", "false", "bool"),
+    ("email_smtp_host", "postfix", "string"),
+    ("email_smtp_port", "25", "int"),
+    ("email_from_address", "", "string"),
+    ("email_from_name", "Aracne2", "string"),
+    ("email_subject_prefix", "[Aracne2]", "string"),
+    # Natural-language search plugin (FUTURE_IDEAS §25). Off-path: the
+    # plugin is non-native and starts inactive — these defaults are
+    # only consulted once an Admin flips ``nl_search`` active in
+    # /admin/plugins. ``nl_search_require_login=true`` is the safe
+    # posture: anonymous public access is deliberately opt-in.
+    ("nl_search_require_login", "true", "bool"),
+    ("nl_search_provider", "ollama", "string"),
+    ("nl_search_api_key", "", "string"),
+    ("nl_search_model", "llama3.1", "string"),
+    ("nl_search_corpus_id", "", "string"),
+    ("nl_search_daily_budget_eur", "2.00", "string"),
+    ("nl_search_max_concurrent", "2", "int"),
+    ("nl_search_query_timeout_s", "30", "int"),
+    ("nl_search_cache_ttl_minutes", "60", "int"),
+    ("nl_search_max_input_chars", "500", "int"),
+    ("nl_search_max_tool_rounds", "6", "int"),
+    # Fixity layer (CTS R7). The cadence setting drives how often
+    # the apscheduler ``fixity_recheck`` job re-hashes every
+    # publication-origin row and compares against the recorded
+    # ``expected_sha256``. ``daily`` and ``weekly`` are the supported
+    # values; the scheduler reads it at boot and at every job tick.
+    # Drift is record-only — the platform never auto-quarantines
+    # public renders on a hash mismatch (Q7 decision in M2 brainstorm).
+    ("fixity_recheck_cadence", "weekly", "string"),
     ("zip_max_size_mb", "50", "int"),
     ("zip_max_extracted_mb", "200", "int"),
     ("zip_max_files", "500", "int"),
@@ -184,10 +236,20 @@ DEFAULT_LICENSES: list[tuple[str, str]] = [
 
 
 async def seed_roles(db: AsyncSession) -> None:
-    for name, desc in ROLES:
-        exists = await db.scalar(select(Role).where(Role.name == name))
-        if not exists:
-            db.add(Role(name=name, description=desc))
+    for name, desc, kind, singleton in ROLES:
+        existing = await db.scalar(select(Role).where(Role.name == name))
+        if existing is None:
+            db.add(
+                Role(
+                    name=name, description=desc, kind=kind, singleton=singleton
+                )
+            )
+        else:
+            # Update kind / singleton on every boot so a long-running
+            # deployment that shipped before capability roles existed
+            # gets the columns populated correctly.
+            existing.kind = kind
+            existing.singleton = singleton
     await db.flush()
     logger.info("seed_roles_done")
 

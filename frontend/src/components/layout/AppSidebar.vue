@@ -14,6 +14,7 @@ import {
   PuzzlePieceIcon,
   BoltIcon,
   ArchiveBoxArrowDownIcon,
+  ShieldCheckIcon,
   BellIcon,
   Cog6ToothIcon,
   UserCircleIcon,
@@ -146,6 +147,30 @@ const SECTIONS: NavSection[] = [
         labelKey: "nav.backup",
         to: { name: "admin-backup" },
         icon: ArchiveBoxArrowDownIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "nav.audit_log",
+        to: { name: "admin-audit-log" },
+        icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "nav.fixity",
+        to: { name: "admin-fixity" },
+        icon: ShieldCheckIcon,
+        visible: () => auth.hasMinRole("Admin"),
+      },
+      {
+        labelKey: "nav.policies",
+        to: { name: "admin-policies" },
+        icon: DocumentTextIcon,
+        visible: () => auth.hasMinRole("Editor"),
+      },
+      {
+        labelKey: "nav.gdpr",
+        to: { name: "admin-gdpr" },
+        icon: UserCircleIcon,
         visible: () => auth.hasMinRole("Admin"),
       },
       {

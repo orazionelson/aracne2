@@ -130,7 +130,7 @@ shown in the admin list:
 There is **no per-event delivery log** today — only the rolling
 "latest outcome" row per endpoint. If your integration needs an
 audit trail, log delivery on your side. (A historical log surface
-is on the Future Ideas backlog — see `docs/FUTURE_IDEAS.md`.)
+is on the Future Ideas backlog — see `docs/TO_DO.md`.)
 
 ## SSRF protection
 

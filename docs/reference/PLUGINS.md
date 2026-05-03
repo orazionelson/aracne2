@@ -644,7 +644,7 @@ mostly a serialiser + adapter swap.
 The rest of this document continues to describe the **plugin subsystem itself**
 (loader, hook registry, native vs. non-native lifecycle, signed webhook
 dispatch, etc.). Ideas for plugins that have not shipped yet are tracked in
-[FUTURE_IDEAS.md](../FUTURE_IDEAS.md).
+[TO_DO.md](../TO_DO.md).
 
 ---
 

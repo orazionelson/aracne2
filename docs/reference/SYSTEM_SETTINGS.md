@@ -730,7 +730,7 @@ embeddings (independent of the active chat provider).
 Ollama model tag used for chat. Must be pulled onto the server with
 `docker compose exec ollama ollama pull <tag>` before selection.
 Common choices: `llama3.1:8b`, `qwen2.5:7b`, `gemma2:9b`. See
-`docs/OPERATIONS.md` § "Local AI (Ollama)" for a curated list with
+`docs/reference/OPERATIONS.md` § "Local AI (Ollama)" for a curated list with
 sizes and RAM requirements.
 
 ---
@@ -786,7 +786,7 @@ provider. When `false`, `{rag_context}` resolves to the empty string
 and prompts run unchanged.
 
 Requires the `ai-local` Compose profile (pgvector + ollama with the
-embedding model pulled). See `docs/OPERATIONS.md` § "Local AI — RAG".
+embedding model pulled). See `docs/reference/OPERATIONS.md` § "Local AI — RAG".
 
 **Consumed by**: `_augment_with_rag()` in
 `app/plugins/_native/ai/service.py` and `is_enabled()` in
@@ -837,7 +837,7 @@ Default `bge-m3` is multilingual and 1024-dimensional. Must be pulled
 once with `docker compose exec ollama ollama pull bge-m3`.
 
 Changing the model to a different dimension requires a hard reset of
-`ai_context_chunks` — see `docs/OPERATIONS.md` § "Switching the
+`ai_context_chunks` — see `docs/reference/OPERATIONS.md` § "Switching the
 embedding model".
 
 **Consumed by**: `embed_text()` in

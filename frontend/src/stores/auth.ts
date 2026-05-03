@@ -30,6 +30,10 @@ interface UserMe {
   /** Short freeform bio shown on the Profile page. Tiny Markdown
    * subset (``**bold**``, ``*italic*``, ``__underline__``). */
   bio: string | null;
+  /** Workflow-email opt-out. Defaults to ``true`` server-side; the
+   * Profile toggle flips it via PATCH /auth/me. Transactional emails
+   * (password reset) ignore this flag. */
+  email_notifications_enabled: boolean;
   created_at: string;
   last_login_at: string | null;
 }
@@ -110,6 +114,7 @@ export const useAuthStore = defineStore("auth", () => {
     preferred_lang?: string;
     orcid?: string | null;
     bio?: string | null;
+    email_notifications_enabled?: boolean;
   }): Promise<void> {
     const res = await api.patch<UserMe>("/auth/me", patch);
     user.value = res.data.data;
@@ -177,6 +182,31 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  /** Public flow: ask the backend to email a reset link to the user
+   * matching ``emailOrUsername``. The backend always returns 204, so
+   * the UI cannot tell whether the account exists — show a generic
+   * confirmation either way. */
+  async function requestPasswordReset(emailOrUsername: string): Promise<void> {
+    await api.post("/auth/password/reset/request", {
+      email_or_username: emailOrUsername,
+    });
+  }
+
+  /** Public flow: redeem a reset token from the email link with the
+   * new password. The backend returns 204 on success and a 401
+   * ``INVALID_RESET_TOKEN`` for any failure (missing / expired /
+   * already used / weak password) — the UI shows a single generic
+   * error so the same response shape covers every branch. */
+  async function confirmPasswordReset(
+    token: string,
+    newPassword: string,
+  ): Promise<void> {
+    await api.post("/auth/password/reset/confirm", {
+      token,
+      new_password: newPassword,
+    });
+  }
+
   return {
     user,
     accessToken,
@@ -196,5 +226,7 @@ export const useAuthStore = defineStore("auth", () => {
     hydrate,
     startImpersonation,
     exitImpersonation,
+    requestPasswordReset,
+    confirmPasswordReset,
   };
 });

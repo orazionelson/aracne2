@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="it">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Ciao {{ recipient_display_name }},</p>
+  <p>
+    <strong>{{ actor_name }}</strong> ha inviato in validazione la collezione
+    <a href="{{ collection_url }}">{{ collection_title }}</a>.
+  </p>
+  {% if note %}
+  <p><em>Nota dell'editor:</em></p>
+  <blockquote style="border-left: 3px solid #ccc; padding-left: 1em; color: #555;">
+    {{ note }}
+  </blockquote>
+  {% endif %}
+  <p>Puoi aprire la collezione dal link qui sopra quando sei pronto/a a revisionarla.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    Stai ricevendo questa email perché sei Editor in Chief su Aracne2.
+    Per disattivare le notifiche email del flusso editoriale, deseleziona
+    "Notifiche email" dal tuo profilo.
+  </p>
+</body>
+</html>

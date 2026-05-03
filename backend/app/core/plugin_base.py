@@ -65,6 +65,16 @@ class PluginMeta:
       contributes one sub-tab whose body shows the per-website
       connection / push surface for that backend.
 
+    * ``public_navigation`` — declares that the plugin ships a
+      public-facing page reachable from the platform's public
+      home / header / footer. The plugin owns its own SPA route;
+      the layout components iterate the active plugins'
+      descriptors and surface a link to that route. Each entry
+      is gated by a per-plugin admin toggle stored in
+      ``system_settings`` under ``public_link_<plugin_name>_enabled``,
+      default ``false`` — activating the plugin never auto-publishes
+      its public surface.
+
     The plugin must also declare a matching entry under
     :attr:`ui_descriptor`. Future capabilities follow the same
     shape — a string tag here plus a typed entry there.
@@ -97,6 +107,23 @@ class PluginMeta:
     component name resolves against the website-deposit registry
     (e.g. ``ZenodoWebsiteSection``) and the tab is rendered inside
     the website edit page's "Deposito" tab.
+
+    For ``public_navigation`` the dict is shaped::
+
+        {
+          "component": "NlSearchPublicView",            # name in the SPA registry
+          "url": "/search-nl",                          # path the link points to
+          "section": "header",                          # "header" | "home_quick_links" | "footer"
+          "label_key": "nl_search.public_link_label",   # optional vue-i18n key, wins over label_*
+          "label_en": "Natural-language search",        # used when no key resolves
+          "label_it": "Cerca in linguaggio naturale",
+          "icon": "sparkles",                           # optional heroicon name
+          "priority": 100,                              # sort key, lower = leftmost / first
+        }
+
+    The link is surfaced only when the matching
+    ``public_link_<plugin_name>_enabled`` system_setting is
+    ``"true"`` — toggled by the Admin from the Public Pages panel.
     """
 
 

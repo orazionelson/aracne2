@@ -6,10 +6,12 @@ import { contrastingTextColor } from "@/utils/color";
 import { useSettingStore } from "@/stores/settings";
 import { useUiConfigStore } from "@/stores/ui_config";
 import WysiwygEditor from "@/components/ui/WysiwygEditor.vue";
+import { usePluginStore } from "@/stores/plugins";
 
 const { t } = useI18n();
 const settingStore = useSettingStore();
 const uiConfigStore = useUiConfigStore();
+const pluginStore = usePluginStore();
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 type TabKey = "aspetto" | "homepage" | "pagine" | "documento";
@@ -20,8 +22,37 @@ onMounted(async () => {
   // has already loaded — but a direct deep-link to /admin/public-pages
   // needs the settings before any draft can render.
   if (!settingStore.settings.length) await settingStore.fetchSettings();
+  if (!pluginStore.plugins.length) await pluginStore.fetchPlugins();
   initAppearanceDraft();
 });
+
+// ── Plugin-declared public links (public_navigation capability) ──────────────
+
+const pluginsWithPublicNav = computed(() =>
+  pluginStore.plugins
+    .filter(
+      (p) =>
+        p.status === "active"
+        && p.ui_descriptor != null
+        && typeof p.ui_descriptor === "object"
+        && "public_navigation" in p.ui_descriptor,
+    )
+    .sort((a, b) => a.display_name.localeCompare(b.display_name)),
+);
+
+function publicLinkSettingKey(pluginName: string): string {
+  return `public_link_${pluginName}_enabled`;
+}
+
+function isPublicLinkEnabled(pluginName: string): boolean {
+  return settingStore.getSetting(publicLinkSettingKey(pluginName)) === "true";
+}
+
+function publicLinkSection(pluginName: string): string {
+  const plugin = pluginStore.plugins.find((p) => p.name === pluginName);
+  const desc = plugin?.ui_descriptor as { public_navigation?: { section?: string } } | null;
+  return desc?.public_navigation?.section ?? "";
+}
 
 // ── Appearance ───────────────────────────────────────────────────────────────
 
@@ -975,6 +1006,51 @@ function downloadHomepageCss(): void {
               :class="sitemapIncludeSearchEngines ? 'translate-x-5' : 'translate-x-0'"
             />
           </button>
+        </div>
+
+        <!-- Plugin links — auto-generated per active plugin advertising public_navigation -->
+        <div class="rounded border border-gray-200 bg-white p-4">
+          <h3 class="text-sm font-semibold text-gray-800">
+            {{ t("settings.public_pages_plugin_links_title") }}
+          </h3>
+          <p class="mt-0.5 text-xs text-gray-500">
+            {{ t("settings.public_pages_plugin_links_intro") }}
+          </p>
+
+          <p
+            v-if="pluginsWithPublicNav.length === 0"
+            class="mt-3 text-xs text-gray-400"
+          >
+            {{ t("settings.public_pages_plugin_links_empty") }}
+          </p>
+
+          <ul v-else class="mt-3 space-y-2">
+            <li
+              v-for="plugin in pluginsWithPublicNav"
+              :key="plugin.name"
+              class="flex items-start justify-between rounded border border-gray-100 bg-gray-50 p-3"
+            >
+              <div class="mr-4">
+                <p class="text-sm font-medium text-gray-800">
+                  {{ plugin.display_name }}
+                </p>
+                <p class="mt-0.5 text-xs text-gray-500">
+                  {{ t("settings.public_pages_plugin_link_section", { section: publicLinkSection(plugin.name) || "—" }) }}
+                </p>
+              </div>
+              <button
+                :disabled="togglingHomeSetting[publicLinkSettingKey(plugin.name)]"
+                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40"
+                :class="isPublicLinkEnabled(plugin.name) ? 'bg-indigo-600' : 'bg-gray-200'"
+                @click="toggleHomeSetting(publicLinkSettingKey(plugin.name), isPublicLinkEnabled(plugin.name))"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="isPublicLinkEnabled(plugin.name) ? 'translate-x-5' : 'translate-x-0'"
+                />
+              </button>
+            </li>
+          </ul>
         </div>
       </div>
     </template>

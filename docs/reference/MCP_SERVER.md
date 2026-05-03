@@ -12,7 +12,7 @@ the snippet into Claude Desktop) see the in-app help page at
 [`backend/help_docs/03-advanced/07-mcp-server.md`](../../backend/help_docs/03-advanced/07-mcp-server.md).
 
 For the future-roadmap shape (write tools, personal tokens, audit
-log) see [FUTURE_IDEAS.md §21–22](../FUTURE_IDEAS.md).
+log) see [TO_DO.md](../TO_DO.md).
 
 ---
 
@@ -339,7 +339,7 @@ pick up the new tool automatically — no other wiring.
 Every tool today is read-only: no DB writes, no eXist writes, no
 external mutations. Phase 2 (write tools) will add an explicit
 `mcp_allow_writes` flag on `mcp_tokens` and a separate registry for
-write handlers — see [FUTURE_IDEAS.md §21](../FUTURE_IDEAS.md). Do
+write handlers — see [TO_DO.md](../TO_DO.md). Do
 **not** smuggle a write into the existing registry: the read-only
 guarantee is part of the security argument for issuing bearer tokens
 without per-call admin consent.
@@ -521,5 +521,4 @@ What the model **doesn't** protect against:
 - [PLUGINS.md](PLUGINS.md) — plugin architecture, hot mount/unmount
 - [NON_NATIVE_PLUGINS.md](NON_NATIVE_PLUGINS.md) — sibling non-native plugins
 - [API_FORMAT.md](API_FORMAT.md) — REST envelope (the `/corpora` admin endpoints conform to it; the `/mcp` endpoint speaks JSON-RPC, not the platform envelope)
-- [FUTURE_IDEAS.md §21](../FUTURE_IDEAS.md) — Phase 2 (write tools)
-- [FUTURE_IDEAS.md §22](../FUTURE_IDEAS.md) — Phase 3 (personal tokens, members, audit)
+- [TO_DO.md](../TO_DO.md) — backlog entries for Phase 2 (write tools) and Phase 3 (personal tokens, members, audit)

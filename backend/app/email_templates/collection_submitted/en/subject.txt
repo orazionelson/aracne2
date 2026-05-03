@@ -1,0 +1,1 @@
+Collection submitted for review: {{ collection_title }}

@@ -17,6 +17,10 @@ import { LOOKUP_COMPONENTS } from '@/components/lookup/registry';
 import type { PluginInfo, InlineAuthorityDescriptor } from '@/stores/plugins';
 import ZoneEditor from '@/components/ui/ZoneEditor.vue';
 import AiPanel from '@/components/AiPanel.vue';
+import VersionHistoryPanel from '@/components/ui/VersionHistoryPanel.vue';
+import SaveVersionDialog from '@/components/ui/SaveVersionDialog.vue';
+import DiffViewer from '@/components/ui/DiffViewer.vue';
+import { useDocumentVersionsStore } from '@/stores/documentVersions';
 
 const { t, te } = useI18n();
 const route = useRoute();
@@ -81,6 +85,45 @@ const currentZoneSurface = ref<FacsimileSurface | null>(null);
 
 // ── Validation panel ──────────────────────────────────────────────────────────
 const showValidationPanel = ref(false);
+
+// ── Version history (Phase D) ────────────────────────────────────────────────
+const showVersionsPanel = ref(false);
+const showSaveVersionDialog = ref(false);
+const showDiffViewer = ref(false);
+const diffViewerVersionNumber = ref<number | null>(null);
+const diffViewerAgainstVersion = ref<number | null>(null);
+const documentVersionsStore = useDocumentVersionsStore();
+
+/** "Compare with current" button: pick the highest stored version_number
+ *  for this doc as the "from" side, the row clicked as the "to" side. */
+function openDiffViewer(versionNumber: number): void {
+  const all = documentVersionsStore.versions;
+  if (all.length === 0) return;
+  const maxN = Math.max(...all.map((v) => v.version_number));
+  diffViewerAgainstVersion.value = versionNumber;
+  diffViewerVersionNumber.value = maxN;
+  showDiffViewer.value = true;
+}
+
+/** After a successful rollback the working tree HEAD is the target's
+ *  content — reload the editor body so the editor sees the restored XML. */
+async function onRollbackConfirmed(_versionNumber: number): Promise<void> {
+  // The store's rollback already wrote to existdb; refresh CodeMirror.
+  await reloadDocumentBody();
+}
+
+async function reloadDocumentBody(): Promise<void> {
+  try {
+    const res = await store.fetchDocumentRaw(slug, filename);
+    if (typeof res === 'string') {
+      singleCm.setValue(res);
+      saved.value = true;
+    }
+  } catch {
+    // Non-fatal: the editor stays on the pre-rollback view; the user
+    // can refresh the page to get the new body.
+  }
+}
 
 // ── Authority lookup panels ──────────────────────────────────────────────────
 //
@@ -1163,6 +1206,24 @@ async function runValidation(): Promise<void> {
           {{ t('media.media_btn') }}
         </button>
 
+        <button
+          :disabled="isLoading"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+            showVersionsPanel
+              ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+              : 'border-transparent text-gray-600 hover:border-gray-200 hover:bg-gray-100 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-700',
+          ]"
+          :title="t('version.history.title')"
+          @click="showVersionsPanel = !showVersionsPanel"
+        >
+          <!-- icon: clock -->
+          <svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+          </svg>
+          {{ t('version.history.title') }}
+        </button>
+
         <!-- ── Status feedback ────────────────────────────────────────────── -->
         <span v-if="saved" class="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1410,6 +1471,29 @@ async function runValidation(): Promise<void> {
     </div>
     </template>
   </div>
+  <!-- Version history (Phase D of document versioning) -->
+  <VersionHistoryPanel
+    v-model="showVersionsPanel"
+    :slug="slug"
+    :filename="filename"
+    @manual-save-clicked="showSaveVersionDialog = true"
+    @rollback-confirmed="onRollbackConfirmed"
+    @compare="openDiffViewer"
+  />
+  <SaveVersionDialog
+    v-model="showSaveVersionDialog"
+    :slug="slug"
+    :filename="filename"
+  />
+  <DiffViewer
+    v-if="diffViewerVersionNumber !== null && diffViewerAgainstVersion !== null"
+    v-model="showDiffViewer"
+    :slug="slug"
+    :filename="filename"
+    :version-number="diffViewerVersionNumber"
+    :against-version="diffViewerAgainstVersion"
+  />
+
   <!-- Media panel sidebar -->
   <MediaPanel
     v-if="showMediaPanel && !isLoading"

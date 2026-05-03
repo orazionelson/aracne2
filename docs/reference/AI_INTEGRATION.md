@@ -277,7 +277,7 @@ Multi-turn chat appends alternating assistant/user turns after it.
 - Generous read timeout (300 s): first-token latency spikes when Ollama has to
   load a large model into memory; subsequent tokens are fast.
 
-See `docs/OPERATIONS.md` § "Local AI (Ollama)" for the operator-facing recipe
+See `docs/reference/OPERATIONS.md` § "Local AI (Ollama)" for the operator-facing recipe
 (profile activation, pulling models, switching models, host-installed vs
 bundled Ollama).
 
@@ -437,7 +437,7 @@ unreachable. Flags: `--purge` (wipe `source_type` before insert),
 - No per-user / per-collection ACL on retrieval (global index in v1).
 - No citations in the model output — chunk IDs are in the injected
   context only for operator debugging, not surfaced to the user.
-- No user-corpus indexing (TEI P5 only); see `FUTURE_IDEAS.md` for the
+- No user-corpus indexing (TEI P5 only); see `TO_DO.md` for the
   v2 plan (ACL-aware indexing, citations, multi-dim tables).
 - No ingestion UI in the admin panel; CLI only.
 

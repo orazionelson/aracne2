@@ -1,0 +1,14 @@
+Hi {{ recipient_display_name }},
+
+{{ actor_name }} has submitted the collection "{{ collection_title }}"
+for review.
+
+{% if note %}Note from the editor:
+> {{ note }}
+
+{% endif %}You can open the collection here: {{ collection_url }}
+
+—
+You're receiving this email because you are an Editor in Chief on
+Aracne2. To opt out of workflow emails, uncheck "Email notifications"
+on your profile.

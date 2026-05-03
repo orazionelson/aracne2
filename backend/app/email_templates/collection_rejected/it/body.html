@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="it">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Ciao {{ recipient_display_name }},</p>
+  <p>
+    <strong>{{ actor_name }}</strong> ha richiesto una revisione della collezione
+    <a href="{{ collection_url }}">{{ collection_title }}</a>.
+  </p>
+  {% if note %}
+  <p><em>Nota dal revisore:</em></p>
+  <blockquote style="border-left: 3px solid #ccc; padding-left: 1em; color: #555;">
+    {{ note }}
+  </blockquote>
+  {% endif %}
+  <p>La collezione è tornata nella tua coda di lavoro. Puoi aprirla dal link
+  qui sopra e re-inviarla in validazione una volta sistemate le revisioni richieste.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    Per disattivare le notifiche email del flusso editoriale, deseleziona
+    "Notifiche email" dal tuo profilo.
+  </p>
+</body>
+</html>

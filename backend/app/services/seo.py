@@ -126,7 +126,7 @@ async def build_core_entries(
         # log-and-continue so one bad collection never breaks the
         # sitemap for the rest of the corpus.
         try:
-            filenames = await existdb.list_collection(col.slug)
+            filenames = await existdb.list_published(col.slug)
         except Exception:  # noqa: BLE001 — sitemap must not 500 on eXist-db hiccups
             filenames = []
         for filename in filenames:

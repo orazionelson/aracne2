@@ -6,15 +6,18 @@ asyncpg==0.30.0
 alembic==1.14.0
 pydantic[email]==2.10.3
 pydantic-settings==2.6.1
-python-jose[cryptography]==3.4.0
+# PyJWT talks to ``cryptography`` directly — no transitive ``pyasn1``
+# dependency, so the ASN.1-DoS exposure tracked in DEFERRED.md §15 is
+# closed by virtue of that package no longer being installed at all.
+# We migrated from ``python-jose`` (low-maintenance, last release
+# 2024) on 2026-05-03; only ``app.services.auth`` consumed it.
+PyJWT==2.12.0
 cryptography==46.0.7
-# pyasn1 stays at the version python-jose 3.4 pins (<0.5.0) — see
-# DEFERRED.md "pyasn1 0.4.x ASN.1 DoS (CVE-2026-30922)" for the
-# full reasoning. Bumping needs python-jose to relax its pin or
-# the JWT layer to migrate to PyJWT.
 bcrypt==4.2.1
 httpx==0.28.1
 python-multipart==0.0.26
+aiosmtplib==4.0.2
+Jinja2==3.1.6
 structlog==24.4.0
 slowapi==0.1.9
 defusedxml==0.7.1
@@ -25,11 +28,14 @@ apscheduler==3.10.4
 markdown-it-py==3.0.0
 bleach==6.2.0
 prometheus-client==0.21.1
-pytest==8.3.4
-pytest-asyncio==0.24.0
+# pytest 9 + matching plugin majors landed on PyPI in 2026; the
+# triple bump closes CVE-2025-71176 (DEFERRED.md §16) and unblocks
+# test-suite usage of the new collection / async-fixture APIs.
+pytest==9.0.3
+pytest-asyncio==1.3.0
 anyio==4.7.0
 aiosqlite==0.20.0
 ruff==0.8.4
 mypy==1.13.0
-coverage==7.6.9
-pytest-cov==6.0.0
+coverage==7.13.5
+pytest-cov==7.1.0

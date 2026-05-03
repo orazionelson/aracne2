@@ -226,18 +226,206 @@ backend version.
 
 ## Backup and restore
 
-*(Placeholder — to be expanded.)*
-
 Three layers to back up:
 
-1. **Platform data** — `postgres_data` volume. `pg_dump` for logical
-   backups, or `docker run --rm -v aracne2_postgres_data:/data ...` snapshot
-   for volume-level copies.
-2. **Document data** — `existdb_data` volume plus the per-collection archives
-   downloadable from the built-in Backup plugin (`Admin → Backup`).
-3. **Configuration** — `.env`, `docker-compose.yml`, any uploaded TEI schemas
-   and XSLT templates (paths configured by `SCHEMAS_DIR`, persistent media
-   under `MEDIA_DIR`).
+1. **Platform data** — `postgres_data` volume (PostgreSQL 17). Logical
+   dump (`pg_dumpall`) **and** volume-level tarball — the two are
+   complementary, see why below.
+2. **Document data** — `existdb_data` volume plus the per-collection
+   archives downloadable from the built-in Backup plugin
+   (`Admin → Backup`).
+3. **Configuration** — `.env`, `docker-compose.yml`, any uploaded TEI
+   schemas and XSLT templates (paths configured by `SCHEMAS_DIR`,
+   persistent media under `MEDIA_DIR`).
+
+### Postgres backup — both flavours
+
+```bash
+TS=$(date +%Y%m%d-%H%M%S)
+mkdir -p /var/backups/aracne2
+
+# 1. Logical dump — readable across major versions
+docker compose exec -T postgres pg_dumpall -U "${POSTGRES_USER:-aracne2}" \
+  > "/var/backups/aracne2/pg-all-${TS}.sql"
+
+# Sanity-check immediately (a 0-byte file is a silent failure)
+ls -lh "/var/backups/aracne2/pg-all-${TS}.sql"
+head -3 "/var/backups/aracne2/pg-all-${TS}.sql"
+
+# 2. Volume-level tarball — fastest recovery, but tied to the major version
+docker compose down
+docker run --rm \
+  -v aracne2_postgres_data:/from \
+  -v /var/backups/aracne2:/to \
+  alpine tar czf "/to/postgres_data-${TS}.tgz" -C /from .
+docker compose up -d postgres
+```
+
+Why both: `pg_dumpall` is portable and survives a major-version
+upgrade; the tarball restores in seconds and survives a botched
+`pg_dumpall` (we hit exactly that scenario during the 15→17 upgrade —
+a permission glitch produced a 0-byte SQL dump, the tarball saved
+the day).
+
+### Restore — logical (preferred when migrating to a new major)
+
+```bash
+# Make sure the target Postgres is running and the platform DB exists
+docker compose up -d postgres
+sleep 5
+docker compose exec postgres pg_isready -U "${POSTGRES_USER:-aracne2}"
+
+docker compose exec -T postgres \
+  psql -U "${POSTGRES_USER:-aracne2}" -d "${POSTGRES_DB:-aracne2}" \
+  < /var/backups/aracne2/pg-all-<TS>.sql 2>&1 | tee /tmp/restore.log
+
+# Real errors (filter out "already exists" benign noise)
+grep -E '^(ERROR|FATAL)' /tmp/restore.log | grep -vE "already exists" | head -20
+```
+
+### Restore — volume tarball (rollback to the same major)
+
+```bash
+docker compose down
+docker volume rm aracne2_postgres_data
+docker volume create aracne2_postgres_data
+docker run --rm \
+  -v aracne2_postgres_data:/to \
+  -v /var/backups/aracne2:/from \
+  alpine tar xzf "/from/postgres_data-<TS>.tgz" -C /to
+docker compose up -d
+```
+
+---
+
+## Postgres major-version upgrade
+
+Postgres data files are not cross-version compatible: bumping
+`postgres:N-alpine` → `postgres:N+1-alpine` in `docker-compose.yml`
+without re-initialising the volume produces an `incompatible version`
+error at boot. Logical dump-and-restore is the supported path.
+
+This is the runbook used for the **15 → 17** upgrade (commit
+`6df35c1`, 2026-05-03) and applies to every future major bump.
+
+### Plan A — clean dump
+
+```bash
+# 0. Sanity baseline
+docker compose exec postgres psql -U aracne2 -d aracne2 -c "SELECT version();"
+
+# 1. Logical dump + volume tarball (BOTH — see "Postgres backup")
+TS=$(date +%Y%m%d-%H%M%S)
+docker compose exec -T postgres pg_dumpall -U aracne2 \
+  > "/var/backups/aracne2/pg-all-${TS}.sql"
+ls -lh "/var/backups/aracne2/pg-all-${TS}.sql"   # must be MB, not 0
+
+docker compose down
+docker run --rm \
+  -v aracne2_postgres_data:/from -v /var/backups/aracne2:/to \
+  alpine tar czf "/to/postgres_data-${TS}.tgz" -C /from .
+
+# 2. Bump the image (in the repo, then git pull in the test/prod dir)
+#    Edit docker-compose.yml: postgres:17-alpine, pgvector/pgvector:pg17
+
+# 3. Drop the old volume and start the new major
+docker volume rm aracne2_postgres_data
+docker compose pull postgres
+docker compose up -d postgres
+sleep 10
+docker compose exec postgres psql -U aracne2 -d aracne2 -c "SELECT version();"
+
+# 4. Restore the dump
+docker compose exec -T postgres psql -U aracne2 -d aracne2 \
+  < "/var/backups/aracne2/pg-all-${TS}.sql" 2>&1 | tee /tmp/restore.log
+grep -E '^(ERROR|FATAL)' /tmp/restore.log | grep -vE "already exists"
+
+# 5. Spot-check
+docker compose exec postgres psql -U aracne2 -d aracne2 -c "
+  SELECT count(*) AS users FROM users;
+  SELECT count(*) AS collections FROM collections;
+  SELECT count(*) AS audit_rows FROM audit_log;
+  SELECT count(*) AS doc_versions FROM document_versions;
+  SELECT version_num FROM alembic_version;
+"
+
+# 6. Bring everything else up
+docker compose up -d
+```
+
+If the post-restore counts match the baseline taken at step 0, you
+are done. If not, jump to Plan B without panicking — you still have
+the tarball.
+
+### Plan B — recovery from the tarball when Plan A's dump turned out empty
+
+The dump file at step 1 must be **non-empty** before you proceed.
+If `ls -lh` shows 0 bytes (we've seen this happen when the postgres
+container was about to stop and refused new connections, or when the
+caller didn't have CONNECT privileges), recover from the tarball:
+
+```bash
+TS=<the-original-timestamp>
+
+docker compose down
+
+# Spin up a temp PG of the OLD major, load the tarball into a temp volume
+docker volume create pgN_recovery
+docker run --rm \
+  -v pgN_recovery:/to -v /var/backups/aracne2:/from \
+  alpine tar xzf "/from/postgres_data-${TS}.tgz" -C /to
+
+docker run -d --name pgN_recovery \
+  -v pgN_recovery:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=ignored \
+  -p 127.0.0.1:5434:5432 \
+  postgres:<OLD-MAJOR>-alpine    # e.g. postgres:15-alpine
+
+sleep 5
+docker exec pgN_recovery pg_isready -U aracne2
+
+# Confirm data is readable
+docker exec pgN_recovery psql -U aracne2 -d aracne2 \
+  -c "SELECT count(*) FROM users;"
+
+# Take a NEW dump from the temp container
+TS_NEW=$(date +%Y%m%d-%H%M%S)
+docker exec pgN_recovery pg_dumpall -U aracne2 \
+  > "/var/backups/aracne2/pg-recovered-${TS_NEW}.sql"
+ls -lh "/var/backups/aracne2/pg-recovered-${TS_NEW}.sql"   # must be MB
+
+# Tear down the recovery container (KEEP the volume until step 5 of Plan A
+# has succeeded — it is the safety net)
+docker stop pgN_recovery && docker rm pgN_recovery
+
+# Resume Plan A from step 3 with the new SQL file
+```
+
+Once the upgraded cluster is healthy and the smoke tests pass:
+
+```bash
+docker volume rm pgN_recovery
+```
+
+### pgvector follows the same shape
+
+If the deployment runs the `ai-local` profile, repeat both Plan A
+and (if needed) Plan B against:
+
+| Plain Postgres | pgvector |
+|---|---|
+| volume `aracne2_postgres_data` | volume `aracne2_pgvector_data` |
+| user `aracne2` (`POSTGRES_USER`) | user `aracne2_rag` (`PGVECTOR_USER`, default `aracne2_rag`) |
+| db `aracne2` | db `aracne2_vectors` |
+| image `postgres:N-alpine` | image `pgvector/pgvector:pgN` |
+
+The `vector` extension is shipped inside `pgvector/pgvector:pgN`
+already, so the `CREATE EXTENSION vector` line in the dump succeeds
+without any extra step. If you'd rather rebuild the embeddings index
+from scratch (e.g. after switching the embedding model), skip the
+pgvector restore and trigger a re-ingest from
+**Settings → AI → RAG → Re-ingest** after the platform stack is back
+up.
 
 ---
 
@@ -498,7 +686,7 @@ Procedure:
 5. Re-ingest: `python -m app.scripts.ingest_tei_p5 --source … --purge`.
 
 This hard-reset is the price of the current simple schema. A future
-iteration (see `docs/FUTURE_IDEAS.md`) would support multi-dimension
+iteration (see `docs/TO_DO.md`) would support multi-dimension
 tables keyed by model.
 
 ---

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Hi {{ recipient_display_name }},</p>
+  <p>
+    <strong>{{ actor_name }}</strong> has submitted the collection
+    <a href="{{ collection_url }}">{{ collection_title }}</a> for review.
+  </p>
+  {% if note %}
+  <p><em>Note from the editor:</em></p>
+  <blockquote style="border-left: 3px solid #ccc; padding-left: 1em; color: #555;">
+    {{ note }}
+  </blockquote>
+  {% endif %}
+  <p>You can open the collection from the link above when you're ready to review it.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    You're receiving this email because you are an Editor in Chief on Aracne2.
+    To opt out of workflow emails, uncheck "Email notifications" on your profile.
+  </p>
+</body>
+</html>

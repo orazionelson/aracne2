@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #333;">
+    <p>Hi {{ recipient_display_name }},</p>
+
+    <p>
+      <strong>{{ requester_username }}</strong> has submitted a GDPR
+      anonymisation request on this Aracne2 deployment.
+    </p>
+
+    {% if reason %}
+    <blockquote style="border-left: 3px solid #c00; padding-left: 12px; color: #555;">
+      Their stated reason:<br/>
+      <em>{{ reason }}</em>
+    </blockquote>
+    {% endif %}
+
+    <p>
+      The request is in <code>submitted</code> state. Their account is
+      unchanged until an Admin executes the anonymise action.
+    </p>
+
+    <p>
+      <a href="{{ admin_queue_url }}"
+         style="display: inline-block; background: #4f46e5; color: white;
+                padding: 10px 16px; border-radius: 6px; text-decoration: none;">
+        Open review queue
+      </a>
+    </p>
+
+    <p style="font-size: 12px; color: #777;">
+      When you act, please record the institutional / legal basis in the
+      review notes — the audit log carries them as the rationale of the
+      operation.
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #eee;"/>
+    <p style="font-size: 12px; color: #999;">
+      You're receiving this email because you hold the Admin role on this
+      Aracne2 deployment. The full GDPR posture is documented at
+      <code>docs/reference/GDPR_POSTURE.md</code> in the repository.
+    </p>
+  </body>
+</html>

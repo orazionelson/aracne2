@@ -30,6 +30,7 @@ SENSITIVE_KEYS: frozenset[str] = frozenset(
         "github_integration_pat",
         "gitlab_integration_pat",
         "dataverse_api_token",
+        "nl_search_api_key",
     }
 )
 

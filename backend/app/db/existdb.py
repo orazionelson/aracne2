@@ -31,6 +31,8 @@ logger = structlog.get_logger()
 
 _REST = "/exist/rest"
 _DB_ROOT = "/db/aracne2"
+_DB_COLLECTIONS_ROOT = f"{_DB_ROOT}/collections"
+_DB_PUBLISHED_ROOT = f"{_DB_ROOT}/published"
 _XQUERIES_DIR = Path(__file__).parent.parent / "xqueries"
 # eXist-db's built-in admin account name — not configurable via environment.
 _ADMIN_USER = "admin"
@@ -152,8 +154,25 @@ class ExistDBClient:
         return r.content
 
     def col_path(self, slug: str) -> str:
-        """Full eXist-db path for a collection slug."""
-        return f"{_DB_ROOT}/collections/{slug}"
+        """Full eXist-db path for a collection's working tree.
+
+        The working tree is the editor-facing view of the collection: every
+        document upload, edit and delete writes here. Public renderers must
+        not read from this path — they must use ``published_path`` instead.
+        """
+        return f"{_DB_COLLECTIONS_ROOT}/{slug}"
+
+    def published_path(self, slug: str) -> str:
+        """Full eXist-db path for a collection's published snapshot.
+
+        Written only at publish time as an immutable snapshot of the working
+        tree. Read by every public surface: website router, public_view,
+        sitemap, OAI-PMH, plus deposit plugins (Zenodo, Internet Archive,
+        Dataverse) and webhook listeners. The snapshot survives ``unpublish``
+        — visibility toggles via ``Collection.status``, the snapshot stays
+        on disk so a re-publish on unchanged content is a near-noop.
+        """
+        return f"{_DB_PUBLISHED_ROOT}/{slug}"
 
     def _rest_url(self, *segments: str) -> str:
         """Build a REST URL: /exist/rest + joined segments."""
@@ -268,6 +287,88 @@ class ExistDBClient:
                 "existdb", f"delete_collection failed ({r.status_code}): {r.text[:200]}"
             )
         logger.info("existdb_collection_deleted", slug=slug)
+
+    async def copy_collection_to_published(self, slug: str) -> None:
+        """Copy the working tree of a collection to its published snapshot path.
+
+        Called at publish time to create or refresh ``/db/aracne2/published/{slug}``
+        from ``/db/aracne2/collections/{slug}``. The destination is removed first
+        if present — eXist-db's ``xmldb:copy-collection`` does not overwrite
+        existing same-named documents, so a clean slate avoids stale residuals
+        from a prior publish that contained more documents.
+        """
+        await self.xquery(
+            "system/copy_to_published.xq",
+            variables={"slug": slug},
+        )
+        logger.info("existdb_collection_copied_to_published", slug=slug)
+
+    async def list_published(self, slug: str) -> list[str]:
+        """Return filenames of all XML documents in a collection's published snapshot.
+
+        Mirror of ``list_collection`` but reads from ``published_path(slug)``.
+        Used by every public surface that must serve a stable snapshot rather
+        than the editor's working tree (website router, public_view, sitemap,
+        deposit plugins). Returns an empty list when the snapshot does not
+        exist yet (e.g. the collection has never been published).
+        """
+        client = self._require()
+        r = await client.get(
+            self._rest_url(self.published_path(slug)) + "/",
+            headers={"Accept": "application/xml"},
+        )
+        if r.status_code == 404:
+            return []
+        if r.status_code != 200:
+            raise ExternalServiceError(
+                "existdb", f"list_published failed ({r.status_code})"
+            )
+        ns = "http://exist.sourceforge.net/NS/exist"
+        root = ET.fromstring(r.text)
+        return [
+            el.get("name", "")
+            for el in root.iter(f"{{{ns}}}resource")
+            if el.get("name", "").endswith(".xml")
+        ]
+
+    async def get_published_document(self, slug: str, filename: str) -> bytes:
+        """Fetch a raw XML document from a collection's published snapshot.
+
+        Mirror of ``get_document`` but reads from ``published_path(slug)``.
+        Public renderers must use this method so editor edits never leak to
+        unauthenticated visitors before the next ``publish_collection``.
+        """
+        client = self._require()
+        r = await client.get(
+            self._rest_url(self.published_path(slug), filename),
+            headers={"Accept": "application/xml"},
+        )
+        if r.status_code == 404:
+            raise NotFoundError(
+                f"Document '{filename}' not found in published snapshot of '{slug}'"
+            )
+        if r.status_code != 200:
+            raise ExternalServiceError(
+                "existdb", f"get_published_document failed ({r.status_code})"
+            )
+        return r.content
+
+    async def remove_published(self, slug: str) -> None:
+        """Remove the published snapshot of a collection from eXist-db.
+
+        Reserved for tests and operator scripts. The normal ``unpublish``
+        flow leaves the snapshot in place — it only toggles visibility via
+        ``Collection.status`` so a re-publish on unchanged content stays
+        cheap.
+        """
+        client = self._require()
+        r = await client.delete(self._rest_url(self.published_path(slug)))
+        if r.status_code not in (200, 204, 404):
+            raise ExternalServiceError(
+                "existdb",
+                f"remove_published failed ({r.status_code}): {r.text[:200]}",
+            )
+        logger.info("existdb_published_removed", slug=slug)
 
     async def list_collection(self, slug: str) -> list[str]:
         """Return filenames of all XML documents in the collection."""

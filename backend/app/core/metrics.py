@@ -9,7 +9,7 @@ mode) is the operator's responsibility.
 Exposed at ``GET /api/v1/metrics`` in Prometheus text format. The
 endpoint is intentionally **unauthenticated** — operators are
 expected to firewall the port or front it with an allow-list at the
-reverse proxy. See docs/OPERATIONS.md for deployment guidance.
+reverse proxy. See docs/reference/OPERATIONS.md for deployment guidance.
 """
 
 from __future__ import annotations

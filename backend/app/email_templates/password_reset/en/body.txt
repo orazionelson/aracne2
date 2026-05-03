@@ -1,0 +1,17 @@
+Hi {{ recipient_display_name }},
+
+Someone — hopefully you — asked to reset the password of your Aracne2
+account. Open the URL below to choose a new password:
+
+{{ reset_url }}
+
+This link is valid for {{ expiry_hours }} hours and can be used only
+once.
+
+If you didn't request a reset, you can safely ignore this email — your
+password remains unchanged. If you keep receiving these messages,
+contact your platform administrator.
+
+—
+This is a transactional email; it is sent regardless of your
+"Email notifications" preference.

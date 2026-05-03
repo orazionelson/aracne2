@@ -3,9 +3,14 @@ import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useUiConfigStore } from "@/stores/ui_config";
 import { usePublicCollections } from "@/composables/usePublicCollections";
+import { usePublicNav, usePublicNavLabel } from "@/composables/usePublicNav";
 
 const { t } = useI18n();
 const uiConfig = useUiConfigStore();
+// Plugin-declared "quick links" surfaced as a tile grid below the WYSIWYG
+// intro. Empty array → the section is hidden entirely.
+const quickLinks = usePublicNav("home_quick_links");
+const navLabel = usePublicNavLabel();
 const { collections, total, page, totalPages, isLoading, fetchCollections } =
   usePublicCollections();
 
@@ -85,6 +90,24 @@ onMounted(() => {
         v-html="introHtml"
       />
       <!-- eslint-enable vue/no-v-html -->
+
+      <!-- Plugin-declared quick links (public_navigation, section=home_quick_links) -->
+      <section
+        v-if="quickLinks.length > 0"
+        class="ph-quick-links mb-8"
+        aria-label="Plugin quick links"
+      >
+        <div class="ph-quick-links-grid grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <router-link
+            v-for="entry in quickLinks"
+            :key="entry.plugin_name"
+            :to="entry.url"
+            class="ph-quick-link rounded-xl border border-indigo-200 bg-white px-4 py-3 text-sm font-medium text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md"
+          >
+            {{ navLabel(entry) }}
+          </router-link>
+        </div>
+      </section>
 
       <!-- Search bar -->
       <div v-if="showSearch" class="ph-search mb-8">

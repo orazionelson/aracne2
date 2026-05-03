@@ -3274,15 +3274,18 @@ def _build_dynamic_search_content(
 async def _fetch_doc_infos(col: Collection) -> list[dict]:
     """Return a list of {filename, title, author} dicts for *col*.
 
-    Tries the title-aware XQuery first; falls back to a plain listing on error.
+    Reads from the published snapshot (``published_path`` / ``list_published``)
+    so the public site keeps serving a stable view while editors continue to
+    work on the live tree. Tries the title-aware XQuery first; falls back to
+    a plain listing on error.
     """
     import defusedxml.ElementTree as ET
 
-    col_path = existdb_client.col_path(col.slug)
+    published_path = existdb_client.published_path(col.slug)
     try:
         raw = await existdb_client.xquery(
             "collections/list_with_titles.xq",
-            variables={"collection_path": col_path},
+            variables={"collection_path": published_path},
         )
         root_el = ET.fromstring(raw)
         return [
@@ -3297,7 +3300,7 @@ async def _fetch_doc_infos(col: Collection) -> list[dict]:
     except Exception as exc:
         logger.warning("dynamic_list_docs_failed", col=col.slug, error=str(exc))
         try:
-            filenames = await existdb_client.list_collection(col.slug)
+            filenames = await existdb_client.list_published(col.slug)
             return [{"filename": f, "title": None, "author": None} for f in filenames]
         except Exception:
             return []
@@ -3444,7 +3447,7 @@ async def render_dynamic_search(
             raw = await existdb_client.xquery(
                 "search/fulltext_search.xq",
                 variables={
-                    "collection_path": existdb_client.col_path(col.slug),
+                    "collection_path": existdb_client.published_path(col.slug),
                     "query": q,
                     "max_results": "50",
                 },
@@ -3553,7 +3556,7 @@ async def render_dynamic_bibliography(db: AsyncSession, website: Website) -> str
     doc_filenames: set[str] = set()
     if col is not None:
         try:
-            doc_filenames = set(await existdb_client.list_collection(col.slug))
+            doc_filenames = set(await existdb_client.list_published(col.slug))
         except Exception:
             doc_filenames = set()
 
@@ -3600,7 +3603,7 @@ async def render_dynamic_doc(
     if col is None:
         raise NotFoundError("Linked collection not found.")
 
-    xml_bytes = await existdb_client.get_document(col.slug, filename)
+    xml_bytes = await existdb_client.get_published_document(col.slug, filename)
     xslt_transform = await _resolve_transform_cached(
         website.slug, website.xslt_config or {}
     )
@@ -4654,7 +4657,7 @@ async def rebuild_website_index(
         raise NotFoundError("Linked collection not found.")
 
     idx = await get_website_index(db, website.id, index_id)
-    path = existdb_client.col_path(col.slug)
+    path = existdb_client.published_path(col.slug)
     raw = await existdb_client.xquery(
         "collections/index_occurrences.xq",
         {
@@ -4682,7 +4685,7 @@ async def rebuild_all_website_indices(db: AsyncSession, slug: str) -> list[Websi
     col: Collection | None = await db.get(Collection, website.collection_id)
     if col is None:
         raise NotFoundError("Linked collection not found.")
-    path = existdb_client.col_path(col.slug)
+    path = existdb_client.published_path(col.slug)
 
     rebuilt: list[WebsiteIndex] = []
     for idx in website.indices:
@@ -4721,7 +4724,7 @@ async def refresh_website_tags(db: AsyncSession, slug: str) -> Website:
     if col is None:
         raise NotFoundError("Linked collection not found.")
 
-    path = existdb_client.col_path(col.slug)
+    path = existdb_client.published_path(col.slug)
     raw = await existdb_client.xquery("collections/distinct_tags.xq", {"path": path})
     website.distinct_tags = json.loads(raw.decode("utf-8"))
     website.tags_refreshed_at = datetime.now(UTC)
@@ -4905,11 +4908,11 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         col = await db.get(Collection, website.collection_id)
 
     if col is not None:
-        col_path = existdb_client.col_path(col.slug)
+        published_path = existdb_client.published_path(col.slug)
         try:
             raw = await existdb_client.xquery(
                 "collections/list_with_titles.xq",
-                variables={"collection_path": col_path},
+                variables={"collection_path": published_path},
             )
             root_el = ET.fromstring(raw)
             for el in root_el.findall("doc"):
@@ -4926,7 +4929,7 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
         except Exception as exc:
             logger.warning("website_build_list_docs_failed", slug=slug, error=str(exc))
             try:
-                filenames = await existdb_client.list_collection(col.slug)
+                filenames = await existdb_client.list_published(col.slug)
                 doc_infos = [{"filename": f, "title": None, "author": None} for f in filenames]
             except Exception:
                 doc_infos = []
@@ -5060,7 +5063,9 @@ async def _build_static_site(db: AsyncSession, website: Website) -> None:
             filename = doc_info["filename"]
             xml_bytes_doc: bytes = b""
             try:
-                xml_bytes_doc = await existdb_client.get_document(col.slug, filename)
+                xml_bytes_doc = await existdb_client.get_published_document(
+                    col.slug, filename
+                )
                 doc_body = await asyncio.to_thread(xslt_transform, xml_bytes_doc)
                 doc_bodies[filename] = _extract_plain_text(xml_bytes_doc)
             except Exception as exc:

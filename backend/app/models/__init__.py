@@ -3,6 +3,18 @@ from app.models.audit_log import AuditLog
 from app.models.collection import Collection
 from app.models.collection_bibliography import CollectionBibliography
 from app.models.corpus import Corpus, McpToken
+from app.models.document_version import DocumentVersion, VersionOrigin
+from app.models.fixity_record import FixityRecord, FixityStatus
+from app.models.gdpr_request import (
+    GdprRequest,
+    GdprRequestKind,
+    GdprRequestStatus,
+)
+from app.models.nl_search_budget import NlSearchBudgetDay
+from app.models.nl_search_cache import NlSearchCache
+from app.models.password_reset_token import PasswordResetToken
+from app.models.personal_access_token import PersonalAccessToken
+from app.models.policy_page import PolicyPage, PolicyPageVersion
 from app.models.tei_schema import TeiSchema
 from app.models.collection_permission import CollectionPermission
 from app.models.plugin_data import PluginData
@@ -26,7 +38,20 @@ __all__ = [
     "CollectionBibliography",
     "CollectionPermission",
     "Corpus",
+    "DocumentVersion",
+    "FixityRecord",
+    "FixityStatus",
+    "GdprRequest",
+    "GdprRequestKind",
+    "GdprRequestStatus",
     "McpToken",
+    "NlSearchBudgetDay",
+    "NlSearchCache",
+    "PasswordResetToken",
+    "PersonalAccessToken",
     "PluginData",
+    "PolicyPage",
+    "PolicyPageVersion",
     "TeiSchema",
+    "VersionOrigin",
 ]

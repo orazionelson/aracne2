@@ -12,7 +12,7 @@ Roadmap and status:
 | LOD.1 | Inbound entity linking (Wikidata → `@ref`)  | ✅ shipped    |
 | LOD.2 | JSON-LD schema.org in public SPA pages      | ✅ shipped    |
 | LOD.3 | RDF export with content negotiation         | ✅ shipped    |
-| LOD.4 | SPARQL endpoint                             | 🟢 deferred — see [FUTURE_IDEAS.md #14](../FUTURE_IDEAS.md) |
+| LOD.4 | SPARQL endpoint                             | 🟢 deferred — see [TO_DO.md](../TO_DO.md) |
 
 ---
 
@@ -182,4 +182,4 @@ curl https://example.org/api/v1/public/collections/dante
   (Turtle/RDF-XML/JSON-LD) so any downstream CIDOC-CRM / TEI-Ontology
   mapping can bolt on as an additional graph builder without touching
   the endpoint.
-- **SPARQL**: see [FUTURE_IDEAS.md #14](../FUTURE_IDEAS.md).
+- **SPARQL**: see [TO_DO.md](../TO_DO.md).

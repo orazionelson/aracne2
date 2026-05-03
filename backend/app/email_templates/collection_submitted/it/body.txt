@@ -1,0 +1,14 @@
+Ciao {{ recipient_display_name }},
+
+{{ actor_name }} ha inviato in validazione la collezione
+"{{ collection_title }}".
+
+{% if note %}Nota dell'editor:
+> {{ note }}
+
+{% endif %}Puoi aprire la collezione qui: {{ collection_url }}
+
+—
+Stai ricevendo questa email perché sei Editor in Chief su Aracne2.
+Per disattivare le notifiche email del flusso editoriale, deseleziona
+"Notifiche email" dal tuo profilo.

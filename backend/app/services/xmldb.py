@@ -13,6 +13,7 @@ ACL is enforced here, not in the router layer, so that any caller
 """
 
 import asyncio
+import hashlib
 import io
 import os
 import re
@@ -48,6 +49,7 @@ from app.db.existdb import ExistDBClient
 from app.core.constants import ROLE_LEVEL
 from app.models.audit_log import AuditLog
 from app.models.collection import Collection, CollectionStatus
+from app.models.document_version import VersionOrigin
 from app.models.collection_permission import CollectionPermission
 from app.models.notification import Notification
 from app.models.role import Role, RoleName, UserRole
@@ -144,14 +146,13 @@ async def _assert_read_access(
 def _assert_write_access(collection: Collection, actor: User, role: str) -> None:
     """Raise if actor cannot modify documents in this collection.
 
-    Published collections are frozen for everyone — the collection must be
-    unpublished (returned to 'assigned' or 'review') before any document
-    change is allowed.
+    Edits go to the working tree at ``existdb_client.col_path(slug)``; the
+    public surface reads from a separate snapshot written only at publish
+    time, so editing a published collection no longer changes what
+    visitors see. The previous "unpublish before editing" lock was removed
+    in Phase A2 of document versioning — visibility decoupling now lives
+    in the storage layer.
     """
-    if collection.status == CollectionStatus.published:
-        raise AuthorizationError(
-            "Collection is published — unpublish it before modifying documents"
-        )
     if _level(role) >= _level("EditorInChief"):
         return
     if collection.editor_id != actor.id:
@@ -160,7 +161,10 @@ def _assert_write_access(collection: Collection, actor: User, role: str) -> None
         raise AuthorizationError(
             "Collection is locked while under review — wait for EiC feedback"
         )
-    if collection.status not in (CollectionStatus.assigned,):
+    if collection.status not in (
+        CollectionStatus.assigned,
+        CollectionStatus.published,
+    ):
         raise AuthorizationError("Collection is not in an editable state")
 
 
@@ -194,18 +198,181 @@ def _audit(
     actor: User,
     collection: Collection,
     payload: dict[str, object] | None = None,
-) -> None:
-    db.add(
-        AuditLog(
-            action=action,
-            actor_id=actor.id,
-            actor_username=actor.username,
-            target_type="collection",
-            target_id=str(collection.id),
-            target_label=collection.title,
-            payload=payload,
-        )
+) -> AuditLog:
+    """Stage an ``AuditLog`` row and return the instance.
+
+    Returning the row lets callers ``await db.flush()`` then read
+    ``row.id`` to wire the audit_log row as the ``audit_log_id`` foreign key
+    on a ``document_versions`` row written in the same transaction. Existing
+    callers that ignore the return value keep working unchanged.
+    """
+    row = AuditLog(
+        action=action,
+        actor_id=actor.id,
+        actor_username=actor.username,
+        target_type="collection",
+        target_id=str(collection.id),
+        target_label=collection.title,
+        payload=payload,
     )
+    db.add(row)
+    return row
+
+
+async def _snapshot_collection_documents(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection: Collection,
+    *,
+    origin: VersionOrigin,
+    actor: User,
+    audit_log_row: AuditLog | None,
+) -> int:
+    """Write a ``document_versions`` row per doc in *collection* (with dedup).
+
+    Used by the workflow auto-versioning path (submit / reject / publish /
+    direct_publish). Iterates the working tree, fetches each document, and
+    calls ``document_versions.create_version`` which transparently skips
+    every doc whose SHA-256 already matches the latest stored row. Returns
+    the number of rows that were actually written — useful for logging
+    and for tests asserting the dedup behaviour.
+
+    Imports are deferred to keep ``services.document_versions`` from being
+    pulled in at every xmldb import (it imports SystemSetting, the gzip
+    library, etc.).
+
+    Side effect: when *origin* is ``publication`` we also upsert the
+    matching ``fixity_records`` row so the M2 fixity layer (CTS R7)
+    has an expected SHA-256 to re-check on schedule. Even on the
+    dedup path (content unchanged → create_version returns None) we
+    refresh the fixity row from the latest publication-origin
+    version, so a new fixity-feature deploy backfills rows for
+    already-published documents on the next publish.
+    """
+    from app.services.document_versions import create_version, get_last_publication
+    from app.services.fixity import record_publication
+
+    filenames = sorted(await existdb.list_collection(collection.slug))
+    written = 0
+    for filename in filenames:
+        try:
+            xml_bytes = await existdb.get_document(collection.slug, filename)
+        except Exception as exc:  # noqa: BLE001 — one bad doc must not abort the snapshot
+            logger.warning(
+                "snapshot_doc_fetch_failed",
+                slug=collection.slug,
+                filename=filename,
+                error=str(exc),
+            )
+            continue
+        row = await create_version(
+            db,
+            collection=collection,
+            filename=filename,
+            xml_bytes=xml_bytes,
+            origin=origin,
+            actor=actor,
+            audit_log_row=audit_log_row,
+        )
+        if row is not None:
+            written += 1
+        if origin is VersionOrigin.publication:
+            # Resolve the publication row to record fixity against.
+            # ``row`` is ``None`` on the dedup path (content unchanged);
+            # in that case the previous publication row is still the
+            # canonical one, so look it up.
+            target = row if row is not None else await get_last_publication(
+                db, collection_id=collection.id, filename=filename
+            )
+            if target is not None:
+                await record_publication(
+                    db,
+                    collection=collection,
+                    filename=filename,
+                    expected_sha256=target.content_sha256,
+                    version_number=target.version_number,
+                    size_bytes=target.size_bytes,
+                )
+    logger.info(
+        "collection_snapshot_recorded",
+        slug=collection.slug,
+        origin=origin.value,
+        documents_total=len(filenames),
+        documents_written=written,
+    )
+    return written
+
+
+async def compute_has_unpublished_changes(
+    existdb: ExistDBClient, collection: Collection
+) -> bool:
+    """True when the working tree fingerprint differs from the last
+    published one — i.e. an editor has touched documents since the last
+    successful publish (or the collection was never published).
+
+    Used by the editor UI to surface a "Unpublished changes" badge so
+    Editor+ users can tell at a glance whether a re-publish would be a
+    no-op or would propagate real changes. Compares SHA-256 fingerprints
+    only; never reads or transforms document bodies beyond the
+    short-lived hash computation.
+    """
+    if collection.last_published_tree_hash is None:
+        # Never published. From the editor's perspective the working tree
+        # is still "unpublished work" if anything has been uploaded.
+        # Returning True is the safe default — the badge nudges the user
+        # to actually publish.
+        try:
+            filenames = await existdb.list_collection(collection.slug)
+        except Exception:  # noqa: BLE001 — never let the badge crash the detail call
+            return False
+        return bool(filenames)
+    try:
+        current = await _compute_collection_tree_hash(existdb, collection.slug)
+    except Exception:  # noqa: BLE001
+        return False
+    return current != collection.last_published_tree_hash
+
+
+async def _invalidate_linked_website_caches(
+    db: AsyncSession, collection: Collection
+) -> None:
+    """Clear the in-memory page/XSLT caches of every website linked to *collection*.
+
+    Phase A2: a successful publish refreshes the eXist-db snapshot at
+    ``published_path``. Without invalidating the website cache, pages cached
+    before the publish would keep serving stale HTML (and stale linked-document
+    bodies) for the cache TTL. Imports are deferred to avoid a circular
+    import between ``services.xmldb`` and ``services.websites``.
+    """
+    from app.models.website import Website
+    from app.services.websites import invalidate_cache
+
+    rows = await db.scalars(
+        select(Website).where(Website.collection_id == collection.id)
+    )
+    for w in rows:
+        invalidate_cache(w.slug)
+
+
+async def _compute_collection_tree_hash(
+    existdb: ExistDBClient, slug: str
+) -> str:
+    """SHA-256 fingerprint of a collection's working tree.
+
+    Concatenates ``(filename, sha256(content))`` pairs in sorted order so the
+    fingerprint is invariant under listing order and stable across runs.
+    Used by the publish path to short-circuit re-publishes on unchanged
+    content — same fingerprint as ``Collection.last_published_tree_hash``
+    means the snapshot is up to date and downstream listeners
+    (Zenodo, Internet Archive, Dataverse, webhooks) can be skipped.
+    """
+    filenames = sorted(await existdb.list_collection(slug))
+    parts: list[bytes] = []
+    for fn in filenames:
+        content = await existdb.get_document(slug, fn)
+        digest = hashlib.sha256(content).hexdigest()
+        parts.append(f"{fn}\0{digest}\n".encode())
+    return hashlib.sha256(b"".join(parts)).hexdigest()
 
 
 def _notify(
@@ -613,12 +780,18 @@ async def assign_collection(
 
 async def submit_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
 ) -> CollectionResponse:
-    """Assegnata → Validazione (only the assigned editor)."""
+    """Assegnata → Validazione (only the assigned editor).
+
+    Snapshots every document in the working tree as ``origin=submission`` so
+    the editorial timeline carries a "this is what was submitted for review
+    on date X" record alongside the audit_log event.
+    """
     col = await _get_or_404(db, collection_id)
 
     if col.status != CollectionStatus.assigned:
@@ -637,21 +810,39 @@ async def submit_collection(
         f"{_actor_label(actor)} ha inviato in validazione: {col.title}",
         body.note,
     )
-    _audit(db, "collection.submitted", actor, col, {"note": body.note})
+    audit_row = _audit(db, "collection.submitted", actor, col, {"note": body.note})
     await db.flush()
-    await hook_registry.emit(HookEvent.ON_COLLECTION_SUBMITTED, collection=col)
+    await _snapshot_collection_documents(
+        db,
+        existdb,
+        col,
+        origin=VersionOrigin.submission,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+    await hook_registry.emit(
+        HookEvent.ON_COLLECTION_SUBMITTED,
+        collection=col,
+        actor=actor,
+        note=body.note,
+    )
     logger.info("collection_submitted", slug=col.slug, editor=actor.username)
     return CollectionResponse.model_validate(col)
 
 
 async def reject_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: RejectAction,
     actor: User,
     role: str,
 ) -> CollectionResponse:
-    """Validazione → Assegnata (EiC/Admin sends back for revision)."""
+    """Validazione → Assegnata (EiC/Admin sends back for revision).
+
+    Snapshots every document as ``origin=rejection`` so the editorial
+    timeline records "the state the EiC chose to send back for revisions".
+    """
     _assert_eic(role)
     col = await _get_or_404(db, collection_id)
 
@@ -669,20 +860,44 @@ async def reject_collection(
             f"{_actor_label(actor)} ha rimandato in revisione: {col.title}",
             body.note,
         )
-    _audit(db, "collection.rejected", actor, col, {"note": body.note})
+    audit_row = _audit(db, "collection.rejected", actor, col, {"note": body.note})
     await db.flush()
+    await _snapshot_collection_documents(
+        db,
+        existdb,
+        col,
+        origin=VersionOrigin.rejection,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+    await hook_registry.emit(
+        HookEvent.ON_COLLECTION_REJECTED,
+        collection=col,
+        actor=actor,
+        note=body.note,
+    )
     logger.info("collection_rejected", slug=col.slug, actor=actor.username)
     return CollectionResponse.model_validate(col)
 
 
 async def publish_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: WorkflowAction,
     actor: User,
     role: str,
 ) -> CollectionResponse:
-    """Validazione → Pubblica."""
+    """Validazione → Pubblica.
+
+    Copies the working tree to the published snapshot path
+    (``existdb.published_path``) so the public surface keeps reading from a
+    stable snapshot rather than the live editor view. When the working tree
+    fingerprint matches ``last_published_tree_hash``, the copy and the
+    ``ON_COLLECTION_PUBLISHED`` hook are short-circuited so deposit listeners
+    (Zenodo / Internet Archive / Dataverse / webhooks) do not duplicate
+    side effects on a content-unchanged re-publish.
+    """
     _assert_eic(role)
     col = await _get_or_404(db, collection_id)
 
@@ -692,6 +907,14 @@ async def publish_collection(
     col.status = CollectionStatus.published
     col.published_at = _now()
 
+    new_tree_hash = await _compute_collection_tree_hash(existdb, col.slug)
+    content_changed = new_tree_hash != col.last_published_tree_hash
+
+    if content_changed:
+        await existdb.copy_collection_to_published(col.slug)
+        col.last_published_tree_hash = new_tree_hash
+        await _invalidate_linked_website_caches(db, col)
+
     if col.editor_id:
         _notify(
             db,
@@ -700,15 +923,41 @@ async def publish_collection(
             f"{_actor_label(actor)} ha pubblicato: {col.title}",
             body.note,
         )
-    _audit(db, "collection.published", actor, col, {"note": body.note})
+    audit_row = _audit(
+        db,
+        "collection.published",
+        actor,
+        col,
+        {"note": body.note, "content_changed": content_changed},
+    )
     await db.flush()
-    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
-    logger.info("collection_published", slug=col.slug, actor=actor.username)
+    await _snapshot_collection_documents(
+        db,
+        existdb,
+        col,
+        origin=VersionOrigin.publication,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+    if content_changed:
+        await hook_registry.emit(
+            HookEvent.ON_COLLECTION_PUBLISHED,
+            collection=col,
+            actor=actor,
+            note=body.note,
+        )
+    logger.info(
+        "collection_published",
+        slug=col.slug,
+        actor=actor.username,
+        content_changed=content_changed,
+    )
     return CollectionResponse.model_validate(col)
 
 
 async def direct_publish_collection(
     db: AsyncSession,
+    existdb: ExistDBClient,
     collection_id: str,
     body: WorkflowAction,
     actor: User,
@@ -716,8 +965,10 @@ async def direct_publish_collection(
 ) -> CollectionResponse:
     """Publish a collection directly from any status, bypassing the normal workflow.
 
-    Restricted to EditorInChief and Admin. Emits ON_COLLECTION_PUBLISHED and
-    notifies the assigned editor (if any), exactly as the regular publish path does.
+    Restricted to EditorInChief and Admin. Refreshes the published snapshot
+    and emits ON_COLLECTION_PUBLISHED only when the working tree fingerprint
+    differs from ``last_published_tree_hash`` — same idempotency guard as
+    :func:`publish_collection`.
     """
     _assert_eic(role)
     col = await _get_or_404(db, collection_id)
@@ -728,6 +979,14 @@ async def direct_publish_collection(
     col.status = CollectionStatus.published
     col.published_at = _now()
 
+    new_tree_hash = await _compute_collection_tree_hash(existdb, col.slug)
+    content_changed = new_tree_hash != col.last_published_tree_hash
+
+    if content_changed:
+        await existdb.copy_collection_to_published(col.slug)
+        col.last_published_tree_hash = new_tree_hash
+        await _invalidate_linked_website_caches(db, col)
+
     if col.editor_id:
         _notify(
             db,
@@ -736,10 +995,35 @@ async def direct_publish_collection(
             f"{_actor_label(actor)} has directly published: {col.title}",
             body.note,
         )
-    _audit(db, "collection.direct_published", actor, col, {"note": body.note})
+    audit_row = _audit(
+        db,
+        "collection.direct_published",
+        actor,
+        col,
+        {"note": body.note, "content_changed": content_changed},
+    )
     await db.flush()
-    await hook_registry.emit(HookEvent.ON_COLLECTION_PUBLISHED, collection=col)
-    logger.info("collection_direct_published", slug=col.slug, actor=actor.username)
+    await _snapshot_collection_documents(
+        db,
+        existdb,
+        col,
+        origin=VersionOrigin.publication,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+    if content_changed:
+        await hook_registry.emit(
+            HookEvent.ON_COLLECTION_PUBLISHED,
+            collection=col,
+            actor=actor,
+            note=body.note,
+        )
+    logger.info(
+        "collection_direct_published",
+        slug=col.slug,
+        actor=actor.username,
+        content_changed=content_changed,
+    )
     return CollectionResponse.model_validate(col)
 
 
@@ -806,7 +1090,19 @@ async def upload_document(
 
     ACL: the assigned editor can upload only when the collection is in 'assigned'
     state. EiC and Admin are unrestricted.
+
+    The first time a filename is stored in a collection, a
+    ``document_versions`` row with ``origin=creation`` is added so the doc
+    is rooted in the version history before the next workflow event.
+    Subsequent uploads of the same filename are routine HEAD writes — they
+    do *not* automatically create a manual snapshot; the editor explicitly
+    triggers ``manual`` saves via the dedicated UI.
     """
+    from app.services.document_versions import (
+        acquire_doc_lock,
+        create_version,
+    )
+
     col = await _get_or_404(db, collection_id)
     _assert_write_access(col, actor, role)
     _validate_filename(filename)
@@ -817,15 +1113,31 @@ async def upload_document(
     except Exception as exc:
         raise DomainValidationError("INVALID_XML", f"Document is not valid XML: {exc}") from exc
 
+    await acquire_doc_lock(db, col.id, filename)
+
+    pre_existing = await existdb.list_collection(col.slug)
+    is_new = filename not in pre_existing
+
     await existdb.put_document(col.slug, filename, xml_bytes)
     await _sync_doc_count(db, existdb, col)
-    _audit(
+    audit_row = _audit(
         db,
         "document.uploaded",
         actor,
         col,
-        {"filename": filename, "size": len(xml_bytes)},
+        {"filename": filename, "size": len(xml_bytes), "is_new": is_new},
     )
+    if is_new:
+        await db.flush()
+        await create_version(
+            db,
+            collection=col,
+            filename=filename,
+            xml_bytes=xml_bytes,
+            origin=VersionOrigin.creation,
+            actor=actor,
+            audit_log_row=audit_row,
+        )
     await hook_registry.emit(
         HookEvent.ON_DOCUMENT_UPLOADED, collection=col, filename=filename
     )
@@ -846,8 +1158,12 @@ async def update_document(
 
     The document must already exist in the collection. ACL rules are identical
     to upload: the assigned editor can edit only when the collection is in
-    'assigned' state; EiC and Admin are unrestricted.
+    'assigned' state; EiC and Admin are unrestricted. Acquires a per-document
+    advisory lock so two concurrent writers cannot clobber each other now
+    that the published-status edit lock is gone (Phase A2).
     """
+    from app.services.document_versions import acquire_doc_lock
+
     col = await _get_or_404(db, collection_id)
     _assert_write_access(col, actor, role)
     _validate_filename(filename)
@@ -862,6 +1178,7 @@ async def update_document(
     except Exception as exc:
         raise DomainValidationError("INVALID_XML", f"Document is not valid XML: {exc}") from exc
 
+    await acquire_doc_lock(db, col.id, filename)
     await existdb.put_document(col.slug, filename, xml_bytes)
     _audit(
         db,
@@ -900,10 +1217,16 @@ async def delete_document(
     """Delete a document from eXist-db.
 
     ACL: same write-access rules as upload (assigned editor, not in review).
+    The ``document_versions`` rows for this filename are kept on file — the
+    delete only removes the working-tree HEAD; the editorial history stays
+    intact and is what the rollback flow consults to restore the document.
     """
+    from app.services.document_versions import acquire_doc_lock
+
     col = await _get_or_404(db, collection_id)
     _assert_write_access(col, actor, role)
     _validate_filename(filename)
+    await acquire_doc_lock(db, col.id, filename)
     await existdb.delete_document(col.slug, filename)
     await _sync_doc_count(db, existdb, col)
     _audit(db, "document.deleted", actor, col, {"filename": filename})
@@ -1490,3 +1813,236 @@ async def update_surface_zones(
     )
 
     return SurfaceZonesResponse(surface_id=surface_id, zones=zone_outs)
+
+
+# ── Document versioning HTTP wrappers ──────────────────────────────────────────
+#
+# Phase C exposes the ``document_versions`` table through the REST API. The
+# wrappers below are the ACL-aware surface the router talks to: they resolve
+# the collection by id-or-slug, run ``_assert_read_access`` /
+# ``_assert_write_access``, and delegate to the pure-data helpers in
+# ``services.document_versions``. Keeping the auth shim here means
+# ``services.document_versions`` stays free of ACL concerns and can be reused
+# from CLI scripts (``aracne export --as-of …``) without dragging the role
+# helpers along.
+
+
+async def list_document_versions(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    actor: User,
+    role: str,
+    *,
+    origin: VersionOrigin | None = None,
+):
+    """List the version history of a document, newest first."""
+    from app.services.document_versions import list_versions
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await list_versions(
+        db, collection_id=col.id, filename=filename, origin=origin
+    )
+
+
+async def get_document_version(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+):
+    """Return a single version's metadata (no XML body)."""
+    from app.services.document_versions import get_version
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await get_version(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+
+
+async def get_document_version_content(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+) -> bytes:
+    """Return the *uncompressed* XML body of a stored version."""
+    from app.services.document_versions import get_version_content
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await get_version_content(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+
+
+async def manual_save_document_version(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    message: str,
+    actor: User,
+    role: str,
+):
+    """Editor+ "Save version" — captures the current working tree HEAD."""
+    from app.services.document_versions import acquire_doc_lock, manual_save
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+    await acquire_doc_lock(db, col.id, filename)
+
+    # Read the working tree HEAD; refuse to save when the doc does not exist.
+    try:
+        body = await existdb.get_document(col.slug, filename)
+    except NotFoundError:
+        raise NotFoundError(
+            f"Document '{filename}' not found in collection '{col.slug}'"
+        )
+    audit_row = _audit(
+        db,
+        "document.version_saved",
+        actor,
+        col,
+        {"filename": filename, "message": message},
+    )
+    await db.flush()
+    return await manual_save(
+        db,
+        collection=col,
+        filename=filename,
+        xml_bytes=body,
+        actor=actor,
+        audit_log_row=audit_row,
+        message=message,
+    )
+
+
+async def rollback_document_to_version(
+    db: AsyncSession,
+    existdb: ExistDBClient,
+    collection_id: str,
+    filename: str,
+    target_version_number: int,
+    actor: User,
+    role: str,
+    note: str | None = None,
+):
+    """Editor+ rollback — copies vN into the working tree, appends a row.
+
+    Constructive: the previous HEAD remains in history (as whatever
+    auto/manual rows captured it); the new ``origin=rollback`` row carries
+    the same content as the target.
+    """
+    from app.services.document_versions import acquire_doc_lock, rollback_to
+
+    col = await _get_or_404(db, collection_id)
+    _assert_write_access(col, actor, role)
+    _validate_filename(filename)
+    await acquire_doc_lock(db, col.id, filename)
+    audit_row = _audit(
+        db,
+        "document.rolled_back",
+        actor,
+        col,
+        {
+            "filename": filename,
+            "target_version_number": target_version_number,
+            "note": note,
+        },
+    )
+    await db.flush()
+    return await rollback_to(
+        db,
+        existdb,
+        collection=col,
+        filename=filename,
+        target_version_number=target_version_number,
+        actor=actor,
+        audit_log_row=audit_row,
+    )
+
+
+async def delete_document_version(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    version_number: int,
+    actor: User,
+    role: str,
+) -> None:
+    """Delete a manual version. Author of the row or Admin only.
+
+    Auto rows are immutable — the service-layer ``delete_manual_version``
+    raises ``DomainValidationError(422)`` on any non-manual origin so the
+    editorial integrity record is preserved. The router translates that to
+    422 ``VERSION_NOT_DELETABLE``; the soft-cap UX surfaces it as the
+    "manual versions only" copy on the deletion list.
+    """
+    from app.services.document_versions import (
+        delete_manual_version,
+        get_version,
+    )
+
+    col = await _get_or_404(db, collection_id)
+    _validate_filename(filename)
+    row = await get_version(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        version_number=version_number,
+    )
+    is_admin = _level(role) >= _level("Admin")
+    is_author = row.created_by_id == actor.id
+    if not (is_admin or is_author):
+        raise AuthorizationError(
+            "Only the author of the manual save or an Admin can delete it"
+        )
+    _audit(
+        db,
+        "document.version_deleted",
+        actor,
+        col,
+        {"filename": filename, "version_number": version_number},
+    )
+    await delete_manual_version(db, row=row)
+
+
+async def diff_document_versions(
+    db: AsyncSession,
+    collection_id: str,
+    filename: str,
+    from_version: int,
+    to_version: int,
+    actor: User,
+    role: str,
+) -> str:
+    """Unified diff between two stored versions (Editor+ read access)."""
+    from app.services.document_versions import compute_version_diff
+
+    col = await _get_or_404(db, collection_id)
+    await _assert_read_access(db, col, actor, role)
+    _validate_filename(filename)
+    return await compute_version_diff(
+        db,
+        collection_id=col.id,
+        filename=filename,
+        from_version=from_version,
+        to_version=to_version,
+    )

@@ -20,6 +20,34 @@ class PasswordChangeRequest(BaseModel):
         return v
 
 
+class PasswordResetRequest(BaseModel):
+    """Body for ``POST /auth/password/reset/request``.
+
+    Accepts either an email address or a username. The endpoint always
+    returns 204 — the user does not learn whether the account exists.
+    """
+
+    email_or_username: str = Field(min_length=1, max_length=255)
+
+
+class PasswordResetConfirm(BaseModel):
+    """Body for ``POST /auth/password/reset/confirm``.
+
+    Reuses the same minimum-length rule as ``PasswordChangeRequest``
+    so the password policy stays single-source.
+    """
+
+    token: str = Field(min_length=1, max_length=128)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105
@@ -41,6 +69,10 @@ class UserMeResponse(BaseModel):
     orcid: str | None = None
     avatar_url: str | None = None
     bio: str | None = None
+    # Workflow-email opt-out toggle. Defaults to True at the DB layer; old
+    # clients that didn't read it can ignore the field. Transactional
+    # emails (password reset) ignore this flag.
+    email_notifications_enabled: bool = True
     created_at: str
     last_login_at: str | None
 
@@ -60,6 +92,10 @@ class UserMeUpdate(BaseModel):
     preferred_lang: str | None = None
     orcid: str | None = Field(default=None, max_length=80)
     bio: str | None = Field(default=None, max_length=500)
+    # ``None`` means "leave unchanged"; the patch handler distinguishes
+    # via ``model_fields_set`` so a missing field never accidentally
+    # silences workflow notifications.
+    email_notifications_enabled: bool | None = None
 
     @field_validator("preferred_lang")
     @classmethod

@@ -125,16 +125,19 @@ async def get_public_collection(db: AsyncSession, slug: str) -> Collection:
 
 
 async def _list_documents_with_titles(slug: str) -> list[PublicDocumentInfo]:
-    """Fetch filenames, titles and authors from eXist-db via XQuery.
+    """Fetch filenames, titles and authors from the published snapshot.
 
+    Public surfaces (this view, the website router, the sitemap) read from
+    ``existdb.published_path(slug)`` so editors can keep modifying the
+    working tree without leaking partial states to anonymous visitors.
     Falls back to filename-only list (without title/author) if the XQuery
     fails or returns malformed XML.
     """
-    col_path = existdb_client.col_path(slug)
+    published_path = existdb_client.published_path(slug)
     try:
         raw = await existdb_client.xquery(
             "collections/list_with_titles.xq",
-            variables={"collection_path": col_path},
+            variables={"collection_path": published_path},
         )
         root = ET.fromstring(raw)
         docs: list[PublicDocumentInfo] = []
@@ -149,9 +152,9 @@ async def _list_documents_with_titles(slug: str) -> list[PublicDocumentInfo]:
         return docs
     except Exception as exc:
         logger.warning("public_view_list_titles_failed", slug=slug, error=str(exc))
-        # Graceful fallback: plain filename list
+        # Graceful fallback: plain filename list from the same snapshot.
         try:
-            filenames = await existdb_client.list_collection(slug)
+            filenames = await existdb_client.list_published(slug)
             filenames.sort(key=_natural_sort_key)
             return [PublicDocumentInfo(filename=f, title=None, author=None) for f in filenames]
         except Exception:
@@ -215,23 +218,26 @@ def _build_public_overrides(note_mode: str, entity_hover: bool) -> tuple[str, st
     return style_block, script_block
 
 
-async def render_document_html(
+async def _render_xml_bytes_to_html(
     db: AsyncSession,
     slug: str,
     filename: str,
+    xml_bytes: bytes,
+    *,
+    canonical_url: str | None = None,
 ) -> str:
-    """Fetch a document from eXist-db and render it to HTML via XSLT.
+    """Apply the public XSLT pipeline to *xml_bytes* and return HTML.
 
-    Raises NotFoundError if the collection or document is not publicly
-    accessible.  Raises DomainValidationError if the XSLT transform fails.
+    The caller decides where the bytes come from (current published snapshot
+    or a historic ``document_versions`` row). Used by:
+
+    - ``render_document_html`` — current public state
+    - ``render_document_version_html`` — historic ``?version=N`` permalink
+
+    When ``canonical_url`` is provided, a ``<link rel="canonical">`` is
+    injected before ``</head>`` so search engines do not promote the
+    historic permalink above the live URL.
     """
-    await get_public_collection(db, slug)
-
-    try:
-        xml_bytes = await existdb_client.get_document(slug, filename)
-    except Exception as exc:
-        raise NotFoundError(f"Document '{filename}' not found.") from exc
-
     note_mode, entity_hover = await _read_render_overrides(db)
     extra_style, extra_script = _build_public_overrides(note_mode, entity_hover)
 
@@ -247,8 +253,13 @@ async def render_document_html(
         xml_doc = etree.fromstring(xml_bytes, parser=_safe_parser)
         result = transform(xml_doc)
         html = str(result)
+        head_tail = ""
+        if canonical_url:
+            head_tail += f'<link rel="canonical" href="{canonical_url}">'
         if extra_style:
-            html = html.replace("</head>", f"{extra_style}</head>", 1)
+            head_tail += extra_style
+        if head_tail:
+            html = html.replace("</head>", f"{head_tail}</head>", 1)
         tail = f"{extra_script}{_HIGHLIGHT_SCRIPT}"
         html = html.replace("</body>", f"{tail}</body>", 1)
         return html
@@ -257,3 +268,64 @@ async def render_document_html(
         raise DomainValidationError(
             "RENDER_ERROR", f"Could not render document: {exc}"
         ) from exc
+
+
+async def render_document_html(
+    db: AsyncSession,
+    slug: str,
+    filename: str,
+) -> str:
+    """Fetch the *current* public snapshot of *filename* and render to HTML.
+
+    Raises NotFoundError if the collection or document is not publicly
+    accessible.  Raises DomainValidationError if the XSLT transform fails.
+    """
+    await get_public_collection(db, slug)
+
+    try:
+        xml_bytes = await existdb_client.get_published_document(slug, filename)
+    except Exception as exc:
+        raise NotFoundError(f"Document '{filename}' not found.") from exc
+
+    return await _render_xml_bytes_to_html(db, slug, filename, xml_bytes)
+
+
+async def render_document_version_html(
+    db: AsyncSession,
+    slug: str,
+    filename: str,
+    version_number: int,
+    *,
+    canonical_url: str,
+) -> str:
+    """Render a historic ``publication`` version of *filename* to HTML.
+
+    The version must have ``origin=publication`` — manual saves and
+    rollback rows are never served to anonymous visitors.
+    ``get_public_version`` raises ``VersionNotPublic`` (404) on every other
+    origin; the caller surfaces that as a normal 404 to the visitor.
+    Injects a ``<link rel="canonical">`` pointing at the live URL so search
+    engines don't index the historic snapshot ahead of the current one.
+    """
+    from app.services.document_versions import (
+        get_public_version,
+        get_version_content,
+    )
+
+    collection = await get_public_collection(db, slug)
+    # Resolve + check origin in one call.
+    await get_public_version(
+        db,
+        collection_id=collection.id,
+        filename=filename,
+        version_number=version_number,
+    )
+    xml_bytes = await get_version_content(
+        db,
+        collection_id=collection.id,
+        filename=filename,
+        version_number=version_number,
+    )
+    return await _render_xml_bytes_to_html(
+        db, slug, filename, xml_bytes, canonical_url=canonical_url
+    )

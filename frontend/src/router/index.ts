@@ -56,6 +56,26 @@ const router = createRouter({
       component: () => import("@/views/PublicSearchView.vue"),
       meta: { layout: "public" },
     },
+    // ── Public natural-language search (FUTURE_IDEAS §25) ─────────────────
+    {
+      path: "/search-nl",
+      name: "public-nl-search",
+      component: () => import("@/views/public/NlSearchPublicView.vue"),
+      meta: { layout: "public" },
+    },
+    // ── Public policy pages (FUTURE_IDEAS §27) ─────────────────────────────
+    {
+      path: "/policies",
+      name: "public-policies-index",
+      component: () => import("@/views/public/PolicyPagesIndexView.vue"),
+      meta: { layout: "public" },
+    },
+    {
+      path: "/policies/:url_slug",
+      name: "public-policy",
+      component: () => import("@/views/public/PolicyPagePublicView.vue"),
+      meta: { layout: "public" },
+    },
     // ── EVT public viewer ──────────────────────────────────────────────────
     {
       path: "/collections/:slug/read",
@@ -68,6 +88,19 @@ const router = createRouter({
       path: "/login",
       name: "login",
       component: () => import("@/views/auth/LoginView.vue"),
+      meta: { layout: "auth" },
+    },
+    // ── Password reset (public, no auth required) ─────────────────────────
+    {
+      path: "/forgot-password",
+      name: "forgot-password",
+      component: () => import("@/views/auth/RequestPasswordResetView.vue"),
+      meta: { layout: "auth" },
+    },
+    {
+      path: "/reset-password/:token",
+      name: "reset-password",
+      component: () => import("@/views/auth/ConfirmPasswordResetView.vue"),
       meta: { layout: "auth" },
     },
     // ── Authenticated (admin layout with sidebar) ─────────────────────────
@@ -183,6 +216,33 @@ const router = createRouter({
       path: "/admin/backup",
       name: "admin-backup",
       component: () => import("@/views/admin/BackupView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
+      path: "/admin/audit-log",
+      name: "admin-audit-log",
+      component: () => import("@/views/admin/AuditLogView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
+      path: "/admin/fixity",
+      name: "admin-fixity",
+      component: () => import("@/views/admin/FixityView.vue"),
+      meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
+    },
+    {
+      path: "/admin/policies",
+      name: "admin-policies",
+      component: () => import("@/views/admin/PolicyPagesView.vue"),
+      // Editor+ for read access (drafts visible, form read-only).
+      // Server-side capability gate (PolicyManager + Admin) enforces
+      // the write surface; the client just disables the buttons.
+      meta: { requiresAuth: true, requiresMinRole: "Editor", layout: "admin" },
+    },
+    {
+      path: "/admin/gdpr",
+      name: "admin-gdpr",
+      component: () => import("@/views/admin/GdprView.vue"),
       meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
     },
     {

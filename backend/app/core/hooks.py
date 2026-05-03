@@ -27,12 +27,18 @@ class HookEvent:
 
     # Collection lifecycle events
     ON_COLLECTION_SUBMITTED = "collection.submitted"
+    ON_COLLECTION_REJECTED = "collection.rejected"
     ON_COLLECTION_PUBLISHED = "collection.published"
     ON_COLLECTION_UNPUBLISHED = "collection.unpublished"
 
     # Document events
     ON_DOCUMENT_UPLOADED = "document.uploaded"
     ON_DOCUMENT_DELETED = "document.deleted"
+
+    # GDPR request lifecycle (M3 follow-up: editor-appropriate posture).
+    # Emitted when a user submits an anonymisation request; the
+    # email_dispatcher plugin listens to send Admins a heads-up.
+    ON_GDPR_REQUEST_SUBMITTED = "gdpr.request_submitted"
 
 
 HookHandler = Callable[..., Awaitable[None]]

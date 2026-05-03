@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import {
+  usePersonalAccessTokensStore,
+  type PersonalAccessTokenCreated,
+} from "@/stores/personalAccessTokens";
 import UserAvatar from "@/components/ui/UserAvatar.vue";
+import { apiClient } from "@/services/api";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const auth = useAuthStore();
+const patStore = usePersonalAccessTokensStore();
 
 function formatDate(iso: string | null): string {
   if (!iso) return t("profile.never");
@@ -50,6 +56,110 @@ async function saveOrcid(): Promise<void> {
     orcidError.value = msg ?? t("common.error");
   }
 }
+
+// ── Email notifications toggle ────────────────────────────────────────────
+const emailNotifSaving = ref(false);
+const emailNotifError = ref<string | null>(null);
+
+async function toggleEmailNotifications(next: boolean): Promise<void> {
+  emailNotifError.value = null;
+  emailNotifSaving.value = true;
+  try {
+    await auth.updateMe({ email_notifications_enabled: next });
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    emailNotifError.value = msg ?? t("common.error");
+  } finally {
+    emailNotifSaving.value = false;
+  }
+}
+
+// ── Personal Access Tokens (CLI-B) ────────────────────────────────────────
+//
+// Editor+ self-service: list / issue / revoke long-lived bearer tokens
+// that authenticate the standalone ``aracne-cli`` against the REST API.
+// Hidden for level-1 Users — the backend already gates POST with 403,
+// but we hide the card to keep the surface tidy.
+const showApiTokens = computed(() => auth.hasMinRole("Editor"));
+
+const showIssueModal = ref(false);
+const issueLabel = ref("");
+const issueError = ref<string | null>(null);
+const issuedToken = ref<PersonalAccessTokenCreated | null>(null);
+const copyFeedback = ref<string | null>(null);
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return t("profile.api_tokens.never_used");
+  try {
+    return new Date(iso).toLocaleString(locale.value, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function openIssueModal(): void {
+  issueLabel.value = "";
+  issueError.value = null;
+  issuedToken.value = null;
+  copyFeedback.value = null;
+  showIssueModal.value = true;
+}
+
+function closeIssueModal(): void {
+  showIssueModal.value = false;
+  issueLabel.value = "";
+  issuedToken.value = null;
+  copyFeedback.value = null;
+}
+
+async function submitIssue(): Promise<void> {
+  const label = issueLabel.value.trim();
+  if (!label) {
+    issueError.value = t("profile.api_tokens.label_required");
+    return;
+  }
+  issueError.value = null;
+  const created = await patStore.issue(label);
+  if (created === null) {
+    issueError.value = patStore.error ?? t("common.error");
+    return;
+  }
+  issuedToken.value = created;
+}
+
+async function copyTokenToClipboard(): Promise<void> {
+  if (!issuedToken.value) return;
+  try {
+    await navigator.clipboard.writeText(issuedToken.value.token);
+    copyFeedback.value = t("profile.api_tokens.copied");
+    setTimeout(() => {
+      copyFeedback.value = null;
+    }, 2500);
+  } catch {
+    copyFeedback.value = t("profile.api_tokens.copy_failed");
+  }
+}
+
+async function revokeToken(tokenId: string, label: string): Promise<void> {
+  if (
+    !window.confirm(
+      t("profile.api_tokens.revoke_confirm", { label }),
+    )
+  ) {
+    return;
+  }
+  await patStore.revoke(tokenId);
+}
+
+onMounted(async () => {
+  if (showApiTokens.value) {
+    await patStore.loadList();
+  }
+});
 
 // ── Avatar upload + delete ────────────────────────────────────────────────
 const avatarError = ref<string | null>(null);
@@ -177,6 +287,78 @@ function renderBio(raw: string | null | undefined): string {
 
 const renderedBio = computed(() => renderBio(auth.user?.bio));
 const renderedBioPreview = computed(() => renderBio(bioDraft.value));
+
+// ── Privacy / GDPR ────────────────────────────────────────────────────────
+const isExporting = ref(false);
+const exportError = ref<string | null>(null);
+
+async function handleExportData(): Promise<void> {
+  isExporting.value = true;
+  exportError.value = null;
+  try {
+    const data = await apiClient.get<Record<string, unknown>>(
+      "/users/me/export",
+    );
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `aracne2-personal-data-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err: unknown) {
+    exportError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isExporting.value = false;
+  }
+}
+
+const showAnonymiseDialog = ref(false);
+const anonymiseReason = ref("");
+const anonymiseConfirm = ref("");
+const isSubmittingAnonymise = ref(false);
+const anonymiseError = ref<string | null>(null);
+const anonymiseDone = ref(false);
+
+const ANONYMISE_CONFIRM_PHRASE = "ANONYMISE";
+
+const canSubmitAnonymise = computed(
+  () => anonymiseConfirm.value.trim() === ANONYMISE_CONFIRM_PHRASE,
+);
+
+function openAnonymiseDialog(): void {
+  anonymiseReason.value = "";
+  anonymiseConfirm.value = "";
+  anonymiseError.value = null;
+  anonymiseDone.value = false;
+  showAnonymiseDialog.value = true;
+}
+
+function closeAnonymiseDialog(): void {
+  if (isSubmittingAnonymise.value) return;
+  showAnonymiseDialog.value = false;
+}
+
+async function handleSubmitAnonymise(): Promise<void> {
+  if (!canSubmitAnonymise.value) return;
+  isSubmittingAnonymise.value = true;
+  anonymiseError.value = null;
+  try {
+    await apiClient.post("/users/me/anonymise-request", {
+      reason: anonymiseReason.value.trim() || null,
+    });
+    anonymiseDone.value = true;
+  } catch (err: unknown) {
+    anonymiseError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSubmittingAnonymise.value = false;
+  }
+}
 </script>
 
 <template>
@@ -357,6 +539,33 @@ const renderedBioPreview = computed(() => renderBio(bioDraft.value));
           <span>{{ auth.user.preferred_lang }}</span>
         </div>
 
+        <!-- Email notifications toggle (workflow emails only — password
+             reset bypasses this flag). Inline checkbox, no edit state:
+             changes are persisted as soon as the user toggles. -->
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.email_notifications") }}</span>
+            <label class="inline-flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                :checked="auth.user.email_notifications_enabled"
+                :disabled="emailNotifSaving"
+                @change="toggleEmailNotifications(($event.target as HTMLInputElement).checked)"
+                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span class="text-sm text-gray-700 dark:text-gray-300">
+                {{ auth.user.email_notifications_enabled ? t("profile.email_notifications_on") : t("profile.email_notifications_off") }}
+              </span>
+            </label>
+          </div>
+          <p v-if="emailNotifError" class="mt-1 text-xs text-red-600 dark:text-red-400">
+            {{ emailNotifError }}
+          </p>
+          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("profile.email_notifications_hint") }}
+          </p>
+        </div>
+
         <!-- ORCID — inline editable field. Empty submit clears it. -->
         <div>
           <div class="flex items-center justify-between">
@@ -424,6 +633,295 @@ const renderedBioPreview = computed(() => renderBio(bioDraft.value));
           <span>{{ formatDate(auth.user.created_at) }}</span>
         </div>
       </div>
+
+      <!-- API Tokens card (Phase CLI-B) — Editor+ only -->
+      <div
+        v-if="showApiTokens"
+        class="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t("profile.api_tokens.title") }}
+          </p>
+          <button
+            class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+            @click="openIssueModal"
+          >
+            {{ t("profile.api_tokens.issue_button") }}
+          </button>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("profile.api_tokens.intro") }}
+        </p>
+
+        <p
+          v-if="patStore.error && !showIssueModal"
+          class="mb-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
+        >
+          {{ patStore.error }}
+        </p>
+
+        <p
+          v-if="!patStore.isLoading && patStore.tokens.length === 0"
+          class="text-sm text-gray-500 dark:text-gray-400"
+        >
+          {{ t("profile.api_tokens.empty") }}
+        </p>
+
+        <table v-else class="w-full text-left text-sm">
+          <thead class="text-xs uppercase text-gray-500 dark:text-gray-400">
+            <tr>
+              <th class="pb-2">{{ t("profile.api_tokens.column_label") }}</th>
+              <th class="pb-2">{{ t("profile.api_tokens.column_created") }}</th>
+              <th class="pb-2">{{ t("profile.api_tokens.column_last_used") }}</th>
+              <th class="pb-2 text-right">{{ t("profile.api_tokens.column_actions") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in patStore.tokens"
+              :key="row.id"
+              class="border-t border-gray-100 dark:border-gray-700"
+            >
+              <td class="py-2 font-medium text-gray-900 dark:text-gray-100">
+                {{ row.label }}
+              </td>
+              <td class="py-2 text-gray-700 dark:text-gray-300">
+                {{ fmtDate(row.created_at) }}
+              </td>
+              <td class="py-2 text-gray-700 dark:text-gray-300">
+                {{ fmtDate(row.last_used_at) }}
+              </td>
+              <td class="py-2 text-right">
+                <button
+                  class="text-xs text-red-700 hover:underline dark:text-red-400"
+                  @click="revokeToken(row.id, row.label)"
+                >
+                  {{ t("profile.api_tokens.revoke_button") }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Privacy / GDPR card ─────────────────────────────────────────── -->
+      <div class="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div class="mb-2 flex items-center justify-between">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t("profile.privacy.title") }}
+          </p>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t("profile.privacy.intro") }}
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            :disabled="isExporting"
+            class="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+            @click="handleExportData"
+          >
+            {{ isExporting ? t("profile.privacy.exporting") : t("profile.privacy.export_button") }}
+          </button>
+          <button
+            type="button"
+            class="rounded border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-900/30"
+            @click="openAnonymiseDialog"
+          >
+            {{ t("profile.privacy.anonymise_button") }}
+          </button>
+        </div>
+
+        <p v-if="exportError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+          {{ exportError }}
+        </p>
+      </div>
     </div>
+
+    <!-- Anonymise-request dialog ───────────────────────────────────────── -->
+    <Teleport to="body">
+      <div
+        v-if="showAnonymiseDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeAnonymiseDialog"
+      >
+        <div class="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+          <template v-if="!anonymiseDone">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.privacy.anonymise_modal_title") }}
+            </h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_modal_intro") }}
+            </p>
+            <ul class="mt-2 list-disc pl-5 text-xs text-gray-600 dark:text-gray-400">
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_mediated") }}</li>
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_record_survives") }}</li>
+              <li>{{ t("profile.privacy.anonymise_modal_bullet_no_login") }}</li>
+            </ul>
+
+            <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_reason_label") }}
+            </label>
+            <textarea
+              v-model="anonymiseReason"
+              rows="3"
+              :placeholder="t('profile.privacy.anonymise_reason_placeholder')"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+
+            <label class="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_confirm_label") }}
+            </label>
+            <input
+              v-model="anonymiseConfirm"
+              type="text"
+              :placeholder="ANONYMISE_CONFIRM_PHRASE"
+              class="mt-1 w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+
+            <p v-if="anonymiseError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+              {{ anonymiseError }}
+            </p>
+
+            <div class="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                class="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                :disabled="isSubmittingAnonymise"
+                @click="closeAnonymiseDialog"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                type="button"
+                class="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                :disabled="!canSubmitAnonymise || isSubmittingAnonymise"
+                @click="handleSubmitAnonymise"
+              >
+                {{ t("profile.privacy.anonymise_submit") }}
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <h3 class="text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+              {{ t("profile.privacy.anonymise_done_title") }}
+            </h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {{ t("profile.privacy.anonymise_done_body") }}
+            </p>
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                @click="closeAnonymiseDialog"
+              >
+                {{ t("common.close") }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Issue modal — captures the label, then flips to "copy this once" -->
+    <Teleport to="body">
+      <div
+        v-if="showIssueModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeIssueModal"
+      >
+        <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
+          <!-- Step 1: ask for the label -->
+          <template v-if="!issuedToken">
+            <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.api_tokens.issue_modal_title") }}
+            </h2>
+            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              {{ t("profile.api_tokens.issue_modal_intro") }}
+            </p>
+            <label
+              for="pat-label"
+              class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              {{ t("profile.api_tokens.label_field") }}
+            </label>
+            <input
+              id="pat-label"
+              v-model="issueLabel"
+              type="text"
+              maxlength="128"
+              :placeholder="t('profile.api_tokens.label_placeholder')"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              @keydown.enter="submitIssue"
+            />
+            <p
+              v-if="issueError"
+              class="mt-2 text-sm text-red-700 dark:text-red-400"
+            >
+              {{ issueError }}
+            </p>
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                @click="closeIssueModal"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                :disabled="!issueLabel.trim()"
+                @click="submitIssue"
+              >
+                {{ t("profile.api_tokens.issue_submit") }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Step 2: copy this once -->
+          <template v-else>
+            <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {{ t("profile.api_tokens.created_title") }}
+            </h2>
+            <p
+              class="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+            >
+              {{ t("profile.api_tokens.copy_once_warning") }}
+            </p>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("profile.api_tokens.token_field") }}
+            </label>
+            <input
+              :value="issuedToken.token"
+              readonly
+              class="w-full rounded border border-gray-300 px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              @focus="($event.target as HTMLInputElement).select()"
+            />
+            <p
+              v-if="copyFeedback"
+              class="mt-2 text-xs text-emerald-700 dark:text-emerald-400"
+            >
+              {{ copyFeedback }}
+            </p>
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                @click="copyTokenToClipboard"
+              >
+                {{ t("profile.api_tokens.copy_button") }}
+              </button>
+              <button
+                class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                @click="closeIssueModal"
+              >
+                {{ t("profile.api_tokens.done_button") }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

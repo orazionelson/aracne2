@@ -25,6 +25,8 @@ from app.schemas.auth import (
     ImpersonationResponse,
     LoginRequest,
     PasswordChangeRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     TokenResponse,
     UserMeResponse,
     UserMeUpdate,
@@ -39,6 +41,10 @@ from app.services.auth import (
     get_active_role,
     refresh_session,
     revoke_session,
+)
+from app.services.password_reset import (
+    confirm_reset as _confirm_reset,
+    request_reset as _request_reset,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -115,6 +121,7 @@ async def login(
                 orcid=user.orcid,
                 avatar_url=user.avatar_url,
                 bio=user.bio,
+                email_notifications_enabled=user.email_notifications_enabled,
                 created_at=user.created_at.isoformat(),
                 last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
             ).model_dump(),
@@ -195,6 +202,8 @@ async def update_me(
         current_user.orcid = body.orcid or None
     if "bio" in body.model_fields_set:
         current_user.bio = body.bio or None
+    if body.email_notifications_enabled is not None:
+        current_user.email_notifications_enabled = body.email_notifications_enabled
     await db.flush()
     role = request.state.role
     return DataResponse(
@@ -208,6 +217,7 @@ async def update_me(
             orcid=current_user.orcid,
             avatar_url=current_user.avatar_url,
             bio=current_user.bio,
+            email_notifications_enabled=current_user.email_notifications_enabled,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -239,6 +249,7 @@ async def me(
             orcid=current_user.orcid,
             avatar_url=current_user.avatar_url,
             bio=current_user.bio,
+            email_notifications_enabled=current_user.email_notifications_enabled,
             created_at=current_user.created_at.isoformat(),
             last_login_at=(
                 current_user.last_login_at.isoformat()
@@ -266,6 +277,47 @@ async def password_change(
         raise AuthorizationError()
     await change_password(db, current_user, body.current_password, body.new_password)
     return DataResponse(data={"message": "Password changed successfully"})
+
+
+@router.post("/password/reset/request", status_code=204)
+@limiter.limit(STRICT_LIMIT)
+async def password_reset_request(
+    request: Request,
+    body: PasswordResetRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Public entry point for password recovery.
+
+    Always returns 204 — even if the account does not exist — so the
+    caller cannot tell which usernames / emails are valid via timing
+    or response shape. The actual email is fired only when a matching
+    active user exists, see ``services.password_reset.request_reset``.
+
+    Rate-limited at ``STRICT_LIMIT`` (10/min) per source IP.
+    """
+    await _request_reset(db, body.email_or_username)
+    return Response(status_code=204)
+
+
+@router.post("/password/reset/confirm", status_code=204)
+@limiter.limit(STRICT_LIMIT)
+async def password_reset_confirm(
+    request: Request,
+    body: PasswordResetConfirm,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> Response:
+    """Apply a new password using a token issued by ``/password/reset/request``.
+
+    On success returns 204 (the user is meant to log in afterwards
+    with the new password). On any failure raises a single
+    ``AuthenticationError(code=INVALID_RESET_TOKEN, status=401)`` —
+    the client cannot tell whether the token was missing, expired or
+    already used.
+
+    Rate-limited at ``STRICT_LIMIT`` (10/min) per source IP.
+    """
+    await _confirm_reset(db, body.token, body.new_password)
+    return Response(status_code=204)
 
 
 @router.post("/impersonate/{user_id}")
@@ -332,6 +384,7 @@ async def impersonate(
                 orcid=target.orcid,
                 avatar_url=target.avatar_url,
                 bio=target.bio,
+                email_notifications_enabled=target.email_notifications_enabled,
                 created_at=target.created_at.isoformat(),
                 last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
             ),

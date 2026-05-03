@@ -1,0 +1,15 @@
+Ciao {{ recipient_display_name }},
+
+{{ actor_name }} ha pubblicato la collezione "{{ collection_title }}".
+
+{% if note %}Nota:
+> {{ note }}
+
+{% endif %}La collezione è ora visibile al pubblico; il flusso editoriale
+di questa revisione è chiuso.
+
+Aprila qui: {{ collection_url }}
+
+—
+Per disattivare le notifiche email del flusso editoriale, deseleziona
+"Notifiche email" dal tuo profilo.

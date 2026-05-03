@@ -1,0 +1,15 @@
+Hi {{ recipient_display_name }},
+
+{{ actor_name }} has published the collection "{{ collection_title }}".
+
+{% if note %}Note:
+> {{ note }}
+
+{% endif %}The collection is now visible to the public; the editorial
+workflow on this revision is closed.
+
+Open it here: {{ collection_url }}
+
+—
+To opt out of workflow emails, uncheck "Email notifications" on your
+profile.

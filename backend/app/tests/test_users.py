@@ -190,24 +190,50 @@ async def test_assign_duplicate_role_returns_409(
 
 @pytest.mark.asyncio
 async def test_export_my_data(client: AsyncClient, seeded_user: User) -> None:
-    """Authenticated user can export their own data."""
+    """Authenticated user can export their own data.
+
+    The payload reshape after the GDPR-posture rework: the export
+    is a deep dict (profile + role_grants + sessions + audit_log +
+    notifications + personal_access_tokens + …), not a thin
+    UserExport. Verify a few invariants instead of an exact shape.
+    """
     token = await _login_as(client, TEST_USER_USERNAME, TEST_USER_PASSWORD)
     res = await client.get(
         "/api/v1/users/me/export", headers=_auth(token)
     )
     assert res.status_code == 200
     data = res.json()["data"]
-    assert data["username"] == TEST_USER_USERNAME
+    assert data["profile"]["username"] == TEST_USER_USERNAME
     assert "password_hash" not in str(res.json())
     assert "ip_address" not in str(res.json())
+    # The rich payload includes the new admin-metadata sections.
+    for key in ("role_grants", "sessions", "audit_log", "notifications", "gdpr_requests"):
+        assert key in data
 
 
 @pytest.mark.asyncio
-async def test_delete_my_account(client: AsyncClient, seeded_user: User) -> None:
-    """User can delete their own account; subsequent login returns 401."""
+async def test_anonymise_request_creates_pending_row(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    """User can submit an anonymisation request; account stays usable.
+
+    Replaces the previous ``test_delete_my_account``: the
+    self-service hard-delete path was removed in the GDPR-posture
+    rework — see docs/reference/GDPR_POSTURE.md.
+    """
     token = await _login_as(client, TEST_USER_USERNAME, TEST_USER_PASSWORD)
-    res = await client.delete("/api/v1/users/me", headers=_auth(token))
-    assert res.status_code == 204
+    res = await client.post(
+        "/api/v1/users/me/anonymise-request",
+        json={"reason": "personal request"},
+        headers=_auth(token),
+    )
+    assert res.status_code == 202
+    body = res.json()["data"]
+    assert body["status"] == "submitted"
+    assert "request_id" in body
+
+    # Account is still usable — login still works because the
+    # anonymise action is mediated, not immediate.
     login = await client.post(
         "/api/v1/auth/login",
         json={
@@ -215,7 +241,27 @@ async def test_delete_my_account(client: AsyncClient, seeded_user: User) -> None
             "password": TEST_USER_PASSWORD,
         },
     )
-    assert login.status_code == 401
+    assert login.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_anonymise_request_conflict_when_already_open(
+    client: AsyncClient, seeded_user: User
+) -> None:
+    """A second submission while one is still open returns 409."""
+    token = await _login_as(client, TEST_USER_USERNAME, TEST_USER_PASSWORD)
+    res1 = await client.post(
+        "/api/v1/users/me/anonymise-request",
+        json={"reason": "first"},
+        headers=_auth(token),
+    )
+    assert res1.status_code == 202
+    res2 = await client.post(
+        "/api/v1/users/me/anonymise-request",
+        json={"reason": "second"},
+        headers=_auth(token),
+    )
+    assert res2.status_code == 409
 
 
 # ── Update / soft-delete / role revocation ────────────────────────────────────

@@ -1,0 +1,17 @@
+Ciao {{ recipient_display_name }},
+
+{{ actor_name }} ha richiesto una revisione della collezione
+"{{ collection_title }}".
+
+{% if note %}Nota dal revisore:
+> {{ note }}
+
+{% endif %}La collezione è tornata nella tua coda di lavoro. Puoi aprirla
+qui e re-inviarla in validazione una volta sistemate le revisioni
+richieste:
+
+{{ collection_url }}
+
+—
+Per disattivare le notifiche email del flusso editoriale, deseleziona
+"Notifiche email" dal tuo profilo.

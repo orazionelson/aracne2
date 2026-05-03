@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto;">
+  <p>Hi {{ recipient_display_name }},</p>
+  <p>
+    <strong>{{ actor_name }}</strong> has requested revisions on the collection
+    <a href="{{ collection_url }}">{{ collection_title }}</a>.
+  </p>
+  {% if note %}
+  <p><em>Note from the reviewer:</em></p>
+  <blockquote style="border-left: 3px solid #ccc; padding-left: 1em; color: #555;">
+    {{ note }}
+  </blockquote>
+  {% endif %}
+  <p>The collection is back in your editing queue. You can open it from the link above
+  and re-submit it once you've addressed the requested revisions.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 2em 0;">
+  <p style="font-size: 0.85em; color: #888;">
+    To opt out of workflow emails, uncheck "Email notifications" on your profile.
+  </p>
+</body>
+</html>

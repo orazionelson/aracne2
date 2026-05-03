@@ -26,6 +26,7 @@ from app.services.public_view import (
     get_public_collection,
     get_public_collection_detail,
     render_document_html,
+    render_document_version_html,
 )
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -113,6 +114,7 @@ async def public_document_render(
     filename: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    version: int | None = None,
 ) -> Response:
     """Render a document (HTML by default) with RDF content negotiation.
 
@@ -127,7 +129,27 @@ async def public_document_render(
     - anything else → HTML rendered via the built-in TEI XSLT stylesheet,
       served with ``Content-Type: text/html`` so the SPA can embed it
       in an iframe unchanged.
+
+    The optional ``?version=N`` query parameter resolves to a historic
+    ``publication`` snapshot of the document. The response is served with
+    ``X-Robots-Tag: noindex`` and a ``<link rel="canonical">`` pointing at
+    the live URL so search engines do not promote the historic permalink
+    above the current state. Manual saves, rollbacks and other non-public
+    origins return 404. RDF negotiation is not supported for historic
+    versions — pass ``Accept`` only on the current state.
     """
+    if version is not None:
+        canonical = (
+            f"{_public_base_url(request)}/api/v1/public/collections/"
+            f"{slug}/documents/{filename}"
+        )
+        html = await render_document_version_html(
+            db, slug, filename, version, canonical_url=canonical
+        )
+        return HTMLResponse(
+            content=html, headers={"X-Robots-Tag": "noindex"}
+        )
+
     negotiated = negotiate_rdf(request.headers.get("accept"))
     if negotiated is not None:
         fmt, mime = negotiated

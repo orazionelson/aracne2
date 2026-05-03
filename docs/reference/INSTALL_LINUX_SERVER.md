@@ -8,7 +8,7 @@ public Internet.
 
 For a *laptop install* see [quickstart.md](../quickstart.md). For
 day-2 operations (credential rotation, log access, backups, AI
-extras) see [docs/OPERATIONS.md](OPERATIONS.md).
+extras) see [docs/reference/OPERATIONS.md](OPERATIONS.md).
 
 ---
 
@@ -80,7 +80,7 @@ docker run --rm hello-world   # smoke test
 |---|---|---|
 | **A reverse proxy (nginx, Caddy, or Traefik)** on the host | terminate TLS, serve a single 443 surface, route to the bundled internal nginx on port 80 | The compose stack ships its **own** internal nginx (serves the SPA + proxies `/api` / `/sites` to backend). The host-level proxy you add **in front** of it does TLS termination + multi-tenancy. |
 | **A TLS certificate** | HTTPS in production is non-negotiable | Free via Let's Encrypt + `certbot`; or commercial cert at your discretion. |
-| **A persistent backup destination** | nightly Postgres + eXist + media dumps | S3, NFS, or rsync to a second host. See `docs/OPERATIONS.md §Backup and restore`. |
+| **A persistent backup destination** | nightly Postgres + eXist + media dumps | S3, NFS, or rsync to a second host. See `docs/reference/OPERATIONS.md §Backup and restore`. |
 | **systemd service for the docker stack** *(optional but strongly recommended)* | bring the stack up automatically after a reboot | A 12-line service unit; example below. |
 | **A monitoring agent** *(optional)* | logs + metrics shipping | The platform already exposes Prometheus metrics at `/api/v1/metrics` and emits structured JSON logs in production. Wire to your existing infra. |
 
@@ -88,7 +88,7 @@ docker run --rm hello-world   # smoke test
 
 | Component | When to add it |
 |---|---|
-| **Ollama** *(host or compose profile)* | local AI provider for chat + embeddings — see `docs/OPERATIONS.md §Local AI` |
+| **Ollama** *(host or compose profile)* | local AI provider for chat + embeddings — see `docs/reference/OPERATIONS.md §Local AI` |
 | **GROBID** *(separate container)* | PDF → TEI conversion (future plugin) |
 | **A SMTP relay** | when the deployment starts sending mail (password resets, notifications) |
 
@@ -360,7 +360,7 @@ caught by the compose files.
 | Rate limiting | active, generous defaults | active, **same** defaults — tune in `app/middleware/rate_limiter.py` if you expect high traffic |
 | Port binding | `127.0.0.1:5173/8000/8080/5432` | `:80` (mapped from internal nginx) — sit behind a host reverse proxy with TLS |
 | TLS | none | mandatory, terminated on the host reverse proxy |
-| Backups | optional | nightly minimum — see `docs/OPERATIONS.md §Backup and restore` |
+| Backups | optional | nightly minimum — see `docs/reference/OPERATIONS.md §Backup and restore` |
 | systemd auto-start | optional | recommended — see §4.5 |
 | Frontend hot reload | yes | no (rebuild + redeploy required after code changes) |
 
@@ -390,7 +390,7 @@ Self-hosted AI provider — no external API keys, traffic stays on
 the host. Both modest hardware-hungry: budget at least 4 extra GB
 of RAM and an SSD.
 
-See `docs/OPERATIONS.md §Local AI (Ollama)` and `§Local AI — RAG`
+See `docs/reference/OPERATIONS.md §Local AI (Ollama)` and `§Local AI — RAG`
 for full instructions, model choice, and ingestion of the TEI P5
 Guidelines into the embeddings index.
 
@@ -454,7 +454,7 @@ git pull
 ```
 
 Then apply the right command from
-[docs/OPERATIONS.md §Post-pull checklist](OPERATIONS.md#post-pull-checklist) —
+[docs/reference/OPERATIONS.md §Post-pull checklist](OPERATIONS.md#post-pull-checklist) —
 which command to run depends on whether the pull touched
 migrations, Python deps, frontend root configs, or `src/` only.
 
@@ -477,7 +477,7 @@ don't run it during a peak.
 ## See also
 
 - [quickstart.md](../quickstart.md) — laptop / first-time-with-the-codebase install
-- [docs/OPERATIONS.md](OPERATIONS.md) — credential rotation, logs, backups, AI extras
+- [docs/reference/OPERATIONS.md](OPERATIONS.md) — credential rotation, logs, backups, AI extras
 - [docs/reference/EXISTDB_SETUP.md](reference/EXISTDB_SETUP.md) — eXist-db user model + bootstrap details
 - [docs/reference/API_FORMAT.md](reference/API_FORMAT.md) — API response envelope spec
 - [docs/reference/NON_NATIVE_PLUGINS.md](reference/NON_NATIVE_PLUGINS.md) — per-plugin operational notes

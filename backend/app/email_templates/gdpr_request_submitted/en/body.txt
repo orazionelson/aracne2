@@ -1,0 +1,21 @@
+Hi {{ recipient_display_name }},
+
+{{ requester_username }} has submitted a GDPR anonymisation request
+on this Aracne2 deployment.
+
+{% if reason %}Their stated reason:
+> {{ reason }}
+
+{% endif %}The request is in "submitted" state. Their account is
+unchanged until an Admin executes the anonymise action.
+
+To review the queue: {{ admin_queue_url }}
+
+When you act, please record the institutional / legal basis in the
+review notes — the audit log carries them as the rationale of the
+operation.
+
+—
+You're receiving this email because you hold the Admin role on this
+Aracne2 deployment. The full GDPR posture is documented at
+docs/reference/GDPR_POSTURE.md in the repository.

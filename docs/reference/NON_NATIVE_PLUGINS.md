@@ -874,6 +874,6 @@ DOI repository is mostly a serialiser + adapter swap.
 - [`PLUGINS.md`](PLUGINS.md) — plugin subsystem internals (loader,
   hook registry, native plugins catalogue, how to write a new
   non-native plugin from scratch).
-- [`FUTURE_IDEAS.md`](../FUTURE_IDEAS.md) — proposed but not-yet-shipped
+- [`TO_DO.md`](../TO_DO.md) — proposed but not-yet-shipped
   non-native plugins (GROBID PDF → TEI, DataCite DOI, GitHub
   integration, Matomo/Plausible analytics, …).

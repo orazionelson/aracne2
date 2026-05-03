@@ -207,7 +207,7 @@ async def dispatch_test(db: AsyncSession, endpoint_id: str) -> None:
 
 `schedule_dispatch` is called from hook listeners in `plugin.py`. In v1 it is
 **synchronous** — dispatches happen in-process during the request that triggered
-the hook. A future version will offload to an async task queue (see `DEFERRED.md`).
+the hook. A future version will offload to an async task queue (see `TO_DO.md`).
 
 ---
 

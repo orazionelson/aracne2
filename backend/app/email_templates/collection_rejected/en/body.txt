@@ -1,0 +1,16 @@
+Hi {{ recipient_display_name }},
+
+{{ actor_name }} has requested revisions on the collection
+"{{ collection_title }}".
+
+{% if note %}Note from the reviewer:
+> {{ note }}
+
+{% endif %}The collection is back in your editing queue. You can open it
+here and re-submit it once you've addressed the requested revisions:
+
+{{ collection_url }}
+
+—
+To opt out of workflow emails, uncheck "Email notifications" on your
+profile.
