@@ -17,8 +17,8 @@ to jump directly to a topic.
   email notifications, and per-plugin public links.
 - **Reference** — identity providers, the extensions catalog,
   the `aracne` command-line tool for bulk import / export, the
-  audit log, the fixity dashboard, and the institutional
-  policy-pages editor.
+  audit log, the fixity dashboard, the institutional
+  policy-pages editor, and your data + GDPR rights.
 
 ## Tips
 
@@ -55,3 +55,4 @@ to jump directly to a topic.
 - [Audit log](/help/page?path=05-reference/04-audit-log)
 - [Fixity](/help/page?path=05-reference/05-fixity)
 - [Policy pages](/help/page?path=05-reference/06-policy-pages)
+- [Your data and GDPR rights](/help/page?path=05-reference/07-gdpr)

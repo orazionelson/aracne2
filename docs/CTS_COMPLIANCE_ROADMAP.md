@@ -46,7 +46,7 @@ The roadmap is structured around this split.
 | R1  | Mission/Scope                  | Organizational     | `policy_pages` plugin ships a `mission` template the operator fills in; published at `/policies/mission` with version history | ✅ Strong (form surface) |
 | R2  | Licenses                       | Organizational     | License catalogue + per-collection assignment + LOD/OAI-PMH exposure | ✅ Strong |
 | R3  | Continuity of access           | Organizational     | Multi-target deposit (Zenodo / IA / Codeberg / GH / GL / Dataverse) + static export + native backup + headless `aracne-cli export --as-of <date>` + **`continuity_plan` policy template (M3)** | ✅ Strong |
-| R4  | Confidentiality / Ethics       | Organizational     | GDPR primitives (PII fields, retention, IP hashing) + **`privacy_dpia` policy template (M3)**; self-service export/delete endpoints planned | 🟡 Partial — GDPR endpoints to ship |
+| R4  | Confidentiality / Ethics       | Organizational     | GDPR primitives (PII fields, retention, IP hashing) + **`privacy_dpia` policy template (M3)** + **art. 15 self-service export at `GET /users/me/export`** + **mediated anonymisation request flow (`POST /users/me/anonymise-request` → Admin review at `/admin/gdpr/*`)**, posture documented in [`GDPR_POSTURE.md`](reference/GDPR_POSTURE.md) | ✅ Strong (editorial-platform posture) |
 | R5  | Organizational infrastructure  | Organizational     | `funding_staffing` policy template (M3) | ✅ Strong (form surface) |
 | R6  | Expert guidance                | Organizational     | `expert_directory` policy template (M3) — multi-row table | ✅ Strong (form surface) |
 | R7  | Data integrity and authenticity| Digital Object Mgmt| TEI validation + audit log + role gating + signed JWT + **`document_versions` history with SHA-256 fingerprints (Alembic 0072)** + **fixity layer with scheduled re-check + drift report (`fixity_records`, Alembic 0079)** + **Admin audit-log UI (`/admin/audit-log`)** | ✅ Strong |
@@ -60,11 +60,11 @@ The roadmap is structured around this split.
 | R15 | Technical infrastructure       | Technology         | TEI / REST / OAI-PMH / JSON-LD / Docker; open source; monitoring | ✅ Strong |
 | R16 | Security                       | Technology         | 6 security reviews + defusedxml + HSTS/CSP + bcrypt + Fernet + ACL + Dependabot + **bcrypt-hashed Personal Access Tokens for headless clients (revocable, role-scoped)** + **password reset flow with single-use SHA-256-hashed tokens, 24h TTL, all-sessions-revoke on confirm** | ✅ Strong |
 
-**Counts after M3**: 15 ✅ strong, 1 🟡 partial (R4 — pending GDPR
-self-service endpoints from M1's residual deliverable), 0 institutional-only
-items the platform doesn't help with. ✅ rows tagged "(form surface)" mean
-the platform provides a structured place for the institution to make
-the declaration; the declaration text itself is still operator-supplied.
+**Counts after M3 + GDPR-rework**: 16 ✅ strong, 0 🟡 partial,
+0 institutional-only items the platform doesn't help with. ✅ rows
+tagged "(form surface)" mean the platform provides a structured
+place for the institution to make the declaration; the declaration
+text itself is still operator-supplied.
 
 ---
 
@@ -137,7 +137,7 @@ A template scaffold is planned — see §[Institutional declarations](#instituti
 
 ---
 
-### R4 — Confidentiality / Ethics 🟡 Partial
+### R4 — Confidentiality / Ethics ✅ Strong
 
 **Platform provides**:
 - PII fields explicitly tagged in code: `users.email`, `sessions.ip_address`,
@@ -151,15 +151,37 @@ A template scaffold is planned — see §[Institutional declarations](#instituti
 - **Response minimization**: `password_hash`, `ip_address`,
   `user_agent` never appear in any API response, including admin
   routes.
+- **Art. 15 self-service export** at `GET /users/me/export` —
+  every personal-metadata row across the platform's admin tables
+  serialised as JSON. Excludes hashes / digests / document bodies.
+- **Art. 17 anonymisation request flow** — user submits via
+  `POST /users/me/anonymise-request`; an Admin reviews and
+  executes via `/admin/gdpr/anonymise/{id}`. The B2C-style
+  hard-delete pattern was deliberately removed in 2026-05-03 once
+  the editorial-platform context (third-party-affecting
+  contributions) was acknowledged. Anonymisation rewrites
+  identifying user fields with `deleted_user_<uuid12>`
+  placeholders, rewrites every `audit_log.actor_username`
+  referencing the user, revokes sessions / PATs, and stamps the
+  user inactive — without deleting the row (so the editorial
+  record survives). Legal foundation: GDPR art. 17.3.d
+  (scientific-research / public-interest archiving).
+- **Posture document** at [`GDPR_POSTURE.md`](reference/GDPR_POSTURE.md)
+  describing the legal foundation, the anonymisation flow, and
+  the cross-table effects in detail. The `privacy_dpia` policy
+  template (M3) is where the operator's specific declaration goes.
 
-**Platform gaps (planned)**:
-- `GET /users/me/export` (GDPR Art. 20 portability) — endpoint
-  designed but not yet shipped.
-- `DELETE /users/me` (GDPR Art. 17 erasure) with `audit_log`
-  anonymisation — endpoint designed but not yet shipped.
+**Platform gaps (small, non-blocking)**:
+- Email notification to Admins when a new GDPR request lands —
+  plumbing is in place via `email_dispatcher`; needs an
+  `ON_GDPR_REQUEST_SUBMITTED` hook event wired.
+- Frontend "Request anonymisation" button on the Profile view —
+  endpoint exists; UI affordance not yet shipped.
+- Admin UI page at `/admin/gdpr` mirroring `/admin/audit-log`'s
+  shape — until then the JSON endpoints are the canonical surface.
 - In-app **takedown request** form for third parties whose name
   appears in published TEI: today this happens via email to the
-  admin; a structured form + ticket trail would close the gap.
+  admin; a structured form + ticket trail would extend coverage.
 
 **Institution must declare**:
 - DPIA (Data Protection Impact Assessment) covering the PII fields
@@ -583,6 +605,7 @@ roadmap section.
 | 2026-05-03 | Milestone 1 — items 4 / 5 of 5 shipped (`public_navigation` capability + `nl_search` plugin). Public layout iterators surface plugin links via three slots (header / home_quick_links / footer). Closes M1. |
 | 2026-05-03 | Milestone 2 — all four items shipped. PyJWT migration (drop `python-jose`+`pyasn1`, closes CVE-2026-30922); admin `/admin/audit-log` view with structured + free-text filters and CSV export (FUTURE_IDEAS §20); **fixity layer with `fixity_records` table + `apscheduler` re-check job + `/admin/fixity` view** — closes the heaviest CTS R7 reviewer gap, **R7 transitions 🟡 → ✅ Strong**; pytest 9 triple bump (CVE-2025-71176). |
 | 2026-05-03 | Milestone 3 — `policy_pages` plugin shipped. 12 built-in templates as live forms with platform pre-fill, IT/EN locales, append-only versioning, Save / Publish split, browser-print PDF; new `PolicyManager` singleton capability role with the orthogonal `kind`+`singleton` schema on `roles`; new `require_capability` middleware. **Six CTS rows transition 🟡 / "institutional declaration owed" → ✅ Strong (form surface)**: R1 mission, R5 funding/staffing, R6 expert directory, R8 appraisal, R9 storage policy, R10 preservation plan. R3 + R4 reinforced (continuity_plan + privacy_dpia templates). Counts now: **15 ✅ / 1 🟡 (R4 pending GDPR endpoints) / 0 ❌**. |
+| 2026-05-03 | **R4 GDPR posture rework ✅ Closed** — the M1 residual deliverable. New `gdpr_requests` table (Alembic 0082); `services/gdpr.py` with rich `export_personal_data` (art. 15) + mediated `submit_anonymise_request` + Admin-side `anonymise_user_metadata` / `reject_anonymise_request`. The B2C-style `DELETE /users/me` hard-delete was *removed* — it's the wrong shape for an editorial scientific platform where contributions to published documents are third-party-affecting. Replacement: user submits a request, Admin reviews under whatever institutional/legal process applies, anonymisation rewrites identifying user fields + `audit_log.actor_username` rows to `deleted_user_<uuid12>` placeholders while preserving the editorial record (legal foundation: art. 17.3.d). Documented in [`GDPR_POSTURE.md`](reference/GDPR_POSTURE.md). **R4 transitions 🟡 Partial → ✅ Strong**. Counts now: **16 ✅ / 0 🟡 / 0 ❌**. |
 
 *Maintained by the platform maintainer; institutional declarations
 are out of scope of this file but referenced where they belong.*
