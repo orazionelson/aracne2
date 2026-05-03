@@ -523,3 +523,64 @@ footer a:hover { color: var(--rubrica-plus); }
   text-underline-offset: 3px;
 }
 .link-rubrica:hover { color: var(--rubrica-plus); }
+
+/* ──────────────────────────────────────────────────────────────────
+   Screenshot lightbox — click any image inside #screenshots to open
+   the full-resolution version in a centred overlay.
+   ────────────────────────────────────────────────────────────────── */
+#screenshots .shot-placeholder img {
+  cursor: zoom-in;
+  transition: transform 0.25s ease;
+}
+#screenshots .shot-placeholder:hover img {
+  transform: scale(1.015);
+}
+
+.lb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(19, 26, 42, 0.92);   /* inchiostro w/ heavy alpha */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  padding: 2rem;
+}
+.lb-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lb-overlay img {
+  max-width: min(96vw, 1600px);
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  cursor: zoom-out;
+}
+.lb-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: rgba(236, 226, 200, 0.10);
+  border: 1px solid rgba(236, 226, 200, 0.30);
+  color: var(--pergamena);
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.lb-close:hover {
+  background: rgba(236, 226, 200, 0.22);
+  border-color: rgba(236, 226, 200, 0.55);
+}
+body.lb-open { overflow: hidden; }

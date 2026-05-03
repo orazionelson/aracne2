@@ -500,10 +500,11 @@
       The boring parts a real archive needs
     </h2>
     <p class="font-serif text-center max-w-3xl mx-auto opacity-80 mb-14">
-      Aracne2 hit production-ready status across three milestones in 2026.
-      The platform now ships what an institutional repository
-      actually needs to stand up to a CoreTrustSeal review &mdash;
-      not just to a demo.
+      Aracne2 is built to manage and publish your collections inside an
+      institutional setting &mdash; a university department, a research
+      group, a library. That means versioned edits, a traceable audit
+      trail, scheduled integrity checks, declared policies, and a
+      principled stance on personal data, all out of the box.
     </p>
 
     <div class="grid md:grid-cols-2 gap-x-12 gap-y-10">
@@ -947,6 +948,49 @@
       </div>
     </div>
   </footer>
+
+  <!-- ============================================================== -->
+  <!-- LIGHTBOX — open any screenshot at full resolution                -->
+  <!-- ============================================================== -->
+  <div id="lightbox" class="lb-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <button type="button" class="lb-close" aria-label="Close">&times;</button>
+    <img alt="" />
+  </div>
+
+  <script>
+    (function () {
+      const overlay = document.getElementById('lightbox');
+      const img = overlay.querySelector('img');
+      const closeBtn = overlay.querySelector('.lb-close');
+
+      function open(src, alt) {
+        img.src = src;
+        img.alt = alt || '';
+        overlay.classList.add('open');
+        overlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('lb-open');
+      }
+      function close() {
+        overlay.classList.remove('open');
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('lb-open');
+        // defer the src reset so the fade-out doesn't show a blank flash
+        setTimeout(() => { img.src = ''; }, 200);
+      }
+
+      document.querySelectorAll('#screenshots .shot-placeholder img').forEach((el) => {
+        el.addEventListener('click', () => open(el.currentSrc || el.src, el.alt));
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay || e.target === img) close();
+      });
+      closeBtn.addEventListener('click', close);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+      });
+    })();
+  </script>
 
 </body>
 </html>
