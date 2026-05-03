@@ -474,35 +474,16 @@ async def export_my_data(db: AsyncSession, user: User) -> UserExport:
     )
 
 
-async def delete_my_account(db: AsyncSession, user: User) -> None:
-    """
-    Hard-delete the calling user's account (GDPR art. 17).
-    Cascades to sessions and user_roles via FK ON DELETE CASCADE.
-    Sets actor_id = NULL in audit_log via FK ON DELETE SET NULL.
-    """
-    # Write audit entry BEFORE deleting (actor_id will be NULL-ed on cascade)
-    db.add(
-        AuditLog(
-            action="user.self_deleted",
-            actor_id=user.id,
-            actor_username=user.username,
-            target_type="user",
-            target_id=str(user.id),
-            target_label=user.username,
-        )
-    )
-    await db.flush()
-
-    # Explicitly delete child rows before deletion — SQLite does not enforce
-    # ON DELETE CASCADE without PRAGMA foreign_keys=ON, and SQLAlchemy's ORM
-    # would otherwise try to SET NULL on NOT NULL FK columns (user_roles.user_id,
-    # sessions.user_id), causing an IntegrityError.
-    await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
-    await db.execute(delete(Session).where(Session.user_id == user.id))
-    await db.flush()
-
-    await db.delete(user)
-    logger.info("user_self_deleted", username=user.username)
+# NOTE: ``delete_my_account`` was removed in the M3 follow-up
+# (GDPR posture rework). The B2C-style hard-delete pattern is wrong
+# for an editorial scientific platform: contributions to published
+# documents are third-party-affecting and cannot be unilaterally
+# retracted. The replacement flow lives in ``services.gdpr``:
+# the user submits an anonymisation request, an Admin reviews,
+# and on approval ``anonymise_user_metadata`` scrubs identifying
+# fields while preserving the editorial record.
+#
+# See docs/reference/GDPR_POSTURE.md for the full rationale.
 
 
 # ── Avatar (per-user uploaded image) ──────────────────────────────────────────

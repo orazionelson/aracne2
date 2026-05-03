@@ -23,6 +23,7 @@ from app.routers import auth, body_templates as body_templates_router, health
 from app.routers import capabilities as capabilities_router
 from app.routers import corpora as corpora_router
 from app.routers import fixity as fixity_router
+from app.routers import gdpr_admin as gdpr_admin_router
 from app.routers import licenses as licenses_router, notifications, plugins
 from app.routers import media as media_router
 from app.routers import zones as zones_router
@@ -328,6 +329,7 @@ app.include_router(plugins.router, prefix="/api/v1")
 app.include_router(audit_log_router.router, prefix="/api/v1")
 app.include_router(fixity_router.router, prefix="/api/v1")
 app.include_router(capabilities_router.router, prefix="/api/v1")
+app.include_router(gdpr_admin_router.router, prefix="/api/v1")
 app.include_router(corpora_router.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")

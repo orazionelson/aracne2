@@ -30,12 +30,14 @@ from app.services.personal_access_tokens import (
     list_pats,
     revoke_pat,
 )
+from app.services.gdpr import (
+    export_personal_data,
+    submit_anonymise_request,
+)
 from app.services.users import (
     assign_role,
     create_user,
     delete_avatar,
-    delete_my_account,
-    export_my_data,
     get_user,
     list_users,
     read_avatar,
@@ -56,27 +58,72 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def export_me(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> DataResponse[UserExport]:
-    """Export personal data for the authenticated user (GDPR art. 20).
+) -> DataResponse[dict]:
+    """Self-service export of personal metadata (GDPR art. 15).
 
-    Returns profile fields, active roles, and session count.
-    Password hash, IP address, and user-agent are never included.
+    Returns the full set of admin-side personal data the platform
+    stores about the calling user — profile, role grants, sessions,
+    audit_log rows, notifications, PAT metadata. Excludes password
+    hashes, hashed IPs, bcrypt digests, and any document body.
+
+    Editorial contributions to published documents are NOT included
+    — they form the scientific record-of-work and are preserved
+    under art. 17.3.d. See ``docs/reference/GDPR_POSTURE.md``.
     """
-    data = await export_my_data(db, current_user)
+    data = await export_personal_data(db, current_user)
     return DataResponse(data=data)
 
 
-@router.delete("/me", status_code=204)
-async def delete_me(
+class _AnonymiseRequestBody(__import__("pydantic").BaseModel):
+    """Body for ``POST /users/me/anonymise-request``.
+
+    ``reason`` is optional free text the operator may want when
+    reviewing the request (e.g. a court-order reference number).
+    """
+
+    reason: str | None = None
+
+
+@router.post("/me/anonymise-request", status_code=202)
+async def request_anonymise_me(
+    body: _AnonymiseRequestBody,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> None:
-    """Permanently delete the authenticated user's account (GDPR art. 17).
+) -> DataResponse[dict]:
+    """Submit an anonymisation request for Admin review.
 
-    Hard-deletes the user row; cascades to sessions and user_roles.
-    Audit log entries are anonymized (actor_id set to NULL).
+    GDPR art. 17 in editorial-platform context: the platform does
+    not honour self-service deletion of accounts that have
+    contributed to published scientific work, because retraction of
+    such contributions affects third parties (co-authors, the
+    editor-of-record, citing works) and requires an external legal
+    or institutional process. This endpoint creates a *request*
+    that an Admin reviews; the actual anonymisation is performed
+    by the Admin via ``POST /admin/gdpr/anonymise/{request_id}``
+    after that external process completes.
+
+    Status 202 (Accepted) reflects "we have received your request
+    but processing it is mediated, not immediate". Re-submitting
+    while a previous request is open returns 409.
+
+    See ``docs/reference/GDPR_POSTURE.md`` for the full posture.
     """
-    await delete_my_account(db, current_user)
+    row = await submit_anonymise_request(
+        db, user=current_user, reason=body.reason
+    )
+    return DataResponse(
+        data={
+            "request_id": str(row.id),
+            "status": row.status,
+            "submitted_at": row.submitted_at.isoformat(),
+            "message": (
+                "Your request has been recorded. An administrator will "
+                "review it. You will be notified by email when the "
+                "review concludes. Until then your account remains "
+                "unchanged."
+            ),
+        }
+    )
 
 
 @router.patch("/me")
