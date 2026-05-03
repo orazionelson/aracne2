@@ -180,16 +180,43 @@ assumes a versioned document store.
 
 ---
 
-## 8. Full-text search across collections 🔴 High
+## 8. ~~Full-text search across collections~~ ✅ Shipped
 
-**Why deferred**
+> Shipped via the **search engines** subsystem (cross-collection
+> full-text search + Lucene-or-fallback + KWIC snippets +
+> PostgreSQL result cache). Pipeline:
+>
+> - XQueries [`fulltext_search.xq`](../backend/app/xqueries/search/fulltext_search.xq)
+>   + [`fulltext_collection.xq`](../backend/app/xqueries/search/fulltext_collection.xq)
+>   run a Lucene `ft:query()` against the published-snapshot eXist
+>   collection, falling back to a case-insensitive `contains()` scan
+>   when no Lucene index is configured.
+> - Service layer
+>   [`backend/app/services/search_engines.py`](../backend/app/services/search_engines.py)
+>   coordinates per-engine collection scope + cache lookup; ``perform_search``
+>   returns ranked hits across every collection bound to the engine.
+> - REST: ``/search-engines/{slug}/build``, ``/embed/{slug}/search``,
+>   ``/embed/{slug}/advanced-search``, plus the public iframe pages
+>   at ``/search-pages/{slug}/`` (basic + advanced).
+> - Result cache (``search_engine_query_cache`` table) honours a
+>   per-engine TTL set by the operator; ``apscheduler`` purges
+>   expired rows hourly.
+>
+> The "first search documents by content endpoint" trigger this
+> ticket waited on materialised as the embed search surface.
+> Re-opens only if a future requirement crosses the layer (e.g.
+> "search both metadata + content + entity occurrences in a single
+> response") — that's the coordination layer the ticket
+> originally hinted at.
+
+🔴 High (priorità storica)
+
+**Original notes**
+
 eXist-db has native XQuery full-text search (KWIC, Lucene index).
 PostgreSQL has `pg_trgm` (already installed) for user/metadata search.
 Cross-layer search (metadata + document content in one query) requires
 a coordination layer that does not yet have a use case.
-
-**Trigger to implement**
-When the first "search documents by content" endpoint is requested.
 
 ---
 
