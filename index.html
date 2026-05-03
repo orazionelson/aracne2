@@ -53,6 +53,7 @@
       </a>
       <ul class="hidden md:flex items-center gap-8 font-serif text-sm">
         <li><a href="#overview" class="site-nav-link">Overview</a></li>
+        <li><a href="#maturity" class="site-nav-link">Production</a></li>
         <li><a href="#architecture" class="site-nav-link">Architecture</a></li>
         <li><a href="#screenshots" class="site-nav-link">Screenshots</a></li>
       </ul>
@@ -125,6 +126,18 @@
         <p class="mt-7 text-sm opacity-60 font-serif italic">
           Open source &middot; MIT licensed &middot; Self-hosted
         </p>
+
+        <!-- Release badge -->
+        <a href="https://github.com/orazionelson/aracne2/releases/tag/v1.0.1"
+           target="_blank" rel="noopener"
+           class="release-badge">
+          <span class="rb-dot"></span>
+          <span class="rb-label">Production-ready</span>
+          <span class="rb-sep">&middot;</span>
+          <span class="rb-tag">v1.0.1</span>
+          <span class="rb-sep">&middot;</span>
+          <span class="rb-date">May 2026</span>
+        </a>
       </div>
 
       <!-- RIGHT — TEI demo card with authority chip -->
@@ -223,6 +236,21 @@
             Every accepted suggestion is audit-logged.
           </p>
         </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Track every change with full version history</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Every editorially meaningful event &mdash; create, submit, request
+            revisions, publish &mdash; lands as an append-only row in the
+            document's history, alongside explicit
+            <em>Save&nbsp;version</em> and <em>Roll&nbsp;back to vN</em> entries.
+            A <strong>working / published split</strong> lets editors keep
+            iterating on a published collection without taking the public site
+            offline; <code class="font-mono text-xs">?version=N</code>
+            permalinks resolve only to publication-origin rows, so manual saves
+            never leak to anonymous visitors.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -297,6 +325,22 @@
             versioned and rollback-able.
           </p>
         </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Bulk import / export from your laptop</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Ship the headless <code class="font-mono text-xs">aracne</code>
+            CLI on an editor's machine, paste a Personal Access Token from
+            their profile, and run
+            <code class="font-mono text-xs">aracne&nbsp;import</code> or
+            <code class="font-mono text-xs">aracne&nbsp;export</code> against
+            any deployment over HTTPS. The
+            <code class="font-mono text-xs">--as-of&nbsp;YYYY-MM-DD</code>
+            flag rebuilds a collection's publication state at any past date
+            using the version history &mdash; a one-liner restore on a fresh
+            instance.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -360,6 +404,19 @@
             Cursor &mdash; any MCP-aware assistant &mdash; reads, searches
             and (where authorised) edits the corpus through a typed surface,
             with the same ACL and audit trail as a human editor.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-display font-semibold mb-2">Search the corpus in plain language</h4>
+          <p class="font-serif text-sm leading-relaxed opacity-85">
+            Activate the <strong>natural-language search</strong> plugin and
+            visitors get a public chat-style search at
+            <code class="font-mono text-xs">/search-nl</code>: questions in
+            plain English or Italian, answers streamed back with
+            <strong>citations to real TEI documents</strong> in the corpus.
+            The orchestrator refuses to emit an answer that doesn't cite at
+            least one source &mdash; by design, to keep output grounded.
           </p>
         </div>
       </div>
@@ -429,6 +486,127 @@
           </p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- PRODUCTION-READY                                                -->
+  <!-- ============================================================== -->
+  <section id="maturity" class="max-w-6xl mx-auto px-6 py-20">
+    <p class="font-display text-xs uppercase tracking-[0.2em] text-rubrica mb-2 text-center">
+      Production-ready
+    </p>
+    <h2 class="font-display text-3xl md:text-4xl font-semibold mb-4 text-center">
+      The boring parts a real archive needs
+    </h2>
+    <p class="font-serif text-center max-w-3xl mx-auto opacity-80 mb-14">
+      Aracne2 hit production-ready status across three milestones in 2026.
+      The platform now ships what an institutional repository
+      actually needs to stand up to a CoreTrustSeal review &mdash;
+      not just to a demo.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-x-12 gap-y-10">
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">Audit log dashboard</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          Every intentional, user-attributable action &mdash; auth,
+          document edits, plugin activations, settings changes, role
+          grants, GDPR requests &mdash; lands in
+          <code class="font-mono text-xs">audit_log</code>. An admin
+          dashboard at
+          <code class="font-mono text-xs">/admin/audit-log</code>
+          provides full-text search, action-prefix filters, date ranges,
+          and CSV export. Retention is configurable; IPs are
+          SHA-256-hashed in production.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">Fixity layer with drift dashboard</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          Per-document SHA-256 fingerprints written at every save plus a
+          scheduled re-check of the latest publication-origin version.
+          The <code class="font-mono text-xs">/admin/fixity</code>
+          dashboard surfaces drift the moment storage corruption or
+          out-of-band edits sneak in &mdash; closing the most visible
+          CoreTrustSeal R7 reviewer gap.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">Institutional declarations as live forms</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          The <strong>policy_pages</strong> plugin ships
+          <strong>twelve CTS-aligned templates</strong>: mission,
+          privacy / DPIA, storage policy, continuity plan, preservation
+          plan, appraisal policy, incident response, citation guide,
+          editorial board, funding &amp; staffing, expert directory,
+          and the CTS self-assessment itself. Multi-locale (IT / EN),
+          append-only versioning, public render at
+          <code class="font-mono text-xs">/policies/&lt;slug&gt;</code>.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">Capability roles, orthogonal to the hierarchy</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          Beyond the five hierarchical roles, Aracne2 introduces
+          <strong>capability roles</strong> &mdash; granted explicitly per
+          user, never inferred. The first is
+          <strong>PolicyManager</strong> (singleton): one named
+          accountability holder for institutional policy content, with
+          transactional handover that produces a single
+          <code class="font-mono text-xs">role.transferred</code> audit
+          entry. Future capabilities (Translator, Annotator, …) plug in
+          the same way.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">GDPR posture for an editorial platform</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          A self-service Privacy card on every profile: art.&nbsp;15 export,
+          art.&nbsp;16 rectification, art.&nbsp;18 partial restriction,
+          art.&nbsp;17 anonymisation request. Erasure is
+          <strong>mediated</strong>, not self-service &mdash; under
+          art.&nbsp;17.3.d's archiving exception, the same legal foundation
+          every serious scientific publisher uses. Anonymisation rewrites
+          the user's record-of-work to a placeholder, preserving the
+          editorial trail.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-display font-semibold mb-2">CoreTrustSeal posture, documented end-to-end</h4>
+        <p class="font-serif text-sm leading-relaxed opacity-85">
+          The repository ships a per-requirement self-assessment in
+          <a class="link-rubrica" href="https://github.com/orazionelson/aracne2/blob/main/docs/reference/CTS_COMPLIANCE.md"
+             target="_blank" rel="noopener">docs/reference/CTS_COMPLIANCE.md</a>
+          covering all 16 CoreTrustSeal Requirements (2023-2025) with
+          explicit platform-vs-institutional split &mdash; what Aracne2
+          delivers automatically and what the deployment must declare via
+          policy_pages.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Trust strip -->
+    <div class="mt-16 pt-10 border-t border-ink/10">
+      <p class="font-display text-xs uppercase tracking-widest text-rubrica mb-3 text-center">
+        Trust &amp; transparency
+      </p>
+      <p class="font-serif text-center max-w-3xl mx-auto text-ink-soft">
+        667 backend tests &middot; structured logging (structlog) &middot;
+        rate limiting (slowapi) &middot; CSP / HSTS headers &middot;
+        defusedxml everywhere &middot; bcrypt direct &middot;
+        <a class="link-rubrica"
+           href="https://github.com/orazionelson/aracne2/blob/main/docs/Security_review_2026-04-29.md"
+           target="_blank" rel="noopener">manual security reviews</a>
+        on cadence.
+      </p>
     </div>
   </section>
 
@@ -602,13 +780,30 @@
           </div>
 
           <div class="ext-group">
-            <h4 class="ext-cat">AI assistants <span class="ext-count">1</span></h4>
+            <h4 class="ext-cat">AI assistants <span class="ext-count">2</span></h4>
             <ul class="ext-items">
               <li>
                 <span class="ext-name">MCP Server</span>
                 <span class="ext-desc">per-corpus bearer tokens for Claude, ChatGPT, Cursor, or any MCP-aware client.</span>
               </li>
+              <li>
+                <span class="ext-name">NL Search</span>
+                <span class="ext-desc">public chat-style search at <code>/search-nl</code>; LLM tool-use loop with mandatory citations.</span>
+              </li>
             </ul>
+          </div>
+
+          <div class="ext-group">
+            <h4 class="ext-cat">Institutional surface <span class="ext-count">1</span></h4>
+            <ul class="ext-items">
+              <li>
+                <span class="ext-name">Policy Pages</span>
+                <span class="ext-desc">12 CTS-aligned templates &mdash; mission, DPIA, storage, continuity, preservation, citation guide, editorial board, …</span>
+              </li>
+            </ul>
+            <p class="ext-foot">
+              Public render at <code>/policies/&lt;slug&gt;</code>; multi-locale; append-only version history.
+            </p>
           </div>
 
         </div>
@@ -705,8 +900,10 @@
       <div class="flex flex-wrap justify-center gap-3">
         <span class="stack-pill">FastAPI</span>
         <span class="stack-pill">Vue 3</span>
-        <span class="stack-pill">PostgreSQL</span>
+        <span class="stack-pill">PostgreSQL 17</span>
         <span class="stack-pill">eXist-db</span>
+        <span class="stack-pill">pgvector</span>
+        <span class="stack-pill">Postfix</span>
         <span class="stack-pill">Tailwind CSS</span>
         <span class="stack-pill">Docker</span>
       </div>
@@ -740,6 +937,9 @@
       <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-3">
         <p class="font-serif text-xs text-ink-soft">
           &copy; 2026 Alfredo Cosco &middot; Released under the MIT License
+          &middot;
+          <a href="https://github.com/orazionelson/aracne2/releases/tag/v1.0.1"
+             target="_blank" rel="noopener">v1.0.1</a>
         </p>
         <p class="font-serif text-xs text-ink-soft">
           <a href="https://github.com/orazionelson/aracne2" target="_blank" rel="noopener">github.com/orazionelson/aracne2</a>
