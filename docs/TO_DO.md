@@ -496,6 +496,13 @@ For reference; full details in commit history:
 - **M1 residual** (2026-05-03) — GDPR posture rework
   (mediated anonymisation flow, art. 15 export, three follow-up
   affordances).
+- **PolicyManager UI** (2026-05-03) — Admin Assign / Change /
+  Revoke buttons on `/admin/policies`, with a user-picker modal
+  wired to the existing `transferPolicyManager` /
+  `revokePolicyManager` store actions.
+- **Postgres 15 → 17** (2026-05-03) — major upgrade of the
+  platform DB and the optional pgvector RAG store. Runbook in
+  [`reference/OPERATIONS.md`](reference/OPERATIONS.md#postgres-major-version-upgrade).
 - **Earlier** — GitHub integration plugin, plugin hot-reload,
   TEI schema validation, XSLT template management + AI sidebar,
   full-text search, production hardening, security debt
