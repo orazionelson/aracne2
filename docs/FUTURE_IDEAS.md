@@ -2414,7 +2414,16 @@ without introducing third-party tracking at all.
 
 ---
 
-## 27. Non-native plugin: `policy_pages` — institutional declarations as live forms 🔴 High
+## 27. ~~Non-native plugin: `policy_pages` — institutional declarations as live forms~~ ✅ Shipped
+
+> Shipped 2026-05-03 as Milestone 3 (single item, ~14g across
+> Phases PP-A through PP-I). See
+> [Aracne_Roadmap.md](Aracne_Roadmap.md) for the phase summary;
+> reference docs at [docs/reference/POLICY_PAGES.md](reference/POLICY_PAGES.md)
+> + [docs/reference/CAPABILITY_ROLES.md](reference/CAPABILITY_ROLES.md).
+> The original design notes below are kept for reference.
+
+🔴 High (historical priority)
 
 A non-native plugin that turns the institutional declarations an
 operator must produce — mission, privacy / DPIA, storage policy,
