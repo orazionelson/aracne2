@@ -102,6 +102,7 @@
     "backup": "Backup",
     "audit_log": "Audit log",
     "fixity": "Fissità",
+    "policies": "Politiche",
     "help": "Guida",
     "collapse_sidebar": "Riduci",
     "expand_sidebar": "Espandi",
@@ -2020,6 +2021,162 @@
       "rollback_failed": "Impossibile ripristinare la versione.",
       "delete_failed": "Impossibile eliminare la versione.",
       "not_author": "Solo l'autore originale o un Admin possono eliminare questo checkpoint manuale."
+    }
+  },
+  "policy_pages": {
+    "title": "Pagine di politica",
+    "subtitle": "Dichiarazioni istituzionali come form vivi dentro Aracne2. Save crea una bozza; Pubblica promuove una bozza all'URL pubblico /policies/<slug>.",
+    "manager_card_title": "PolicyManager attuale",
+    "manager_card_hint": "L'utente con accesso lettura+scrittura ai form. Singleton — assegnandolo a qualcun altro si revoca automaticamente il titolare attuale.",
+    "no_manager": "(nessuno)",
+    "select_template_hint": "Scegli un template dalla lista per iniziare.",
+    "is_published": "Pubblicata",
+    "is_published_v": "Versione pubblica corrente: v{n}",
+    "draft_only": "Solo bozza — l'ultima è v{n}, non ancora pubblicata.",
+    "no_drafts_yet": "Nessuna bozza salvata. Compila il form e Salva per creare v1.",
+    "save_draft": "Salva",
+    "publish_latest": "Pubblica ultima",
+    "publish_this": "Pubblica questa",
+    "publish_confirm": "Pubblicare l'ultima bozza su /policies?",
+    "publish_version_confirm": "Pubblicare la versione {n} come versione pubblica?",
+    "unpublish": "Nascondi",
+    "unpublish_confirm": "Nascondere questa policy al pubblico? Le bozze restano salvate.",
+    "commit_message": "Messaggio di salvataggio (opzionale)",
+    "commit_message_placeholder": "es. \"Aggiornato contatto DPO, refuso nella base giuridica\"",
+    "unsaved_warning": "Ci sono modifiche non salvate — cambiare comunque template?",
+    "platform_value": "Risolto dalla piattaforma",
+    "add_row": "+ Aggiungi riga",
+    "remove_row": "Rimuovi riga",
+    "versions": "Cronologia versioni",
+    "no_versions": "Nessuna versione — Salva per crearne una prima.",
+    "public_link_label": "Politiche"
+  },
+  "policy": {
+    "platform": {
+      "aracne_version": "Versione Aracne2",
+      "postgres_version": "Versione PostgreSQL",
+      "existdb_version": "Versione eXist-db"
+    },
+    "mission": {
+      "title": "Missione e ambito",
+      "statement": "Dichiarazione di missione",
+      "statement_hint": "Un paragrafo che spieghi perché esiste il corpus e l'impegno istituzionale che lo sostiene.",
+      "scope": "Ambito",
+      "target_community": "Comunità di riferimento",
+      "durability_commitment": "Impegno di durata"
+    },
+    "privacy_dpia": {
+      "title": "Privacy e DPIA",
+      "pii_fields": "Campi PII trattati dalla piattaforma",
+      "retention": "Tempi di conservazione (giorni)",
+      "ip_hashing": "Hashing dell'indirizzo IP",
+      "data_controller": "Titolare del trattamento",
+      "dpo_contact": "Contatto DPO",
+      "lawful_basis": "Base giuridica del trattamento",
+      "lawful_basis_hint": "Cita l'articolo del GDPR e la motivazione.",
+      "takedown_sla_days": "SLA di rimozione (giorni)",
+      "notes": "Note aggiuntive"
+    },
+    "storage_policy": {
+      "title": "Politica di storage",
+      "backup_plugin_status": "Stato plugin backup",
+      "offsite_target": "Destinazione off-site",
+      "offsite_target_hint": "Bucket cloud, istituzione partner, ecc.",
+      "rpo_hours": "RPO (ore)",
+      "rto_hours": "RTO (ore)",
+      "key_custodian": "Custode delle chiavi",
+      "restore_rehearsal_cadence": "Cadenza prove di ripristino",
+      "encryption_at_rest": "Dettagli cifratura a riposo"
+    },
+    "continuity_plan": {
+      "title": "Piano di continuità",
+      "deposit_targets": "Target di deposito attivi",
+      "oai_pmh_endpoint": "Endpoint OAI-PMH",
+      "backup_retention": "Retention dei backup",
+      "successor_institution": "Istituzione/i successore",
+      "successor_institution_hint": "Quale organizzazione prende il testimone se la tua si scioglie.",
+      "doi_redirection_procedure": "Procedura di reindirizzamento DOI",
+      "communication_plan": "Piano di comunicazione",
+      "succession_horizon_years": "Orizzonte di successione (anni)"
+    },
+    "preservation_plan": {
+      "title": "Piano di conservazione",
+      "tei_format": "Formato TEI in uso",
+      "schema_catalogue": "Catalogo schemi TEI",
+      "deposit_targets": "Target di deposito",
+      "preservation_horizon_years": "Orizzonte di conservazione (anni)",
+      "format_migration_plan": "Piano di migrazione di formato",
+      "format_migration_plan_hint": "Cosa fai quando TEI invecchia o il renderer evolve.",
+      "format_normalisation_policy": "Politica di normalizzazione",
+      "media_policy": "Politica formati media",
+      "media_policy_hint": "Come conservi immagini, audio, video associati al corpus."
+    },
+    "appraisal_policy": {
+      "title": "Politica di valutazione",
+      "published_count": "Collezioni attualmente pubblicate",
+      "schema_catalogue": "Catalogo schemi",
+      "acceptance_criteria": "Criteri di accettazione",
+      "rejection_criteria": "Criteri di rifiuto",
+      "deaccessioning_procedure": "Procedura di rimozione",
+      "deaccessioning_procedure_hint": "Come rimuovi un elemento già pubblicato e cosa sopravvive.",
+      "editorial_review_cadence": "Cadenza revisione editoriale"
+    },
+    "incident_response": {
+      "title": "Risposta agli incidenti",
+      "security_review_files": "Security review depositate",
+      "dependabot": "Dependabot",
+      "incident_contacts": "Contatti incident",
+      "incident_contacts_hint": "Nomi, ruoli, canali di contatto 24/7.",
+      "escalation_ladder": "Catena di escalation",
+      "disclosure_timeline_days": "Tempistica di disclosure (giorni)",
+      "post_mortem_policy": "Politica post-mortem"
+    },
+    "citation_guide": {
+      "title": "Guida alla citazione",
+      "doi_badge": "Badge DOI",
+      "jsonld_status": "Markup JSON-LD",
+      "suggested_citation": "Citazione suggerita",
+      "suggested_citation_hint": "Modello di citazione che i lettori dovrebbero seguire.",
+      "attribution_expectations": "Aspettative di attribuzione",
+      "citation_examples": "Esempi di citazione"
+    },
+    "editorial_board": {
+      "title": "Comitato editoriale",
+      "board_members": "Membri del comitato",
+      "board_members_hint": "Nomi, ruoli e ORCID (quando disponibili).",
+      "member_name": "Nome",
+      "member_role": "Ruolo",
+      "member_affiliation": "Affiliazione",
+      "member_orcid": "ORCID",
+      "advisory_committee": "Comitato consultivo",
+      "governance_notes": "Note di governance",
+      "term_length_years": "Durata mandato (anni)"
+    },
+    "funding_staffing": {
+      "title": "Finanziamenti e personale",
+      "funding_sources": "Fonti di finanziamento",
+      "funding_sources_hint": "Bandi, supporto istituzionale, sponsorizzazioni.",
+      "staffing_roles": "Ruoli del personale",
+      "staff_title": "Titolo",
+      "staff_incumbent": "Titolare",
+      "staff_contact": "Contatto",
+      "succession_arrangements": "Accordi di successione",
+      "budget_horizon_years": "Orizzonte di budget (anni)"
+    },
+    "expert_directory": {
+      "title": "Albo esperti",
+      "experts": "Esperti",
+      "experts_hint": "Consulenti di dominio su cui l'istituzione si appoggia.",
+      "expert_name": "Nome",
+      "expert_role": "Ruolo",
+      "expert_expertise": "Area di competenza",
+      "expert_contact": "Contatto",
+      "expert_orcid": "ORCID",
+      "review_cadence": "Cadenza di revisione"
+    },
+    "cts_self_assessment": {
+      "title": "Auto-valutazione CTS",
+      "evidence_hint": "URL, ID documenti, voci dell'audit trail che il revisore può verificare."
     }
   }
 }

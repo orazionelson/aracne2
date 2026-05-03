@@ -218,6 +218,15 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresMinRole: "Admin", layout: "admin" },
     },
     {
+      path: "/admin/policies",
+      name: "admin-policies",
+      component: () => import("@/views/admin/PolicyPagesView.vue"),
+      // Editor+ for read access (drafts visible, form read-only).
+      // Server-side capability gate (PolicyManager + Admin) enforces
+      // the write surface; the client just disables the buttons.
+      meta: { requiresAuth: true, requiresMinRole: "Editor", layout: "admin" },
+    },
+    {
       path: "/admin/entities",
       name: "admin-entities",
       component: () => import("@/views/admin/NamedEntitiesView.vue"),
