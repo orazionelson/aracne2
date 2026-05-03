@@ -3,8 +3,10 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
+    String,
     Text,
     UniqueConstraint,
 )
@@ -28,6 +30,25 @@ class RoleName(str, enum.Enum):
     Designer = "Designer"
     Editor = "Editor"
     User = "User"
+    # Capability roles — orthogonal to the hierarchy. PolicyManager
+    # (M3 §27) is the first; future singleton or multi-holder
+    # capability roles land as additional values here.
+    PolicyManager = "PolicyManager"
+
+
+class RoleKind(str, enum.Enum):
+    """Whether a role participates in the hierarchy or is a capability.
+
+    ``hierarchical`` rows feed ``require_role(min_role=…)`` via the
+    ``ROLE_LEVEL`` map; ``capability`` rows feed
+    ``require_capability(name)`` via a direct user_role membership
+    check. The two ladders are independent — a User can hold both
+    ``User`` (hierarchical) and ``PolicyManager`` (capability)
+    simultaneously.
+    """
+
+    hierarchical = "hierarchical"
+    capability = "capability"
 
 
 class Role(Base):
@@ -40,6 +61,12 @@ class Role(Base):
         unique=True,
     )
     description: Mapped[str | None] = mapped_column(Text, default=None)
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=RoleKind.hierarchical.value
+    )
+    singleton: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user_roles: Mapped[list["UserRole"]] = relationship("UserRole", back_populates="role")

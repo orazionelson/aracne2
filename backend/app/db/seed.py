@@ -22,12 +22,22 @@ _BUNDLED_SCHEMAS_DIR: Path = Path(__file__).parent.parent / "tei_schemas"
 
 logger = structlog.get_logger()
 
-ROLES: list[tuple[str, str]] = [
-    ("Admin", "Full platform access"),
-    ("EditorInChief", "Manages collections and publication workflow"),
-    ("Designer", "Manages XSLT templates and CSS themes"),
-    ("Editor", "Creates and edits documents"),
-    ("User", "Read-only access to published content"),
+# (name, description, kind, singleton)
+ROLES: list[tuple[str, str, str, bool]] = [
+    ("Admin", "Full platform access", "hierarchical", False),
+    ("EditorInChief", "Manages collections and publication workflow", "hierarchical", False),
+    ("Designer", "Manages XSLT templates and CSS themes", "hierarchical", False),
+    ("Editor", "Creates and edits documents", "hierarchical", False),
+    ("User", "Read-only access to published content", "hierarchical", False),
+    # Capability roles — orthogonal to the hierarchy. Granted by Admin
+    # to any user from User upwards; the granted user gains the
+    # capability without their hierarchical role changing at all.
+    (
+        "PolicyManager",
+        "Edits institutional policy pages (singleton capability role)",
+        "capability",
+        True,
+    ),
 ]
 
 DEFAULT_SETTINGS: list[tuple[str, str, str]] = [
@@ -226,10 +236,20 @@ DEFAULT_LICENSES: list[tuple[str, str]] = [
 
 
 async def seed_roles(db: AsyncSession) -> None:
-    for name, desc in ROLES:
-        exists = await db.scalar(select(Role).where(Role.name == name))
-        if not exists:
-            db.add(Role(name=name, description=desc))
+    for name, desc, kind, singleton in ROLES:
+        existing = await db.scalar(select(Role).where(Role.name == name))
+        if existing is None:
+            db.add(
+                Role(
+                    name=name, description=desc, kind=kind, singleton=singleton
+                )
+            )
+        else:
+            # Update kind / singleton on every boot so a long-running
+            # deployment that shipped before capability roles existed
+            # gets the columns populated correctly.
+            existing.kind = kind
+            existing.singleton = singleton
     await db.flush()
     logger.info("seed_roles_done")
 

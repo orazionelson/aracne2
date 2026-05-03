@@ -189,3 +189,43 @@ def require_role(
         return user
 
     return dependency
+
+
+def require_capability(
+    capability: str,
+) -> Callable[..., Coroutine[Any, Any, User]]:
+    """Returns a FastAPI dependency that gates on a capability role.
+
+    Capability roles (e.g. ``PolicyManager``) are orthogonal to the
+    hierarchical ROLE_LEVEL ladder: granted explicitly per user via
+    ``services.roles.transfer_singleton_role``. This dependency
+    checks for an active assignment of *capability* on
+    ``request.state.user``; Admin always passes regardless of
+    explicit assignment (Admin can do anything).
+
+    Usage::
+
+        @router.put("/policies/{slug}/save")
+        async def save(
+            current_user: Annotated[User, Depends(require_capability("PolicyManager"))],
+            ...
+        ): ...
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.postgres import get_async_session
+
+    async def dependency(
+        user: Annotated[User, Depends(_get_current_user)],
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_async_session)],
+    ) -> User:
+        # Lazy import to break the import-cycle services.roles → models →
+        # nothing-of-acl-but-still-stresses-import-order.
+        from app.services.roles import user_has_capability
+
+        if not await user_has_capability(db, user=user, capability=capability):
+            raise AuthorizationError()
+        return user
+
+    return dependency

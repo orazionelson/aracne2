@@ -20,6 +20,7 @@ from app.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.middleware.request_logger import RequestLoggerMiddleware
 from app.routers import audit_log as audit_log_router
 from app.routers import auth, body_templates as body_templates_router, health
+from app.routers import capabilities as capabilities_router
 from app.routers import corpora as corpora_router
 from app.routers import fixity as fixity_router
 from app.routers import licenses as licenses_router, notifications, plugins
@@ -326,6 +327,7 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(plugins.router, prefix="/api/v1")
 app.include_router(audit_log_router.router, prefix="/api/v1")
 app.include_router(fixity_router.router, prefix="/api/v1")
+app.include_router(capabilities_router.router, prefix="/api/v1")
 app.include_router(corpora_router.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
