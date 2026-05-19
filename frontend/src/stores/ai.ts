@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { useAuthStore } from "@/stores/auth";
+import { makeUuidV4 } from "@/utils/uuid";
 
 /**
  * Allowed values for ``AiPrompt.scope``. Each value corresponds to a
@@ -141,7 +142,7 @@ export const useAiStore = defineStore("ai", () => {
           ...(auth.accessToken
             ? { Authorization: `Bearer ${auth.accessToken}` }
             : {}),
-          "X-Request-ID": crypto.randomUUID(),
+          "X-Request-ID": makeUuidV4(),
         },
         body: JSON.stringify({ prompt_slug: promptSlug, context, history: [] }),
         signal: _abortController.signal,
@@ -222,7 +223,7 @@ export const useAiStore = defineStore("ai", () => {
           ...(auth.accessToken
             ? { Authorization: `Bearer ${auth.accessToken}` }
             : {}),
-          "X-Request-ID": crypto.randomUUID(),
+          "X-Request-ID": makeUuidV4(),
         },
         body: JSON.stringify({
           prompt_slug: promptSlug,
@@ -307,7 +308,7 @@ export const useAiStore = defineStore("ai", () => {
         ...(auth.accessToken
           ? { Authorization: `Bearer ${auth.accessToken}` }
           : {}),
-        "X-Request-ID": crypto.randomUUID(),
+        "X-Request-ID": makeUuidV4(),
         ...((init.headers as Record<string, string>) ?? {}),
       },
       credentials: "include",

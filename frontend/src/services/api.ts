@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/stores/auth";
+import { makeUuidV4 } from "@/utils/uuid";
 
 const api: AxiosInstance = axios.create({
   baseURL: "/api/v1",
@@ -13,7 +14,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (auth.accessToken) {
     config.headers.Authorization = `Bearer ${auth.accessToken}`;
   }
-  config.headers["X-Request-ID"] = crypto.randomUUID();
+  config.headers["X-Request-ID"] = makeUuidV4();
   return config;
 });
 
