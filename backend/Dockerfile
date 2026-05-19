@@ -12,8 +12,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser /app
+# Non-root user for security. /app/schemas and /app/media are mountpoints
+# for named volumes — pre-create them so Docker propagates appuser ownership
+# to the volume on first creation (only happens when the volume is empty).
+RUN useradd -m -u 1000 appuser \
+    && mkdir -p /app/schemas /app/media \
+    && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
