@@ -23,6 +23,7 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/auth";
+import { makeUuidV4 } from "@/utils/uuid";
 
 interface Citation {
   slug: string;
@@ -79,7 +80,7 @@ async function submit(): Promise<void> {
         ...(auth.accessToken
           ? { Authorization: `Bearer ${auth.accessToken}` }
           : {}),
-        "X-Request-ID": crypto.randomUUID(),
+        "X-Request-ID": makeUuidV4(),
       },
       body: JSON.stringify({ query: q }),
       signal: abortController.signal,
