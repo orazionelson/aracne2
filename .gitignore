@@ -26,5 +26,17 @@ frontend/dist/
 postgres_data/
 existdb_data/
 
-# TEI schema files stored by the backend service
+# Backend runtime data — bind-mount targets for app-writable paths,
+# never committed. Defaults match the *_dir / *_root settings in
+# app/config.py; if you override any of them via .env to point outside
+# /app, add the override path here too.
 backend/schemas/
+backend/media/
+backend/documents_media/
+backend/sites/
+backend/search-pages/
+backend/backups/
+
+# Log files — ad-hoc redirects from `docker compose logs`, lint output,
+# uvicorn captures, etc. Aracne2 has no tracked .log files.
+*.log
