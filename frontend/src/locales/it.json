@@ -9,6 +9,7 @@
     "delete": "Elimina",
     "confirm": "Conferma",
     "error": "Si è verificato un errore",
+    "unexpected_error": "Si è verificato un errore inatteso. Riprova oppure contatta un amministratore se il problema persiste.",
     "saving": "Salvataggio...",
     "copy": "Copia",
     "saved": "Salvato"

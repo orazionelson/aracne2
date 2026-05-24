@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import axios from "axios";
 import { useI18n } from "vue-i18n";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -44,9 +45,21 @@ async function handleLogin(): Promise<void> {
     const raw = route.query.redirect as string | undefined;
     const redirect = raw && isSafeRedirect(raw) ? raw : "/dashboard";
     await router.push(redirect);
-  } catch {
-    // Generic message — do not distinguish between wrong username and wrong password
-    errorMessage.value = t("auth.invalid_credentials");
+  } catch (err) {
+    // Only a 401 from the backend means "your credentials are wrong" — keep
+    // the generic message there to preserve information-leak prevention (no
+    // hint whether username or password was the rejected field). Anything
+    // else (network, 5xx, 429, JS error from an interceptor) is an
+    // operational problem the user can't fix by retyping credentials, and
+    // hiding it as "invalid credentials" makes such bugs invisible to the
+    // developer too — surface the error in console and tell the user
+    // honestly something else went wrong.
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      errorMessage.value = t("auth.invalid_credentials");
+    } else {
+      console.error("[login] unexpected error:", err);
+      errorMessage.value = t("common.unexpected_error");
+    }
   } finally {
     isLoading.value = false;
   }

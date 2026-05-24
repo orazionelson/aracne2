@@ -8,6 +8,7 @@
  * single error code for that reason.
  */
 import { ref } from "vue";
+import axios from "axios";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -40,8 +41,20 @@ async function onSubmit(): Promise<void> {
       name: "login",
       query: { reset: "ok" },
     });
-  } catch {
-    errorMessage.value = t("auth.reset.invalid_or_expired");
+  } catch (err) {
+    // The backend collapses every legitimate failure (bad token, expired
+    // token, already-used token, password too weak) into a single 401, so
+    // a 401 maps cleanly to the "invalid or expired" message. Anything
+    // else (network, 5xx, JS error from an interceptor) is an operational
+    // problem the user can't fix by re-requesting a reset, and hiding it
+    // as "invalid or expired" would make such bugs invisible to the
+    // developer too.
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      errorMessage.value = t("auth.reset.invalid_or_expired");
+    } else {
+      console.error("[confirm-reset] unexpected error:", err);
+      errorMessage.value = t("common.unexpected_error");
+    }
   } finally {
     isSubmitting.value = false;
   }
