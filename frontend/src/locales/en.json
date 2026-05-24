@@ -9,6 +9,7 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "error": "An error occurred",
+    "unexpected_error": "An unexpected error occurred. Please try again, or contact an administrator if the problem persists.",
     "saving": "Saving...",
     "copy": "Copy",
     "saved": "Saved"

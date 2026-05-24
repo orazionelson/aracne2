@@ -27,6 +27,15 @@ documented; see the corresponding git tags for the historical commit log.
 
 ### Fixed
 
+- **Silent error swallowing in auth forms** — `LoginView` and
+  `ConfirmPasswordResetView` collapsed every exception (network, 5xx,
+  rate-limit, JS error from an interceptor) into the same domain-specific
+  message ("Invalid credentials" / "Invalid or expired link"), with no
+  `console.error`. That made [`d4c2cfd`] (and any future pre-fetch JS
+  failure) look like a credentials mistake and forced blind debugging.
+  Both forms now keep the generic message only on a backend `401`
+  (preserving information-leak prevention) and route every other failure
+  to `console.error` plus a new `common.unexpected_error` UI string.
 - **Backend writable mountpoints under Docker 29 / containerd snapshotter** —
   moved `/app/schemas` and `/app/media` from the source bind-mount to
   dedicated named volumes ([`75f34bb`]), and pre-created both mountpoints
