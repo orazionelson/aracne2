@@ -10,6 +10,28 @@ documented; see the corresponding git tags for the historical commit log.
 
 ## [Unreleased]
 
+### Security
+
+- **Dependency bumps closing 12 Dependabot alerts (Phase 1).** Sixteen of
+  the eighteen open Dependabot alerts as of 2026-05-20 concentrated in
+  three packages and all sat within existing semver ranges; bumping them
+  required no breaking changes and no API surface changes for Aracne2
+  consumers.
+  - `axios` `1.15.0 → 1.16.1` (within the project's `^1.15.0` range)
+    closes 14 alerts including 4 high-severity prototype-pollution and
+    header-injection gadgets (GHSA-pf86-5x62-jrwf, GHSA-6chq-wfr3-2hj9,
+    GHSA-q8qp-cvcw-x6jj, GHSA-pmwg-cvhr-8vh7).
+  - `follow-redirects` `1.15.11 → 1.16.0` (transitive of axios) closes
+    GHSA-r4q5-vmmm-2653 (auth-header leak on cross-domain redirect).
+  - `js-cookie` `3.0.5 → 3.0.7` (transitive of `@vue/test-utils` → `js-beautify`,
+    test-only) closes GHSA-qjx8-664m-686j (per-instance prototype hijack).
+  - `python-multipart` `0.0.26 → 0.0.27` (backend) closes
+    GHSA-pp6c-gr5w-3c5g (DoS via unbounded multipart part headers).
+  The remaining six alerts all sit in the `vite` cluster (`vite`, `esbuild`,
+  `vitest`, `@vitest/coverage-v8`, `vite-node`), all moderate, all dev-scope.
+  Their fix requires a `vite 5 → 6` major bump and is deferred to a
+  separate task with build-time verification.
+
 ### Added
 
 - **Self-service password change** in the user profile view ([`c1fdd50`]).
