@@ -49,16 +49,23 @@ documented; see the corresponding git tags for the historical commit log.
 
 ### Fixed
 
-- **Avatar upload not reflected without a hard reload** — `UserAvatar`
-  builds the image URL as `/api/v1/users/<username>/avatar` with no
-  version token, and the backend stores only the file extension in
-  `user.avatar_url`, so re-uploading the same-extension file produced
-  an identical URL and identical `UserMe` payload. Vue's reactivity
-  re-ran but the `<img src>` string was unchanged, so the browser kept
-  serving the cached old image. Added an `avatarVersion` counter to the
-  auth store, bumped on every successful `uploadAvatar()`; `UserAvatar`
-  appends `?v=<n>` to the image URL when rendering the current user's
-  avatar so the browser refetches immediately.
+- **Avatar upload not reflected without a hard reload — backend payload
+  was missing the field.** `_build_response` and `_build_response_from_loaded`
+  in `backend/app/services/users.py` constructed the `UserResponse`
+  without `avatar_url` and `bio`; both fields are declared optional with
+  a `None` default on the schema, so Pydantic silently filled them in as
+  null. Every endpoint going through these helpers — including
+  `POST /users/me/avatar` and `DELETE /users/me/avatar` — therefore
+  returned `avatar_url: null` regardless of what was actually persisted.
+  The page-load path uses a different schema (`UserMeResponse`, built by
+  hand in `routers/auth.py`) which DOES include the field, which is why
+  a manual browser reload "fixed" the avatar — and why the bug went
+  unnoticed: the only observable symptom was an upload-then-stale UI.
+  Pass `avatar_url=user.avatar_url` and `bio=user.bio` explicitly in
+  both helpers. The earlier frontend cache-bust (`avatarVersion`
+  counter + `?v=<n>` query string in `UserAvatar`) is complementary and
+  remains in place — it handles the second-upload case where the URL
+  itself is identical before and after.
 - **Silent error swallowing in auth forms** — `LoginView` and
   `ConfirmPasswordResetView` collapsed every exception (network, 5xx,
   rate-limit, JS error from an interceptor) into the same domain-specific

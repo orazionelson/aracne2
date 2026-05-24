@@ -78,6 +78,8 @@ async def _build_response(db: AsyncSession, user: User) -> UserResponse:
         last_login_at=user.last_login_at,
         deleted_at=user.deleted_at,
         orcid=user.orcid,
+        avatar_url=user.avatar_url,
+        bio=user.bio,
     )
 
 
@@ -113,6 +115,8 @@ def _build_response_from_loaded(user: User) -> UserResponse:
         last_login_at=user.last_login_at,
         deleted_at=user.deleted_at,
         orcid=user.orcid,
+        avatar_url=user.avatar_url,
+        bio=user.bio,
     )
 
 
