@@ -153,6 +153,20 @@
       "anonymise_done_title": "Richiesta inviata",
       "anonymise_done_body": "La tua richiesta è stata registrata e gli Admin della piattaforma sono stati avvisati. Il tuo account resta invariato. Verrai contattato al termine della revisione."
     },
+    "password": {
+      "title": "Password",
+      "intro": "Cambia la password che usi per accedere ad Aracne2.",
+      "change_button": "Cambia",
+      "note_signout": "Cambiando la password verrai disconnesso da tutte le sessioni attive; ti verrà chiesto di accedere di nuovo con la nuova.",
+      "current_label": "Password attuale",
+      "new_label": "Nuova password",
+      "confirm_label": "Conferma nuova password",
+      "min_length_hint": "Almeno 8 caratteri.",
+      "too_short": "La nuova password deve essere di almeno 8 caratteri.",
+      "mismatch": "Le due nuove password non coincidono.",
+      "submit": "Aggiorna password",
+      "saving": "Aggiornamento…"
+    },
     "api_tokens": {
       "title": "Token API",
       "intro": "Token bearer di lunga durata per lo strumento aracne-cli. Ogni token si autentica come te ed eredita il tuo ruolo. Hai perso un token? Revocalo da questo elenco.",
