@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import {
   usePersonalAccessTokensStore,
@@ -11,6 +12,7 @@ import { apiClient } from "@/services/api";
 
 const { t, locale } = useI18n();
 const auth = useAuthStore();
+const router = useRouter();
 const patStore = usePersonalAccessTokensStore();
 
 function formatDate(iso: string | null): string {
@@ -72,6 +74,53 @@ async function toggleEmailNotifications(next: boolean): Promise<void> {
     emailNotifError.value = msg ?? t("common.error");
   } finally {
     emailNotifSaving.value = false;
+  }
+}
+
+// ── Change password ───────────────────────────────────────────────────────
+// Self-service form that hits POST /auth/password/change. No SMTP needed:
+// it requires the current password and writes the new one directly. Backend
+// revokes every active session on success, so we redirect to /login.
+const showPasswordForm = ref(false);
+const passwordCurrent = ref("");
+const passwordNew = ref("");
+const passwordConfirm = ref("");
+const passwordError = ref<string | null>(null);
+const passwordSaving = ref(false);
+
+function openPasswordForm(): void {
+  passwordCurrent.value = "";
+  passwordNew.value = "";
+  passwordConfirm.value = "";
+  passwordError.value = null;
+  showPasswordForm.value = true;
+}
+
+function cancelPasswordChange(): void {
+  showPasswordForm.value = false;
+  passwordError.value = null;
+}
+
+async function submitPasswordChange(): Promise<void> {
+  passwordError.value = null;
+  if (passwordNew.value.length < 8) {
+    passwordError.value = t("profile.password.too_short");
+    return;
+  }
+  if (passwordNew.value !== passwordConfirm.value) {
+    passwordError.value = t("profile.password.mismatch");
+    return;
+  }
+  passwordSaving.value = true;
+  try {
+    await auth.changePassword(passwordCurrent.value, passwordNew.value);
+    await router.push({ path: "/login", query: { reason: "password_changed" } });
+  } catch (err) {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message;
+    passwordError.value = msg ?? t("common.error");
+  } finally {
+    passwordSaving.value = false;
   }
 }
 
@@ -632,6 +681,104 @@ async function handleSubmitAnonymise(): Promise<void> {
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ t("profile.member_since") }}</span>
           <span>{{ formatDate(auth.user.created_at) }}</span>
         </div>
+      </div>
+
+      <!-- Password card ─────────────────────────────────────────────── -->
+      <div class="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+            {{ t("profile.password.title") }}
+          </p>
+          <button
+            v-if="!showPasswordForm"
+            type="button"
+            class="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+            @click="openPasswordForm"
+          >
+            {{ t("profile.password.change_button") }}
+          </button>
+        </div>
+
+        <p v-if="!showPasswordForm" class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t("profile.password.intro") }}
+        </p>
+
+        <form v-else class="space-y-3" @submit.prevent="submitPasswordChange">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t("profile.password.note_signout") }}
+          </p>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              {{ t("profile.password.current_label") }}
+            </label>
+            <input
+              v-model="passwordCurrent"
+              type="password"
+              autocomplete="current-password"
+              required
+              :disabled="passwordSaving"
+              class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              {{ t("profile.password.new_label") }}
+            </label>
+            <input
+              v-model="passwordNew"
+              type="password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+              :disabled="passwordSaving"
+              class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            />
+            <p class="mt-1 text-[0.7rem] text-gray-500 dark:text-gray-400">
+              {{ t("profile.password.min_length_hint") }}
+            </p>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              {{ t("profile.password.confirm_label") }}
+            </label>
+            <input
+              v-model="passwordConfirm"
+              type="password"
+              autocomplete="new-password"
+              required
+              :disabled="passwordSaving"
+              class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            />
+          </div>
+
+          <p
+            v-if="passwordError"
+            class="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
+          >
+            {{ passwordError }}
+          </p>
+
+          <div class="flex gap-2">
+            <button
+              type="submit"
+              :disabled="passwordSaving"
+              class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {{ passwordSaving ? t("profile.password.saving") : t("profile.password.submit") }}
+            </button>
+            <button
+              type="button"
+              :disabled="passwordSaving"
+              class="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
+              @click="cancelPasswordChange"
+            >
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </form>
       </div>
 
       <!-- API Tokens card (Phase CLI-B) — Editor+ only -->

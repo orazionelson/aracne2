@@ -207,6 +207,23 @@ export const useAuthStore = defineStore("auth", () => {
     });
   }
 
+  /** Logged-in flow: change the current user's password.
+   * Backend revokes every active session of the user on success, so we
+   * clear local auth state too — the caller is expected to redirect to
+   * /login. Never call this while impersonating: the backend returns
+   * 403 in that case. */
+  async function changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    await api.post("/auth/password/change", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    user.value = null;
+    accessToken.value = null;
+  }
+
   return {
     user,
     accessToken,
@@ -228,5 +245,6 @@ export const useAuthStore = defineStore("auth", () => {
     exitImpersonation,
     requestPasswordReset,
     confirmPasswordReset,
+    changePassword,
   };
 });

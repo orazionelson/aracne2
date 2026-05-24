@@ -153,6 +153,20 @@
       "anonymise_done_title": "Request submitted",
       "anonymise_done_body": "Your request has been recorded and the platform's Admins have been notified. Your account is unchanged for now. You will be contacted when the review concludes."
     },
+    "password": {
+      "title": "Password",
+      "intro": "Change the password used to sign in to Aracne2.",
+      "change_button": "Change",
+      "note_signout": "Changing your password will sign you out of every active session; you will be asked to log in again with the new one.",
+      "current_label": "Current password",
+      "new_label": "New password",
+      "confirm_label": "Confirm new password",
+      "min_length_hint": "At least 8 characters.",
+      "too_short": "The new password must be at least 8 characters.",
+      "mismatch": "The two new passwords don't match.",
+      "submit": "Update password",
+      "saving": "Updating…"
+    },
     "api_tokens": {
       "title": "API tokens",
       "intro": "Long-lived bearer tokens for the aracne-cli command-line tool. Each token authenticates as you and inherits your role. Lose a token? Revoke it from this list.",
