@@ -9,6 +9,9 @@
  * timeline popovers, and any future @mention surface.
  */
 import { computed } from "vue";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const props = withDefaults(
   defineProps<{
@@ -59,7 +62,16 @@ const dimensionStyle = computed(() => ({
 
 const imgSrc = computed<string | null>(() => {
   if (!props.avatarUrl) return null;
-  return `/api/v1/users/${encodeURIComponent(props.username)}/avatar`;
+  const url = `/api/v1/users/${encodeURIComponent(props.username)}/avatar`;
+  // The backend serves the avatar at a stable URL — no hash, no timestamp,
+  // no extension in the path — so re-uploading the same-extension file
+  // produces an identical URL and the browser keeps the cached image until
+  // a hard reload. For the logged-in user we know when they upload (the
+  // store bumps avatarVersion), so append ?v=<n> to force a refetch.
+  if (auth.user?.username === props.username && auth.avatarVersion > 0) {
+    return `${url}?v=${auth.avatarVersion}`;
+  }
+  return url;
 });
 </script>
 

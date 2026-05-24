@@ -49,6 +49,16 @@ documented; see the corresponding git tags for the historical commit log.
 
 ### Fixed
 
+- **Avatar upload not reflected without a hard reload** — `UserAvatar`
+  builds the image URL as `/api/v1/users/<username>/avatar` with no
+  version token, and the backend stores only the file extension in
+  `user.avatar_url`, so re-uploading the same-extension file produced
+  an identical URL and identical `UserMe` payload. Vue's reactivity
+  re-ran but the `<img src>` string was unchanged, so the browser kept
+  serving the cached old image. Added an `avatarVersion` counter to the
+  auth store, bumped on every successful `uploadAvatar()`; `UserAvatar`
+  appends `?v=<n>` to the image URL when rendering the current user's
+  avatar so the browser refetches immediately.
 - **Silent error swallowing in auth forms** — `LoginView` and
   `ConfirmPasswordResetView` collapsed every exception (network, 5xx,
   rate-limit, JS error from an interceptor) into the same domain-specific

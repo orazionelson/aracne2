@@ -49,6 +49,11 @@ export const useAuthStore = defineStore("auth", () => {
   const accessToken = ref<string | null>(null);
   const isLoading = ref(false);
   const impersonating = ref<ImpersonationState | null>(null);
+  // Bumped after every successful avatar upload. UserAvatar appends this as a
+  // ?v=<n> query string so the browser refetches the image — the avatar URL
+  // is otherwise identical before/after upload (it carries only the username,
+  // not a hash or timestamp) and the cached image would stick until reload.
+  const avatarVersion = ref(0);
 
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value);
   const userRole = computed(() => user.value?.role ?? "User");
@@ -130,6 +135,7 @@ export const useAuthStore = defineStore("auth", () => {
       headers: { "Content-Type": "multipart/form-data" },
     });
     user.value = res.data.data;
+    avatarVersion.value++;
   }
 
   async function deleteAvatar(): Promise<void> {
@@ -233,6 +239,7 @@ export const useAuthStore = defineStore("auth", () => {
     hasMinRole,
     hasRole,
     impersonating,
+    avatarVersion,
     login,
     logout,
     refresh,
