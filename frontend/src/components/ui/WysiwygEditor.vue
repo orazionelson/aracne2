@@ -127,6 +127,29 @@ function toggleFullscreen(): void {
   isFullscreen.value = !isFullscreen.value;
 }
 
+// Source-mode state.
+// When ``isSourceMode`` is true the WYSIWYG area is hidden and a raw
+// HTML <textarea> takes its place; the textarea works in *storage* form
+// (media://… URLs) because that's the canonical project notation and the
+// shape the parent v-model expects.
+const isSourceMode = ref(false);
+const sourceHtml = ref("");
+
+function toggleSourceMode(): void {
+  if (!editor.value) return;
+  if (isSourceMode.value) {
+    // Leaving source mode: push the edited HTML back into Tiptap.
+    // setContent with emitUpdate=true triggers onUpdate, which re-emits
+    // the storage-form HTML upward — keeps the parent in sync.
+    editor.value.commands.setContent(toDisplayHtml(sourceHtml.value), true);
+    isSourceMode.value = false;
+  } else {
+    // Entering source mode: snapshot the current HTML in storage form.
+    sourceHtml.value = toStorageHtml(editor.value.getHTML());
+    isSourceMode.value = true;
+  }
+}
+
 // Link dialog state
 const showLinkDialog = ref(false);
 const linkUrl = ref("");
@@ -222,9 +245,17 @@ watch(
     const current = toStorageHtml(editor.value.getHTML());
     if (current !== val) {
       editor.value.commands.setContent(toDisplayHtml(val || ""), false);
+      if (isSourceMode.value) sourceHtml.value = val ?? "";
     }
   },
 );
+
+// While the user types in the raw-HTML textarea, propagate edits to the
+// parent v-model. Tiptap's onUpdate is paused because EditorContent is
+// hidden, so this watch fills the gap.
+watch(sourceHtml, (val) => {
+  if (isSourceMode.value) emit("update:modelValue", val);
+});
 
 function openLinkDialog(): void {
   const prev = editor.value?.getAttributes("link").href ?? "";
@@ -493,6 +524,17 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
 
       <span class="toolbar-sep" />
 
+      <!-- Source-mode toggle -->
+      <button
+        type="button"
+        :title="isSourceMode ? 'Back to visual editor' : 'Edit HTML source'"
+        class="toolbar-btn"
+        :class="{ 'toolbar-btn-active': isSourceMode }"
+        @click="toggleSourceMode"
+      >
+        &lt;/&gt;
+      </button>
+
       <!-- Fullscreen -->
       <button
         type="button"
@@ -505,8 +547,24 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
       </button>
     </div>
 
-    <!-- Editable area -->
-    <EditorContent :editor="editor" class="prose-area" />
+    <!-- Editable area — WYSIWYG (visible when not in source mode) -->
+    <EditorContent v-show="!isSourceMode" :editor="editor" class="prose-area" />
+
+    <!-- Raw HTML editor — visible only in source mode -->
+    <div v-if="isSourceMode" class="source-pane">
+      <p class="source-hint">
+        Editing HTML directly. The visual editor will sanitise unknown
+        tags or attributes when you switch back.
+      </p>
+      <textarea
+        v-model="sourceHtml"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        class="source-textarea"
+      ></textarea>
+    </div>
 
     <!-- Link dialog -->
     <div v-if="showLinkDialog" class="dialog-overlay">
@@ -705,6 +763,36 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
   margin: 0.4rem 0;
 }
 
+/* ── Source-mode (raw HTML) editor ── */
+.source-pane {
+  display: flex;
+  flex-direction: column;
+}
+.source-hint {
+  padding: 0.4rem 0.875rem;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.7rem;
+  font-style: italic;
+}
+.source-textarea {
+  width: 100%;
+  min-height: 18rem;
+  padding: 0.75rem 0.875rem;
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #1f2937;
+  background: #fafafa;
+  border: none;
+  outline: none;
+  resize: vertical;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.source-textarea:focus { background: #ffffff; }
+
 /* ── Fullscreen ── */
 .wysiwyg-fullscreen {
   position: fixed;
@@ -720,4 +808,6 @@ function isActive(nameOrAttrs: string | Record<string, unknown>, attrs?: Record<
   overflow-y: auto;
   min-height: 0;
 }
+.wysiwyg-fullscreen .source-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wysiwyg-fullscreen .source-textarea { flex: 1; min-height: 0; resize: none; }
 </style>

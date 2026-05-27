@@ -12,12 +12,16 @@ unblocking-effect on other items.
 
 ## Priority legend
 
-| Tag | Meaning |
-|---|---|
-| 🔴 High | Clear value, ready for pickup |
-| 🟡 Medium | Value confirmed but waiting on a trigger or sequencing |
-| 🟢 Low | Niche, ship if specifically requested |
-| 🔵 To discuss | Needs a design conversation before scoping |
+| Tag | Code prefix | Meaning |
+|---|---|---|
+| 🔴 High | `H` | Clear value, ready for pickup |
+| 🟡 Medium | `M` | Value confirmed but waiting on a trigger or sequencing |
+| 🟢 Low | `L` | Niche, ship if specifically requested |
+| 🔵 To discuss | `T` | Needs a design conversation before scoping |
+
+Each entry is identified by `<prefix><n>` (e.g. `H1`, `M3`,
+`T7`). New entries are appended within their priority section
+without renumbering the others; cross-references stay stable.
 
 Long design conversations from the original `FUTURE_IDEAS.md`
 and `DEFERRED.md` files are preserved in git history; this file
@@ -27,7 +31,7 @@ is the operational backlog, not the design archive.
 
 ## 🔴 High
 
-### 1. Automated bibliography enrichment via DOI / ISBN lookup
+### H1. Automated bibliography enrichment via DOI / ISBN lookup
 
 **Motivation.** Manual entry of bibliographic metadata is
 error-prone and time-consuming. The platform already has
@@ -53,7 +57,7 @@ unstructured citations.
 
 ---
 
-### 2. Public reader statistics and analytics
+### H2. Public reader statistics and analytics
 
 **Motivation.** Scholarly editors and funders need evidence of
 readership; today the platform has zero analytics. Basic counts
@@ -78,9 +82,172 @@ funder asking for usage evidence.
 
 ---
 
+### H3. Document the collection-import ZIP layout requirement
+
+**Motivation.** Importing a collection requires the XML files at
+the **root** of the ZIP, no enclosing folder. This is
+counter-intuitive: most users right-click a folder and "Compress",
+producing a ZIP with a single top-level directory — which today
+fails (or imports silently nothing). Recurring user-feedback item.
+
+**Scope (docs only, no server-side behaviour change).**
+- `USER_MANUAL.md` — short section under collection import with
+  a worked example for Linux / macOS (`zip -j out.zip *.xml`) and
+  Windows ("Select all files inside the folder, then Send to →
+  Compressed folder"). Show both a ✅ and a ❌ tree.
+- In-app help (`backend/help_docs/02-editing/...`) — same example,
+  same screenshots if any.
+- The ZIP upload panel in the Collections page — an inline info
+  box ("Files at the ZIP root, no enclosing folder") next to the
+  file picker, with a link to the help page.
+- Backend: make the existing error message explicit when the ZIP
+  contains a single top-level directory and no XML at the root
+  ("The ZIP contains a folder `<name>/` but no XML at the root.
+  Re-zip selecting the files, not the folder.").
+
+**Trigger.** User feedback (recurring).
+
+**Effort.** ~0.5 days.
+
+**See also.** Item §T7 explores the alternative server-side fix
+(accept any layout, flatten on import); it's a UX call that needs
+discussion first. This entry is the no-regret first move.
+
+---
+
+### H4. Non-native plugin: TEI editor tag/snippet toolbar buttons
+
+**Motivation.** TEI exposes ~1500 tags, but real editorial projects
+mark content with under a dozen of them. The old Aracne wired
+fixed buttons (`[persName]`, `[placeName]`, …) into CodeMirror so
+editors could one-click insert an empty tag at the cursor or
+wrap a selection with it. In Aracne2 the same idea needs to be
+**dynamic and per-collection**, because two corpora on the same
+instance carry different tagsets.
+
+**Scope.**
+
+- **Plugin** (non-native, opt-in from `/admin/plugins`). Reuses
+  the same plugin-discovery pattern as the authority chips
+  (Wikidata, ORCID, ROR, …) — the TEI editor auto-cables the
+  buttons declared by the plugin via a new capability
+  `inline_snippet`, sibling of `inline_authority`.
+- **Per-collection configuration**, surfaced as a panel on the
+  Collection detail page, **below the deposit-providers section**.
+  The list of buttons lives on the Collection (single source of
+  truth per corpus).
+- **Two-mode "Add" UI**:
+  - *Add tag button* — input that takes a single tag name (e.g.
+    `persName`); the plugin synthesises the snippet
+    `<persName>${SEL}</persName>` under the hood.
+  - *Add snippet button* — textarea that takes a full snippet
+    (e.g. `<bibl><author></author><title>${SEL}</title></bibl>`),
+    with placeholder syntax `${SEL}` (active selection or empty)
+    and `${1}`, `${2}`, … (tab-stops à la VS Code, handled by
+    CodeMirror 6's `@codemirror/autocomplete` snippet API).
+- **Unified data model.** Internally a button is always a
+  snippet — the "Add tag" mode is sugar that produces the wrapper.
+  A small *Promote to snippet* action lets an editor convert a
+  tag entry into a full snippet later, without re-adding it.
+- **Well-formed XML validation before save.** Required on both
+  ends:
+  - Substitute the known placeholders (`${SEL}`, `${1}`, …) with
+    a literal (`x`), wrap the result in a synthetic root, and
+    parse.
+  - Backend: `defusedxml.ElementTree.fromstring(...)` —
+    mandatory per project rules.
+  - Frontend: `new DOMParser().parseFromString(..., "application/xml")`
+    + check for `<parsererror>` — for immediate feedback.
+  - A failing parse blocks save with the error position.
+- **CRUD + UX**.
+  - Add / edit / remove (with `confirm` on remove).
+  - Drag-to-reorder, or up/down arrows
+    (`@vueuse/integrations` exports `useSortable`). The toolbar
+    in the editor honours the configured order.
+  - Optional **`label`** field (defaults to the tag name) so the
+    toolbar can read "Person" instead of `persName`.
+  - Optional **keyboard shortcut** field, restricted to
+    `Ctrl+1`…`Ctrl+9`, with anti-collision validation across the
+    collection's buttons.
+
+**Trigger.** Recurring editor feedback; the productivity gap vs.
+the old Aracne is felt in the first hour of any new project.
+
+**Effort.** ~3-4 days.
+
+---
+
+### H5. Designer-controlled CSS for generated websites — download default, upload override, live preview
+
+**Motivation.** Each generated website ships a baked-in default
+stylesheet (`_STATIC_CSS`) that covers all page types out of the
+box. Designers can already tweak palette / font via the structured
+`theme_config` and add additive overrides via the existing
+`custom_css` textarea. What's missing is the natural *"fork the
+default"* workflow — download the resolved default, edit it
+locally, upload back as a full replacement — plus a live preview
+so iteration is *edit → see* rather than *edit → save → rebuild
+→ reload*. Mirrors the existing pattern of
+`/admin/public-pages → Foglio di stile personalizzato`.
+
+**Scope.**
+
+- **Data model.** New field on the `websites` model:
+  `override_css: Text | None`. Trivial migration.
+- **Build-time cascade** (refactor `_style_block` in
+  `backend/app/services/websites.py`):
+  1. `:root{--primary…}` from `theme_config` — *always* emitted,
+     regardless of mode. The color picker / font selector keep
+     working in override mode.
+  2. either `_STATIC_CSS` *or* `website.override_css` when set —
+     mutually exclusive.
+  3. `website.custom_css` — *always* emitted last, the existing
+     "last-mile" additive textarea. Survives override mode as
+     the last resort for patches the uploaded sheet didn't
+     cover.
+- **UI** — mirror the `/admin/public-pages → Foglio di stile
+  personalizzato` card, surfaced in the website edit page's
+  CSS/JS section:
+  - Status pill (*"Nessun CSS personalizzato"* /
+    *"CSS personalizzato attivo"*).
+  - File input + *"Carica"* button to upload the override.
+  - *"Reset to default"* button (clears `override_css`).
+  - *"Scarica CSS"* link in the footer: downloads the current
+    `_STATIC_CSS` with the website's resolved `:root{…}`
+    prepended — ready as a starting point for a fork.
+- **Validation** on upload:
+  - Strip `</style>` from the file before save (same defence
+    used today on `custom_css`).
+  - Reject non-`text/css` MIME and files over a configurable
+    cap (e.g. 256 KB).
+- **Live preview** (the E component):
+  - New tab *"Anteprima"* in the website CSS/JS edit panel.
+  - Backend endpoint `GET /websites/{id}/sample-html?page_type=
+    home|collection|document|search` returns the website's
+    most-recently-built HTML for that page type, stripped of
+    its `<style>` block.
+  - Frontend renders the result in an `<iframe srcdoc>` and
+    injects the *work-in-progress* CSS (default-or-override +
+    `custom_css`) into a fresh `<style>` block. Re-renders on
+    a 300 ms debounce after textarea changes or after a
+    successful upload.
+  - Fallback when the site has never been built: a hardcoded
+    skeleton HTML covering the four page types, so the
+    preview is usable from day one.
+
+**Trigger.** Recurring Designer feedback on the need to
+"really" customise the look beyond the structured theme.
+
+**Effort.** ~3-4 days for the upload/override + ~2 days for the
+live preview = ~5-6 days total. Done as one feature because
+upload/override and preview share the same panel and the same
+CSS-resolution code.
+
+---
+
 ## 🟡 Medium
 
-### 3. CI pipeline on GitHub Actions
+### M1. CI pipeline on GitHub Actions
 
 **Motivation.** Today the maintainer runs `pytest` locally. CI
 gives external contributors a green-check signal on PRs and
@@ -101,15 +268,15 @@ admin time.
 
 ---
 
-### 4. Async task queue (Celery / ARQ / Dramatiq)
+### M2. Async task queue (Celery / ARQ / Dramatiq)
 
 **Motivation.** Long-running operations today either block the
 HTTP request or use `asyncio.create_task` (lost on restart).
 "Big" publishes (corpus with hundreds of documents), Zenodo
 deposits, ZIP exports, embedding rebuilds all suffer. An async
 queue unblocks these AND prepares the ground for the PDF
-sidecar (§19), HTR pipeline (§13), and batch bibliography
-enrichment (§1).
+sidecar (§L1), HTR pipeline (§M11), and batch bibliography
+enrichment (§H1).
 
 **Scope.**
 - Pick **ARQ** (Redis-only, leanest); Redis is the single new
@@ -121,14 +288,14 @@ enrichment (§1).
   to start it.
 
 **Trigger.** First publish that times out, **or** any of the
-items above (§13, §15, §17, §19) gets pickup.
+items above (§M11, §M13, §M15, §L1) gets pickup.
 
 **Effort.** ~2 days for the substrate + 1 day per migrated
 operation.
 
 ---
 
-### 5. Server-side PDF renderer — opt-in sidecar service
+### M3. Server-side PDF renderer — opt-in sidecar service
 
 **Motivation.** Browser-print covers 80% of the PDF use case
 today. The 20% — byte-deterministic policy PDFs for CTS reviewers,
@@ -156,7 +323,7 @@ container with `pdf` compose profile keeps the cost opt-in.
 
 ---
 
-### 6. S3-compatible media backend (read + write, private buckets)
+### M4. S3-compatible media backend (read + write, private buckets)
 
 **Motivation.** Today media (avatars, homepage assets, website
 images, TEI media) lives on the local filesystem. A multi-replica
@@ -179,7 +346,7 @@ this, **or** a multi-replica deployment.
 
 ---
 
-### 7. Collection ACL — multi-editor support
+### M5. Collection ACL — multi-editor support
 
 **Motivation.** Currently one Editor is assigned per collection;
 collaborative editing on a single collection requires escalation
@@ -200,7 +367,7 @@ EiC-level rights.
 
 ---
 
-### 8. Full-collection validation — performance optimisation
+### M6. Full-collection validation — performance optimisation
 
 **Motivation.** Schema-validation runs per-document today. A
 collection-wide report walks every document sequentially and
@@ -220,7 +387,7 @@ running collection-wide validation.
 
 ---
 
-### 9. TEI `<zone>` — word- / line-level alignment
+### M7. TEI `<zone>` — word- / line-level alignment
 
 **Motivation.** Today zones are page-level (one `<surface>` per
 image). For HTR / IIIF / OCR-correction workflows, fine-grained
@@ -236,12 +403,12 @@ zones (line-level, word-level) are needed.
 **Trigger.** First HTR project, **or** a IIIF integration that
 needs line-anchored text.
 
-**Effort.** ~3-4 days. Pairs with §13 (HTR pipeline) — most
+**Effort.** ~3-4 days. Pairs with §M11 (HTR pipeline) — most
 naturally implemented together.
 
 ---
 
-### 10. MCP server — Phase 2 (write tools)
+### M8. MCP server — Phase 2 (write tools)
 
 **Motivation.** Phase 1 ships read-only MCP tools (the editor's
 LLM client can browse + cite the corpus). Phase 2 would add
@@ -256,12 +423,12 @@ audit-log entry; tool list extends with `update_document_source`
 **Trigger.** Real signal from the existing read-only Phase 1
 usage telling us which write operations are actually wanted.
 
-**Effort.** ~5-7 days. Best paired with §11 (Phase 3) once
+**Effort.** ~5-7 days. Best paired with §M9 (Phase 3) once
 real usage data is available.
 
 ---
 
-### 11. MCP server — Phase 3 (identity, members, audit)
+### M9. MCP server — Phase 3 (identity, members, audit)
 
 **Motivation.** Per-user MCP tokens (instead of corpus-scoped),
 `corpus_members` table, dedicated MCP audit-log surface. Earns
@@ -273,7 +440,7 @@ its cost only when several editors are actively using MCP.
 
 ---
 
-### 12. End-to-end AI evaluation harness
+### M10. End-to-end AI evaluation harness
 
 **Motivation.** Today AI provider switching (Anthropic / OpenAI /
 Ollama) is operator's instinct. A harness that runs a fixed
@@ -296,7 +463,7 @@ institution asks for an explicit comparison report.
 
 ---
 
-### 13. End-to-end HTR pipeline — large-corpus image-to-zone import
+### M11. End-to-end HTR pipeline — large-corpus image-to-zone import
 
 **Motivation.** A digitised manuscript collection where pages
 are images today is a pain to ingest: HTR → zones → TEI is a
@@ -304,7 +471,7 @@ multi-step manual process. An end-to-end pipeline would
 automate the most repetitive parts.
 
 **Scope.** Adapter for Transkribus (existing API) + zone import
-+ TEI scaffolding. Pairs with §9 (fine-grained zones).
++ TEI scaffolding. Pairs with §M7 (fine-grained zones).
 
 **Trigger.** First manuscript-heavy project.
 
@@ -312,7 +479,7 @@ automate the most repetitive parts.
 
 ---
 
-### 14. Non-native plugin: GROBID — PDF → TEI import
+### M12. Non-native plugin: GROBID — PDF → TEI import
 
 **Motivation.** Operators with PDF-heavy bibliographies or
 PDF-only critical apparatus can extract structured TEI via
@@ -325,21 +492,57 @@ opt-in.
 
 ---
 
-### 15. Non-native plugin: LEAF Turning Engine — TEI ↔ Markdown, Transkribus → TEI
+### M13. Non-native plugin: LEAF Turning Engine — TEI ↔ Markdown, Transkribus → TEI
 
 **Motivation.** Wraps the LEAF-VRE Turning Engine REST microservice
 for two adjacent workflows: a Markdown ↔ TEI bridge that lets
 non-XML editors author content, and a Transkribus → TEI
-converter that complements (and may eventually subsume) §13.
+converter that complements (and may eventually subsume) §M11.
 
-**Trigger.** Same as §13, plus operators with Markdown-only
+**Trigger.** Same as §M11, plus operators with Markdown-only
 authoring teams.
 
 **Effort.** ~3 days.
 
 ---
 
-### 16. TEI-specialised local model via LoRA fine-tuning
+### M14. Non-native plugin: nodegoat as authority provider
+
+**Motivation.** Many DH projects already maintain their
+prosopography (and increasingly their geography and
+event-network) inside a **[nodegoat](https://nodegoat.net/)**
+instance. Surfacing that instance as an `inline_authority`
+provider lets editors pick from their own project registry
+instead of (or alongside) Wikidata, and writes the canonical
+nodegoat object URL as `@ref` on `<persName>` / `<placeName>` /
+`<orgName>`. Same shape as the existing eleven authority
+plugins; the platform's "modular catalogue of connectors"
+covers exactly this case.
+
+**Scope.**
+- Admin config: `nodegoat_base_url`, `nodegoat_api_key`
+  (Fernet-encrypted, added to `SENSITIVE_KEYS`), and
+  per-tag Type mapping (`<persName>` → Type "Person",
+  `<placeName>` → Type "Place", `<orgName>` → Type
+  "Organisation"). All from `/admin/plugins/nodegoat_authority/config`.
+- Backend: a `search` endpoint that proxies to nodegoat's
+  REST API and returns hits in the editor's standard chip
+  shape (label, sub-label, canonical URL).
+- Editor: chips `NODE-PER`, `NODE-PLA`, `NODE-ORG` appear
+  in the toolbar when the current tag matches; on Apply
+  the picker writes `@ref="<base>/object/<id>"`.
+- Tests: `httpx.MockTransport` for the proxy + a manual
+  smoke test against a real nodegoat instance.
+
+**Trigger.** First operator already running a nodegoat
+instance for their prosopography.
+
+**Effort.** ~3-4 days, reusing the wikidata / ror / orcid
+plugin scaffold.
+
+---
+
+### M15. TEI-specialised local model via LoRA fine-tuning
 
 **Motivation.** A small (7B / 13B) open model fine-tuned on a
 TEI corpus could match cloud models on TEI-specific tasks at a
@@ -353,7 +556,7 @@ the operator's compute time.
 
 ---
 
-### 17. Gamification / contributor leaderboard
+### M16. Gamification / contributor leaderboard
 
 **Motivation.** Editorial teams sometimes ask for "who did
 what" leaderboards as motivational tooling. Aggregate of
@@ -368,7 +571,7 @@ dashboard.
 
 ## 🟢 Low
 
-### 18. Plugin data table
+### L1. Plugin data table
 
 **Motivation.** Plugins that need to persist their own state
 write to `system_settings` (not ideal) or ad-hoc tables. A
@@ -381,7 +584,7 @@ is cleaner.
 
 ---
 
-### 19. WebSocket / Server-Sent Events for real-time notifications
+### L2. WebSocket / Server-Sent Events for real-time notifications
 
 **Motivation.** The notification dispatcher polls; a WS / SSE
 push would be more responsive. Today's polling cadence is
@@ -394,7 +597,7 @@ deployment where polling becomes burdensome.
 
 ---
 
-### 20. Mobile companion app
+### L3. Mobile companion app
 
 **Motivation.** A read-only mobile reader for editors on the go.
 Most institutions don't ask for it.
@@ -405,7 +608,7 @@ Most institutions don't ask for it.
 
 ---
 
-### 21. Collaborative real-time editing
+### L4. Collaborative real-time editing
 
 **Motivation.** Google-Docs-style real-time co-edit on a single
 TEI document. Conflicts with the workflow model (one Editor at
@@ -418,7 +621,7 @@ data-model redesign.
 
 ---
 
-### 22. Secret management — beyond plain-text `.env`
+### L5. Secret management — beyond plain-text `.env`
 
 **Motivation.** Today `.env` carries plaintext credentials.
 Vault / SOPS / secrets-store-csi integrations would harden a
@@ -430,7 +633,7 @@ production deployment.
 
 ---
 
-### 23. SPARQL endpoint over the published corpus
+### L6. SPARQL endpoint over the published corpus
 
 **Motivation.** The platform already emits RDF/Turtle via
 content negotiation; a SPARQL endpoint completes the LOD story.
@@ -443,42 +646,116 @@ needs.
 
 ---
 
+### L7. AI assistant for CSS editing — debug & discuss scopes
+
+**Motivation.** The AI scope infrastructure (`xslt.debug`,
+`xslt.discuss`) already supports per-surface AI panels. Designers
+who aren't CSS-fluent — common in DH projects — benefit from a
+peer assistant that can debug rules ("why isn't this matching?"),
+suggest simplifications, or explain existing styles in plain
+language. Natural sibling of the XSLT helpers, surfaced in the
+same website CSS/JS edit panel.
+
+**Scope.**
+
+- New AI scopes **`css.debug`** and **`css.discuss`** (siblings
+  of `xslt.debug` / `xslt.discuss`).
+- Prompt context: the website's currently effective CSS (default
+  or override + `custom_css`), the resolved `theme_config`
+  variables, optionally an HTML fragment the Designer pastes to
+  ground the question.
+- Three native prompts seeded at boot:
+  - **`css_debug`** — paste a failing selector + the HTML it
+    should match; the AI explains why it isn't applying
+    (specificity, cascade order, missing CSS variable, typo).
+  - **`css_simplify`** — AI rewrites a complex rule with less
+    specificity / duplication.
+  - **`css_discuss`** — open chat scoped to the current
+    stylesheet, for explanations or "make this look more X"
+    prompts.
+- UI: AI sidebar inside the website CSS/JS edit panel, same
+  chrome as the existing XSLT AI panel.
+
+**Trigger.** After §H5 lands and there's a real population of
+Designers editing CSS through the panel; the assistant has more
+to chew on once the override-mode workflow is in production.
+
+**Effort.** ~1.5 days, reusing the existing AI-scope scaffolding
+(`backend/app/plugins/_native/ai/`) and the XSLT AI panel as a
+Vue template.
+
+---
+
 ## 🔵 To discuss
 
 These items need a design conversation before scoping —
 priority will be reassessed when the conversation happens.
 
-### 24. Glossary and index generation from named entities
+### T1. Glossary and index generation from named entities
 
 Open question: where does the index live? Standalone HTML
 page, document appendix, separate `/glossary` route? Curation
 balance vs. autonomy.
 
-### 25. TEI-to-DOCX export
+### T2. TEI-to-DOCX export
 
-Open question: same shape as §5 (PDF sidecar) — a pandoc
+Open question: same shape as §M3 (PDF sidecar) — a pandoc
 sidecar, or rely on the user's local pandoc?
 
-### 26. Fuzzy string matching via Apache Commons Text in XQuery
+### T3. Fuzzy string matching via Apache Commons Text in XQuery
 
 Open question: who needs it? Without a concrete editorial
 workflow this is over-engineering.
 
-### 27. DataCite DOI minting
+### T4. DataCite DOI minting
 
 Open question: how many deployments have DataCite without
 Zenodo? Today Zenodo (already shipped) covers most cases.
 
-### 28. IIIF integration (+ Mirador / OpenSeadragon)
+### T5. IIIF integration (+ Mirador / OpenSeadragon)
 
 Open question: serve IIIF Image API ourselves or proxy from a
-sidecar? Pairs with §9 (fine-grained zones) and §13 (HTR).
+sidecar? Pairs with §M7 (fine-grained zones) and §M11 (HTR).
 
-### 29. Matomo / Plausible analytics injector
+### T6. Matomo / Plausible analytics injector
 
 Open question: ship as opt-in sidecar like the deposit plugins,
-**or** roll our own inside §2 (public reader statistics)? Two
+**or** roll our own inside §H2 (public reader statistics)? Two
 overlapping ways to get the same answer.
+
+---
+
+### T7. Server-side auto-flatten of the collection-import ZIP
+
+**Motivation.** Sibling of §H3: instead of (only) documenting the
+"files at root, no folder" rule, accept **any** ZIP layout and
+flatten it server-side before handing the XML files to eXist.
+Removes the most common source of failed first imports.
+
+**Open questions.**
+- What if the ZIP contains **multiple top-level folders** (e.g.
+  `documents/`, `media/`, `assets/`)? Flatten only the XML tree
+  and route media elsewhere? Reject? Pick the largest folder?
+- **Name collisions** when two folders contain a file with the
+  same basename (`cap1/intro.xml` and `cap2/intro.xml`): reject,
+  prefix with the folder path, prefix with a counter, ask the
+  user?
+- **Non-XML files** unexpectedly present (PDFs, JPEGs, READMEs):
+  silently skip, warn but proceed, treat as media, reject?
+- **Pathological archives** — deeply nested directory trees,
+  thousands of entries, zip-slip-style paths (`../../etc/passwd`):
+  what's the safe enumeration limit, how do we validate paths
+  before extraction?
+- Does the change break the **inverse operation** (export
+  collection as ZIP) — should export now produce a flat ZIP too
+  for symmetry, or keep the folder structure that operators rely
+  on for offline review?
+
+**Trigger.** Decision on the UX stance (strict vs. permissive)
+and on each of the open questions above.
+
+**Effort.** ~1.5-2 days of code once the policy questions are
+settled; the policy work itself is the gating item.
 
 ---
 
