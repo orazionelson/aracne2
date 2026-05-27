@@ -163,9 +163,14 @@ class PluginLoader:
                         entry_point=entry_point,
                         capabilities=list(meta.capabilities),
                         ui_descriptor=meta.ui_descriptor,
+                        # New row: native ⇒ always active; non-native ⇒
+                        # honour ``meta.default_active`` so a plugin can
+                        # opt into being live from first boot (e.g. Help).
+                        # Existing rows are never touched here — Admin
+                        # decisions persist across reboots.
                         status=(
                             PluginStatus.active
-                            if meta.native
+                            if meta.native or meta.default_active
                             else PluginStatus.inactive
                         ),
                     )

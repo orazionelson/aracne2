@@ -44,6 +44,20 @@ class PluginMeta:
     min_role: str = field(default="Admin")
     """Minimum role required to interact with this plugin's UI."""
 
+    default_active: bool = field(default=False)
+    """Seed the registry with this plugin already active on its first boot.
+
+    Honoured only when the platform first encounters the plugin — i.e.
+    when no ``plugins`` row exists yet for ``id``. On subsequent boots
+    the existing row's status is preserved, so a deliberate Admin
+    deactivation is never overridden. Ignored entirely for native
+    plugins (they're always active by construction).
+
+    Used today by the ``help`` plugin so the in-app documentation
+    browser is available from the very first login, without an Admin
+    having to discover ``/admin/plugins`` first.
+    """
+
     capabilities: tuple[str, ...] = field(default_factory=tuple)
     """Tags describing what UI surfaces this plugin populates.
 
