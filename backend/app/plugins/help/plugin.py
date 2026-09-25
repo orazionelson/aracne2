@@ -43,5 +43,8 @@ class Plugin(PluginBase):
         ),
         author="Aracne2 Team",
         min_role="User",
+        # Surfaced from the first login: discovering the in-app help
+        # shouldn't require finding /admin/plugins first.
+        default_active=True,
     )
     router = router
